@@ -114,6 +114,8 @@ func (s *Server) dispatch(name string, args map[string]any) (string, error) {
 		return s.configTool(cfg, args)
 	case "go_rag_files":
 		return s.files(db)
+	case "go_rag_dirs":
+		return s.dirs(db)
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
 }
@@ -283,6 +285,39 @@ func (s *Server) files(db *storage.DB) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
+// dirs groups ingested documents by directory, returning file/chunk counts per dir.
+func (s *Server) dirs(db *storage.DB) (string, error) {
+	type counts struct{ files, chunks int }
+	m := map[string]*counts{}
+	_ = db.PrefixScanByte(storage.PrefixDocument, func(_, val []byte) bool {
+		var d model.Document
+		if json.Unmarshal(val, &d) == nil {
+			dir := filepath.Dir(d.FilePath)
+			e := m[dir]
+			if e == nil {
+				e = &counts{}
+				m[dir] = e
+			}
+			e.files++
+			e.chunks += d.ChunkCount
+		}
+		return true
+	})
+	if len(m) == 0 {
+		return "no files ingested", nil
+	}
+	dirs := make([]string, 0, len(m))
+	for d := range m {
+		dirs = append(dirs, d)
+	}
+	sort.Strings(dirs)
+	var b strings.Builder
+	for _, d := range dirs {
+		fmt.Fprintf(&b, "%s (%d files, %d chunks)\n", d, m[d].files, m[d].chunks)
+	}
+	return strings.TrimSpace(b.String()), nil
+}
+
 // --- JSON-RPC helpers ---
 
 func ok(id any, result any) any {
@@ -406,6 +441,11 @@ func toolDefs() []map[string]any {
 		{
 			"name":        "go_rag_files",
 			"description": "List the file paths of every ingested document.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "go_rag_dirs",
+			"description": "List ingested directories with file and chunk counts.",
 			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
 		},
 	}

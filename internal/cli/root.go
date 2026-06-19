@@ -44,6 +44,7 @@ func Execute(version string) error {
 		newStatusCmd(),
 		newConfigCmd(),
 		newFilesCmd(),
+		newDirsCmd(),
 		newMCPCmd(),
 	)
 	return rootCmd.Execute()

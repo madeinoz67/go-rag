@@ -109,6 +109,39 @@ func TestCLI_InitAddQuery(t *testing.T) {
 	}
 }
 
+func TestCLI_Dirs(t *testing.T) {
+	srv := fakeOllama(t)
+	defer srv.Close()
+	dir := t.TempDir()
+	saved := dbPath
+	dbPath = filepath.Join(dir, ".go-rag")
+	defer func() { dbPath = saved }()
+
+	initCmd := newInitCmd()
+	_ = initCmd.Flags().Set("ollama-url", srv.URL)
+	_ = initCmd.Flags().Set("model", "m")
+	_ = initCmd.RunE(initCmd, nil)
+
+	for _, sub := range []string{"Notes", "Projects"} {
+		if err := os.MkdirAll(filepath.Join(dir, sub), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, sub, "a.txt"), []byte("a document in "+sub), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	addCmd := newAddCmd()
+	_ = addCmd.RunE(addCmd, []string{dir})
+
+	out := captureStdout(t, func() {
+		dc := newDirsCmd()
+		_ = dc.RunE(dc, nil)
+	})
+	if !contains(out, "Notes") || !contains(out, "Projects") {
+		t.Errorf("dirs should list both subdirectories; got: %s", out)
+	}
+}
+
 func TestCLI_Files(t *testing.T) {
 	srv := fakeOllama(t)
 	defer srv.Close()
