@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s --max-time 2 -X POST http://localhost:31337/notify -H \"Content-Type: application/json\" -d '{\"message\":\"Entering the Learn phase.\",\"voice_id\":\"fTtv3eikoepIosk8dTZ5\",\"voice_enabled\":true}')",
+      "Bash(mkdir -p ~/.claude/PAI/MEMORY/LEARNING/REFLECTIONS)",
+      "Bash(printf '{\"timestamp\":\"2026-06-19T21:05:00+08:00\",\"effort_level\":\"E3\",\"effort_source\":\"classifier\",\"task_description\":\"Scaffold go-rag Go project with full setup\",\"criteria_count\":32,\"criteria_passed\":32,\"criteria_failed\":0,\"prd_id\":\"go-rag\",\"implied_sentiment\":8,\"satisfaction_prediction\":8,\"reflection_q1\":\"Deriving the tree from the PRD via FirstPrinciples made the scaffold read as go-rags own skeleton rather than boilerplate.\",\"reflection_q2\":\"The Go-toolchain-missing finding was the critical preflight catch; backgrounding the brew install while writing files kept momentum.\",\"reflection_q3\":\"Advisor infrastructure \\(Inference.ts\\) exits 1, same failure mode as the session-start classifier; proceeded on tool-verified evidence.\",\"knowledge_flags\":0,\"within_budget\":true,\"living_doc_refinements\":1,\"doctrine_fired\":{\"live_probe\":true,\"advisor\":false,\"cato\":false,\"conflict\":false,\"thinking_floor_met\":true,\"completeness_gate_met\":true}}\\\\n')"
+    ]
+  }
+}

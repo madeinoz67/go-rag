@@ -1,0 +1,37 @@
+# Compiled binaries / build output
+/bin/
+/go-rag
+/go-rag.exe
+*.exe
+*.test
+*.out
+*.prof
+
+# Go workspace
+/go.work
+/go.work.sum
+vendor/
+
+# Test coverage
+coverage.out
+coverage.html
+
+# go-rag runtime data (PRD US1) — never commit local databases
+/.go-rag/
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local code-graph indexes (regenerable; keep out of git)
+/.tokensave/
+/.codanna/
+
+# MkDocs site build output
+/site/
