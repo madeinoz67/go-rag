@@ -86,6 +86,9 @@ func (p *Pipeline) Ingest(ctx context.Context, root, glob string) (Result, error
 			return nil
 		}
 		if info.IsDir() {
+			if info.Name() == ".go-rag" {
+				return filepath.SkipDir // never ingest the database's own directory
+			}
 			return nil
 		}
 		if !matchGlob(filepath.Base(path), glob) {

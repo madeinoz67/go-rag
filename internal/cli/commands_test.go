@@ -109,6 +109,35 @@ func TestCLI_InitAddQuery(t *testing.T) {
 	}
 }
 
+func TestCLI_Files(t *testing.T) {
+	srv := fakeOllama(t)
+	defer srv.Close()
+	dir := t.TempDir()
+	saved := dbPath
+	dbPath = filepath.Join(dir, ".go-rag")
+	defer func() { dbPath = saved }()
+
+	initCmd := newInitCmd()
+	_ = initCmd.Flags().Set("ollama-url", srv.URL)
+	_ = initCmd.Flags().Set("model", "m")
+	_ = initCmd.RunE(initCmd, nil)
+
+	docPath := filepath.Join(dir, "listed.txt")
+	if err := os.WriteFile(docPath, []byte("a document that should appear in the files listing"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	addCmd := newAddCmd()
+	_ = addCmd.RunE(addCmd, []string{docPath})
+
+	out := captureStdout(t, func() {
+		fc := newFilesCmd()
+		_ = fc.RunE(fc, nil)
+	})
+	if !contains(out, "listed.txt") {
+		t.Errorf("files should list the ingested path; got: %s", out)
+	}
+}
+
 func TestCLI_AddWithoutInitFails(t *testing.T) {
 	saved := dbPath
 	dbPath = filepath.Join(t.TempDir(), "no-such-db")

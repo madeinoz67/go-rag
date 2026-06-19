@@ -43,6 +43,7 @@ func Execute(version string) error {
 		newQueryCmd(),
 		newStatusCmd(),
 		newConfigCmd(),
+		newFilesCmd(),
 		newMCPCmd(),
 	)
 	return rootCmd.Execute()

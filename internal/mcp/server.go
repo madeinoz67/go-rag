@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/chunk"
@@ -111,6 +112,8 @@ func (s *Server) dispatch(name string, args map[string]any) (string, error) {
 		return s.scan(cfg, db)
 	case "go_rag_config":
 		return s.configTool(cfg, args)
+	case "go_rag_files":
+		return s.files(db)
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
 }
@@ -263,6 +266,23 @@ func (s *Server) configTool(cfg config.Config, args map[string]any) (string, err
 	}
 }
 
+// files lists the paths of every ingested document.
+func (s *Server) files(db *storage.DB) (string, error) {
+	var lines []string
+	_ = db.PrefixScanByte(storage.PrefixDocument, func(_, val []byte) bool {
+		var d model.Document
+		if json.Unmarshal(val, &d) == nil {
+			lines = append(lines, fmt.Sprintf("%s (%s, %s, %d chunks)", d.FilePath, d.FileType, d.Status, d.ChunkCount))
+		}
+		return true
+	})
+	sort.Strings(lines)
+	if len(lines) == 0 {
+		return "no files ingested", nil
+	}
+	return strings.Join(lines, "\n"), nil
+}
+
 // --- JSON-RPC helpers ---
 
 func ok(id any, result any) any {
@@ -382,6 +402,11 @@ func toolDefs() []map[string]any {
 				},
 				"required": []string{"action"},
 			},
+		},
+		{
+			"name":        "go_rag_files",
+			"description": "List the file paths of every ingested document.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
 		},
 	}
 }

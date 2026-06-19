@@ -42,7 +42,13 @@ func (cd *ChangeDetector) ScanOnce(ctx context.Context, root, glob string) ([]Ch
 	reader.DefaultReaders()
 	disk := map[string]string{}
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			if info.Name() == ".go-rag" {
+				return filepath.SkipDir // never scan the database's own directory
+			}
 			return nil
 		}
 		if !matchGlob(filepath.Base(path), glob) {
