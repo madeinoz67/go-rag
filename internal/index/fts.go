@@ -1,12 +1,14 @@
 // Package index holds the two retrieval indexes (PRD §6.6): a field-weighted BM25
 // full-text index and an HNSW vector index (chromem-go). This file implements the
-// in-memory BM25 FTS.
+// in-memory BM25 FTS. Both FTS and Vector are goroutine-safe because the ingest
+// pipeline's background workers mutate them concurrently.
 package index
 
 import (
 	"math"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 )
 
@@ -17,13 +19,13 @@ const (
 	weightBody    = 1.0
 )
 
-// FTS is an in-memory field-weighted BM25 full-text index.
+// FTS is an in-memory field-weighted BM25 full-text index. Safe for concurrent use.
 type FTS struct {
-	// term -> chunkID -> weighted term frequency
-	postings map[string]map[string]float64
-	docLen   map[string]int // chunkID -> total weighted term count
+	mu       sync.Mutex
+	postings map[string]map[string]float64 // term -> chunkID -> weighted tf
+	docLen   map[string]int                // chunkID -> total weighted term count
 	totalLen int
-	N        int
+	N        int // number of chunks
 }
 
 // NewFTS returns an empty BM25 index.
@@ -49,10 +51,12 @@ func fieldWeight(field string) float64 {
 // Index adds a chunk's fields to the index. fields maps field names (title/heading/
 // body) to their text. Re-indexing an existing chunkID replaces its prior content.
 func (f *FTS) Index(chunkID string, fields map[string]string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if _, exists := f.docLen[chunkID]; !exists {
 		f.N++
 	} else {
-		// Re-index: remove old postings for this chunk before re-adding.
 		f.removeChunk(chunkID)
 		f.N++
 	}
@@ -71,7 +75,7 @@ func (f *FTS) Index(chunkID string, fields map[string]string) {
 	f.totalLen += weighted
 }
 
-// removeChunk drops a chunk's postings (used on re-index / delete).
+// removeChunk drops a chunk's postings (used on re-index / delete). Caller holds mu.
 func (f *FTS) removeChunk(chunkID string) {
 	old := f.docLen[chunkID]
 	for term, posts := range f.postings {
@@ -89,6 +93,8 @@ func (f *FTS) removeChunk(chunkID string) {
 
 // Delete removes a chunk from the index.
 func (f *FTS) Delete(chunkID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if _, ok := f.docLen[chunkID]; !ok {
 		return
 	}
@@ -103,6 +109,9 @@ type Hit struct {
 
 // Search ranks chunks by BM25 relevance to the query, returning the top k.
 func (f *FTS) Search(query string, k int) []Hit {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	terms := Tokenize(query)
 	if len(terms) == 0 {
 		return nil
@@ -117,8 +126,6 @@ func (f *FTS) Search(query string, k int) []Hit {
 	for _, term := range terms {
 		posts := f.postings[term]
 		if len(posts) == 0 {
-			// Short-term fallback: match indexed terms that start with the query
-			// term (a lighter stand-in for trigram fallback).
 			if len(term) < 4 {
 				for indexed, iposts := range f.postings {
 					if strings.HasPrefix(indexed, term) {
@@ -165,8 +172,7 @@ func mergePostings(a, b map[string]float64) map[string]float64 {
 	return a
 }
 
-// Tokenize lowercases, splits on non-alphanumerics, and drops stopwords. Short
-// terms are retained (the Search short-term fallback handles fuzzy matching).
+// Tokenize lowercases, splits on non-alphanumerics, and drops stopwords.
 func Tokenize(s string) []string {
 	s = strings.ToLower(s)
 	out := make([]string, 0, 16)

@@ -5,13 +5,15 @@ import (
 	"math"
 	"os"
 	"sort"
+	"sync"
 )
 
 // Vector is a pure-Go in-memory vector store with cosine-similarity nearest-
-// neighbour search and optional JSON persistence. The interface mirrors a chromem-go
-// (HNSW) backend that can be swapped in later (Principle V; research Q4 deferred
-// chromem-go disk persistence to keep the MVP CGo-free and testable).
+// neighbour search and optional JSON persistence. Goroutine-safe (mutated by the
+// pipeline's concurrent background workers). The interface mirrors a chromem-go
+// (HNSW) backend that can be swapped in later (Principle V; research Q4).
 type Vector struct {
+	mu     sync.Mutex
 	chunks map[string][]float32
 	dims   int
 }
@@ -23,6 +25,8 @@ func NewVector() *Vector {
 
 // Add stores (or replaces) the vector for a chunk.
 func (v *Vector) Add(id string, vec []float32) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
 	if v.dims == 0 && len(vec) > 0 {
 		v.dims = len(vec)
 	}
@@ -31,11 +35,16 @@ func (v *Vector) Add(id string, vec []float32) {
 
 // Delete removes a chunk's vector.
 func (v *Vector) Delete(id string) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
 	delete(v.chunks, id)
 }
 
 // Query returns the top-k chunks by cosine similarity to vec (Score = similarity).
 func (v *Vector) Query(vec []float32, k int) []Hit {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
 	type scored struct {
 		id string
 		s  float64
@@ -62,6 +71,8 @@ func (v *Vector) Query(vec []float32, k int) []Hit {
 
 // Save persists the vectors to a JSON file.
 func (v *Vector) Save(path string) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
 	data, err := json.Marshal(v.chunks)
 	if err != nil {
 		return err
@@ -75,6 +86,8 @@ func (v *Vector) Load(path string) error {
 	if err != nil {
 		return err
 	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
 	v.chunks = map[string][]float32{}
 	if err := json.Unmarshal(data, &v.chunks); err != nil {
 		return err

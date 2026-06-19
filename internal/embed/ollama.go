@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -21,12 +22,15 @@ type Embedder interface {
 	Model() string
 }
 
-// Ollama is the v1 Embedder: it calls a local Ollama /api/embed endpoint.
+// Ollama is the v1 Embedder: it calls a local Ollama /api/embed endpoint. Safe for
+// concurrent use (the pipeline's background workers call Embed in parallel).
 type Ollama struct {
 	baseURL string
 	model   string
 	client  *http.Client
-	dims    int
+
+	mu   sync.Mutex
+	dims int
 }
 
 // NewOllama returns an Ollama embedder pointing at baseURL using model.
@@ -93,16 +97,27 @@ func (o *Ollama) Embed(ctx context.Context, texts []string) ([][]float32, error)
 		if len(er.Embeddings) != len(texts) {
 			return nil, fmt.Errorf("ollama returned %d embeddings for %d inputs", len(er.Embeddings), len(texts))
 		}
-		if o.dims == 0 && len(er.Embeddings) > 0 {
-			o.dims = len(er.Embeddings[0])
-		}
+		o.setDims(len(er.Embeddings[0]))
 		return er.Embeddings, nil
 	}
 	return nil, fmt.Errorf("ollama embed failed after retries: %w", lastErr)
 }
 
-func (o *Ollama) Dimensions() int { return o.dims }
-func (o *Ollama) Model() string   { return o.model }
+func (o *Ollama) setDims(d int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.dims == 0 {
+		o.dims = d
+	}
+}
+
+func (o *Ollama) Dimensions() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.dims
+}
+
+func (o *Ollama) Model() string { return o.model }
 
 func backoff(attempt int) time.Duration {
 	return time.Duration(50*(attempt)) * time.Millisecond
