@@ -157,3 +157,80 @@ func jsonLine(m map[string]any) string {
 
 // embed import used by fakeEmbed compile-time satisfaction check.
 var _ embed.Embedder = (*fakeEmbed)(nil)
+
+// mcpCall invokes a single tools/call and returns the parsed response.
+func mcpCall(t *testing.T, dbPath, tool string, args map[string]any) map[string]any {
+	t.Helper()
+	req := jsonLine(map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": tool, "arguments": args},
+	})
+	in := strings.NewReader(req)
+	out := new(bytes.Buffer)
+	if err := New(dbPath).Serve(in, out); err != nil {
+		t.Fatal(err)
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &resp); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, out.String())
+	}
+	return resp
+}
+
+func resultText(t *testing.T, resp map[string]any) string {
+	t.Helper()
+	if e, ok := resp["error"]; ok {
+		t.Fatalf("tool error: %v", e)
+	}
+	res := resp["result"].(map[string]any)
+	content := res["content"].([]any)[0].(map[string]any)
+	return content["text"].(string)
+}
+
+func TestMCP_ToolsListHas6(t *testing.T) {
+	in := strings.NewReader(jsonLine(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}))
+	out := new(bytes.Buffer)
+	if err := New(t.TempDir()).Serve(in, out); err != nil {
+		t.Fatal(err)
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(bytes.TrimSpace(out.Bytes()), &resp)
+	tools := resp["result"].(map[string]any)["tools"].([]any)
+	if len(tools) != 6 {
+		t.Fatalf("expected 6 tools, got %d", len(tools))
+	}
+	names := map[string]bool{}
+	for _, tc := range tools {
+		names[tc.(map[string]any)["name"].(string)] = true
+	}
+	for _, want := range []string{"go_rag_query", "go_rag_status", "go_rag_add", "go_rag_init", "go_rag_scan", "go_rag_config"} {
+		if !names[want] {
+			t.Errorf("missing tool %s", want)
+		}
+	}
+}
+
+func TestMCP_Init(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), ".go-rag")
+	resp := mcpCall(t, dbPath, "go_rag_init", map[string]any{"model": "m", "ollama_url": "http://x:11434"})
+	if resp["error"] != nil {
+		t.Fatalf("go_rag_init error: %v", resp["error"])
+	}
+	if _, err := os.Stat(filepath.Join(dbPath, "config.json")); err != nil {
+		t.Fatalf("init must create config.json: %v", err)
+	}
+}
+
+func TestMCP_ConfigSetGet(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), ".go-rag")
+	mcpCall(t, dbPath, "go_rag_init", map[string]any{"model": "m"})
+
+	setOut := resultText(t, mcpCall(t, dbPath, "go_rag_config", map[string]any{"action": "set", "key": "chunk_size", "value": "256"}))
+	if !strings.Contains(setOut, "saved") {
+		t.Errorf("set response should confirm save: %q", setOut)
+	}
+	getOut := resultText(t, mcpCall(t, dbPath, "go_rag_config", map[string]any{"action": "get", "key": "chunk_size"}))
+	if getOut != "chunk_size=256" {
+		t.Errorf("get after set should return persisted value: %q", getOut)
+	}
+}

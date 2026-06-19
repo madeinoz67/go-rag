@@ -1,5 +1,6 @@
 // Package mcp exposes go-rag operations as Model Context Protocol tools over stdio
-// JSON-RPC (PRD G7, Principle V — every CLI op is also an agent tool).
+// JSON-RPC (PRD G7, Principle V — every CLI op is also an agent tool). All six
+// operations are exposed: query, status, add, init, scan, config.
 package mcp
 
 import (
@@ -7,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/watcher"
 )
 
 const protocolVersion = "2024-11-05"
@@ -36,8 +39,7 @@ type rpcReq struct {
 	Params  map[string]any `json:"params"`
 }
 
-// Serve reads newline/JSON-RPC messages from in and writes responses to out until
-// in closes.
+// Serve reads JSON-RPC messages from in and writes responses to out until in closes.
 func (s *Server) Serve(in io.Reader, out io.Writer) error {
 	dec := json.NewDecoder(in)
 	enc := json.NewEncoder(out)
@@ -66,7 +68,7 @@ func (s *Server) handle(req rpcReq) any {
 			"serverInfo":      map[string]any{"name": "go-rag", "version": "0.1.0"},
 		})
 	case "notifications/initialized":
-		return nil // ack-only, no response
+		return nil
 	case "tools/list":
 		return ok(req.ID, map[string]any{"tools": toolDefs()})
 	case "tools/call":
@@ -87,7 +89,12 @@ func (s *Server) callTool(req rpcReq) any {
 	})
 }
 
+// dispatch routes a tool call. go_rag_init is handled before opening the DB (it
+// creates the DB); the rest require an existing database.
 func (s *Server) dispatch(name string, args map[string]any) (string, error) {
+	if name == "go_rag_init" {
+		return s.initTool(args)
+	}
 	cfg, db, err := openDB(s.dbPath)
 	if err != nil {
 		return "", err
@@ -100,6 +107,10 @@ func (s *Server) dispatch(name string, args map[string]any) (string, error) {
 		return s.status(db)
 	case "go_rag_add":
 		return s.add(cfg, db, args)
+	case "go_rag_scan":
+		return s.scan(cfg, db)
+	case "go_rag_config":
+		return s.configTool(cfg, args)
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
 }
@@ -139,10 +150,10 @@ func (s *Server) query(cfg config.Config, db *storage.DB, args map[string]any) (
 }
 
 func (s *Server) status(db *storage.DB) (string, error) {
-	docs := countPrefix(db, storage.PrefixDocument)
-	chunks := countPrefix(db, storage.PrefixChunk)
-	emb := countPrefix(db, storage.PrefixEmbedding)
-	return fmt.Sprintf("documents: %d, chunks: %d, embeddings: %d", docs, chunks, emb), nil
+	return fmt.Sprintf("documents: %d, chunks: %d, embeddings: %d",
+		countPrefix(db, storage.PrefixDocument),
+		countPrefix(db, storage.PrefixChunk),
+		countPrefix(db, storage.PrefixEmbedding)), nil
 }
 
 func (s *Server) add(cfg config.Config, db *storage.DB, args map[string]any) (string, error) {
@@ -155,6 +166,101 @@ func (s *Server) add(cfg config.Config, db *storage.DB, args map[string]any) (st
 		return "", err
 	}
 	return fmt.Sprintf("new=%d skipped=%d errors=%d", res.New, res.Skipped, res.Errors), nil
+}
+
+func (s *Server) initTool(args map[string]any) (string, error) {
+	cfg := config.Default()
+	cfg.DBPath = s.dbPath
+	if v, ok := args["ollama_url"].(string); ok && v != "" {
+		cfg.OllamaURL = v
+	}
+	if v, ok := args["model"].(string); ok && v != "" {
+		cfg.OllamaModel = v
+	}
+	if v, ok := args["watch_dir"].(string); ok && v != "" {
+		cfg.WatchDirs = []string{v}
+	}
+	if v, ok := args["chunk_size"].(float64); ok && v > 0 {
+		cfg.ChunkSize = int(v)
+	}
+	if v, ok := args["chunk_overlap"].(float64); ok && v >= 0 {
+		cfg.ChunkOverlap = int(v)
+	}
+	if cfg.OllamaModel == "" {
+		cfg.OllamaModel = "nomic-embed-text"
+	}
+	if err := cfg.Validate(); err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Join(cfg.DBPath, "data"), 0o755); err != nil {
+		return "", err
+	}
+	if err := config.Save(filepath.Join(cfg.DBPath, "config.json"), cfg); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("initialized go-rag at %s (model %s, url %s)", cfg.DBPath, cfg.OllamaModel, cfg.OllamaURL), nil
+}
+
+func (s *Server) scan(cfg config.Config, db *storage.DB) (string, error) {
+	root := "."
+	if len(cfg.WatchDirs) > 0 && cfg.WatchDirs[0] != "" {
+		root = cfg.WatchDirs[0]
+	}
+	em := embed.NewOllama(cfg.OllamaURL, cfg.OllamaModel)
+	pl := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
+	defer pl.Close()
+	cd := watcher.New(db, pl)
+	changes, err := cd.ScanOnce(context.Background(), root, "*")
+	if err != nil {
+		return "", err
+	}
+	added, modified, deleted := 0, 0, 0
+	for _, c := range changes {
+		switch c.Kind {
+		case "NEW":
+			added++
+		case "MODIFIED":
+			modified++
+		case "DELETED":
+			deleted++
+		}
+	}
+	return fmt.Sprintf("added=%d modified=%d deleted=%d", added, modified, deleted), nil
+}
+
+func (s *Server) configTool(cfg config.Config, args map[string]any) (string, error) {
+	action, _ := args["action"].(string)
+	path := filepath.Join(s.dbPath, "config.json")
+	switch action {
+	case "set":
+		key, _ := args["key"].(string)
+		val, _ := args["value"].(string)
+		if err := cfg.Set(key, val); err != nil {
+			return "", err
+		}
+		if err := cfg.Validate(); err != nil {
+			return "", err
+		}
+		if err := config.Save(path, cfg); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("%s=%s (saved)", key, val), nil
+	default: // "get"
+		if key, ok := args["key"].(string); ok && key != "" {
+			v, ok := cfg.Get(key)
+			if !ok {
+				return "", fmt.Errorf("unknown key: %s", key)
+			}
+			return fmt.Sprintf("%s=%s", key, v), nil
+		}
+		var b strings.Builder
+		for _, k := range []string{"ollama_url", "ollama_model", "chunk_size", "chunk_overlap", "db_path", "poll_interval_secs"} {
+			if v, ok := cfg.Get(k); ok {
+				fmt.Fprintf(&b, "%s=%s\n", k, v)
+			}
+		}
+		return strings.TrimSpace(b.String()), nil
+	}
 }
 
 // --- JSON-RPC helpers ---
@@ -172,7 +278,7 @@ func errResp(id any, code int, msg string) any {
 func openDB(base string) (config.Config, *storage.DB, error) {
 	cfg, err := config.Load(filepath.Join(base, "config.json"))
 	if err != nil {
-		return config.Config{}, nil, fmt.Errorf("no database — run `go-rag init` first: %w", err)
+		return config.Config{}, nil, fmt.Errorf("no database — run `go-rag init` or go_rag_init first: %w", err)
 	}
 	db, err := storage.Open(filepath.Join(base, "data"))
 	return cfg, db, err
@@ -243,6 +349,38 @@ func toolDefs() []map[string]any {
 				"type": "object",
 				"properties": map[string]any{"path": map[string]any{"type": "string"}},
 				"required": []string{"path"},
+			},
+		},
+		{
+			"name":        "go_rag_init",
+			"description": "Initialize a new go-rag database (creates config + data directory).",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"ollama_url":    map[string]any{"type": "string"},
+					"model":         map[string]any{"type": "string"},
+					"watch_dir":     map[string]any{"type": "string"},
+					"chunk_size":    map[string]any{"type": "integer"},
+					"chunk_overlap": map[string]any{"type": "integer"},
+				},
+			},
+		},
+		{
+			"name":        "go_rag_scan",
+			"description": "Scan watched directories once for added/modified/deleted files and apply changes.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "go_rag_config",
+			"description": "Get or set go-rag configuration values (action: get|set).",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"action": map[string]any{"type": "string", "enum": []string{"get", "set"}},
+					"key":    map[string]any{"type": "string"},
+					"value":  map[string]any{"type": "string"},
+				},
+				"required": []string{"action"},
 			},
 		},
 	}
