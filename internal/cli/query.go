@@ -47,8 +47,9 @@ func newQueryCmd() *cobra.Command {
 			em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
 			r := index.NewRetrieval(fts, vec, em.Embed)
 
-			var reranker index.Reranker
-		if cfg.RerankModel != "" {
+			noRerank, _ := cmd.Flags().GetBool("no-rerank")
+		var reranker index.Reranker
+		if cfg.RerankModel != "" && !noRerank {
 			reranker = rerank.New(cfg.OllamaURL, cfg.RerankModel)
 		}
 		hits, err := r.SearchWithRerank(context.Background(), q, k, mode, buildDocOf(db), reranker, func(id string) string {
@@ -83,6 +84,7 @@ func newQueryCmd() *cobra.Command {
 	cmd.Flags().StringP("format", "f", "text", "output format: text|json")
 	cmd.Flags().String("source", "", "filter by source file glob")
 	cmd.Flags().Float64("threshold", 0.0, "minimum relevance score")
+	cmd.Flags().Bool("no-rerank", false, "disable cross-encoder reranking for this query")
 	return cmd
 }
 
