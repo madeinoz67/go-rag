@@ -133,6 +133,8 @@ func (s *Server) dispatchDB(cfg config.Config, db *storage.DB, name string, args
 		return s.files(db)
 	case "go_rag_dirs":
 		return s.dirs(db)
+	case "go_rag_reprocess":
+		return s.reprocess(cfg, db, args)
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
 }
@@ -335,6 +337,19 @@ func (s *Server) dirs(db *storage.DB) (string, error) {
 	return strings.TrimSpace(b.String()), nil
 }
 
+// reprocess force-reingests a path via the pipeline (T047).
+func (s *Server) reprocess(cfg config.Config, db *storage.DB, args map[string]any) (string, error) {
+	path, _ := args["path"].(string)
+	em := embed.NewOllama(cfg.OllamaURL, cfg.OllamaModel)
+	p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
+	defer p.Close()
+	res, err := p.Reprocess(context.Background(), path, "*")
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("reprocessed=%d errors=%d", res.New, res.Errors), nil
+}
+
 // --- JSON-RPC helpers ---
 
 func ok(id any, result any) any {
@@ -464,6 +479,15 @@ func toolDefs() []map[string]any {
 			"name":        "go_rag_dirs",
 			"description": "List ingested directories with file and chunk counts.",
 			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "go_rag_reprocess",
+			"description": "Force re-ingest of a directory (applies the current reader/embedder; bypasses dedup).",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{"path": map[string]any{"type": "string"}},
+				"required": []string{"path"},
+			},
 		},
 	}
 }

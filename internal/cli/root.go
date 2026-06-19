@@ -48,6 +48,7 @@ func Execute(version string) error {
 		newStartCmd(),
 		newStopCmd(),
 		newServeCmd(),
+		newReprocessCmd(),
 		newMCPCmd(),
 	)
 	return rootCmd.Execute()
