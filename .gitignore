@@ -35,3 +35,6 @@ Thumbs.db
 
 # MkDocs site build output
 /site/
+
+# Claude Code local settings (per-developer; never commit)
+.claude/settings.local.json

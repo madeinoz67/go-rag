@@ -69,3 +69,8 @@ understanding structure. Re-run `tokensave init` after large structural changes.
 
 Cloud/hosted service, multi-user auth, LLM inference, audio/video, web UI, plugin
 system, embedding providers beyond Ollama. Don't build these without revisiting the PRD.
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
