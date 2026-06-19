@@ -25,6 +25,10 @@ content — zero external dependencies beyond a local Ollama instance for embedd
 
 Full specification: PRD_RAG_Database.md`,
 	SilenceUsage: true,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		printDashboard()
+		return nil
+	},
 }
 
 // Execute runs the root command. version is injected from main via ldflags.
