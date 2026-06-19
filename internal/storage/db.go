@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"fmt"
+	"os"
 
 	"github.com/cockroachdb/pebble"
 )
@@ -15,10 +16,18 @@ type DB struct {
 	path string
 }
 
+// quietLogger suppresses Pebble's chatty Info-level logs (WAL replay notices,
+// compaction events) that would otherwise interrupt CLI output. Fatalf still
+// prints so real crashes are visible.
+type quietLogger struct{}
+
+func (quietLogger) Infof(format string, args ...interface{})  {} // suppress
+func (quietLogger) Fatalf(format string, args ...interface{})  { fmt.Fprintf(os.Stderr, "pebble: "+format+"\n", args...) }
+
 // Open creates or opens the Pebble database at path. A second Open on the same
 // path (even from the same process) fails with a lock error — single-writer.
 func Open(path string) (*DB, error) {
-	db, err := pebble.Open(path, &pebble.Options{})
+	db, err := pebble.Open(path, &pebble.Options{Logger: quietLogger{}})
 	if err != nil {
 		return nil, fmt.Errorf("open pebble %q: %w", path, err)
 	}
