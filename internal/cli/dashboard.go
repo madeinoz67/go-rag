@@ -6,35 +6,50 @@ import (
 	"github.com/madeinoz67/go-rag/internal/daemon"
 )
 
+const (
+	green  = "\033[32m"
+	yellow = "\033[33m"
+	red    = "\033[31m"
+	reset  = "\033[0m"
+)
+
+// dashRow prints one aligned dashboard row: label, value, colored status dot.
+func dashRow(label, value, color string) {
+	fmt.Printf("    %-10s %-14s  %s●%s\n", label, value, color, reset)
+}
+
 // printDashboard renders a muninn-style status panel when go-rag is invoked with
-// no subcommand. It probes the daemon, shows service health with colored dots,
-// and summarises the database — a visual at-a-glance, not the full status dump.
+// no subcommand.
 func printDashboard() {
 	running, pid, addr := daemon.Status(dbPath)
 
 	// Header
 	fmt.Println()
 	if running {
-		fmt.Printf("  go-rag  \033[32m●\033[0m  running\n\n")
-		fmt.Printf("    %-10s pid %-6d  \033[32m●\033[0m\n", "daemon", pid)
-		fmt.Printf("    %-10s %-10s  \033[32m●\033[0m\n", "mcp", addr)
+		fmt.Printf("  go-rag  %s●%s  running\n\n", green, reset)
 	} else {
-		fmt.Printf("  go-rag  \033[31m○\033[0m  stopped\n\n")
+		fmt.Printf("  go-rag  %s○%s  stopped\n\n", red, reset)
 	}
 
-	// Database stats — via the daemon (HTTP) if running, else direct.
+	// Services (only when daemon is up)
+	if running {
+		dashRow("daemon", fmt.Sprintf("pid %d", pid), green)
+		dashRow("mcp", addr, green)
+	}
+
+	// Database stats
 	if running {
 		counts, _ := daemon.CallTool(addr, daemon.ReadToken(dbPath), "go_rag_status", nil)
 		var docs, chunks, embs int
 		fmt.Sscanf(counts, "documents: %d, chunks: %d, embeddings: %d", &docs, &chunks, &embs)
 		if docs > 0 {
 			pct := embs * 100 / docs
-			fmt.Printf("    %-10s %d docs     \033[32m●\033[0m\n", "database", docs)
-			dot := greenDot
+			dashRow("database", fmt.Sprintf("%d docs", docs), green)
+			embColor := green
 			if pct < 100 {
-				dot = "\033[33m●\033[0m" // yellow for partial
+				embColor = yellow
 			}
-			fmt.Printf("    %-10s %d%%         %s\n", "embedded", pct, dot)
+			dashRow("embedded", fmt.Sprintf("%d%%", pct), embColor)
 		}
 	} else {
 		cfg, db, err := openDB(dbPath)
@@ -48,17 +63,17 @@ func printDashboard() {
 		info := gatherStats(db, cfg)
 		info.Health = pingHealth(cfg.OllamaURL)
 
-		fmt.Printf("    %-10s %d docs     \033[32m●\033[0m\n", "database", info.Documents)
-		dot := greenDot
+		dashRow("database", fmt.Sprintf("%d docs", info.Documents), green)
+		embColor := green
 		if info.EmbeddedPct < 100 {
-			dot = "\033[33m●\033[0m"
+			embColor = yellow
 		}
-		fmt.Printf("    %-10s %d%%         %s\n", "embedded", info.EmbeddedPct, dot)
-		hDot := greenDot
-		if info.Health == "degraded" {
-			hDot = "\033[31m●\033[0m" // red
+		dashRow("embedded", fmt.Sprintf("%d%%", info.EmbeddedPct), embColor)
+		ollamaColor := green
+		if info.Health != "OK" {
+			ollamaColor = red
 		}
-		fmt.Printf("    %-10s %-10s  %s\n", "ollama", info.Health, hDot)
+		dashRow("ollama", info.Health, ollamaColor)
 
 		fmt.Printf("\n  Vault:   %s\n", dbPath)
 		fmt.Printf("  Model:   %s", cfg.OllamaModel)
@@ -73,8 +88,6 @@ func printDashboard() {
 	fmt.Printf("  Type 'go-rag help' for commands.\n")
 	fmt.Println()
 }
-
-const greenDot = "\033[32m●\033[0m"
 
 func humanBytes(b int64) string {
 	const unit = 1024
