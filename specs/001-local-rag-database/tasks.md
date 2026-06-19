@@ -69,10 +69,10 @@ US4 watch) so each story is independently implementable and testable.
 
 ### Tests for User Story 1 (write FIRST, watch fail)
 
-- [ ] T010 [P] [US1] Write reader tests in `internal/reader/readers_test.go`: each reader extracts expected text from its `testdata/` fixture; unsupported extensions return "no reader"; Markdown frontmatter lands in metadata; PDF test asserts page markers + page_count metadata
-- [ ] T011 [P] [US1] Write chunk tests in `internal/chunk/chunk_test.go`: chunk count scales with input length; adjacent chunks overlap by the configured tokens; no chunk below the minimum; page numbers pass through for PDFs
-- [ ] T012 [P] [US1] Write embed tests in `internal/embed/ollama_test.go`: against a fake HTTP server returning a fixed vector, `Embed` returns one vector per input of the right dimension; retries on transient 5xx then succeeds; `Dimensions`/`Model` report correctly
-- [ ] T013 [P] [US1] Write FTS tests in `internal/index/fts_test.go`: indexing then searching a known term returns the right chunk ranked first; field weighting boosts title matches above body; case-folding and stopword removal behave; trigram fallback matches short terms
+- [x] T010 [P] [US1] Write reader tests in `internal/reader/readers_test.go`: each reader extracts expected text from its `testdata/` fixture; unsupported extensions return "no reader"; Markdown frontmatter lands in metadata; PDF test asserts page markers + page_count metadata
+- [x] T011 [P] [US1] Write chunk tests in `internal/chunk/chunk_test.go`: chunk count scales with input length; adjacent chunks overlap by the configured tokens; no chunk below the minimum; page numbers pass through for PDFs
+- [x] T012 [P] [US1] Write embed tests in `internal/embed/ollama_test.go`: against a fake HTTP server returning a fixed vector, `Embed` returns one vector per input of the right dimension; retries on transient 5xx then succeeds; `Dimensions`/`Model` report correctly
+- [x] T013 [P] [US1] Write FTS tests in `internal/index/fts_test.go`: indexing then searching a known term returns the right chunk ranked first; field weighting boosts title matches above body; case-folding and stopword removal behave; trigram fallback matches short terms
 - [ ] T014 [P] [US1] Write vector tests in `internal/index/vector_test.go`: `Add` then `Query` for a near-identical vector returns the added chunk first; persistence survives a close/reopen
 - [ ] T015 [P] [US1] Write pipeline tests in `internal/pipeline/pipeline_test.go`: ingesting the same file twice yields exactly one Document (idempotent via `0x0D`); a content change produces a new `ContentHash` and re-ingest; write ACK returns before embedding completes
 - [ ] T016 [P] [US1] Write retrieval tests in `internal/index/retrieval_test.go`: hybrid mode fuses vector + FTS via RRF and ranks a result present in both lists above one in only one; same-document hits collapse to top-1; `--mode` selects the right backend
@@ -80,15 +80,15 @@ US4 watch) so each story is independently implementable and testable.
 
 ### Implementation for User Story 1 (make the tests pass)
 
-- [ ] T018 [US1] Add `DefaultReaders()` to `internal/reader/reader.go` that registers the built-in readers (Register/Get already present)
-- [ ] T019 [P] [US1] Implement `TextReader` in `internal/reader/text.go` (`.txt`/`.log`/`.csv`)
-- [ ] T020 [P] [US1] Implement `MarkdownReader` in `internal/reader/markdown.go` (frontmatter + headings → metadata)
+- [x] T018 [US1] Add `DefaultReaders()` to `internal/reader/reader.go` that registers the built-in readers (Register/Get already present)
+- [x] T019 [P] [US1] Implement `TextReader` in `internal/reader/text.go` (`.txt`/`.log`/`.csv`)
+- [x] T020 [P] [US1] Implement `MarkdownReader` in `internal/reader/markdown.go` (frontmatter + headings → metadata)
 - [ ] T021 [P] [US1] Implement `PDFReader` in `internal/reader/pdf.go` using pdfcpu (per-page text, `--- PAGE N ---` markers, title/author/page_count metadata)
-- [ ] T022 [P] [US1] Implement `DocxReader` in `internal/reader/docx.go` (ZIP + XML body extract, doc-props metadata)
-- [ ] T023 [P] [US1] Implement image metadata readers in `internal/reader/image.go` (`.jpg`/`.png` — dimensions/EXIF only, no OCR; research Q1)
-- [ ] T024 [US1] Implement the chunk splitter in `internal/chunk/chunk.go`: paragraph→sentence→word cascade, ~512 tokens (≈1.3 tokens/word heuristic, research Q2), 50-token overlap, 50-token minimum, page-number passthrough
-- [ ] T025 [P] [US1] Implement the Ollama embedder in `internal/embed/ollama.go`: `Embed(ctx, texts)` via `POST /api/embed`, `Dimensions()`, `Model()`, retry/backoff
-- [ ] T026 [US1] Implement BM25 FTS in `internal/index/fts.go`: tokenize (case-fold, stopword removal, trigram fallback), field-weighted inverted index under prefixes `0x05`–`0x08` (title 3×, heading 2×, body 1×), `Index(chunk)` + `Search(query, k)`
+- [x] T022 [P] [US1] Implement `DocxReader` in `internal/reader/docx.go` (ZIP + XML body extract, doc-props metadata)
+- [x] T023 [P] [US1] Implement image metadata readers in `internal/reader/image.go` (`.jpg`/`.png` — dimensions/EXIF only, no OCR; research Q1)
+- [x] T024 [US1] Implement the chunk splitter in `internal/chunk/chunk.go`: paragraph→sentence→word cascade, ~512 tokens (≈1.3 tokens/word heuristic, research Q2), 50-token overlap, 50-token minimum, page-number passthrough
+- [x] T025 [P] [US1] Implement the Ollama embedder in `internal/embed/ollama.go`: `Embed(ctx, texts)` via `POST /api/embed`, `Dimensions()`, `Model()`, retry/backoff
+- [x] T026 [US1] Implement BM25 FTS in `internal/index/fts.go`: tokenize (case-fold, stopword removal, trigram fallback), field-weighted inverted index under prefixes `0x05`–`0x08` (title 3×, heading 2×, body 1×), `Index(chunk)` + `Search(query, k)`
 - [ ] T027 [P] [US1] Implement the vector store in `internal/index/vector.go`: chromem-go `Add(chunks, embeddings)` + `Query(vec, k)` with disk persistence (research Q4)
 - [ ] T028 [US1] Implement the ingest pipeline in `internal/pipeline/pipeline.go`: walk path → read → hash → dedup via `0x0D` → chunk → store Source/Document/Chunk (`Sync`, <10ms) → ACK → enqueue chunks for async workers
 - [ ] T029 [US1] Implement async indexing workers in `internal/pipeline/workers.go`: background embed (Ollama) + FTS index + vector index from the queue; update `Document.Status` `pending → embedded | error`

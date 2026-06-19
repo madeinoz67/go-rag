@@ -33,3 +33,15 @@ func Get(ext string) (FileReader, bool) {
 	r, ok := registry[ext]
 	return r, ok
 }
+
+// DefaultReaders registers the built-in readers into the registry. Safe to call
+// once at startup (e.g. from the CLI and the pipeline).
+func DefaultReaders() {
+	registry = make(map[string]FileReader)
+	Register(&TextReader{})
+	Register(&MarkdownReader{})
+	Register(&PDFReader{})
+	Register(&DocxReader{})
+	Register(&JPEGReader{})
+	Register(&PNGReader{})
+}
