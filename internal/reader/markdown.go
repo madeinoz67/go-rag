@@ -2,11 +2,19 @@ package reader
 
 import (
 	"context"
+	"path/filepath"
+	"regexp"
 	"strings"
 )
 
-// MarkdownReader extracts text from Markdown, parsing YAML frontmatter and
-// collecting headings into metadata.
+// MarkdownReader extracts text from Markdown, parsing YAML frontmatter,
+// collecting headings into metadata, and normalizing Obsidian syntax:
+//
+//   - ![[file.ext]]  image/file embed  -> the filename kept as a searchable token
+//     (brackets dropped; the binary is indexed by its own reader, not inlined)
+//   - ![[Note]]      note transclusion  -> the target name kept as a token AND
+//     recorded in metadata["transcludes"] (relationship captured, not inlined)
+//   - [[Note]]       wikilink           -> the link's display text (alias/heading aware)
 type MarkdownReader struct{}
 
 func (r *MarkdownReader) Name() string                  { return "Markdown" }
@@ -35,9 +43,77 @@ func (r *MarkdownReader) Read(_ context.Context, data []byte, _ string) (string,
 	if len(headings) > 0 {
 		md["headings"] = headings
 	}
+
+	body, transcludes := normalizeObsidian(body)
+	if len(transcludes) > 0 {
+		md["transcludes"] = transcludes
+	}
 	md["format"] = "markdown"
 
 	return stripMarkdown(body), md, nil
+}
+
+var (
+	reObsidianEmbed = regexp.MustCompile(`!\[\[([^\]]+)\]\]`)
+	reObsidianLink  = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
+)
+
+// normalizeObsidian resolves Obsidian embeds and wikilinks into plain tokens and
+// collects note-transclusion targets. Embeds are handled before wikilinks so that
+// "![[x]]" is not double-processed as "[[x]]".
+func normalizeObsidian(s string) (string, []string) {
+	var transcludes []string
+
+	s = reObsidianEmbed.ReplaceAllStringFunc(s, func(m string) string {
+		inner := strings.TrimSpace(m[3 : len(m)-2]) // strip "![[" and "]]"
+		if isMediaEmbed(inner) {
+			return inner // file embed: keep filename as a token, drop syntax
+		}
+		transcludes = append(transcludes, linkTarget(inner)) // note transclusion
+		return linkDisplay(inner)
+	})
+
+	s = reObsidianLink.ReplaceAllStringFunc(s, func(m string) string {
+		return linkDisplay(m[2 : len(m)-2]) // strip "[[" and "]]"
+	})
+
+	return s, transcludes
+}
+
+// linkDisplay returns the human-readable text of a wikilink inner: the alias if
+// present ([[target|Display]]), else the target; a heading ref ([[target#Sec]])
+// yields the target name.
+func linkDisplay(inner string) string {
+	inner = strings.TrimSpace(inner)
+	if i := strings.Index(inner, "|"); i >= 0 {
+		return strings.TrimSpace(inner[i+1:])
+	}
+	if i := strings.Index(inner, "#"); i >= 0 {
+		return strings.TrimSpace(inner[:i])
+	}
+	return inner
+}
+
+// linkTarget returns the canonical target of a link inner (strips alias and heading).
+func linkTarget(inner string) string {
+	inner = strings.TrimSpace(inner)
+	if i := strings.Index(inner, "|"); i >= 0 {
+		inner = inner[:i]
+	}
+	if i := strings.Index(inner, "#"); i >= 0 {
+		inner = inner[:i]
+	}
+	return strings.TrimSpace(inner)
+}
+
+// isMediaEmbed reports whether an embed target is a binary file (image/pdf) rather
+// than a note transclusion. Note extensions (.md/.txt) are treated as transclusions.
+func isMediaEmbed(inner string) bool {
+	switch strings.ToLower(filepath.Ext(inner)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".svg", ".webp", ".pdf":
+		return true
+	}
+	return false
 }
 
 // extractFrontmatter parses a leading "---\n...\n---\n" block into key/value pairs.
