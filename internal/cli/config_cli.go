@@ -74,6 +74,7 @@ func printConfig(cfg config.Config) {
 	keys := []string{
 		"ollama_url", "ollama_model", "watch_dirs", "chunk_size",
 		"chunk_overlap", "db_path", "file_glob", "poll_interval_secs",
+		"mcp_addr", "mcp_token", "rerank_model", "rerank_candidates",
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
