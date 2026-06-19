@@ -29,6 +29,7 @@ func newReprocessCmd() *cobra.Command {
 
 			em := embed.NewOllama(cfg.OllamaURL, cfg.OllamaModel)
 			p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
+			p.OnProgress = progressBar
 			res, err := p.Reprocess(context.Background(), path, "*")
 			p.Close() // drain async embedding/indexing
 			if err != nil {

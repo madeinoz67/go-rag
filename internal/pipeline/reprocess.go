@@ -43,17 +43,31 @@ func (p *Pipeline) ReprocessAll(ctx context.Context) (Result, error) {
 	for _, e := range entries {
 		_ = DeleteDoc(p.db, e.docID)
 	}
+	// Suppress per-file Ingest progress; ReprocessAll renders one bar across all files.
+	saved := p.OnProgress
+	p.OnProgress = nil
 	res := Result{}
+	done, total := 0, len(entries)
 	for _, e := range entries {
 		r, err := p.Ingest(ctx, e.path, "*")
+		done++
+		st := "NEW"
 		if err != nil {
 			res.Errors++
-			continue
+			st = "ERROR"
+		} else {
+			res.New += r.New
+			res.Skipped += r.Skipped
+			res.Errors += r.Errors
+			if r.New == 0 {
+				st = "SKIPPED"
+			}
 		}
-		res.New += r.New
-		res.Skipped += r.Skipped
-		res.Errors += r.Errors
+		if saved != nil {
+			saved(done, total, e.path, st)
+		}
 	}
+	p.OnProgress = saved
 	return res, nil
 }
 

@@ -32,6 +32,11 @@ const (
 	StatusError    = "error"
 )
 
+// Progress is an optional callback invoked after each file is processed during
+// Ingest/Reprocess/ReprocessAll. done is 1-based; total is the pre-counted number
+// of ingestible files (0 when no callback is set). status is NEW/SKIPPED/ERROR.
+type Progress func(done, total int, path, status string)
+
 // Result summarises one Ingest run.
 type Result struct {
 	New, Skipped, Errors int
@@ -49,6 +54,10 @@ type Pipeline struct {
 	queue chan job
 	wg    sync.WaitGroup
 	mu    sync.Mutex // guards markStatus read-modify-write
+
+	// OnProgress, if non-nil, is called after each file is processed during
+	// Ingest/Reprocess/ReprocessAll (enables a CLI progress bar).
+	OnProgress Progress
 }
 
 // New returns a Pipeline with background indexing workers started. Call Close to
@@ -81,12 +90,19 @@ func (p *Pipeline) Close() {
 // under root via DeleteDoc, then re-run ingest) so reader/embedder changes apply
 // without `rm -rf .go-rag`. See specs/001-local-rag-database/tasks.md (Future Work).
 
-// Ingest walks root, processing every file whose base name matches glob.
+// Ingest walks root, processing every file whose base name matches glob. If
+// p.OnProgress is set, it pre-counts ingestible files and fires the callback per
+// file (done, total, path, status).
 func (p *Pipeline) Ingest(ctx context.Context, root, glob string) (Result, error) {
 	reader.DefaultReaders()
+	total := 0
+	if p.OnProgress != nil {
+		total = p.countFiles(root, glob)
+	}
 	res := Result{}
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
+	done := 0
+	err := filepath.Walk(root, func(path string, info os.FileInfo, werr error) error {
+		if werr != nil {
 			res.Errors++
 			return nil
 		}
@@ -99,7 +115,8 @@ func (p *Pipeline) Ingest(ctx context.Context, root, glob string) (Result, error
 		if !matchGlob(filepath.Base(path), glob) {
 			return nil
 		}
-		switch st, _ := p.processFile(ctx, path); st {
+		st, _ := p.processFile(ctx, path)
+		switch st {
 		case "NEW":
 			res.New++
 		case "SKIPPED":
@@ -107,9 +124,39 @@ func (p *Pipeline) Ingest(ctx context.Context, root, glob string) (Result, error
 		case "ERROR":
 			res.Errors++
 		}
+		done++
+		if p.OnProgress != nil {
+			p.OnProgress(done, total, path, st)
+		}
 		return nil
 	})
 	return res, err
+}
+
+// countFiles returns the number of ingestible files under root (same filters as
+// Ingest: matches glob, has a registered reader, skips the .go-rag directory).
+func (p *Pipeline) countFiles(root, glob string) int {
+	n := 0
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			if info.Name() == ".go-rag" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !matchGlob(filepath.Base(path), glob) {
+			return nil
+		}
+		if _, ok := reader.Get(filepath.Ext(path)); !ok {
+			return nil
+		}
+		n++
+		return nil
+	})
+	return n
 }
 
 // processFile reads, dedups by content hash, chunks, stores synchronously, then

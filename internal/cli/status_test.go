@@ -35,10 +35,14 @@ func TestStatus_AfterIngest(t *testing.T) {
 		_ = sc.Flags().Set("json", "true")
 		_ = sc.RunE(sc, nil)
 	})
-	var info statusInfo
-	if err := json.Unmarshal([]byte(out), &info); err != nil {
+	var env struct {
+		Daemon   string     `json:"daemon"`
+		Database statusInfo `json:"database"`
+	}
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("status --json must be valid JSON: %v\nraw: %s", err, out)
 	}
+	info := env.Database
 	if info.Documents != 1 {
 		t.Errorf("documents: want 1, got %d", info.Documents)
 	}
@@ -69,9 +73,12 @@ func TestStatus_DegradedWhenOllamaDown(t *testing.T) {
 		_ = sc.Flags().Set("json", "true")
 		_ = sc.RunE(sc, nil)
 	})
-	var info statusInfo
-	_ = json.Unmarshal([]byte(out), &info)
-	if info.Health != "degraded" {
-		t.Fatalf("unreachable Ollama must report degraded, got %s", info.Health)
+	var env struct {
+		Daemon   string     `json:"daemon"`
+		Database statusInfo `json:"database"`
+	}
+	_ = json.Unmarshal([]byte(out), &env)
+	if env.Database.Health != "degraded" {
+		t.Fatalf("unreachable Ollama must report degraded, got %s", env.Database.Health)
 	}
 }

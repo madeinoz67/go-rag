@@ -35,35 +35,41 @@ func newStatusCmd() *cobra.Command {
 		Short: "Show daemon and database status",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			asJSON, _ := cmd.Flags().GetBool("json")
+			running, pid, addr := daemon.Status(dbPath)
 
-			// Daemon-aware: if the daemon is running, report counts via it (avoids
-			// a Pebble-lock conflict with the daemon's long-lived open).
-			if running, pid, addr := daemon.Status(dbPath); running {
+			if running {
 				counts, _ := daemon.CallTool(addr, daemon.ReadToken(dbPath), "go_rag_status", nil)
 				if asJSON {
 					return json.NewEncoder(os.Stdout).Encode(map[string]any{
 						"daemon": "running", "pid": pid, "mcp_addr": addr, "counts": counts,
 					})
 				}
-				fmt.Printf("go-rag daemon: running (pid %d) — MCP on %s\n", pid, addr)
+				fmt.Printf("Daemon: running (pid %d, MCP %s)\n", pid, addr)
 				if counts != "" {
 					fmt.Printf("  %s\n", counts)
 				}
 				return nil
 			}
 
-			// Daemon not running: open the database directly.
+			// Daemon not running — open the database directly for counts.
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
-				return err
+				if asJSON {
+					return json.NewEncoder(os.Stdout).Encode(map[string]any{"daemon": "stopped"})
+				}
+				fmt.Println("Daemon: not running")
+				fmt.Printf("Database: %s not found (run 'go-rag init')\n", dbPath)
+				return nil
 			}
 			defer db.Close()
-
 			info := gatherStats(db, cfg)
 			info.Health = pingHealth(cfg.OllamaURL)
 			if asJSON {
-				return json.NewEncoder(os.Stdout).Encode(info)
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{
+					"daemon": "stopped", "database": info,
+				})
 			}
+			fmt.Println("Daemon: not running")
 			printStatus(info)
 			return nil
 		},
@@ -151,7 +157,7 @@ func pingHealth(baseURL string) string {
 }
 
 func printStatus(s statusInfo) {
-	fmt.Printf("go-rag database: %s (daemon stopped)\n\n", dbPath)
+	fmt.Printf("Database: %s\n\n", dbPath)
 	fmt.Printf("  Sources:    %d\n", s.Sources)
 	fmt.Printf("  Documents:  %d\n", s.Documents)
 	fmt.Printf("  Chunks:     %d\n", s.Chunks)

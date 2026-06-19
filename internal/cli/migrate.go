@@ -57,6 +57,7 @@ func newMigrateCmd() *cobra.Command {
 			fmt.Printf("Re-embedding %d stale embedding(s) to %s...\n", stale, current)
 			em := embed.NewOllama(cfg.OllamaURL, current)
 			p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
+			p.OnProgress = progressBar
 			res, err := p.ReprocessAll(context.Background())
 			p.Close() // drain async embedding
 			if err != nil {
