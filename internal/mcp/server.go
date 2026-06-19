@@ -1,0 +1,249 @@
+// Package mcp exposes go-rag operations as Model Context Protocol tools over stdio
+// JSON-RPC (PRD G7, Principle V — every CLI op is also an agent tool).
+package mcp
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"path/filepath"
+	"strings"
+
+	"github.com/madeinoz67/go-rag/internal/chunk"
+	"github.com/madeinoz67/go-rag/internal/config"
+	"github.com/madeinoz67/go-rag/internal/embed"
+	"github.com/madeinoz67/go-rag/internal/index"
+	"github.com/madeinoz67/go-rag/internal/model"
+	"github.com/madeinoz67/go-rag/internal/pipeline"
+	"github.com/madeinoz67/go-rag/internal/storage"
+)
+
+const protocolVersion = "2024-11-05"
+
+// Server is a stdio MCP server backed by a go-rag database at dbPath.
+type Server struct {
+	dbPath string
+}
+
+// New returns an MCP server bound to the go-rag database at dbPath.
+func New(dbPath string) *Server { return &Server{dbPath: dbPath} }
+
+type rpcReq struct {
+	JSONRPC string         `json:"jsonrpc"`
+	ID      any            `json:"id"`
+	Method  string         `json:"method"`
+	Params  map[string]any `json:"params"`
+}
+
+// Serve reads newline/JSON-RPC messages from in and writes responses to out until
+// in closes.
+func (s *Server) Serve(in io.Reader, out io.Writer) error {
+	dec := json.NewDecoder(in)
+	enc := json.NewEncoder(out)
+	for {
+		var req rpcReq
+		if err := dec.Decode(&req); err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+		if resp := s.handle(req); resp != nil {
+			if err := enc.Encode(resp); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func (s *Server) handle(req rpcReq) any {
+	switch req.Method {
+	case "initialize":
+		return ok(req.ID, map[string]any{
+			"protocolVersion": protocolVersion,
+			"capabilities":    map[string]any{"tools": map[string]any{}},
+			"serverInfo":      map[string]any{"name": "go-rag", "version": "0.1.0"},
+		})
+	case "notifications/initialized":
+		return nil // ack-only, no response
+	case "tools/list":
+		return ok(req.ID, map[string]any{"tools": toolDefs()})
+	case "tools/call":
+		return s.callTool(req)
+	}
+	return errResp(req.ID, -32601, "method not found: "+req.Method)
+}
+
+func (s *Server) callTool(req rpcReq) any {
+	name, _ := req.Params["name"].(string)
+	args, _ := req.Params["arguments"].(map[string]any)
+	out, err := s.dispatch(name, args)
+	if err != nil {
+		return errResp(req.ID, -32603, err.Error())
+	}
+	return ok(req.ID, map[string]any{
+		"content": []map[string]any{{"type": "text", "text": out}},
+	})
+}
+
+func (s *Server) dispatch(name string, args map[string]any) (string, error) {
+	cfg, db, err := openDB(s.dbPath)
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+	switch name {
+	case "go_rag_query":
+		return s.query(cfg, db, args)
+	case "go_rag_status":
+		return s.status(db)
+	case "go_rag_add":
+		return s.add(cfg, db, args)
+	}
+	return "", fmt.Errorf("unknown tool: %s", name)
+}
+
+func (s *Server) query(cfg config.Config, db *storage.DB, args map[string]any) (string, error) {
+	q, _ := args["query"].(string)
+	k := 5
+	if v, ok := args["k"].(float64); ok {
+		k = int(v)
+	}
+	mode := "hybrid"
+	if v, ok := args["mode"].(string); ok {
+		mode = v
+	}
+	fts, vec, err := pipeline.LoadIndex(db)
+	if err != nil {
+		return "", err
+	}
+	em := embed.NewOllama(cfg.OllamaURL, cfg.OllamaModel)
+	r := index.NewRetrieval(fts, vec, em.Embed)
+	hits, err := r.Search(context.Background(), q, k, index.ParseMode(mode), docOf(db))
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	for _, h := range hits {
+		c, ok := lookupChunk(db, h.ChunkID)
+		if !ok {
+			continue
+		}
+		fmt.Fprintf(&b, "- (score %.3f) %s\n", h.Score, preview(c.Content, 160))
+	}
+	if b.Len() == 0 {
+		return "no results", nil
+	}
+	return strings.TrimSpace(b.String()), nil
+}
+
+func (s *Server) status(db *storage.DB) (string, error) {
+	docs := countPrefix(db, storage.PrefixDocument)
+	chunks := countPrefix(db, storage.PrefixChunk)
+	emb := countPrefix(db, storage.PrefixEmbedding)
+	return fmt.Sprintf("documents: %d, chunks: %d, embeddings: %d", docs, chunks, emb), nil
+}
+
+func (s *Server) add(cfg config.Config, db *storage.DB, args map[string]any) (string, error) {
+	path, _ := args["path"].(string)
+	em := embed.NewOllama(cfg.OllamaURL, cfg.OllamaModel)
+	p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
+	defer p.Close()
+	res, err := p.Ingest(context.Background(), path, "*")
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("new=%d skipped=%d errors=%d", res.New, res.Skipped, res.Errors), nil
+}
+
+// --- JSON-RPC helpers ---
+
+func ok(id any, result any) any {
+	return map[string]any{"jsonrpc": "2.0", "id": id, "result": result}
+}
+
+func errResp(id any, code int, msg string) any {
+	return map[string]any{"jsonrpc": "2.0", "id": id, "error": map[string]any{"code": code, "message": msg}}
+}
+
+// --- db helpers (minimal, mirroring cli/wire.go) ---
+
+func openDB(base string) (config.Config, *storage.DB, error) {
+	cfg, err := config.Load(filepath.Join(base, "config.json"))
+	if err != nil {
+		return config.Config{}, nil, fmt.Errorf("no database — run `go-rag init` first: %w", err)
+	}
+	db, err := storage.Open(filepath.Join(base, "data"))
+	return cfg, db, err
+}
+
+func countPrefix(db *storage.DB, prefix byte) int {
+	n := 0
+	_ = db.PrefixScanByte(prefix, func(_, _ []byte) bool { n++; return true })
+	return n
+}
+
+func docOf(db *storage.DB) func(string) string {
+	m := map[string]string{}
+	_ = db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
+		var c model.Chunk
+		if json.Unmarshal(val, &c) == nil {
+			m[c.ID] = c.DocumentID
+		}
+		return true
+	})
+	return func(id string) string { return m[id] }
+}
+
+func lookupChunk(db *storage.DB, id string) (model.Chunk, bool) {
+	raw, ok, _ := db.GetWithPrefix(storage.PrefixChunk, []byte(id))
+	if !ok {
+		return model.Chunk{}, false
+	}
+	var c model.Chunk
+	if json.Unmarshal(raw, &c) != nil {
+		return model.Chunk{}, false
+	}
+	return c, true
+}
+
+func preview(s string, n int) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	if len(s) > n {
+		return s[:n] + "…"
+	}
+	return s
+}
+
+func toolDefs() []map[string]any {
+	return []map[string]any{
+		{
+			"name":        "go_rag_query",
+			"description": "Hybrid (semantic + keyword) search over the local document database.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"query": map[string]any{"type": "string"},
+					"k":     map[string]any{"type": "integer", "default": 5},
+					"mode":  map[string]any{"type": "string", "enum": []string{"hybrid", "semantic", "keyword"}},
+				},
+				"required": []string{"query"},
+			},
+		},
+		{
+			"name":        "go_rag_status",
+			"description": "Report document/chunk/embedding counts in the database.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "go_rag_add",
+			"description": "Ingest a file or directory path into the database.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{"path": map[string]any{"type": "string"}},
+				"required": []string{"path"},
+			},
+		},
+	}
+}

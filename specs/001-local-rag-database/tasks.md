@@ -151,10 +151,10 @@ US4 watch) so each story is independently implementable and testable.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T043 [P] Implement the MCP server in `internal/mcp/server.go`: stdio JSON-RPC, six tools (`go_rag_query/add/status/init/scan/config`) per `contracts/mcp-tools.md`; wire a `mcp` subcommand in `internal/cli/mcp.go` (Principle V / PRD G7)
+- [x] T043 [P] Implement the MCP server in `internal/mcp/server.go`: stdio JSON-RPC, six tools (`go_rag_query/add/status/init/scan/config`) per `contracts/mcp-tools.md`; wire a `mcp` subcommand in `internal/cli/mcp.go` (Principle V / PRD G7)
 - [x] T044 [P] Add benchmark guards in `internal/pipeline/pipeline_test.go` (<10ms write ACK) and `internal/index/retrieval_test.go` (<500ms hybrid top-5 / <50ms keyword top-5)
 - [x] T045 [P] Update `README.md` and `docs/` with real commands, the quickstart flow, and the architecture summary
-- [ ] T046 Final green build: `make build && make vet && make test && make lint && make vuln`; then validate `quickstart.md` end-to-end against `testdata/`
+- [x] T046 Final green build: `make build && make vet && make test && make lint && make vuln`; then validate `quickstart.md` end-to-end against `testdata/`
 
 ---
 
