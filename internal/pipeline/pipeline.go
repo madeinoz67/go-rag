@@ -76,6 +76,11 @@ func (p *Pipeline) Close() {
 	p.wg.Wait()
 }
 
+// TODO(T047): add Reprocess(root, glob) — force re-ingest of an already-ingested
+// directory, bypassing the SHA-256 content-hash dedup (delete each tracked doc
+// under root via DeleteDoc, then re-run ingest) so reader/embedder changes apply
+// without `rm -rf .go-rag`. See specs/001-local-rag-database/tasks.md (Future Work).
+
 // Ingest walks root, processing every file whose base name matches glob.
 func (p *Pipeline) Ingest(ctx context.Context, root, glob string) (Result, error) {
 	reader.DefaultReaders()
