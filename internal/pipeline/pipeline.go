@@ -133,8 +133,10 @@ func (p *Pipeline) Ingest(ctx context.Context, root, glob string) (Result, error
 	return res, err
 }
 
-// countFiles returns the number of ingestible files under root (same filters as
-// Ingest: matches glob, has a registered reader, skips the .go-rag directory).
+// countFiles returns the number of files Ingest will process under root — every
+// glob-matching file outside .go-rag (including unsupported types, which Ingest
+// attempts and reports as ERROR). Mirrors Ingest's walk so the progress bar total
+// matches the done counter exactly.
 func (p *Pipeline) countFiles(root, glob string) int {
 	n := 0
 	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -148,9 +150,6 @@ func (p *Pipeline) countFiles(root, glob string) int {
 			return nil
 		}
 		if !matchGlob(filepath.Base(path), glob) {
-			return nil
-		}
-		if _, ok := reader.Get(filepath.Ext(path)); !ok {
 			return nil
 		}
 		n++
