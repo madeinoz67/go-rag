@@ -35,7 +35,7 @@ func newReprocessCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Reprocessed: %d files (%d errors)\n", res.New, res.Errors)
+			fmt.Printf("Reprocessed: %d files (%d unsupported, %d errors)\n", res.New, res.Unsupported, res.Errors)
 			return nil
 		},
 	}

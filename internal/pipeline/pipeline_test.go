@@ -108,7 +108,7 @@ func TestIngest_ACKReturnsBeforeEmbedding(t *testing.T) {
 	}
 }
 
-func TestIngest_UnsupportedExtensionIsError(t *testing.T) {
+func TestIngest_UnsupportedExtensionSkipped(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "x.unknownext"), "mystery")
 
@@ -116,7 +116,10 @@ func TestIngest_UnsupportedExtensionIsError(t *testing.T) {
 	defer cleanup()
 
 	r, _ := p.Ingest(context.Background(), dir, "*")
-	if r.Errors != 1 {
-		t.Fatalf("unsupported extension should be an error: got %+v", r)
+	if r.Unsupported != 1 {
+		t.Fatalf("unsupported extension should be unsupported (not error): got %+v", r)
+	}
+	if r.Errors != 0 {
+		t.Fatalf("unsupported extension should not count as error: got %+v", r)
 	}
 }

@@ -63,7 +63,7 @@ func newMigrateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Migrated: %d files re-embedded (%d errors)\n", res.New, res.Errors)
+			fmt.Printf("Migrated: %d files re-embedded (%d unsupported, %d errors)\n", res.New, res.Unsupported, res.Errors)
 			return nil
 		},
 	}

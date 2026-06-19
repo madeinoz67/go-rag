@@ -10,7 +10,6 @@ package pipeline
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,7 +38,7 @@ type Progress func(done, total int, path, status string)
 
 // Result summarises one Ingest run.
 type Result struct {
-	New, Skipped, Errors int
+	New, Skipped, Unsupported, Errors int
 }
 
 // Pipeline runs the ingest pipeline over paths, storing synchronously and indexing
@@ -121,6 +120,8 @@ func (p *Pipeline) Ingest(ctx context.Context, root, glob string) (Result, error
 			res.New++
 		case "SKIPPED":
 			res.Skipped++
+		case "UNSUPPORTED":
+			res.Unsupported++
 		case "ERROR":
 			res.Errors++
 		}
@@ -175,7 +176,7 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	ext := strings.ToLower(filepath.Ext(path))
 	rd, ok := reader.Get(ext)
 	if !ok {
-		return "ERROR", fmt.Errorf("no reader for extension %q", ext)
+		return "UNSUPPORTED", nil // no reader for this file type — skip, not an error
 	}
 	content, metadata, err := rd.Read(ctx, raw, path)
 	if err != nil {

@@ -106,9 +106,16 @@ func gatherStats(db *storage.DB, cfg config.Config) statusInfo {
 	}
 
 	_ = db.PrefixScanByte(storage.PrefixEmbedding, func(_, val []byte) bool {
-		var v []float32
-		if json.Unmarshal(val, &v) == nil {
-			info.Dimensions = len(v)
+		var se struct {
+			Vector []float32 `json:"vector"`
+		}
+		if json.Unmarshal(val, &se) == nil && len(se.Vector) > 0 {
+			info.Dimensions = len(se.Vector)
+		} else {
+			var v []float32 // legacy bare-vector format
+			if json.Unmarshal(val, &v) == nil {
+				info.Dimensions = len(v)
+			}
 		}
 		return false
 	})

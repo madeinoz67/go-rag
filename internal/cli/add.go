@@ -40,7 +40,7 @@ func newAddCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("Processed: %d new, %d skipped, %d errors\n", res.New, res.Skipped, res.Errors)
+			fmt.Printf("Processed: %d new, %d skipped, %d unsupported, %d errors\n", res.New, res.Skipped, res.Unsupported, res.Errors)
 			if res.New > 0 {
 				fmt.Println("Embedding/indexing completed.")
 			}
