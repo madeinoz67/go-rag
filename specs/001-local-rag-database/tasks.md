@@ -108,11 +108,11 @@ US4 watch) so each story is independently implementable and testable.
 
 ### Tests for User Story 2 (write FIRST)
 
-- [ ] T034 [P] [US2] Write status tests in `internal/cli/status_test.go`: after a known ingest, counts (sources/docs/chunks/embedded %), model, and storage size are correct; with the embedding service down, health reports `degraded` (not a crash); `--json` parses to the documented shape
+- [x] T034 [P] [US2] Write status tests in `internal/cli/status_test.go`: after a known ingest, counts (sources/docs/chunks/embedded %), model, and storage size are correct; with the embedding service down, health reports `degraded` (not a crash); `--json` parses to the documented shape
 
 ### Implementation for User Story 2
 
-- [ ] T035 [US2] Implement the `status` command in `internal/cli/status.go`: counts, storage size, Pebble health, embedding model + dimensions + provider, last ingested/queried timestamps, health indicator (`OK`/`degraded` via Ollama ping); `--json`
+- [x] T035 [US2] Implement the `status` command in `internal/cli/status.go`: counts, storage size, Pebble health, embedding model + dimensions + provider, last ingested/queried timestamps, health indicator (`OK`/`degraded` via Ollama ping); `--json`
 
 ---
 
@@ -123,12 +123,12 @@ US4 watch) so each story is independently implementable and testable.
 
 ### Tests for User Story 3 (write FIRST)
 
-- [ ] T036 [P] [US3] Write config-set tests in `internal/cli/config_test.go`: `config set` with a valid URL persists across reload; an invalid value (malformed URL, non-positive int) is rejected with a clear error and the previous value is retained; `config get` returns the current value
+- [x] T036 [P] [US3] Write config-set tests in `internal/cli/config_test.go`: `config set` with a valid URL persists across reload; an invalid value (malformed URL, non-positive int) is rejected with a clear error and the previous value is retained; `config get` returns the current value
 
 ### Implementation for User Story 3
 
-- [ ] T037 [US3] Implement `config` (view) in `internal/cli/config.go`: print all current values from `.go-rag/config.json`
-- [ ] T038 [US3] Implement `config get [key]` and `config set [key] [value]` in `internal/cli/config.go`: validate via `config.Validate` — reject malformed URLs / non-positive ints, retain previous value on rejection
+- [x] T037 [US3] Implement `config` (view) in `internal/cli/config.go`: print all current values from `.go-rag/config.json`
+- [x] T038 [US3] Implement `config get [key]` and `config set [key] [value]` in `internal/cli/config.go`: validate via `config.Validate` — reject malformed URLs / non-positive ints, retain previous value on rejection
 
 ---
 
