@@ -75,6 +75,10 @@ func (r *Reranker) Score(ctx context.Context, query string, candidates []string)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ollama rerank returned HTTP %d (is model %q installed?)", resp.StatusCode, r.model)
+	}
+
 	var result struct {
 		Response string `json:"response"`
 	}
