@@ -63,7 +63,11 @@ is ready to start implementing against — not a throwaway template.
 A git-initialized, compile-clean Go project whose tree mirrors the PRD's
 architecture, whose CLI responds with the six PRD commands, wired with real Go CI,
 mkdocs docs, tokensave indexing, and standard Go tooling — ready to begin RAG
-implementation against the PRD. **Achieved.**
+implementation against the PRD. **Achieved — and exceeded:** the full v1
+implementation ships a working local RAG database (46 SpecKit tasks in
+`specs/001-local-rag-database/`), plus a muninn-style background MCP daemon
+(`start`/`stop`/`status`) and ops commands (`files`, `dirs`, `reprocess`,
+`migrate`).
 
 ## Criteria
 
@@ -135,6 +139,12 @@ implementation against the PRD. **Achieved.**
 - 2026-06-19 — SpecKit/OS-ECO tools skipped (optional, not implied). Flagged to principal.
 - 2026-06-19 — Verification Doctrine Rule 2 advisor attempted twice (macOS `timeout` absent, then clean retry); Inference.ts subprocess exits 1 — same failure mode as the session-start mode-classifier fail-safe. Advisor infrastructure unavailable this session; proceeded on tool-verified ISC evidence (32/32). Blocked call, not a skip.
 - 2026-06-19 — Initial commit `4f2336d` to main (single-author repo convention; commit.gpgsign disabled to avoid passphrase hang). No remote/push — that needs the principal.
+- 2026-06-20 — v1 implementation complete (46 SpecKit tasks, `specs/001`): all six formats (text/markdown/docx/pdf/image), async-after-ACK ingest pipeline, BM25 + vector RRF retrieval, 2-layer change detection, MCP. TDD throughout (~60 tests), `go test -race` clean. Module path corrected to `github.com/madeinoz67/go-rag` (principal-supplied remote).
+- 2026-06-20 — **Concurrency fix:** `FTS`/`Vector`/`Ollama` made goroutine-safe with mutexes. The 2 background workers indexed shared maps concurrently → runtime "concurrent map read and write" fatal on large ingests. Single-file tests missed it; added a 30-file concurrent test + `-race`.
+- 2026-06-20 — `.go-rag` directory now skipped on ingest/scan — was ingesting the DB's own WAL files (`.log` is a registered text extension).
+- 2026-06-20 — **Obsidian Markdown normalization:** `![[embeds]]` → filename token, `[[wikilinks]]` → display text (alias/heading aware), `![[Note]]` transclusions → `metadata["transcludes"]` (relationship captured, not inlined).
+- 2026-06-20 — **MCP daemon (muninn-style):** `start` re-execs a detached `serve` (`Setsid`) that owns Pebble + serves MCP over HTTP (`:7878`); `stop` SIGTERM + wait; `status` daemon-aware (routes counts via the running daemon to avoid lock conflict); `go-rag mcp` = stdio→HTTP proxy (bearer-token, session-aware). Default port **7878** to avoid muninn's 8475/8476/8750. 10 MCP tools.
+- 2026-06-20 — **reprocess (T047) + migrate (T048):** force re-ingest bypassing content-hash dedup (reader/embedder changes without wiping the DB); embedding-model migration with per-embedding model tracking (backward-compatible `LoadIndex` reads both `{model,vector}` and legacy bare `[]float32`).
 
 ## Changelog
 
@@ -142,6 +152,16 @@ implementation against the PRD. **Achieved.**
   **refuted_by:** scaffolding compiled and verified end-to-end on the first pass with no template-derivation errors.
   **learned:** when the PRD already specifies architecture, the scaffold *is* the project skeleton — FirstPrinciples Reconstruct confirmed each `internal/` package maps 1:1 to a PRD subsystem, so no layout convention had to be invented or guessed.
   **criterion_now:** ISC-7–16 (tree↔PRD mapping) verified by `git ls-files` + clean build.
+
+- **conjectured:** "Single-file TDD tests would catch concurrency bugs in the async pipeline."
+  **refuted_by:** running `add` against a large vault crashed with a concurrent-map fatal; the per-file tests never exercised concurrent workers.
+  **learned:** async-after-ACK means the shared indexes (FTS/Vector) are touched by N background workers — they MUST be goroutine-safe, and concurrency tests (many files + `-race`) are required, not just per-unit tests.
+  **criterion_now:** `TestIngest_ConcurrentWorkers` + `go test -race` green.
+
+- **conjectured:** "go-rag should mirror muninn's full multi-service daemon (DB + MCP + web UI)."
+  **refuted_by:** reading `scrypster/muninndb` showed the daemon is one re-exec'd binary serving MCP over HTTP; the web UI is a separate concern. The minimal useful surface is MCP-over-network.
+  **learned:** the muninn pattern (re-exec `--daemon` + `Setsid` + pidfile + health poll + stdio→HTTP proxy + fcntl Pebble-lock guard) is clean and portable; adopted it verbatim for go-rag, MCP-only, port 7878.
+  **criterion_now:** daemon e2e verified — start → status (running, counts via HTTP) → `/mcp/health`=ok → `go_rag_status` over HTTP → stdio proxy `tools/list` → stop.
 
 ## Verification
 
@@ -163,3 +183,10 @@ implementation against the PRD. **Achieved.**
 - ISC-32 (anti): no `package.json`/`pyproject.toml` at root.
 - Coverage: 32/32 passed, 32 tool-verified.
 - Doctrine: live-probe ✓; thinking floor ✓ (4 closed-list caps invoked); completeness gate ✓ (E3 sections present); advisor ✗ (infra unavailable); Cato n/a (E3).
+
+### Post-scaffold (2026-06-20): full v1 + daemon shipped
+
+- `go test -race ./...` green across 13 packages (~60 tests + 2 benchmarks).
+- Daemon e2e: `start` → `status` (running, pid, counts via the daemon's HTTP) → `GET /mcp/health` = ok → `go_rag_status` over `POST /mcp` → stdio proxy `tools/list` → `stop`. 10 MCP tools.
+- `make build` → `./bin/go-rag`; all commands respond (`init/add/scan/query/status/config/files/dirs/reprocess/migrate/start/stop/mcp`).
+- Detailed implementation record: `specs/001-local-rag-database/tasks.md` (46 tasks + Future Work T047/T048, now built).
