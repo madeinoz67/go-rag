@@ -86,19 +86,32 @@ func (r *Reranker) Score(ctx context.Context, query string, candidates []string)
 }
 
 // parseScores splits the LLM response by commas, parses each field as a number,
-// and normalises to 0.0–1.0 (divide by 9). Falls back to 0.5 for any unparseable
-// field so positions are preserved (a junk value in position 2 doesn't shift 3+).
+// and normalises to 0.0–1.0 relative to the max score in the batch. This adapts
+// to whatever scale the model uses (0-9, 0-10, 0-20, etc.) rather than assuming
+// a fixed denominator. Falls back to 0.5 for unparseable fields.
 func parseScores(response string, n int) []float64 {
-	scores := make([]float64, n)
-	for i := range scores {
-		scores[i] = 0.5
+	raw := make([]float64, n)
+	parsed := make([]bool, n)
+	for i := range raw {
+		raw[i] = 0.5
 	}
 	parts := strings.Split(strings.TrimSpace(response), ",")
+	var maxVal float64 = 1 // avoid div-by-zero
 	for i := 0; i < n && i < len(parts); i++ {
 		var v float64
 		if _, err := fmt.Sscanf(strings.TrimSpace(parts[i]), "%f", &v); err == nil {
-			scores[i] = v / 9.0
+			raw[i] = v
+			parsed[i] = true
+			if v > maxVal {
+				maxVal = v
+			}
 		}
 	}
-	return scores
+	// Normalise by max so the best candidate is 1.0 regardless of scale.
+	for i := range raw {
+		if parsed[i] {
+			raw[i] /= maxVal
+		}
+	}
+	return raw
 }
