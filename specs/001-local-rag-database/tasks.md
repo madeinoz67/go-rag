@@ -34,9 +34,9 @@ US4 watch) so each story is independently implementable and testable.
 
 **Purpose**: Add the runtime dependencies and fixtures the scaffold is missing.
 
-- [ ] T001 [P] Add runtime deps: run `go get github.com/cockroachdb/pebble github.com/philippgille/chromem-go github.com/pdfcpu/pdfcpu github.com/fsnotify/fsnotify` then `go mod tidy` (updates `go.mod`/`go.sum`)
-- [ ] T002 [P] Create test fixtures in `testdata/`: `sample.txt`, `sample.md` (with frontmatter), `sample.docx`, and a small `sample.pdf` (consumed by US1 tests and `quickstart.md`)
-- [ ] T003 [P] Add a "Watching large trees" note to `README.md` documenting the Linux `fs.inotify.max_user_watches` tuning (research Q11)
+- [x] T001 [P] Add runtime deps: run `go get github.com/cockroachdb/pebble github.com/philippgille/chromem-go github.com/pdfcpu/pdfcpu github.com/fsnotify/fsnotify` then `go mod tidy` (updates `go.mod`/`go.sum`)
+- [x] T002 [P] Create test fixtures in `testdata/`: `sample.txt`, `sample.md` (with frontmatter), `sample.docx`, and a small `sample.pdf` (consumed by US1 tests and `quickstart.md`)
+- [x] T003 [P] Add a "Watching large trees" note to `README.md` documenting the Linux `fs.inotify.max_user_watches` tuning (research Q11)
 
 ---
 
@@ -48,15 +48,15 @@ US4 watch) so each story is independently implementable and testable.
 
 ### Tests for Foundational (write FIRST, watch fail)
 
-- [ ] T004 [P] Write storage tests in `internal/storage/db_test.go`: Set/Get/Delete round-trip; `PrefixScan` returns only the requested prefix's keys; a second `Open` on the same path is rejected (single-writer lock); a `Sync` write is readable after reopen
-- [ ] T005 [P] Write model tests in `internal/model/model_test.go`: `GenerateID` is deterministic and order-independent across the metadata map; `GenerateID` ≠ `ContentHash` for the same content (identity vs change-detection)
-- [ ] T006 [P] Write config tests in `internal/config/config_test.go`: `Default()` returns documented values; `Validate` rejects malformed URLs and non-positive ints; `Load`/`Save` round-trip preserves all fields
+- [x] T004 [P] Write storage tests in `internal/storage/db_test.go`: Set/Get/Delete round-trip; `PrefixScan` returns only the requested prefix's keys; a second `Open` on the same path is rejected (single-writer lock); a `Sync` write is readable after reopen
+- [x] T005 [P] Write model tests in `internal/model/model_test.go`: `GenerateID` is deterministic and order-independent across the metadata map; `GenerateID` ≠ `ContentHash` for the same content (identity vs change-detection)
+- [x] T006 [P] Write config tests in `internal/config/config_test.go`: `Default()` returns documented values; `Validate` rejects malformed URLs and non-positive ints; `Load`/`Save` round-trip preserves all fields
 
 ### Implementation (make the tests pass)
 
-- [ ] T007 Implement the Pebble store in `internal/storage/db.go`: `Open(path)` with single-writer file lock, `Close`, prefix-keyed `Get/Set/Delete/PrefixScan` using the `0x01`–`0x0F` constants in `internal/storage/storage.go`; every write uses `Sync` for durable <10ms ACK
-- [ ] T008 [P] Flesh out `internal/model/model.go`: JSON tags + `Document.GenerateID()` (SHA-256 over content + canonicalized metadata) and `ContentHash(raw []byte)` helper
-- [ ] T009 [P] Implement `internal/config/config.go`: `Default()`, `Load(path)`, `Save(path)`, `Validate()`, `Get(key)`/`Set(key, val)`
+- [x] T007 Implement the Pebble store in `internal/storage/db.go`: `Open(path)` with single-writer file lock, `Close`, prefix-keyed `Get/Set/Delete/PrefixScan` using the `0x01`–`0x0F` constants in `internal/storage/storage.go`; every write uses `Sync` for durable <10ms ACK
+- [x] T008 [P] Flesh out `internal/model/model.go`: JSON tags + `Document.GenerateID()` (SHA-256 over content + canonicalized metadata) and `ContentHash(raw []byte)` helper
+- [x] T009 [P] Implement `internal/config/config.go`: `Default()`, `Load(path)`, `Save(path)`, `Validate()`, `Get(key)`/`Set(key, val)`
 
 **Checkpoint**: storage + model + config pass their tests — user-story work can begin.
 

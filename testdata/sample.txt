@@ -1,0 +1,9 @@
+The Authentication System
+
+The authentication system uses JWT tokens with a twenty-four hour expiry.
+Refresh tokens are stored in an HTTP-only cookie and rotated on each use.
+Token verification happens in middleware before any handler runs.
+
+All API endpoints require a valid Bearer token in the Authorization header.
+The middleware validates tokens on every request and rejects expired ones.
+Invalid tokens return a forty-one unauthorized response with a JSON error body.
