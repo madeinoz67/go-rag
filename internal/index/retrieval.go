@@ -87,6 +87,59 @@ func (r *Retrieval) semantic(ctx context.Context, query string) ([]Hit, error) {
 	return r.vec.Query(vecs[0], r.poolSize), nil
 }
 
+// Reranker is an optional second-pass scorer that takes (query, candidate texts)
+// and returns a normalised relevance score per candidate (0.0–1.0). Implemented
+// by internal/rerank; the index package stays free of Ollama dependencies.
+type Reranker interface {
+	Score(ctx context.Context, query string, candidates []string) ([]float64, error)
+}
+
+// SearchWithRerank retrieves candidates via RRF, then optionally reranks them
+// with a cross-encoder-style model. If reranker is nil, behaves exactly like
+// Search. chunkText looks up the text for a chunkID (caller provides the DB lookup).
+func (r *Retrieval) SearchWithRerank(ctx context.Context, query string, k int, mode Mode, docOf func(string) string, reranker Reranker, chunkText func(string) string) ([]Hit, error) {
+	if reranker == nil {
+		return r.Search(ctx, query, k, mode, docOf)
+	}
+	pool := r.poolSize
+	if pool < k {
+		pool = k
+	}
+	hits, _ := r.Search(ctx, query, pool, mode, docOf)
+	if len(hits) == 0 {
+		return hits, nil
+	}
+
+	texts := make([]string, len(hits))
+	for i, h := range hits {
+		texts[i] = chunkText(h.ChunkID)
+	}
+	scores, err := reranker.Score(ctx, query, texts)
+	if err != nil || len(scores) != len(hits) {
+		if k < len(hits) {
+			hits = hits[:k]
+		}
+		return hits, nil // fallback to RRF order on error
+	}
+
+	type scored struct {
+		hit   Hit
+		score float64
+	}
+	ss := make([]scored, len(hits))
+	for i, h := range hits {
+		ss[i] = scored{h, scores[i]}
+	}
+	sort.Slice(ss, func(i, j int) bool { return ss[i].score > ss[j].score })
+
+	out := make([]Hit, 0, k)
+	for i := 0; i < k && i < len(ss); i++ {
+		ss[i].hit.Score = ss[i].score
+		out = append(out, ss[i].hit)
+	}
+	return out, nil
+}
+
 // reciprocalRankFusion merges two ranked lists: score(d) = Σ 1/(k + rank+1).
 func reciprocalRankFusion(vectorHits, ftsHits []Hit, kVec, kFTS int) []Hit {
 	scores := map[string]float64{}

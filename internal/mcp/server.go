@@ -19,6 +19,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
+	"github.com/madeinoz67/go-rag/internal/rerank"
 	"github.com/madeinoz67/go-rag/internal/storage"
 	"github.com/madeinoz67/go-rag/internal/watcher"
 )
@@ -157,7 +158,17 @@ func (s *Server) query(cfg config.Config, db *storage.DB, args map[string]any) (
 	}
 	em := embed.NewOllama(cfg.OllamaURL, cfg.OllamaModel)
 	r := index.NewRetrieval(fts, vec, em.Embed)
-	hits, err := r.Search(context.Background(), q, k, index.ParseMode(mode), docOf(db))
+	var reranker index.Reranker
+	if cfg.RerankModel != "" {
+		reranker = rerank.New(cfg.OllamaURL, cfg.RerankModel)
+	}
+	hits, err := r.SearchWithRerank(context.Background(), q, k, index.ParseMode(mode), docOf(db), reranker, func(id string) string {
+		c, ok := lookupChunk(db, id)
+		if !ok {
+			return ""
+		}
+		return c.Content
+	})
 	if err != nil {
 		return "", err
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
+	"github.com/madeinoz67/go-rag/internal/rerank"
 	"github.com/spf13/cobra"
 )
 
@@ -46,7 +47,14 @@ func newQueryCmd() *cobra.Command {
 			em := embed.NewOllama(cfg.OllamaURL, cfg.OllamaModel)
 			r := index.NewRetrieval(fts, vec, em.Embed)
 
-			hits, err := r.Search(context.Background(), q, k, mode, buildDocOf(db))
+			var reranker index.Reranker
+		if cfg.RerankModel != "" {
+			reranker = rerank.New(cfg.OllamaURL, cfg.RerankModel)
+		}
+		hits, err := r.SearchWithRerank(context.Background(), q, k, mode, buildDocOf(db), reranker, func(id string) string {
+			c, _ := lookupChunk(db, id)
+			return c.Content
+		})
 			if err != nil {
 				return err
 			}

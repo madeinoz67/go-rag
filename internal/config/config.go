@@ -22,8 +22,10 @@ type Config struct {
 	DBPath          string   `json:"db_path"`
 	FileGlob        string   `json:"file_glob"`
 	PollIntervalSec int      `json:"poll_interval_secs"`
-	MCPAddr         string   `json:"mcp_addr"`
-	MCPToken        string   `json:"mcp_token,omitempty"`
+	MCPAddr          string   `json:"mcp_addr"`
+	MCPToken         string   `json:"mcp_token,omitempty"`
+	RerankModel      string   `json:"rerank_model,omitempty"`
+	RerankCandidates int      `json:"rerank_candidates,omitempty"`
 }
 
 // Default returns the configuration used by `go-rag init` when no overrides apply.
@@ -36,7 +38,8 @@ func Default() Config {
 		DBPath:          "./.go-rag",
 		FileGlob:        "*",
 		PollIntervalSec: 60,
-		MCPAddr:         ":7878",
+		MCPAddr:          ":7878",
+		RerankCandidates: 20,
 	}
 }
 
@@ -111,6 +114,10 @@ func (c Config) Get(key string) (string, bool) {
 		return c.MCPAddr, true
 	case "mcp_token":
 		return c.MCPToken, true
+	case "rerank_model":
+		return c.RerankModel, true
+	case "rerank_candidates":
+		return strconv.Itoa(c.RerankCandidates), true
 	}
 	return "", false
 }
@@ -149,6 +156,14 @@ func (c *Config) Set(key, val string) error {
 		c.MCPAddr = val
 	case "mcp_token":
 		c.MCPToken = val
+	case "rerank_model":
+		c.RerankModel = val
+	case "rerank_candidates":
+		n, err := strconv.Atoi(val)
+		if err != nil || n <= 0 {
+			return fmt.Errorf("invalid rerank_candidates: %q", val)
+		}
+		c.RerankCandidates = n
 	default:
 		return fmt.Errorf("unknown config key: %q", key)
 	}
