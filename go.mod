@@ -4,6 +4,7 @@ go 1.26.4
 
 require (
 	github.com/cockroachdb/pebble v1.1.5
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/spf13/cobra v1.10.2
 )
 

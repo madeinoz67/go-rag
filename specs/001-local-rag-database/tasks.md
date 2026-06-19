@@ -139,13 +139,13 @@ US4 watch) so each story is independently implementable and testable.
 
 ### Tests for User Story 4 (write FIRST)
 
-- [ ] T039 [P] [US4] Write watcher tests in `internal/watcher/watcher_test.go`: a new file → `NEW` → indexed; an unchanged file → `SKIP`; a content change → `MODIFIED` with old chunks replaced; a deletion → `DELETED` with chunks/embeddings/index removed; rapid save bursts coalesce within the debounce window
+- [x] T039 [P] [US4] Write watcher tests in `internal/watcher/watcher_test.go`: a new file → `NEW` → indexed; an unchanged file → `SKIP`; a content change → `MODIFIED` with old chunks replaced; a deletion → `DELETED` with chunks/embeddings/index removed; rapid save bursts coalesce within the debounce window
 
 ### Implementation for User Story 4
 
-- [ ] T040 [US4] Implement `ChangeDetector` in `internal/watcher/watcher.go`: fsnotify Layer 1 (500ms debounce/coalesce) + polling Layer 2 (`--poll-interval`), SHA-256 ground-truth comparison, state machine `UNKNOWN → NEW → TRACKED → MODIFIED | SKIP | DELETED` (data-model.md)
-- [ ] T041 [US4] Wire the modify/delete cascade in `internal/watcher/watcher.go`: on `MODIFIED` delete old chunks/embeddings/index entries then re-ingest; on `DELETED` hard-delete all entries (research Q10)
-- [ ] T042 [US4] Implement the `scan` command in `internal/cli/scan.go`: `--once` (scan + print `[ADDED]`/`[MODIFIED]`/`[DELETED]`) and `--watch` (long-lived, graceful drain on SIGINT/SIGTERM)
+- [x] T040 [US4] Implement `ChangeDetector` in `internal/watcher/watcher.go`: fsnotify Layer 1 (500ms debounce/coalesce) + polling Layer 2 (`--poll-interval`), SHA-256 ground-truth comparison, state machine `UNKNOWN → NEW → TRACKED → MODIFIED | SKIP | DELETED` (data-model.md)
+- [x] T041 [US4] Wire the modify/delete cascade in `internal/watcher/watcher.go`: on `MODIFIED` delete old chunks/embeddings/index entries then re-ingest; on `DELETED` hard-delete all entries (research Q10)
+- [x] T042 [US4] Implement the `scan` command in `internal/cli/scan.go`: `--once` (scan + print `[ADDED]`/`[MODIFIED]`/`[DELETED]`) and `--watch` (long-lived, graceful drain on SIGINT/SIGTERM)
 
 ---
 
