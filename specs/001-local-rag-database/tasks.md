@@ -83,7 +83,7 @@ US4 watch) so each story is independently implementable and testable.
 - [x] T018 [US1] Add `DefaultReaders()` to `internal/reader/reader.go` that registers the built-in readers (Register/Get already present)
 - [x] T019 [P] [US1] Implement `TextReader` in `internal/reader/text.go` (`.txt`/`.log`/`.csv`)
 - [x] T020 [P] [US1] Implement `MarkdownReader` in `internal/reader/markdown.go` (frontmatter + headings → metadata)
-- [ ] T021 [P] [US1] Implement `PDFReader` in `internal/reader/pdf.go` using pdfcpu (per-page text, `--- PAGE N ---` markers, title/author/page_count metadata)
+- [x] T021 [P] [US1] Implement `PDFReader` in `internal/reader/pdf.go` using pdfcpu (per-page text, `--- PAGE N ---` markers, title/author/page_count metadata)
 - [x] T022 [P] [US1] Implement `DocxReader` in `internal/reader/docx.go` (ZIP + XML body extract, doc-props metadata)
 - [x] T023 [P] [US1] Implement image metadata readers in `internal/reader/image.go` (`.jpg`/`.png` — dimensions/EXIF only, no OCR; research Q1)
 - [x] T024 [US1] Implement the chunk splitter in `internal/chunk/chunk.go`: paragraph→sentence→word cascade, ~512 tokens (≈1.3 tokens/word heuristic, research Q2), 50-token overlap, 50-token minimum, page-number passthrough
