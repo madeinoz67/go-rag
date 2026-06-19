@@ -4,9 +4,9 @@
 > documents — ingest, index, and query PDFs, Word files, markdown, and images on
 > your filesystem with zero external dependencies beyond a local Ollama instance.
 
-**Status:** scaffold / pre-alpha. The CLI surface, project structure, and tooling
-are in place; ingestion and retrieval logic are implemented against the spec in
-[`PRD_RAG_Database.md`](./PRD_RAG_Database.md).
+**Status:** alpha — MVP functional. `init` → `add` → `query` works end-to-end for
+text, Markdown, Word, and PDF documents (images are metadata-only; OCR is a later
+version). Full behaviour specified in [`PRD_RAG_Database.md`](./PRD_RAG_Database.md).
 
 ## Why
 
@@ -22,9 +22,13 @@ no Docker, no API keys, no cloud services (PRD §1). Install the binary, run
 ## Quickstart
 
 ```bash
-make build                       # build the static binary into ./bin
-./bin/go-rag --help              # see all commands
-./bin/go-rag version
+ollama pull nomic-embed-text            # one-time: fetch an embedding model
+make build                              # build the static binary into ./bin
+./bin/go-rag init                       # create ./.go-rag/ (config + data)
+./bin/go-rag add ./my-docs/             # ingest a folder (PDF/Word/Markdown/text)
+./bin/go-rag query "how does X work?"   # hybrid search, source-cited results
+./bin/go-rag status                     # counts, storage size, embedding health
+./bin/go-rag scan                       # detect added/modified/deleted files
 ```
 
 ## Commands
