@@ -15,7 +15,7 @@ import (
 // Config is the set of configurable options (PRD §5.7 table).
 type Config struct {
 	OllamaURL       string   `json:"ollama_url"`
-	OllamaModel     string   `json:"ollama_model,omitempty"`
+	EmbeddingModel     string   `json:"embedding_model,omitempty"`
 	WatchDirs       []string `json:"watch_dirs"`
 	ChunkSize       int      `json:"chunk_size"`
 	ChunkOverlap    int      `json:"chunk_overlap"`
@@ -76,6 +76,14 @@ func Load(path string) (Config, error) {
 	if err := json.Unmarshal(data, &c); err != nil {
 		return c, fmt.Errorf("parse config %q: %w", path, err)
 	}
+	// Backward compat: old configs used "ollama_model" instead of "embedding_model".
+	if c.EmbeddingModel == "" {
+		var raw map[string]any
+		_ = json.Unmarshal(data, &raw)
+		if v, ok := raw["ollama_model"]; ok {
+			c.EmbeddingModel = fmt.Sprintf("%v", v)
+		}
+	}
 	return c, nil
 }
 
@@ -98,8 +106,8 @@ func (c Config) Get(key string) (string, bool) {
 	switch key {
 	case "ollama_url":
 		return c.OllamaURL, true
-	case "ollama_model":
-		return c.OllamaModel, true
+	case "embedding_model":
+		return c.EmbeddingModel, true
 	case "db_path":
 		return c.DBPath, true
 	case "file_glob":
@@ -128,8 +136,8 @@ func (c *Config) Set(key, val string) error {
 	switch key {
 	case "ollama_url":
 		c.OllamaURL = val
-	case "ollama_model":
-		c.OllamaModel = val
+	case "embedding_model":
+		c.EmbeddingModel = val
 	case "db_path":
 		c.DBPath = val
 	case "file_glob":

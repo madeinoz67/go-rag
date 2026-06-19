@@ -83,7 +83,7 @@ func gatherStats(db *storage.DB, cfg config.Config) statusInfo {
 		Sources:        countPrefix(db, storage.PrefixSource),
 		Documents:      countPrefix(db, storage.PrefixDocument),
 		Chunks:         countPrefix(db, storage.PrefixChunk),
-		EmbeddingModel: cfg.OllamaModel,
+		EmbeddingModel: cfg.EmbeddingModel,
 		Provider:       cfg.OllamaURL,
 	}
 

@@ -44,7 +44,7 @@ func newQueryCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			em := embed.NewOllama(cfg.OllamaURL, cfg.OllamaModel)
+			em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
 			r := index.NewRetrieval(fts, vec, em.Embed)
 
 			var reranker index.Reranker

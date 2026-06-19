@@ -64,7 +64,7 @@ func populateDB(t *testing.T, dbPath, ollamaURL, doc string) {
 	cfg := config.Default()
 	cfg.DBPath = dbPath
 	cfg.OllamaURL = ollamaURL
-	cfg.OllamaModel = "fake"
+	cfg.EmbeddingModel = "fake"
 	_ = os.MkdirAll(filepath.Join(dbPath, "data"), 0o755)
 	if err := config.Save(filepath.Join(dbPath, "config.json"), cfg); err != nil {
 		t.Fatal(err)

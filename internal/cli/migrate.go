@@ -26,7 +26,7 @@ func newMigrateCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			current := cfg.OllamaModel
+			current := cfg.EmbeddingModel
 			stats := pipeline.EmbeddingModelStats(db)
 			fmt.Printf("Current embedding model: %s\n", current)
 			if len(stats) == 0 {

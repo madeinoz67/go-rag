@@ -43,7 +43,7 @@ func TestValidate_RejectsBadValues(t *testing.T) {
 func TestLoadSave_RoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	c := Default()
-	c.OllamaModel = "nomic-embed-text"
+	c.EmbeddingModel = "nomic-embed-text"
 	c.ChunkSize = 1024
 
 	if err := Save(path, c); err != nil {
@@ -53,7 +53,7 @@ func TestLoadSave_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if loaded.OllamaModel != "nomic-embed-text" || loaded.ChunkSize != 1024 || loaded.OllamaURL != c.OllamaURL {
+	if loaded.EmbeddingModel != "nomic-embed-text" || loaded.ChunkSize != 1024 || loaded.OllamaURL != c.OllamaURL {
 		t.Errorf("round-trip mismatch: %+v", loaded)
 	}
 }

@@ -156,7 +156,7 @@ func (s *Server) query(cfg config.Config, db *storage.DB, args map[string]any) (
 	if err != nil {
 		return "", err
 	}
-	em := embed.NewOllama(cfg.OllamaURL, cfg.OllamaModel)
+	em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
 	r := index.NewRetrieval(fts, vec, em.Embed)
 	var reranker index.Reranker
 	if cfg.RerankModel != "" {
@@ -195,7 +195,7 @@ func (s *Server) status(db *storage.DB) (string, error) {
 
 func (s *Server) add(cfg config.Config, db *storage.DB, args map[string]any) (string, error) {
 	path, _ := args["path"].(string)
-	em := embed.NewOllama(cfg.OllamaURL, cfg.OllamaModel)
+	em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
 	p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
 	defer p.Close()
 	res, err := p.Ingest(context.Background(), path, "*")
@@ -212,7 +212,7 @@ func (s *Server) initTool(args map[string]any) (string, error) {
 		cfg.OllamaURL = v
 	}
 	if v, ok := args["model"].(string); ok && v != "" {
-		cfg.OllamaModel = v
+		cfg.EmbeddingModel = v
 	}
 	if v, ok := args["watch_dir"].(string); ok && v != "" {
 		cfg.WatchDirs = []string{v}
@@ -223,8 +223,8 @@ func (s *Server) initTool(args map[string]any) (string, error) {
 	if v, ok := args["chunk_overlap"].(float64); ok && v >= 0 {
 		cfg.ChunkOverlap = int(v)
 	}
-	if cfg.OllamaModel == "" {
-		cfg.OllamaModel = "nomic-embed-text"
+	if cfg.EmbeddingModel == "" {
+		cfg.EmbeddingModel = "nomic-embed-text"
 	}
 	if err := cfg.Validate(); err != nil {
 		return "", err
@@ -235,7 +235,7 @@ func (s *Server) initTool(args map[string]any) (string, error) {
 	if err := config.Save(filepath.Join(cfg.DBPath, "config.json"), cfg); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("initialized go-rag at %s (model %s, url %s)", cfg.DBPath, cfg.OllamaModel, cfg.OllamaURL), nil
+	return fmt.Sprintf("initialized go-rag at %s (model %s, url %s)", cfg.DBPath, cfg.EmbeddingModel, cfg.OllamaURL), nil
 }
 
 func (s *Server) scan(cfg config.Config, db *storage.DB) (string, error) {
@@ -243,7 +243,7 @@ func (s *Server) scan(cfg config.Config, db *storage.DB) (string, error) {
 	if len(cfg.WatchDirs) > 0 && cfg.WatchDirs[0] != "" {
 		root = cfg.WatchDirs[0]
 	}
-	em := embed.NewOllama(cfg.OllamaURL, cfg.OllamaModel)
+	em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
 	pl := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
 	defer pl.Close()
 	cd := watcher.New(db, pl)
@@ -291,7 +291,7 @@ func (s *Server) configTool(cfg config.Config, args map[string]any) (string, err
 			return fmt.Sprintf("%s=%s", key, v), nil
 		}
 		var b strings.Builder
-		for _, k := range []string{"ollama_url", "ollama_model", "chunk_size", "chunk_overlap", "db_path", "poll_interval_secs"} {
+		for _, k := range []string{"ollama_url", "embedding_model", "chunk_size", "chunk_overlap", "db_path", "poll_interval_secs"} {
 			if v, ok := cfg.Get(k); ok {
 				fmt.Fprintf(&b, "%s=%s\n", k, v)
 			}
@@ -353,7 +353,7 @@ func (s *Server) dirs(db *storage.DB) (string, error) {
 // reprocess force-reingests a path via the pipeline (T047).
 func (s *Server) reprocess(cfg config.Config, db *storage.DB, args map[string]any) (string, error) {
 	path, _ := args["path"].(string)
-	em := embed.NewOllama(cfg.OllamaURL, cfg.OllamaModel)
+	em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
 	p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
 	defer p.Close()
 	res, err := p.Reprocess(context.Background(), path, "*")
@@ -366,7 +366,7 @@ func (s *Server) reprocess(cfg config.Config, db *storage.DB, args map[string]an
 // migrate re-embeds documents whose embeddings use a different model than the
 // configured one (T048).
 func (s *Server) migrate(cfg config.Config, db *storage.DB) (string, error) {
-	current := cfg.OllamaModel
+	current := cfg.EmbeddingModel
 	stats := pipeline.EmbeddingModelStats(db)
 	if len(stats) == 0 {
 		return "no tracked embeddings yet", nil

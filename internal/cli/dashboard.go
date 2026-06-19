@@ -92,7 +92,7 @@ func printDashboard() {
 		dashRow("ollama", info.Health, ollamaColor)
 
 		fmt.Printf("\n  Vault:   %s\n", dbPath)
-		fmt.Printf("  Model:   %s", cfg.OllamaModel)
+		fmt.Printf("  Model:   %s", cfg.EmbeddingModel)
 		if info.Dimensions > 0 {
 			fmt.Printf(" (%d dims)", info.Dimensions)
 		}

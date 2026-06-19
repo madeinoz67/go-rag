@@ -27,10 +27,10 @@ func newInitCmd() *cobra.Command {
 				cfg.OllamaURL = ollamaURL
 			}
 			if model != "" {
-				cfg.OllamaModel = model
+				cfg.EmbeddingModel = model
 			}
-			if cfg.OllamaModel == "" {
-				cfg.OllamaModel = "nomic-embed-text"
+			if cfg.EmbeddingModel == "" {
+				cfg.EmbeddingModel = "nomic-embed-text"
 			}
 			cfg.ChunkSize = chunkSize
 			cfg.ChunkOverlap = chunkOverlap
@@ -46,7 +46,7 @@ func newInitCmd() *cobra.Command {
 			}
 
 			fmt.Printf("Initialized go-rag database at %s\n", cfg.DBPath)
-			fmt.Printf("Embedding model: %s (%s)\n", cfg.OllamaModel, cfg.OllamaURL)
+			fmt.Printf("Embedding model: %s (%s)\n", cfg.EmbeddingModel, cfg.OllamaURL)
 			fmt.Println("Next: go-rag add <path>")
 			return nil
 		},
