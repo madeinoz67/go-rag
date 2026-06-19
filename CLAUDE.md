@@ -72,5 +72,6 @@ system, embedding providers beyond Ollama. Don't build these without revisiting 
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+shell commands, and other important information, read the current plan:
+`specs/001-local-rag-database/plan.md`
 <!-- SPECKIT END -->
