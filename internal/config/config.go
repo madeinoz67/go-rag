@@ -5,6 +5,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -21,6 +22,8 @@ type Config struct {
 	DBPath          string   `json:"db_path"`
 	FileGlob        string   `json:"file_glob"`
 	PollIntervalSec int      `json:"poll_interval_secs"`
+	MCPAddr         string   `json:"mcp_addr"`
+	MCPToken        string   `json:"mcp_token,omitempty"`
 }
 
 // Default returns the configuration used by `go-rag init` when no overrides apply.
@@ -33,6 +36,7 @@ func Default() Config {
 		DBPath:          "./.go-rag",
 		FileGlob:        "*",
 		PollIntervalSec: 60,
+		MCPAddr:         ":7878",
 	}
 }
 
@@ -50,6 +54,11 @@ func (c Config) Validate() error {
 	}
 	if c.PollIntervalSec <= 0 {
 		return fmt.Errorf("poll_interval_secs must be positive")
+	}
+	if c.MCPAddr != "" {
+		if _, _, err := net.SplitHostPort(c.MCPAddr); err != nil {
+			return fmt.Errorf("invalid mcp_addr: %q", c.MCPAddr)
+		}
 	}
 	return nil
 }
@@ -98,6 +107,10 @@ func (c Config) Get(key string) (string, bool) {
 		return strconv.Itoa(c.ChunkOverlap), true
 	case "poll_interval_secs":
 		return strconv.Itoa(c.PollIntervalSec), true
+	case "mcp_addr":
+		return c.MCPAddr, true
+	case "mcp_token":
+		return c.MCPToken, true
 	}
 	return "", false
 }
@@ -132,6 +145,10 @@ func (c *Config) Set(key, val string) error {
 			return fmt.Errorf("invalid poll_interval_secs: %q", val)
 		}
 		c.PollIntervalSec = n
+	case "mcp_addr":
+		c.MCPAddr = val
+	case "mcp_token":
+		c.MCPToken = val
 	default:
 		return fmt.Errorf("unknown config key: %q", key)
 	}

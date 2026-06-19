@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/madeinoz67/go-rag/internal/config"
+	"github.com/madeinoz67/go-rag/internal/daemon"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
 	"github.com/spf13/cobra"
@@ -31,9 +32,27 @@ type statusInfo struct {
 func newStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
-		Short: "Show database statistics and health",
+		Short: "Show daemon and database status",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			asJSON, _ := cmd.Flags().GetBool("json")
+
+			// Daemon-aware: if the daemon is running, report counts via it (avoids
+			// a Pebble-lock conflict with the daemon's long-lived open).
+			if running, pid, addr := daemon.Status(dbPath); running {
+				counts, _ := daemon.CallTool(addr, daemon.ReadToken(dbPath), "go_rag_status", nil)
+				if asJSON {
+					return json.NewEncoder(os.Stdout).Encode(map[string]any{
+						"daemon": "running", "pid": pid, "mcp_addr": addr, "counts": counts,
+					})
+				}
+				fmt.Printf("go-rag daemon: running (pid %d) — MCP on %s\n", pid, addr)
+				if counts != "" {
+					fmt.Printf("  %s\n", counts)
+				}
+				return nil
+			}
+
+			// Daemon not running: open the database directly.
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
 				return err
@@ -42,7 +61,6 @@ func newStatusCmd() *cobra.Command {
 
 			info := gatherStats(db, cfg)
 			info.Health = pingHealth(cfg.OllamaURL)
-
 			if asJSON {
 				return json.NewEncoder(os.Stdout).Encode(info)
 			}
@@ -81,7 +99,6 @@ func gatherStats(db *storage.DB, cfg config.Config) statusInfo {
 		info.EmbeddedPct = embedded * 100 / info.Documents
 	}
 
-	// Dimensions from the first stored embedding (false => stop after one).
 	_ = db.PrefixScanByte(storage.PrefixEmbedding, func(_, val []byte) bool {
 		var v []float32
 		if json.Unmarshal(val, &v) == nil {
@@ -120,7 +137,6 @@ func dirSize(path string) int64 {
 	return size
 }
 
-// pingHealth reports "OK" if the embedding service responds 2xx, else "degraded".
 func pingHealth(baseURL string) string {
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get(baseURL)
@@ -135,7 +151,7 @@ func pingHealth(baseURL string) string {
 }
 
 func printStatus(s statusInfo) {
-	fmt.Printf("go-rag database: %s\n\n", dbPath)
+	fmt.Printf("go-rag database: %s (daemon stopped)\n\n", dbPath)
 	fmt.Printf("  Sources:    %d\n", s.Sources)
 	fmt.Printf("  Documents:  %d\n", s.Documents)
 	fmt.Printf("  Chunks:     %d\n", s.Chunks)

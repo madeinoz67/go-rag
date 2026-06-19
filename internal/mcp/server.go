@@ -25,13 +25,22 @@ import (
 
 const protocolVersion = "2024-11-05"
 
-// Server is a stdio MCP server backed by a go-rag database at dbPath.
+// Server is an MCP server backed by a go-rag database. It can run over stdio
+// (New, opens the DB per call) or as a long-lived daemon (NewWithDB, shared DB).
 type Server struct {
 	dbPath string
+	db     *storage.DB // nil => open per call (stdio); non-nil => shared (daemon)
+	cfg    config.Config
 }
 
-// New returns an MCP server bound to the go-rag database at dbPath.
+// New returns an MCP server that opens the database per call (stdio mode).
 func New(dbPath string) *Server { return &Server{dbPath: dbPath} }
+
+// NewWithDB returns an MCP server backed by a pre-opened database (daemon mode).
+// The caller owns the database's lifetime; it is NOT closed per call.
+func NewWithDB(dbPath string, db *storage.DB, cfg config.Config) *Server {
+	return &Server{dbPath: dbPath, db: db, cfg: cfg}
+}
 
 type rpcReq struct {
 	JSONRPC string         `json:"jsonrpc"`
@@ -91,16 +100,24 @@ func (s *Server) callTool(req rpcReq) any {
 }
 
 // dispatch routes a tool call. go_rag_init is handled before opening the DB (it
-// creates the DB); the rest require an existing database.
+// creates the DB); the rest require an existing database. In daemon mode the
+// shared DB is reused; in stdio mode it is opened (and closed) per call.
 func (s *Server) dispatch(name string, args map[string]any) (string, error) {
 	if name == "go_rag_init" {
 		return s.initTool(args)
+	}
+	if s.db != nil {
+		return s.dispatchDB(s.cfg, s.db, name, args)
 	}
 	cfg, db, err := openDB(s.dbPath)
 	if err != nil {
 		return "", err
 	}
 	defer db.Close()
+	return s.dispatchDB(cfg, db, name, args)
+}
+
+func (s *Server) dispatchDB(cfg config.Config, db *storage.DB, name string, args map[string]any) (string, error) {
 	switch name {
 	case "go_rag_query":
 		return s.query(cfg, db, args)
