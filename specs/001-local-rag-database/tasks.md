@@ -211,3 +211,10 @@ go-rag: internal/index/vector_test.go + vector.go
 - Every task names a concrete Go file under the existing scaffold; the only new package is `internal/mcp` (T043, Principle V).
 - TDD is enforced structurally: test task IDs always immediately precede their implementation task IDs within a phase.
 - Constitution compliance is structural: pure-Go deps (T001), SHA-256 identity (T005/T008/T028), <10ms Sync ACK (T004/T007/T028), FileReader/Embedder interfaces (T018/T025), MCP exposure (T043).
+
+---
+
+## Future Work (post-v1)
+
+- [ ] T047 [future] **reprocess** command + `pipeline.Reprocess(root, glob)`: force re-ingest of an already-ingested directory — re-read, re-chunk, and re-embed every file under `root`, **bypassing the SHA-256 content-hash dedup** that makes `add` a no-op for unchanged files. Implementation sketch: for each tracked Document under `root` (via the `0x0C` path index), `DeleteDoc` it (clears chunks/embeddings/index/hash entries), then re-run the ingest pipeline so the current reader + embedder apply. Use cases: after a reader change (e.g. the Obsidian embed/wikilink normalization), after swapping the embedding model, or to refresh stale content — all without `rm -rf .go-rag`. Surface as `go-rag reprocess <path>` (CLI) and a `go_rag_reprocess` MCP tool. Mirrors muninn's reindex/re-embed. TDD: reprocess re-applies the current reader to a fixture and the new text (e.g. stripped brackets) appears in query results.
+- [ ] T048 [future] **embedding-model migration**: when `ollama_model` changes, offer to reprocess all documents whose embeddings were made with the old model (track the model per Embedding record — already stored in `0x04` metadata; extend to filter on it).
