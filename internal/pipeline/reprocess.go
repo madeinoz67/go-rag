@@ -30,6 +30,33 @@ func (p *Pipeline) Reprocess(ctx context.Context, root, glob string) (Result, er
 	return p.Ingest(ctx, root, glob)
 }
 
+// ReprocessAll re-ingests every tracked document (all paths in the 0x0C index),
+// deleting and re-adding each so the current reader + embedder apply. Used by
+// model migration (T048) when the embedding model changes.
+func (p *Pipeline) ReprocessAll(ctx context.Context) (Result, error) {
+	type entry struct{ path, docID string }
+	var entries []entry
+	_ = p.db.PrefixScanByte(storage.PrefixPathDoc, func(key, val []byte) bool {
+		entries = append(entries, entry{path: string(key[1:]), docID: string(val)})
+		return true
+	})
+	for _, e := range entries {
+		_ = DeleteDoc(p.db, e.docID)
+	}
+	res := Result{}
+	for _, e := range entries {
+		r, err := p.Ingest(ctx, e.path, "*")
+		if err != nil {
+			res.Errors++
+			continue
+		}
+		res.New += r.New
+		res.Skipped += r.Skipped
+		res.Errors += r.Errors
+	}
+	return res, nil
+}
+
 // isUnder reports whether path is root itself or a descendant of root. The current
 // directory (".") and filesystem root ("/") contain everything.
 func isUnder(path, root string) bool {

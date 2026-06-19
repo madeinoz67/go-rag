@@ -135,6 +135,8 @@ func (s *Server) dispatchDB(cfg config.Config, db *storage.DB, name string, args
 		return s.dirs(db)
 	case "go_rag_reprocess":
 		return s.reprocess(cfg, db, args)
+	case "go_rag_migrate":
+		return s.migrate(cfg, db)
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
 }
@@ -350,6 +352,33 @@ func (s *Server) reprocess(cfg config.Config, db *storage.DB, args map[string]an
 	return fmt.Sprintf("reprocessed=%d errors=%d", res.New, res.Errors), nil
 }
 
+// migrate re-embeds documents whose embeddings use a different model than the
+// configured one (T048).
+func (s *Server) migrate(cfg config.Config, db *storage.DB) (string, error) {
+	current := cfg.OllamaModel
+	stats := pipeline.EmbeddingModelStats(db)
+	if len(stats) == 0 {
+		return "no tracked embeddings yet", nil
+	}
+	stale := 0
+	for m, n := range stats {
+		if m != current {
+			stale += n
+		}
+	}
+	if stale == 0 {
+		return fmt.Sprintf("up to date: all embeddings use %s", current), nil
+	}
+	em := embed.NewOllama(cfg.OllamaURL, current)
+	p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
+	defer p.Close()
+	res, err := p.ReprocessAll(context.Background())
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("migrated=%d files re-embedded to %s (%d errors)", res.New, current, res.Errors), nil
+}
+
 // --- JSON-RPC helpers ---
 
 func ok(id any, result any) any {
@@ -488,6 +517,11 @@ func toolDefs() []map[string]any {
 				"properties": map[string]any{"path": map[string]any{"type": "string"}},
 				"required": []string{"path"},
 			},
+		},
+		{
+			"name":        "go_rag_migrate",
+			"description": "Re-embed all documents whose embeddings use a different model than the current one.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
 		},
 	}
 }

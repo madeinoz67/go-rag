@@ -42,7 +42,7 @@ func (p *Pipeline) processJob(j job) {
 				p.vec.Add(c.ID, vecs[i])
 				// Persist the embedding so a later `query` process can rebuild
 				// the in-memory index without re-embedding (data-model 0x04).
-				if vj, merr := json.Marshal(vecs[i]); merr == nil {
+				if vj, merr := json.Marshal(storedEmbedding{Model: p.embed.Model(), Vector: vecs[i]}); merr == nil {
 					_ = p.db.SetWithPrefix(storage.PrefixEmbedding, []byte(c.ID), vj)
 				}
 			}
