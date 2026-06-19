@@ -40,6 +40,11 @@ func (p *Pipeline) processJob(j job) {
 			p.fts.Index(c.ID, map[string]string{"body": c.Content})
 			if i < len(vecs) {
 				p.vec.Add(c.ID, vecs[i])
+				// Persist the embedding so a later `query` process can rebuild
+				// the in-memory index without re-embedding (data-model 0x04).
+				if vj, merr := json.Marshal(vecs[i]); merr == nil {
+					_ = p.db.SetWithPrefix(storage.PrefixEmbedding, []byte(c.ID), vj)
+				}
 			}
 		}
 	}

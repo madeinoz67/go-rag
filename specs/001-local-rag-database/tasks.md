@@ -76,7 +76,7 @@ US4 watch) so each story is independently implementable and testable.
 - [x] T014 [P] [US1] Write vector tests in `internal/index/vector_test.go`: `Add` then `Query` for a near-identical vector returns the added chunk first; persistence survives a close/reopen
 - [x] T015 [P] [US1] Write pipeline tests in `internal/pipeline/pipeline_test.go`: ingesting the same file twice yields exactly one Document (idempotent via `0x0D`); a content change produces a new `ContentHash` and re-ingest; write ACK returns before embedding completes
 - [x] T016 [P] [US1] Write retrieval tests in `internal/index/retrieval_test.go`: hybrid mode fuses vector + FTS via RRF and ranks a result present in both lists above one in only one; same-document hits collapse to top-1; `--mode` selects the right backend
-- [ ] T017 [P] [US1] Write CLI contract tests in `internal/cli/commands_test.go`: `init` creates `.go-rag/` + config; `add` reports NEW/SKIPPED/ERROR counts; `query` exits 0 and emits ranked results with source + page + score; `--format json` parses to the documented shape
+- [x] T017 [P] [US1] Write CLI contract tests in `internal/cli/commands_test.go`: `init` creates `.go-rag/` + config; `add` reports NEW/SKIPPED/ERROR counts; `query` exits 0 and emits ranked results with source + page + score; `--format json` parses to the documented shape
 
 ### Implementation for User Story 1 (make the tests pass)
 
@@ -93,9 +93,9 @@ US4 watch) so each story is independently implementable and testable.
 - [x] T028 [US1] Implement the ingest pipeline in `internal/pipeline/pipeline.go`: walk path → read → hash → dedup via `0x0D` → chunk → store Source/Document/Chunk (`Sync`, <10ms) → ACK → enqueue chunks for async workers
 - [x] T029 [US1] Implement async indexing workers in `internal/pipeline/workers.go`: background embed (Ollama) + FTS index + vector index from the queue; update `Document.Status` `pending → embedded | error`
 - [x] T030 [US1] Implement hybrid retrieval + RRF in `internal/index/retrieval.go`: embed query → parallel vector top-60 + FTS top-60 → Reciprocal Rank Fusion (`K_vec=40`, `K_fts=60`) → top-K, collapse same-document hits to top-1 by default (research Q8)
-- [ ] T031 [US1] Implement the `init` command in `internal/cli/init.go`: create `.go-rag/` (+ `config.json`, `data/`), probe Ollama for embedding-capable models, pick/prompt a model, open Pebble, persist config
-- [ ] T032 [US1] Implement the `add` command in `internal/cli/add.go`: walk path (respect `--recursive`/`--glob`/`--dry-run`), run the pipeline, print per-file `NEW`/`SKIPPED`/`ERROR` + summary + async-embedding notice
-- [ ] T033 [US1] Implement the `query` command in `internal/cli/query.go`: `--k`/`--mode`/`--format`/`--source`/`--threshold`, call retrieval, render text/JSON with chunk text + source path + page + score
+- [x] T031 [US1] Implement the `init` command in `internal/cli/init.go`: create `.go-rag/` (+ `config.json`, `data/`), probe Ollama for embedding-capable models, pick/prompt a model, open Pebble, persist config
+- [x] T032 [US1] Implement the `add` command in `internal/cli/add.go`: walk path (respect `--recursive`/`--glob`/`--dry-run`), run the pipeline, print per-file `NEW`/`SKIPPED`/`ERROR` + summary + async-embedding notice
+- [x] T033 [US1] Implement the `query` command in `internal/cli/query.go`: `--k`/`--mode`/`--format`/`--source`/`--threshold`, call retrieval, render text/JSON with chunk text + source path + page + score
 
 **Checkpoint**: US1 complete and green — `quickstart.md` runs end-to-end. MVP shippable.
 
