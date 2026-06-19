@@ -2,7 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"path/filepath"
 
+	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/daemon"
 )
 
@@ -10,6 +12,7 @@ const (
 	green  = "\033[32m"
 	yellow = "\033[33m"
 	red    = "\033[31m"
+	grey   = "\033[37m"
 	reset  = "\033[0m"
 )
 
@@ -18,10 +21,16 @@ func dashRow(label, value, color string) {
 	fmt.Printf("    %-10s %-14s  %s●%s\n", label, value, color, reset)
 }
 
+// dashRowOff prints a row with a hollow dot (service disabled/off).
+func dashRowOff(label, value string) {
+	fmt.Printf("    %-10s %-14s  %s○%s\n", label, value, grey, reset)
+}
+
 // printDashboard renders a muninn-style status panel when go-rag is invoked with
 // no subcommand.
 func printDashboard() {
 	running, pid, addr := daemon.Status(dbPath)
+	cfg, _ := config.Load(filepath.Join(dbPath, "config.json"))
 
 	// Header
 	fmt.Println()
@@ -35,6 +44,13 @@ func printDashboard() {
 	if running {
 		dashRow("daemon", fmt.Sprintf("pid %d", pid), green)
 		dashRow("mcp", addr, green)
+	}
+
+	// Reranker row (shown in both states)
+	if cfg.RerankModel != "" {
+		dashRow("reranker", cfg.RerankModel, green)
+	} else {
+		dashRowOff("reranker", "disabled")
 	}
 
 	// Database stats
@@ -52,7 +68,7 @@ func printDashboard() {
 			dashRow("embedded", fmt.Sprintf("%d%%", pct), embColor)
 		}
 	} else {
-		cfg, db, err := openDB(dbPath)
+		_, db, err := openDB(dbPath)
 		if err != nil {
 			fmt.Printf("    %-10s not initialized\n\n", "database")
 			fmt.Printf("  Run 'go-rag init' to get started.\n")
