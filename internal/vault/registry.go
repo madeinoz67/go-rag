@@ -93,3 +93,13 @@ func Clear(name string) error {
 	}
 	return os.RemoveAll(filepath.Join(Path(name), "data"))
 }
+
+// EnsureDefault creates a "default" vault if no vaults exist. Idempotent — mirrors
+// muninndb's bootstrap which creates a "default" vault on first run so the user
+// has a starting point.
+func EnsureDefault() {
+	if len(List()) > 0 {
+		return
+	}
+	_ = Create("default", config.Default())
+}

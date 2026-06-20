@@ -20,7 +20,7 @@ func newVaultCmd() *cobra.Command {
 		Short: "Manage document vaults (create, list, delete, clear)",
 	}
 	cmd.AddCommand(newVaultCreateCmd(), newVaultListCmd(), newVaultDeleteCmd(), newVaultClearCmd(),
-		newVaultCloneCmd(), newVaultExportCmd())
+		newVaultCloneCmd(), newVaultExportCmd(), newVaultImportCmd())
 	return cmd
 }
 
@@ -62,6 +62,7 @@ func newVaultListCmd() *cobra.Command {
 		Short: "List all vaults with document counts and status",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			asJSON, _ := cmd.Flags().GetBool("json")
+			vault.EnsureDefault()
 			names := vault.List()
 			type info struct {
 				Name string `json:"name"`
@@ -241,5 +242,54 @@ func newVaultExportCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP("output", "o", "", "output file (default: stdout)")
+	return cmd
+}
+
+func newVaultImportCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "import <name> --from <path>",
+		Short: "Import an existing database directory as a vault (no re-ingestion)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			from, _ := cmd.Flags().GetString("from")
+			if from == "" {
+				return fmt.Errorf("--from <path> is required (path to existing .go-rag directory)")
+			}
+			// Read source config
+			srcCfg, err := config.Load(filepath.Join(from, "config.json"))
+			if err != nil {
+				return fmt.Errorf("read config from %s: %w", from, err)
+			}
+			// Create the vault with the source's config
+			if err := vault.Create(name, srcCfg); err != nil {
+				return err
+			}
+			// Recursively copy data/
+			srcData := filepath.Join(from, "data")
+			dstData := filepath.Join(vault.Path(name), "data")
+			err = filepath.Walk(srcData, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				rel, _ := filepath.Rel(srcData, path)
+				target := filepath.Join(dstData, rel)
+				if info.IsDir() {
+					return os.MkdirAll(target, info.Mode())
+				}
+				data, rErr := os.ReadFile(path)
+				if rErr != nil {
+					return rErr
+				}
+				return os.WriteFile(target, data, info.Mode())
+			})
+			if err != nil {
+				return fmt.Errorf("import data: %w", err)
+			}
+			fmt.Printf("Imported %q → vault %q at %s\n", from, name, vault.Path(name))
+			return nil
+		},
+	}
+	cmd.Flags().String("from", "", "path to existing database directory (e.g., ./.go-rag or ~/Documents/ObsidianVault/.go-rag)")
 	return cmd
 }
