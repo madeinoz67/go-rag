@@ -21,6 +21,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/rerank"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/vault"
 	"github.com/madeinoz67/go-rag/internal/watcher"
 )
 
@@ -107,6 +108,9 @@ func (s *Server) dispatch(name string, args map[string]any) (string, error) {
 	if name == "go_rag_init" {
 		return s.initTool(args)
 	}
+	if name == "go_rag_vault_list" {
+		return s.vaultList()
+	}
 	if s.db != nil {
 		return s.dispatchDB(s.cfg, s.db, name, args)
 	}
@@ -123,7 +127,7 @@ func (s *Server) dispatchDB(cfg config.Config, db *storage.DB, name string, args
 	case "go_rag_query":
 		return s.query(cfg, db, args)
 	case "go_rag_status":
-		return s.status(db)
+		return s.status(cfg, db)
 	case "go_rag_add":
 		return s.add(cfg, db, args)
 	case "go_rag_scan":
@@ -152,6 +156,11 @@ func (s *Server) query(cfg config.Config, db *storage.DB, args map[string]any) (
 	if v, ok := args["mode"].(string); ok {
 		mode = v
 	}
+	noRerank, _ := args["no_rerank"].(bool)
+	threshold := 0.0
+	if v, ok := args["threshold"].(float64); ok {
+		threshold = v
+	}
 	fts, vec, err := pipeline.LoadIndex(db)
 	if err != nil {
 		return "", err
@@ -159,7 +168,7 @@ func (s *Server) query(cfg config.Config, db *storage.DB, args map[string]any) (
 	em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
 	r := index.NewRetrieval(fts, vec, em.Embed)
 	var reranker index.Reranker
-	if cfg.RerankModel != "" {
+	if cfg.RerankModel != "" && !noRerank {
 		reranker = rerank.New(cfg.OllamaURL, cfg.RerankModel)
 	}
 	hits, err := r.SearchWithRerank(context.Background(), q, k, index.ParseMode(mode), docOf(db), reranker, func(id string) string {
@@ -174,6 +183,9 @@ func (s *Server) query(cfg config.Config, db *storage.DB, args map[string]any) (
 	}
 	var b strings.Builder
 	for _, h := range hits {
+		if h.Score < threshold {
+			continue
+		}
 		c, ok := lookupChunk(db, h.ChunkID)
 		if !ok {
 			continue
@@ -186,11 +198,44 @@ func (s *Server) query(cfg config.Config, db *storage.DB, args map[string]any) (
 	return strings.TrimSpace(b.String()), nil
 }
 
-func (s *Server) status(db *storage.DB) (string, error) {
-	return fmt.Sprintf("documents: %d, chunks: %d, embeddings: %d",
-		countPrefix(db, storage.PrefixDocument),
-		countPrefix(db, storage.PrefixChunk),
-		countPrefix(db, storage.PrefixEmbedding)), nil
+func (s *Server) status(cfg config.Config, db *storage.DB) (string, error) {
+	docs := countPrefix(db, storage.PrefixDocument)
+	chunks := countPrefix(db, storage.PrefixChunk)
+	embs := countPrefix(db, storage.PrefixEmbedding)
+	dims := 0
+	_ = db.PrefixScanByte(storage.PrefixEmbedding, func(_, val []byte) bool {
+		var se struct {
+			Vector []float32 `json:"vector"`
+		}
+		if json.Unmarshal(val, &se) == nil && len(se.Vector) > 0 {
+			dims = len(se.Vector)
+		}
+		return false
+	})
+	reranker := cfg.RerankModel
+	if reranker == "" {
+		reranker = "disabled"
+	}
+	return fmt.Sprintf("documents: %d, chunks: %d, embeddings: %d, dimensions: %d, model: %s, reranker: %s",
+		docs, chunks, embs, dims, cfg.EmbeddingModel, reranker), nil
+}
+
+// vaultList lists all vaults with doc counts. Doesn't require a specific vault's DB.
+func (s *Server) vaultList() (string, error) {
+	names := vault.List()
+	if len(names) == 0 {
+		return "no vaults", nil
+	}
+	var b strings.Builder
+	for _, n := range names {
+		docs := 0
+		if _, db, err := openDB(vault.Path(n)); err == nil {
+			docs = countPrefix(db, 0x02)
+			db.Close()
+		}
+		fmt.Fprintf(&b, "%s (%d docs)\n", n, docs)
+	}
+	return strings.TrimSpace(b.String()), nil
 }
 
 func (s *Server) add(cfg config.Config, db *storage.DB, args map[string]any) (string, error) {
@@ -457,16 +502,18 @@ func toolDefs() []map[string]any {
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"query": map[string]any{"type": "string"},
-					"k":     map[string]any{"type": "integer", "default": 5},
-					"mode":  map[string]any{"type": "string", "enum": []string{"hybrid", "semantic", "keyword"}},
+					"query":      map[string]any{"type": "string"},
+					"k":          map[string]any{"type": "integer", "default": 5},
+					"mode":       map[string]any{"type": "string", "enum": []string{"hybrid", "semantic", "keyword"}},
+					"no_rerank":  map[string]any{"type": "boolean", "default": false},
+					"threshold":  map[string]any{"type": "number", "default": 0.0},
 				},
 				"required": []string{"query"},
 			},
 		},
 		{
 			"name":        "go_rag_status",
-			"description": "Report document/chunk/embedding counts in the database.",
+			"description": "Report document/chunk/embedding counts, model, dimensions, and reranker status.",
 			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
 		},
 		{
@@ -532,6 +579,11 @@ func toolDefs() []map[string]any {
 		{
 			"name":        "go_rag_migrate",
 			"description": "Re-embed all documents whose embeddings use a different model than the current one.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "go_rag_vault_list",
+			"description": "List all available document vaults with doc counts.",
 			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
 		},
 	}
