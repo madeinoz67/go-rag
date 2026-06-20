@@ -44,12 +44,11 @@ func printVaultsOverview() {
 
 	// Services section
 	anyRunning := false
-	var runningVault, runningAddr string
 	var runningPid int
+	var runningAddr string
 	for _, n := range names {
 		if r, pid, addr := daemon.Status(vault.Path(n)); r {
 			anyRunning = true
-			runningVault = n
 			runningPid = pid
 			runningAddr = addr
 			break
@@ -73,13 +72,10 @@ func printVaultsOverview() {
 		fmt.Printf("  go-rag  %s○%s  stopped\n\n", red, reset)
 		dashRowOff("mcp", mcpAddr)
 	}
-	ollamaDot := green + "●" + reset
-	if ollamaHealth != "OK" {
-		ollamaDot = red + "●" + reset
-	}
-	dashRow("ollama", ollamaHealth, green)
-	if ollamaHealth != "OK" {
-		// override — reuse the pattern
+	if ollamaHealth == "OK" {
+		dashRow("ollama", ollamaHealth, green)
+	} else {
+		dashRow("ollama", ollamaHealth, red)
 	}
 
 	// Vaults section
