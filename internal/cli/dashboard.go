@@ -34,10 +34,14 @@ func printDashboard() {
 
 	// Header
 	fmt.Println()
+	vaultLabel := ""
+	if vaultName != "" {
+		vaultLabel = " — vault: " + vaultName
+	}
 	if running {
-		fmt.Printf("  go-rag  %s●%s  running\n\n", green, reset)
+		fmt.Printf("  go-rag%s  %s●%s  running\n\n", vaultLabel, green, reset)
 	} else {
-		fmt.Printf("  go-rag  %s○%s  stopped\n\n", red, reset)
+		fmt.Printf("  go-rag%s  %s○%s  stopped\n\n", vaultLabel, red, reset)
 	}
 
 	// Services (only when daemon is up)

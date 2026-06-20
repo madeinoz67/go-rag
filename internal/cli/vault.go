@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"archive/tar"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/daemon"
@@ -16,7 +19,8 @@ func newVaultCmd() *cobra.Command {
 		Use:   "vault",
 		Short: "Manage document vaults (create, list, delete, clear)",
 	}
-	cmd.AddCommand(newVaultCreateCmd(), newVaultListCmd(), newVaultDeleteCmd(), newVaultClearCmd())
+	cmd.AddCommand(newVaultCreateCmd(), newVaultListCmd(), newVaultDeleteCmd(), newVaultClearCmd(),
+		newVaultCloneCmd(), newVaultExportCmd())
 	return cmd
 }
 
@@ -152,4 +156,90 @@ func newVaultClearCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func newVaultCloneCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "clone <src> <dst>",
+		Short: "Clone a vault (copy config + data to a new vault)",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			src, dst := args[0], args[1]
+			if !vault.Exists(src) {
+				return fmt.Errorf("source vault %q not found", src)
+			}
+			srcCfg, _ := config.Load(filepath.Join(vault.Path(src), "config.json"))
+			if err := vault.Create(dst, srcCfg); err != nil {
+				return err
+			}
+			// Recursively copy data/
+			srcData := filepath.Join(vault.Path(src), "data")
+			dstData := filepath.Join(vault.Path(dst), "data")
+			err := filepath.Walk(srcData, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				rel, _ := filepath.Rel(srcData, path)
+				target := filepath.Join(dstData, rel)
+				if info.IsDir() {
+					return os.MkdirAll(target, info.Mode())
+				}
+				data, rErr := os.ReadFile(path)
+				if rErr != nil {
+					return rErr
+				}
+				return os.WriteFile(target, data, info.Mode())
+			})
+			if err != nil {
+				return fmt.Errorf("clone data: %w", err)
+			}
+			fmt.Printf("Cloned vault %q → %q\n", src, dst)
+			return nil
+		},
+	}
+}
+
+func newVaultExportCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "export <name>",
+		Short: "Export a vault as a tar archive (stdout or --output)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			if !vault.Exists(name) {
+				return fmt.Errorf("vault %q not found", name)
+			}
+			output, _ := cmd.Flags().GetString("output")
+			var w io.Writer = os.Stdout
+			if output != "" {
+				f, err := os.Create(output)
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+				w = f
+			}
+			tw := tar.NewWriter(w)
+			defer tw.Close()
+			src := vault.Path(name)
+			return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+				if err != nil || info.IsDir() {
+					return err
+				}
+				rel, _ := filepath.Rel(src, path)
+				hdr := &tar.Header{Name: rel, Size: info.Size(), Mode: int64(info.Mode())}
+				if err := tw.WriteHeader(hdr); err != nil {
+					return err
+				}
+				data, rErr := os.ReadFile(path)
+				if rErr != nil {
+					return rErr
+				}
+				_, err = tw.Write(data)
+				return err
+			})
+		},
+	}
+	cmd.Flags().StringP("output", "o", "", "output file (default: stdout)")
+	return cmd
 }

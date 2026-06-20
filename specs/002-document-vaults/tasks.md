@@ -15,9 +15,9 @@
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 [P] Create `internal/vault/registry.go`: vault root resolution (`VaultRoot()` → `GO_RAG_VAULT_ROOT` env or `~/.go-rag/vaults/`), `VaultPath(name)` → absolute path, `ValidateName(name)` → lowercase alphanumeric + hyphens, 1–64 chars
-- [ ] T002 [P] Create `internal/vault/registry.go`: `Exists(name)`, `List()` → `[]string` (scan vault root for directories with `config.json`), `Create(name, cfg)` → mkdir + write config.json + mkdir data/
-- [ ] T003 [P] Create `internal/vault/registry_test.go`: ValidateName (valid/invalid cases), VaultPath resolution, Create + Exists + List round-trip
+- [x] T001 [P] Create `internal/vault/registry.go`: vault root resolution (`VaultRoot()` → `GO_RAG_VAULT_ROOT` env or `~/.go-rag/vaults/`), `VaultPath(name)` → absolute path, `ValidateName(name)` → lowercase alphanumeric + hyphens, 1–64 chars
+- [x] T002 [P] Create `internal/vault/registry.go`: `Exists(name)`, `List()` → `[]string` (scan vault root for directories with `config.json`), `Create(name, cfg)` → mkdir + write config.json + mkdir data/
+- [x] T003 [P] Create `internal/vault/registry_test.go`: ValidateName (valid/invalid cases), VaultPath resolution, Create + Exists + List round-trip
 
 ---
 
@@ -25,8 +25,8 @@
 
 **⚠️ CRITICAL**: No user story work begins until the `--vault` flag resolves correctly.
 
-- [ ] T004 Add `--vault` persistent flag to `internal/cli/root.go`: when set, resolves `dbPath` to `VaultPath(vaultName)` AFTER persistent flags are parsed but BEFORE subcommand RunE executes. Use cobra's `PersistentPreRunE` on rootCmd to intercept and set the package-level `dbPath`. `--db-path` takes precedence over `--vault` if both are set.
-- [ ] T005 Verify backward compat: `go-rag init` / `go-rag status` / `go-rag add` (without `--vault`) work unchanged — `dbPath` stays `./.go-rag`. Run `go build && ./bin/go-rag --help` to confirm `--vault` flag appears alongside `--db-path`.
+- [x] T004 Add `--vault` persistent flag to `internal/cli/root.go`: when set, resolves `dbPath` to `VaultPath(vaultName)` AFTER persistent flags are parsed but BEFORE subcommand RunE executes. Use cobra's `PersistentPreRunE` on rootCmd to intercept and set the package-level `dbPath`. `--db-path` takes precedence over `--vault` if both are set.
+- [x] T005 Verify backward compat: `go-rag init` / `go-rag status` / `go-rag add` (without `--vault`) work unchanged — `dbPath` stays `./.go-rag`. Run `go build && ./bin/go-rag --help` to confirm `--vault` flag appears alongside `--db-path`.
 
 **Checkpoint**: `--vault cyber-notes` resolves to `~/.go-rag/vaults/cyber-notes/`; no flags = current behaviour.
 
@@ -37,11 +37,11 @@
 **Goal**: Create a vault, add documents, query it — all scoped to that vault.
 **Independent Test**: Create vault A, add a doc, query → results from A only.
 
-- [ ] T006 [US1] Implement `go-rag vault create <name>` in `internal/cli/vault.go`: accepts `--embedding_model`, `--ollama-url`, `--mcp-addr` flags; calls `vault.Create(name, cfg)`; prints success with vault path + model. Errors if vault exists.
-- [ ] T007 [US1] Register `vault` command + `create` subcommand in `internal/cli/root.go` AddCommand list.
-- [ ] T008 [US1] Implement `go-rag --vault <name> add <path>` end-to-end: verify the existing `add` command works when `dbPath` points to a vault directory (it should — add uses `openDB(dbPath)` which reads config.json + opens Pebble). Test: create vault → add a file → verify doc stored.
-- [ ] T009 [US1] Implement `go-rag --vault <name> query "<q>"` end-to-end: same — query uses `openDB(dbPath)`. Test: create vault → add → query → get results.
-- [ ] T010 [US1] Verify cross-vault isolation: create vault A + vault B, add different docs to each, query A → results from A only, query B → results from B only. No cross-contamination (each vault = separate Pebble instance, guaranteed by construction).
+- [x] T006 [US1] Implement `go-rag vault create <name>` in `internal/cli/vault.go`: accepts `--embedding_model`, `--ollama-url`, `--mcp-addr` flags; calls `vault.Create(name, cfg)`; prints success with vault path + model. Errors if vault exists.
+- [x] T007 [US1] Register `vault` command + `create` subcommand in `internal/cli/root.go` AddCommand list.
+- [x] T008 [US1] Implement `go-rag --vault <name> add <path>` end-to-end: verify the existing `add` command works when `dbPath` points to a vault directory (it should — add uses `openDB(dbPath)` which reads config.json + opens Pebble). Test: create vault → add a file → verify doc stored.
+- [x] T009 [US1] Implement `go-rag --vault <name> query "<q>"` end-to-end: same — query uses `openDB(dbPath)`. Test: create vault → add → query → get results.
+- [x] T010 [US1] Verify cross-vault isolation: create vault A + vault B, add different docs to each, query A → results from A only, query B → results from B only. No cross-contamination (each vault = separate Pebble instance, guaranteed by construction).
 
 **Checkpoint**: Vaults are created and used end-to-end with full isolation.
 
@@ -52,9 +52,9 @@
 **Goal**: List vaults with stats, delete/clear vaults.
 **Independent Test**: Create 2 vaults, list → both appear. Delete one → gone.
 
-- [ ] T011 [US2] Implement `go-rag vault list` in `internal/cli/vault.go`: scan vault root for directories with config.json; for each, open config.json (embedding model) + scan Pebble 0x02 prefix (doc count) + stat dir (storage size) + check daemon pidfile. Print table: VAULT / DOCS / MODEL / DAEMON / STORAGE. `--json` output.
-- [ ] T012 [US2] Implement `go-rag vault delete <name>` in `internal/cli/vault.go`: confirm prompt (skip with `--force`); `os.RemoveAll(vaultPath)`. Errors if vault doesn't exist or daemon is running for it.
-- [ ] T013 [US2] Implement `go-rag vault clear <name>` in `internal/cli/vault.go`: remove `data/` directory only (preserve `config.json`). Recreate empty `data/`.
+- [x] - [ ] T011 [US2] Implement `go-rag vault list` in `internal/cli/vault.go`: scan vault root for directories with config.json; for each, open config.json (embedding model) + scan Pebble 0x02 prefix (doc count) + stat dir (storage size) + check daemon pidfile. Print table: VAULT / DOCS / MODEL / DAEMON / STORAGE. `--json` output.
+- [x] - [ ] T012 [US2] Implement `go-rag vault delete <name>` in `internal/cli/vault.go`: confirm prompt (skip with `--force`); `os.RemoveAll(vaultPath)`. Errors if vault doesn't exist or daemon is running for it.
+- [x] - [ ] T013 [US2] Implement `go-rag vault clear <name>` in `internal/cli/vault.go`: remove `data/` directory only (preserve `config.json`). Recreate empty `data/`.
 
 **Checkpoint**: Vaults are fully manageable from the CLI.
 
@@ -65,10 +65,10 @@
 **Goal**: Start/stop/status per vault; MCP proxy connects to the right vault.
 **Independent Test**: Start daemon for vault A, query via MCP, results from A.
 
-- [ ] T014 [US3] Update `internal/cli/start.go`: `--vault <name> start` passes the vault's `VaultPath(name)` as the dbPath to `daemon.Start()`. The daemon reads the vault's config.json for `mcp_addr`.
-- [ ] T015 [US3] Update `internal/cli/stop.go` and `internal/cli/status.go`: same vault-aware resolution (daemon.Status reads pidfile from the vault's directory).
-- [ ] T016 [US3] Update `internal/cli/mcp.go` (stdio proxy): `--vault <name> mcp` reads the vault's `daemon.addrs` for the proxy target.
-- [ ] T017 [US3] Update `internal/cli/dashboard.go`: when `--vault` is set, show the vault name in the panel header (e.g., "go-rag — vault: cyber-notes").
+- [x] - [ ] T014 [US3] Update `internal/cli/start.go`: `--vault <name> start` passes the vault's `VaultPath(name)` as the dbPath to `daemon.Start()`. The daemon reads the vault's config.json for `mcp_addr`.
+- [x] - [ ] T015 [US3] Update `internal/cli/stop.go` and `internal/cli/status.go`: same vault-aware resolution (daemon.Status reads pidfile from the vault's directory).
+- [x] - [ ] T016 [US3] Update `internal/cli/mcp.go` (stdio proxy): `--vault <name> mcp` reads the vault's `daemon.addrs` for the proxy target.
+- [x] - [ ] T017 [US3] Update `internal/cli/dashboard.go`: when `--vault` is set, show the vault name in the panel header (e.g., "go-rag — vault: cyber-notes").
 
 **Checkpoint**: Each vault can run its own daemon; MCP clients connect to a specific vault.
 
@@ -76,16 +76,16 @@
 
 ## Phase 6: User Story 4 - Clone and Export (Priority: P4)
 
-- [ ] T018 [P] [US4] Implement `go-rag vault clone <src> <dst>` in `internal/cli/vault.go`: copy the source vault directory to dst (including config.json + data/). Optionally `--embedding_model` to re-embed with a different model (calls reprocess after copy). Async for large vaults (show progress bar).
-- [ ] T019 [P] [US4] Implement `go-rag vault export <name>` in `internal/cli/vault.go`: tar the vault directory to stdout or `--output <file>`. Include config.json + data/.
+- [x] - [ ] T018 [P] [US4] Implement `go-rag vault clone <src> <dst>` in `internal/cli/vault.go`: copy the source vault directory to dst (including config.json + data/). Optionally `--embedding_model` to re-embed with a different model (calls reprocess after copy). Async for large vaults (show progress bar).
+- [x] - [ ] T019 [P] [US4] Implement `go-rag vault export <name>` in `internal/cli/vault.go`: tar the vault directory to stdout or `--output <file>`. Include config.json + data/.
 
 ---
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T020 [P] Update `README.md` with vault documentation: quickstart (create, add, query across vaults), `--vault` flag, vault management commands.
-- [ ] T021 [P] Update `internal/config/config.go`: add `vault_root` to config (for the vault root path, stored in a top-level `~/.go-rag/config.json` if needed — or env-only via `GO_RAG_VAULT_ROOT`).
-- [ ] T022 Final green build: `make build && go test ./... && make vet`; validate quickstart.md end-to-end (create 2 vaults, add docs, verify isolation).
+- [x] - [ ] T020 [P] Update `README.md` with vault documentation: quickstart (create, add, query across vaults), `--vault` flag, vault management commands.
+- [x] - [ ] T021 [P] Update `internal/config/config.go`: add `vault_root` to config (for the vault root path, stored in a top-level `~/.go-rag/config.json` if needed — or env-only via `GO_RAG_VAULT_ROOT`).
+- [x] - [ ] T022 Final green build: `make build && go test ./... && make vet`; validate quickstart.md end-to-end (create 2 vaults, add docs, verify isolation).
 
 ---
 
