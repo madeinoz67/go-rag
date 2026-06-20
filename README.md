@@ -128,15 +128,6 @@ Wire into Claude Desktop:
 }}
 ```
 
-## Obsidian support
-
-The Markdown reader normalizes Obsidian syntax at ingest:
-- `![[file.ext]]` image/file embeds → filename kept as a searchable token.
-- `[[wikilinks]]` → display text (alias and heading aware).
-- `![[Note]]` transclusions → target recorded in `metadata["transcludes"]`.
-
-After a reader change: `go-rag reprocess <vault>` to re-apply it.
-
 ## Architecture
 
 Layered: **CLI** → **ingest pipeline** (async-after-ACK, <10ms writes) →
@@ -152,7 +143,7 @@ internal/
   cli/           # commands (init/add/scan/query/status/config/files/dirs/reprocess/migrate/
                  #   start/stop/vault/mcp + dashboard)
   model/         # Source → Document → Chunk → Embedding
-  reader/        # FileReader interface (text/markdown/docx/pdf/image) + Obsidian normalization
+  reader/        # FileReader interface (text/markdown/docx/pdf/image)
   embed/         # Embedder interface (Ollama /api/embed)
   rerank/        # Cross-encoder reranker (Ollama LLM scoring)
   storage/       # embedded Pebble KV + key-space prefixes
