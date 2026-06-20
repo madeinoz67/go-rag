@@ -5,13 +5,15 @@
 package cli
 
 import (
+	"github.com/madeinoz67/go-rag/internal/vault"
 	"github.com/spf13/cobra"
 )
 
 // Global flags applied to every subcommand.
 var (
-	dbPath  string
-	verbose bool
+	dbPath    string
+	verbose   bool
+	vaultName string
 )
 
 var rootCmd = &cobra.Command{
@@ -25,6 +27,12 @@ content — zero external dependencies beyond a local Ollama instance for embedd
 
 Full specification: PRD_RAG_Database.md`,
 	SilenceUsage: true,
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		if vaultName != "" && !cmd.Flags().Changed("db-path") {
+			dbPath = vault.Path(vaultName)
+		}
+		return nil
+	},
 	RunE: func(_ *cobra.Command, _ []string) error {
 		printDashboard()
 		return nil
@@ -38,6 +46,7 @@ func Execute(version string) error {
 
 	rootCmd.PersistentFlags().StringVar(&dbPath, "db-path", "./.go-rag", "path to the database directory")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose logging")
+	rootCmd.PersistentFlags().StringVar(&vaultName, "vault", "", "vault name (resolves to ~/.go-rag/vaults/<name>)")
 
 	rootCmd.AddCommand(
 		newVersionCmd(version),
@@ -55,6 +64,7 @@ func Execute(version string) error {
 		newReprocessCmd(),
 		newMigrateCmd(),
 		newMCPCmd(),
+		newVaultCmd(),
 	)
 	return rootCmd.Execute()
 }
