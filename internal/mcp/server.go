@@ -111,6 +111,9 @@ func (s *Server) dispatch(name string, args map[string]any) (string, error) {
 	if name == "go_rag_vault_list" {
 		return s.vaultList()
 	}
+	if name == "go_rag_guide" {
+		return s.guide()
+	}
 	if s.db != nil {
 		return s.dispatchDB(s.cfg, s.db, name, args)
 	}
@@ -236,6 +239,91 @@ func (s *Server) vaultList() (string, error) {
 		fmt.Fprintf(&b, "%s (%d docs)\n", n, docs)
 	}
 	return strings.TrimSpace(b.String()), nil
+}
+
+// guide returns a context document for the AI agent — what's connected, what's
+// available, what's needed. The agent should call this first to understand the
+// system state and available operations.
+func (s *Server) guide() (string, error) {
+	var b strings.Builder
+
+	// Check if a database exists at s.dbPath
+	cfg, db, err := openDB(s.dbPath)
+	dbReady := err == nil
+
+	b.WriteString("# go-rag Agent Guide\n\n")
+
+	// Status section
+	b.WriteString("## Status\n\n")
+	if !dbReady {
+		b.WriteString("**Database not initialized.** Call `go_rag_init` first with an embedding model name, then `go_rag_add` to ingest documents.\n\n")
+		b.WriteString("## Available Tools\n\n")
+		b.WriteString("- **go_rag_init** — Initialize a new database (requires: model name, e.g. `mxbai-embed-large`)\n")
+		b.WriteString("- **go_rag_vault_list** — List all available vaults\n")
+		b.WriteString("- **go_rag_guide** — This guide (call it after setup changes)\n")
+		return b.String(), nil
+	}
+	defer db.Close()
+
+	docs := countPrefix(db, storage.PrefixDocument)
+	chunks := countPrefix(db, storage.PrefixChunk)
+	embs := countPrefix(db, storage.PrefixEmbedding)
+	pct := 0
+	if docs > 0 {
+		pct = embs * 100 / docs
+	}
+
+	reranker := cfg.RerankModel
+	if reranker == "" {
+		reranker = "disabled"
+	}
+
+	fmt.Fprintf(&b, "- Documents: %d\n", docs)
+	fmt.Fprintf(&b, "- Chunks: %d\n", chunks)
+	fmt.Fprintf(&b, "- Embeddings: %d (%d%% complete)\n", embs, pct)
+	fmt.Fprintf(&b, "- Embedding model: %s\n", cfg.EmbeddingModel)
+	fmt.Fprintf(&b, "- Reranker: %s\n", reranker)
+	fmt.Fprintf(&b, "- Chunk size: %d tokens, overlap: %d\n", cfg.ChunkSize, cfg.ChunkOverlap)
+	fmt.Fprintf(&b, "- Ollama: %s\n\n", cfg.OllamaURL)
+
+	// What's needed
+	b.WriteString("## What's Needed\n\n")
+	if docs == 0 {
+		b.WriteString("**No documents ingested.** Call `go_rag_add` with a directory path to index documents.\n\n")
+	}
+	if pct < 100 && docs > 0 {
+		b.WriteString(fmt.Sprintf("**Embeddings incomplete (%d%%).** Background embedding may still be running, or errors occurred. Query results will be partial.\n\n", pct))
+	}
+	if reranker == "disabled" {
+		b.WriteString("**Reranker disabled.** Set `rerank_model` via `go_rag_config` to enable cross-encoder reranking for better query precision.\n\n")
+	}
+	if docs > 0 && pct == 100 && reranker != "disabled" {
+		b.WriteString("System is fully operational — all documents indexed and embeddings complete.\n\n")
+	}
+
+	// Available tools
+	b.WriteString("## Available Tools\n\n")
+	b.WriteString("- **go_rag_query** — Search the database (hybrid semantic + keyword). Params: `query` (required), `k` (results, default 5), `mode` (hybrid|semantic|keyword), `no_rerank` (skip reranker), `threshold` (min score).\n")
+	b.WriteString("- **go_rag_add** — Ingest documents from a file or directory path.\n")
+	b.WriteString("- **go_rag_status** — Database health and counts.\n")
+	b.WriteString("- **go_rag_files** — List ingested file paths.\n")
+	b.WriteString("- **go_rag_dirs** — Per-directory document counts.\n")
+	b.WriteString("- **go_rag_scan** — Detect and apply filesystem changes (added/modified/deleted).\n")
+	b.WriteString("- **go_rag_reprocess** — Force re-ingest a directory (after reader/config changes).\n")
+	b.WriteString("- **go_rag_migrate** — Re-embed all documents to the current model.\n")
+	b.WriteString("- **go_rag_config** — Get or set configuration.\n")
+	b.WriteString("- **go_rag_init** — Initialize a new database.\n")
+	b.WriteString("- **go_rag_vault_list** — List all vaults.\n")
+	b.WriteString("- **go_rag_guide** — This guide.\n\n")
+
+	// Usage patterns
+	b.WriteString("## Usage Patterns\n\n")
+	b.WriteString("1. **Query**: `go_rag_query(query=\"how does authentication work?\")` — returns ranked chunks with source files.\n")
+	b.WriteString("2. **Add documents**: `go_rag_add(path=\"/path/to/docs/\")` — ingests recursively.\n")
+	b.WriteString("3. **After adding**: Wait for embeddings to complete (check `go_rag_status` for embedded %).\n")
+	b.WriteString("4. **Quick search** (no reranker): `go_rag_query(query=\"...\", no_rerank=true)` — faster, less precise.\n")
+
+	return b.String(), nil
 }
 
 func (s *Server) add(cfg config.Config, db *storage.DB, args map[string]any) (string, error) {
@@ -584,6 +672,11 @@ func toolDefs() []map[string]any {
 		{
 			"name":        "go_rag_vault_list",
 			"description": "List all available document vaults with doc counts.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "go_rag_guide",
+			"description": "Get a guide for the AI: system status, what's needed, available tools, and usage patterns. Call this first to understand the current state.",
 			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
 		},
 	}
