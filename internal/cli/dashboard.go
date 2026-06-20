@@ -58,17 +58,15 @@ func printVaultsOverview() {
 		}
 		totalDocs += docs
 		running, _, _ := daemon.Status(vp)
-		daemonStr := "stopped"
-		dotColor := red + "○"
-		if running {
-			daemonStr = "running"
-			dotColor = green + "●"
+		dot := green + "●" + reset
+		if !running {
+			dot = red + "○" + reset
 		}
 		model := cfg.EmbeddingModel
 		if model == "" {
 			model = "-"
 		}
-		fmt.Printf("    %-16s %6d docs  %-20s %s●%s  %s\n", n, docs, model, "", reset, daemonStr)
+		fmt.Printf("    %-16s %6d docs  %-20s %s  %s\n", n, docs, model, dot, humanBytes(storage))
 	}
 
 	fmt.Printf("\n  Root:    %s\n", vault.Root())
