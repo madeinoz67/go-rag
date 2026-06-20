@@ -28,8 +28,14 @@ content — zero external dependencies beyond a local Ollama instance for embedd
 Full specification: PRD_RAG_Database.md`,
 	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-		if vaultName != "" && !cmd.Flags().Changed("db-path") {
+		dbPathChanged := cmd.Flags().Changed("db-path")
+		if vaultName != "" && !dbPathChanged {
+			// Explicit --vault: resolve to that vault's directory.
 			dbPath = vault.Path(vaultName)
+		} else if !dbPathChanged && vaultName == "" {
+			// Neither --vault nor --db-path: default to the default vault.
+			vault.EnsureDefault()
+			dbPath = vault.Path("default")
 		}
 		return nil
 	},
@@ -44,7 +50,7 @@ func Execute(version string) error {
 	rootCmd.Version = version
 	rootCmd.SetVersionTemplate("go-rag version {{.Version}}\n")
 
-	rootCmd.PersistentFlags().StringVar(&dbPath, "db-path", "./.go-rag", "path to the database directory")
+	rootCmd.PersistentFlags().StringVar(&dbPath, "db-path", "", "path to the database directory (default: ~/.go-rag/vaults/default)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose logging")
 	rootCmd.PersistentFlags().StringVar(&vaultName, "vault", "", "vault name (resolves to ~/.go-rag/vaults/<name>)")
 
