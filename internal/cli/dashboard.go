@@ -6,6 +6,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/daemon"
+	"github.com/madeinoz67/go-rag/internal/vault"
 )
 
 const (
@@ -26,9 +27,65 @@ func dashRowOff(label, value string) {
 	fmt.Printf("    %-10s %-14s  %s○%s\n", label, value, grey, reset)
 }
 
-// printDashboard renders a muninn-style status panel when go-rag is invoked with
-// no subcommand.
+// printDashboard renders a status panel when go-rag is invoked with no subcommand.
+// When --vault is set, shows that vault's detail. When no vault, shows all vaults.
 func printDashboard() {
+	if vaultName != "" {
+		printVaultDetail()
+		return
+	}
+	printVaultsOverview()
+}
+
+// printVaultsOverview lists all vaults with doc counts, daemon status, and storage.
+func printVaultsOverview() {
+	vault.EnsureDefault()
+	names := vault.List()
+
+	fmt.Println()
+	fmt.Printf("  go-rag — %d vault%s\n\n", len(names), plural(len(names)))
+
+	var totalDocs int
+	for _, n := range names {
+		vp := vault.Path(n)
+		cfg, _ := config.Load(filepath.Join(vp, "config.json"))
+		docs := 0
+		var storage int64
+		if _, db, err := openDB(vp); err == nil {
+			docs = countPrefix(db, 0x02)
+			storage = dirSize(filepath.Join(vp, "data"))
+			db.Close()
+		}
+		totalDocs += docs
+		running, _, _ := daemon.Status(vp)
+		daemonStr := "stopped"
+		dotColor := red + "○"
+		if running {
+			daemonStr = "running"
+			dotColor = green + "●"
+		}
+		model := cfg.EmbeddingModel
+		if model == "" {
+			model = "-"
+		}
+		fmt.Printf("    %-16s %6d docs  %-20s %s●%s  %s\n", n, docs, model, "", reset, daemonStr)
+	}
+
+	fmt.Printf("\n  Root:    %s\n", vault.Root())
+	fmt.Printf("  Total:   %d docs across %d vault%s\n", totalDocs, len(names), plural(len(names)))
+	fmt.Printf("\n  Type 'go-rag --vault <name>' for vault detail.\n")
+	fmt.Printf("  Type 'go-rag help' for commands.\n\n")
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
+}
+
+// printVaultDetail shows the detailed dashboard for a single vault.
+func printVaultDetail() {
 	running, pid, addr := daemon.Status(dbPath)
 	cfg, _ := config.Load(filepath.Join(dbPath, "config.json"))
 
