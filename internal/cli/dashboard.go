@@ -42,8 +42,39 @@ func printVaultsOverview() {
 	vault.EnsureDefault()
 	names := vault.List()
 
+	// Services section
+	anyRunning := false
+	for _, n := range names {
+		if r, _, _ := daemon.Status(vault.Path(n)); r {
+			anyRunning = true
+			break
+		}
+	}
+	ollamaHealth := pingHealth("http://localhost:11434")
+
 	fmt.Println()
-	fmt.Printf("  go-rag — %d vault%s\n\n", len(names), plural(len(names)))
+	if anyRunning {
+		fmt.Printf("  go-rag  %s●%s  running\n\n", green, reset)
+	} else {
+		fmt.Printf("  go-rag  %s○%s  stopped\n\n", red, reset)
+	}
+
+	if anyRunning {
+		// Show which vaults have daemons running
+		for _, n := range names {
+			if r, pid, addr := daemon.Status(vault.Path(n)); r {
+				dashRow("daemon", fmt.Sprintf("%s (pid %d, %s)", n, pid, addr), green)
+			}
+		}
+	}
+	ollamaDot := green + "●" + reset
+	if ollamaHealth != "OK" {
+		ollamaDot = red + "●" + reset
+	}
+	fmt.Printf("    %-10s %-14s  %s\n", "ollama", ollamaHealth, ollamaDot)
+
+	// Vaults section
+	fmt.Printf("\n  Vaults (%d):\n\n", len(names))
 
 	var totalDocs int
 	for _, n := range names {
