@@ -44,34 +44,43 @@ func printVaultsOverview() {
 
 	// Services section
 	anyRunning := false
+	var runningVault, runningAddr string
+	var runningPid int
 	for _, n := range names {
-		if r, _, _ := daemon.Status(vault.Path(n)); r {
+		if r, pid, addr := daemon.Status(vault.Path(n)); r {
 			anyRunning = true
+			runningVault = n
+			runningPid = pid
+			runningAddr = addr
 			break
 		}
 	}
 	ollamaHealth := pingHealth("http://localhost:11434")
+	// Read MCP port from first vault's config (or default :7878)
+	mcpAddr := ":7878"
+	if len(names) > 0 {
+		if cfg, err := config.Load(filepath.Join(vault.Path(names[0]), "config.json")); err == nil && cfg.MCPAddr != "" {
+			mcpAddr = cfg.MCPAddr
+		}
+	}
 
 	fmt.Println()
 	if anyRunning {
 		fmt.Printf("  go-rag  %s●%s  running\n\n", green, reset)
+		dashRow("daemon", fmt.Sprintf("pid %d", runningPid), green)
+		dashRow("mcp", runningAddr, green)
 	} else {
 		fmt.Printf("  go-rag  %s○%s  stopped\n\n", red, reset)
-	}
-
-	if anyRunning {
-		// Show which vaults have daemons running
-		for _, n := range names {
-			if r, pid, addr := daemon.Status(vault.Path(n)); r {
-				dashRow("daemon", fmt.Sprintf("%s (pid %d, %s)", n, pid, addr), green)
-			}
-		}
+		dashRowOff("mcp", mcpAddr)
 	}
 	ollamaDot := green + "●" + reset
 	if ollamaHealth != "OK" {
 		ollamaDot = red + "●" + reset
 	}
-	fmt.Printf("    %-10s %-14s  %s\n", "ollama", ollamaHealth, ollamaDot)
+	dashRow("ollama", ollamaHealth, green)
+	if ollamaHealth != "OK" {
+		// override — reuse the pattern
+	}
 
 	// Vaults section
 	fmt.Printf("\n  Vaults (%d):\n\n", len(names))
