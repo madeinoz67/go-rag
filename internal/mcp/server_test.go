@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -187,7 +188,38 @@ func resultText(t *testing.T, resp map[string]any) string {
 	return content["text"].(string)
 }
 
-func TestMCP_ToolsListHas12(t *testing.T) {
+// repoGoldenAbs returns the absolute path to a committed golden-set file, so the
+// MCP eval test is independent of `go test`'s cwd.
+func repoGoldenAbs(t *testing.T, rel string) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	abs, err := filepath.Abs(filepath.Join(filepath.Dir(file), "..", "..", "testdata", "golden", rel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return abs
+}
+
+func TestMCP_Eval(t *testing.T) {
+	// go_rag_eval self-provisions from the committed corpus with the deterministic
+	// embedder and returns the same numbers as the CLI (Principle V parity).
+	args := map[string]any{
+		"golden": repoGoldenAbs(t, "v1.jsonl"),
+		"corpus": repoGoldenAbs(t, "corpus"),
+	}
+	text := resultText(t, mcpCall(t, t.TempDir(), "go_rag_eval", args))
+	if !strings.Contains(text, "recall@10") || !strings.Contains(text, "queries: scored=") {
+		t.Fatalf("unexpected eval output:\n%s", text)
+	}
+	if !strings.Contains(text, "scored=12") {
+		t.Fatalf("expected 12 scored queries, got:\n%s", text)
+	}
+}
+
+func TestMCP_ToolsListHas13(t *testing.T) {
 	in := strings.NewReader(jsonLine(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}))
 	out := new(bytes.Buffer)
 	if err := New(t.TempDir()).Serve(in, out); err != nil {
@@ -196,14 +228,14 @@ func TestMCP_ToolsListHas12(t *testing.T) {
 	var resp map[string]any
 	_ = json.Unmarshal(bytes.TrimSpace(out.Bytes()), &resp)
 	tools := resp["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 12 {
-		t.Fatalf("expected 12 tools, got %d", len(tools))
+	if len(tools) != 13 {
+		t.Fatalf("expected 13 tools, got %d", len(tools))
 	}
 	names := map[string]bool{}
 	for _, tc := range tools {
 		names[tc.(map[string]any)["name"].(string)] = true
 	}
-	for _, want := range []string{"go_rag_query", "go_rag_status", "go_rag_add", "go_rag_init", "go_rag_scan", "go_rag_config", "go_rag_files", "go_rag_dirs", "go_rag_reprocess", "go_rag_migrate", "go_rag_vault_list", "go_rag_guide"} {
+	for _, want := range []string{"go_rag_query", "go_rag_status", "go_rag_add", "go_rag_init", "go_rag_scan", "go_rag_config", "go_rag_files", "go_rag_dirs", "go_rag_reprocess", "go_rag_migrate", "go_rag_vault_list", "go_rag_guide", "go_rag_eval"} {
 		if !names[want] {
 			t.Errorf("missing tool %s", want)
 		}

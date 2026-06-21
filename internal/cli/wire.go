@@ -2,25 +2,18 @@ package cli
 
 import (
 	"encoding/json"
-	"fmt"
-	"path/filepath"
 
 	"github.com/madeinoz67/go-rag/internal/config"
+	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
 )
 
-// openDB loads the config and opens the Pebble store under <dbPath>/data.
+// openDB loads the config and opens the Pebble store under <base>/data. Delegates
+// to engine.Open (the single implementation) — the inline version that used to
+// live here was an exact duplicate.
 func openDB(base string) (config.Config, *storage.DB, error) {
-	cfg, err := config.Load(filepath.Join(base, "config.json"))
-	if err != nil {
-		return config.Config{}, nil, fmt.Errorf("no go-rag database here — run `go-rag init` first: %w", err)
-	}
-	db, err := storage.Open(filepath.Join(base, "data"))
-	if err != nil {
-		return cfg, nil, err
-	}
-	return cfg, db, nil
+	return engine.Open(base)
 }
 
 // buildDocOf maps chunkID -> documentID from persisted chunks (for result collapse).

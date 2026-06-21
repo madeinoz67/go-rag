@@ -1,0 +1,274 @@
+# contracts/rest-openapi.yaml — REST contract for go-rag server APIs
+# Feature 003-rest-grpc-api. Hand-authored OpenAPI 3.1 for the internal/rest
+# adapter (stdlib net/http). Served by the server at GET /openapi.yaml.
+# Mirrors proto/gorag.proto 1:1 (parity). Auth: existing local bearer token
+# (Authorization: Bearer <mcp.token>); empty token ⇒ no auth (dev mode).
+
+openapi: 3.1.0
+info:
+  title: go-rag REST API
+  version: 0.1.0
+  description: |
+    REST projection of go-rag's unified engine. Identical results to the gRPC and
+    MCP transports — all three call the same internal/engine facade.
+servers:
+  - url: http://127.0.0.1:7879
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    QueryRequest:
+      type: object
+      required: [query]
+      properties:
+        query: { type: string }
+        k: { type: integer, default: 5, minimum: 1, maximum: 100 }
+        mode: { type: string, enum: [hybrid, semantic, keyword], default: hybrid }
+        no_rerank: { type: boolean, default: false }
+        threshold: { type: number, default: 0.0 }
+    QueryHit:
+      type: object
+      properties:
+        chunk_id: { type: string }
+        document_id: { type: string }
+        score: { type: number }
+        content: { type: string }
+        file_path: { type: string }
+        page: { type: integer }
+    QueryResponse:
+      type: object
+      properties:
+        hits: { type: array, items: { $ref: '#/components/schemas/QueryHit' } }
+    StatusResponse:
+      type: object
+      properties:
+        documents: { type: integer }
+        chunks: { type: integer }
+        embeddings: { type: integer }
+        dimensions: { type: integer }
+        embedding_model: { type: string }
+        reranker: { type: string }
+        ollama_url: { type: string }
+        embeddings_complete: { type: boolean }
+    IngestSummary:
+      type: object
+      properties:
+        new: { type: integer }
+        skipped: { type: integer }
+        modified: { type: integer }
+        deleted: { type: integer }
+        errors: { type: integer }
+    AddRequest:
+      type: object
+      required: [path]
+      properties:
+        path: { type: string }
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        code: { type: string }
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Liveness/readiness
+      security: []
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  storage_open: { type: boolean }
+                  embedder_reachable: { type: boolean }
+
+  /openapi.yaml:
+    get:
+      summary: This OpenAPI document
+      security: []
+      responses:
+        '200': { description: openapi spec }
+
+  /v1/query:
+    post:
+      summary: Hybrid/semantic/keyword search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QueryRequest' }
+      responses:
+        '200':
+          description: ranked results
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QueryResponse' }
+        '400': { description: bad request }
+
+  /v1/status:
+    get:
+      summary: Corpus counts + model + reachability
+      responses:
+        '200':
+          description: status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StatusResponse' }
+
+  /v1/add:
+    post:
+      summary: Ingest a file or directory (ACK fast, index async)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddRequest' }
+      responses:
+        '200':
+          description: ingest summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngestSummary' }
+
+  /v1/scan:
+    post:
+      summary: Scan watched dirs once; apply changes
+      responses:
+        '200':
+          description: scan summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngestSummary' }
+
+  /v1/reprocess:
+    post:
+      summary: Force re-ingest a path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddRequest' }
+      responses:
+        '200':
+          description: reprocess summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngestSummary' }
+
+  /v1/migrate:
+    post:
+      summary: Re-embed docs to the current model
+      responses:
+        '200':
+          description: migrate summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngestSummary' }
+
+  /v1/files:
+    get:
+      summary: List ingested files
+      responses:
+        '200':
+          description: file list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  files:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        file_path: { type: string }
+                        file_type: { type: string }
+                        status: { type: string }
+                        chunk_count: { type: integer }
+
+  /v1/dirs:
+    get:
+      summary: List ingested dirs with counts
+      responses:
+        '200':
+          description: dir list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dirs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        dir: { type: string }
+                        files: { type: integer }
+                        chunks: { type: integer }
+
+  /v1/config:
+    get:
+      summary: Get config (all, or one via ?key=)
+      parameters:
+        - in: query
+          name: key
+          schema: { type: string }
+      responses:
+        '200':
+          description: config values
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: { type: string }
+    put:
+      summary: Set a config value
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, value]
+              properties:
+                key: { type: string }
+                value: { type: string }
+      responses:
+        '200':
+          description: confirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key: { type: string }
+                  value: { type: string }
+
+  /v1/vaults:
+    get:
+      summary: List all vaults with doc counts
+      responses:
+        '200':
+          description: vault list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vaults:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        documents: { type: integer }

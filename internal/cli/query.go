@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
-	"github.com/madeinoz67/go-rag/internal/embed"
-	"github.com/madeinoz67/go-rag/internal/index"
-	"github.com/madeinoz67/go-rag/internal/pipeline"
-	"github.com/madeinoz67/go-rag/internal/rerank"
+	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +30,7 @@ func newQueryCmd() *cobra.Command {
 			modeStr, _ := cmd.Flags().GetString("mode")
 			format, _ := cmd.Flags().GetString("format")
 			threshold, _ := cmd.Flags().GetFloat64("threshold")
-			mode := index.ParseMode(modeStr)
+			noRerank, _ := cmd.Flags().GetBool("no-rerank")
 
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
@@ -40,42 +38,29 @@ func newQueryCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			fts, vec, err := pipeline.LoadIndex(db)
+			// Route through the shared engine so the query path is identical to
+			// MCP/REST/gRPC — including the embedding mismatch guard (audit H03),
+			// which refuses a query whose model/dim doesn't match the corpus.
+			eng := engine.NewWithDB(cfg, db)
+			res, err := eng.Query(context.Background(), engine.QueryRequest{
+				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold,
+			})
 			if err != nil {
 				return err
 			}
-			em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
-			r := index.NewRetrieval(fts, vec, em.Embed)
-
-			noRerank, _ := cmd.Flags().GetBool("no-rerank")
-		var reranker index.Reranker
-		if cfg.RerankModel != "" && !noRerank {
-			reranker = rerank.New(cfg.OllamaURL, cfg.RerankModel)
-		}
-		hits, err := r.SearchWithRerank(context.Background(), q, k, mode, buildDocOf(db), reranker, func(id string) string {
-			c, _ := lookupChunk(db, id)
-			return c.Content
-		})
-			if err != nil {
-				return err
+			if res.RerankFailed { // H09: results are valid but fallback-ordered; warn on stderr so stdout JSON stays clean.
+				fmt.Fprintln(os.Stderr, "warning: reranking failed; results are in fallback order (see log for details)")
 			}
 
-			results := make([]queryResult, 0, len(hits))
-			for _, h := range hits {
-				if h.Score < threshold {
-					continue
-				}
-				c, ok := lookupChunk(db, h.ChunkID)
-				if !ok {
-					continue
-				}
-				src := ""
-				if d, ok := lookupDoc(db, c.DocumentID); ok {
-					src = d.FileName
-				}
-				results = append(results, queryResult{Source: src, Page: c.PageNumber, Score: h.Score, Chunk: c.Content})
+			results := make([]queryResult, 0, len(res.Hits))
+			for _, h := range res.Hits {
+				results = append(results, queryResult{
+					Source: filepath.Base(h.FilePath),
+					Page:   h.Page,
+					Score:  h.Score,
+					Chunk:  h.Content,
+				})
 			}
-
 			return renderResults(results, format)
 		},
 	}

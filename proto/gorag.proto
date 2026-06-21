@@ -1,0 +1,144 @@
+// contracts/gorag.proto — gRPC schema for go-rag server APIs
+// Feature 003-rest-grpc-api. Operation surface served by the internal/grpc
+// adapter (grpc-go — same stack as MuninnDB). One .proto → canonical gRPC over
+// HTTP/2; clients in any language interop unchanged. Mirrors internal/engine 1:1.
+//
+// Mirrors the internal/engine facade 1:1 (see data-model.md). All messages are
+// the transport projection of the facade's structured result types — adapters
+// add no independent logic.
+
+syntax = "proto3";
+
+package gorag;
+
+option go_package = "github.com/madeinoz67/go-rag/proto/gen;goragpb";
+
+// Gorag is the unified operation surface served over gRPC. Every RPC maps to one
+// internal/engine method and to one MCP tool and one REST endpoint (parity).
+service Gorag {
+  // Query the corpus (hybrid/semantic/keyword). → engine.Query
+  rpc Query(QueryRequest) returns (QueryResponse);
+
+  // Corpus counts + model + embedding reachability. → engine.Status
+  rpc Status(StatusRequest) returns (StatusResponse);
+
+  // Ingest a file or directory path. ACKs fast; indexes async. → engine.Add
+  rpc Add(AddRequest) returns (IngestSummary);
+
+  // Scan watched dirs once; apply adds/mods/deletes. → engine.Scan
+  rpc Scan(ScanRequest) returns (IngestSummary);
+
+  // Force re-ingest a path (bypass dedup). → engine.Reprocess
+  rpc Reprocess(ReprocessRequest) returns (IngestSummary);
+
+  // Re-embed docs whose model != current. → engine.Migrate
+  rpc Migrate(MigrateRequest) returns (IngestSummary);
+
+  // List ingested files. → engine.Files
+  rpc Files(FilesRequest) returns (FilesResponse);
+
+  // List ingested dirs with counts. → engine.Dirs
+  rpc Dirs(DirsRequest) returns (DirsResponse);
+
+  // Get or set a config value. → engine.GetConfig / SetConfig
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+  rpc SetConfig(SetConfigRequest) returns (SetConfigResponse);
+
+  // List all vaults with doc counts. → engine.ListVaults
+  rpc ListVaults(ListVaultsRequest) returns (ListVaultsResponse);
+
+  // Liveness/readiness. → health probe (also REST GET /health)
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+// ---- Query ----
+
+message QueryRequest {
+  string query = 1;
+  int32 k = 2;                  // default 5, clamped [1,100]
+  string mode = 3;              // "hybrid" (default) | "semantic" | "keyword"
+  bool no_rerank = 4;
+  double threshold = 5;         // min score, default 0.0
+}
+message QueryHit {
+  string chunk_id = 1;
+  string document_id = 2;
+  double score = 3;
+  string content = 4;           // full chunk text
+  string file_path = 5;
+  int32 page = 6;               // 0 if not paginated
+}
+message QueryResponse {
+  repeated QueryHit hits = 1;
+  bool rerank_failed = 2;          // H09: true iff reranking was attempted and failed; hits are then fallback-ordered
+}
+
+// ---- Status ----
+
+message StatusRequest {}
+message StatusResponse {
+  int32 documents = 1;
+  int32 chunks = 2;
+  int32 embeddings = 3;
+  int32 dimensions = 4;
+  string embedding_model = 5;
+  string reranker = 6;          // "disabled" if unset
+  string ollama_url = 7;
+  bool embeddings_complete = 8;
+}
+
+// ---- Ingest family ----
+
+message AddRequest { string path = 1; }
+message ScanRequest {}
+message ReprocessRequest { string path = 1; }
+message MigrateRequest {}
+
+message IngestSummary {
+  int32 new = 1;
+  int32 skipped = 2;
+  int32 modified = 3;           // scan only
+  int32 deleted = 4;            // scan only
+  int32 errors = 5;
+}
+
+// ---- Files / Dirs ----
+
+message FilesRequest {}
+message FileEntry {
+  string file_path = 1;
+  string file_type = 2;
+  string status = 3;
+  int32 chunk_count = 4;
+}
+message FilesResponse { repeated FileEntry files = 1; }
+
+message DirsRequest {}
+message DirEntry {
+  string dir = 1;
+  int32 files = 2;
+  int32 chunks = 3;
+}
+message DirsResponse { repeated DirEntry dirs = 1; }
+
+// ---- Config ----
+
+message GetConfigRequest { string key = 1; }   // empty → all
+message GetConfigResponse { map<string, string> values = 1; }
+message SetConfigRequest { string key = 1; string value = 2; }
+message SetConfigResponse { string key = 1; string value = 2; }
+
+// ---- Vaults ----
+
+message ListVaultsRequest {}
+message VaultEntry { string name = 1; int32 documents = 2; }
+message ListVaultsResponse { repeated VaultEntry vaults = 1; }
+
+// ---- Health ----
+
+message HealthRequest {}
+message HealthResponse {
+  bool ok = 1;
+  bool storage_open = 2;
+  bool embedder_reachable = 3;
+}

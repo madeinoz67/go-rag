@@ -42,8 +42,8 @@ func TestHTTPToolsList(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 		t.Fatal(err)
 	}
-	if len(env.Result.Tools) != 12 {
-		t.Fatalf("want 12 tools, got %d", len(env.Result.Tools))
+	if len(env.Result.Tools) != 13 {
+		t.Fatalf("want 13 tools, got %d", len(env.Result.Tools))
 	}
 }
 

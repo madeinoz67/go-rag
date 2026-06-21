@@ -69,6 +69,8 @@ func Execute(version string) error {
 		newServeCmd(),
 		newReprocessCmd(),
 		newMigrateCmd(),
+		newEvalCmd(),
+		newEvalGenCmd(),
 		newMCPCmd(),
 		newVaultCmd(),
 	)

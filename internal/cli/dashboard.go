@@ -6,6 +6,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/daemon"
+	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/vault"
 )
 
@@ -27,6 +28,16 @@ func dashRowOff(label, value string) {
 	fmt.Printf("    %-10s %-14s  %s○%s\n", label, value, grey, reset)
 }
 
+// dashTransport prints a transport row: green ● with its bound address when the
+// transport is running, or a grey ○ "off" when it was not started (empty addr).
+func dashTransport(label, addr string) {
+	if addr != "" {
+		dashRow(label, addr, green)
+		return
+	}
+	dashRowOff(label, "off")
+}
+
 // printDashboard renders a status panel when go-rag is invoked with no subcommand.
 // When --vault is set, shows that vault's detail. When no vault, shows all vaults.
 func printDashboard() {
@@ -45,18 +56,18 @@ func printVaultsOverview() {
 	// Services section
 	anyRunning := false
 	var runningPid int
-	var runningAddr string
+	var runningAddrs daemon.Addrs
 	for _, n := range names {
-		if r, pid, addr := daemon.Status(vault.Path(n)); r {
+		if r, pid, addrs := daemon.Status(vault.Path(n)); r {
 			anyRunning = true
 			runningPid = pid
-			runningAddr = addr
+			runningAddrs = addrs
 			break
 		}
 	}
 	ollamaHealth := pingHealth("http://localhost:11434")
-	// Read MCP port from first vault's config (or default :7878)
-	mcpAddr := ":7878"
+	// Default transport ports (loopback); MCP may be overridden per-vault in config.
+	mcpAddr := "127.0.0.1:7878"
 	if len(names) > 0 {
 		if cfg, err := config.Load(filepath.Join(vault.Path(names[0]), "config.json")); err == nil && cfg.MCPAddr != "" {
 			mcpAddr = cfg.MCPAddr
@@ -67,10 +78,14 @@ func printVaultsOverview() {
 	if anyRunning {
 		fmt.Printf("  go-rag  %s●%s  running\n\n", green, reset)
 		dashRow("daemon", fmt.Sprintf("pid %d", runningPid), green)
-		dashRow("mcp", runningAddr, green)
+		dashRow("mcp", runningAddrs.MCPAddr, green)
+		dashTransport("rest", runningAddrs.RESTAddr)
+		dashTransport("grpc", runningAddrs.GRPCAddr)
 	} else {
 		fmt.Printf("  go-rag  %s○%s  stopped\n\n", red, reset)
 		dashRowOff("mcp", mcpAddr)
+		dashRowOff("rest", "127.0.0.1:7879")
+		dashRowOff("grpc", "127.0.0.1:7880")
 	}
 	if ollamaHealth == "OK" {
 		dashRow("ollama", ollamaHealth, green)
@@ -87,9 +102,17 @@ func printVaultsOverview() {
 		cfg, _ := config.Load(filepath.Join(vp, "config.json"))
 		docs := 0
 		var storage int64
+		dim := 0
+		model := cfg.EmbeddingModel
 		if _, db, err := openDB(vp); err == nil {
 			docs = countPrefix(db, 0x02)
 			storage = dirSize(filepath.Join(vp, "data"))
+			// Stored majority model + dim (audit H03); falls back to the configured
+			// model when nothing is embedded yet.
+			if prof := engine.CorpusProfile(db); prof.Total > 0 {
+				model = prof.MajorityModel
+				dim = prof.MajorityDim
+			}
 			db.Close()
 		}
 		totalDocs += docs
@@ -98,11 +121,14 @@ func printVaultsOverview() {
 		if !running {
 			dot = red + "○" + reset
 		}
-		model := cfg.EmbeddingModel
 		if model == "" {
 			model = "-"
 		}
-		fmt.Printf("    %-16s %6d docs  %-20s %s  %s\n", n, docs, model, dot, humanBytes(storage))
+		dimStr := "-"
+		if dim > 0 {
+			dimStr = fmt.Sprintf("%dd", dim)
+		}
+		fmt.Printf("    %-16s %6d docs  %-20s %5s  %s  %s\n", n, docs, model, dimStr, dot, humanBytes(storage))
 	}
 
 	fmt.Printf("\n  Root:    %s\n", vault.Root())
@@ -120,7 +146,7 @@ func plural(n int) string {
 
 // printVaultDetail shows the detailed dashboard for a single vault.
 func printVaultDetail() {
-	running, pid, addr := daemon.Status(dbPath)
+	running, pid, addrs := daemon.Status(dbPath)
 	cfg, _ := config.Load(filepath.Join(dbPath, "config.json"))
 
 	// Header
@@ -138,7 +164,9 @@ func printVaultDetail() {
 	// Services (only when daemon is up)
 	if running {
 		dashRow("daemon", fmt.Sprintf("pid %d", pid), green)
-		dashRow("mcp", addr, green)
+		dashRow("mcp", addrs.MCPAddr, green)
+		dashTransport("rest", addrs.RESTAddr)
+		dashTransport("grpc", addrs.GRPCAddr)
 	}
 
 	// Reranker row (shown in both states)
@@ -150,7 +178,7 @@ func printVaultDetail() {
 
 	// Database stats
 	if running {
-		counts, _ := daemon.CallTool(addr, daemon.ReadToken(dbPath), "go_rag_status", nil)
+		counts, _ := daemon.CallTool(addrs.MCPAddr, daemon.ReadToken(dbPath), "go_rag_status", nil)
 		var docs, chunks, embs int
 		fmt.Sscanf(counts, "documents: %d, chunks: %d, embeddings: %d", &docs, &chunks, &embs)
 		if docs > 0 {

@@ -1,0 +1,18 @@
+# go-rag golden retrieval-quality dataset (v1).
+# One JSON object per line: {id, query, relevant:[chunk_id,...]}.
+# `relevant` chunk_ids are SHA-256 content-addressed (Principle II), stable across
+# any vault built from testdata/golden/corpus/ with the default chunker. Blank
+# lines and '#' comment lines are ignored by the loader. Labels are human-authored;
+# regenerate chunk_ids after an intentional chunker change via `go-rag eval --dump-chunks`.
+{"id":"q01","query":"How does go-rag split documents into chunks?","relevant":["edaed4dd3818dd41df8fed50dcb5caa2ae933893b49d8fa3f59232c7c85de41c"]}
+{"id":"q02","query":"What is the overlap between consecutive chunks for?","relevant":["edaed4dd3818dd41df8fed50dcb5caa2ae933893b49d8fa3f59232c7c85de41c"]}
+{"id":"q03","query":"How are text embeddings generated with Ollama?","relevant":["58fb77f1ad964d9a4c0a8bbd992e512df6ce20356dafd45bb91f545e0c706c02"]}
+{"id":"q04","query":"What happens when the embedding call is retried on failure?","relevant":["58fb77f1ad964d9a4c0a8bbd992e512df6ce20356dafd45bb91f545e0c706c02"]}
+{"id":"q05","query":"How does hybrid retrieval fuse lexical and semantic results?","relevant":["393be697fe4567e1b3304bcf382c58dcf5a22e4457e5bbaa18147ee972e61628"]}
+{"id":"q06","query":"What does reciprocal rank fusion do?","relevant":["393be697fe4567e1b3304bcf382c58dcf5a22e4457e5bbaa18147ee972e61628"]}
+{"id":"q07","query":"Where does go-rag store its data with Pebble?","relevant":["48f9fdf7b2956b113960db67025ed36f921ceff933551a0a37062fa68303f506"]}
+{"id":"q08","query":"How does the file lock prevent two writers corrupting the vault?","relevant":["48f9fdf7b2956b113960db67025ed36f921ceff933551a0a37062fa68303f506"]}
+{"id":"q09","query":"Why is go-rag local-first and off the network?","relevant":["2544338fe2b3a51ec8a7131184afbaa4ec0697df395c3925ecce4a95cbd79557"]}
+{"id":"q10","query":"What does the single-instance PID guard protect against?","relevant":["2544338fe2b3a51ec8a7131184afbaa4ec0697df395c3925ecce4a95cbd79557"]}
+{"id":"q11","query":"How does go-rag migrate embeddings to a new model?","relevant":["f68e8d133a436c9ec399d511f04b17c7d147e5eded9c199764ffe75b6e7dc771"]}
+{"id":"q12","query":"Does re-embedding under a new model create duplicate documents?","relevant":["f68e8d133a436c9ec399d511f04b17c7d147e5eded9c199764ffe75b6e7dc771"]}

@@ -5,7 +5,10 @@
 // docx/image) are implemented in later tasks.
 package reader
 
-import "context"
+import (
+	"context"
+	"sync"
+)
 
 // FileReader extracts text content from a file (PRD §8.1).
 type FileReader interface {
@@ -19,10 +22,17 @@ type FileReader interface {
 	Name() string
 }
 
-var registry = make(map[string]FileReader)
+var (
+	registryMu sync.RWMutex
+	registry   = make(map[string]FileReader)
+
+	registerOnce sync.Once
+)
 
 // Register registers a reader for each of its supported extensions.
 func Register(r FileReader) {
+	registryMu.Lock()
+	defer registryMu.Unlock()
 	for _, ext := range r.SupportedExtensions() {
 		registry[ext] = r
 	}
@@ -30,18 +40,23 @@ func Register(r FileReader) {
 
 // Get returns the reader registered for an extension (e.g. ".pdf").
 func Get(ext string) (FileReader, bool) {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
 	r, ok := registry[ext]
 	return r, ok
 }
 
-// DefaultReaders registers the built-in readers into the registry. Safe to call
-// once at startup (e.g. from the CLI and the pipeline).
+// DefaultReaders registers the built-in readers into the registry exactly once.
+// Safe to call concurrently (e.g. from overlapping pipeline ingests in the
+// multi-transport daemon); the sync.Once makes repeated calls a no-op and the
+// RWMutex keeps concurrent Register/Get race-free.
 func DefaultReaders() {
-	registry = make(map[string]FileReader)
-	Register(&TextReader{})
-	Register(&MarkdownReader{})
-	Register(&PDFReader{})
-	Register(&DocxReader{})
-	Register(&JPEGReader{})
-	Register(&PNGReader{})
+	registerOnce.Do(func() {
+		Register(&TextReader{})
+		Register(&MarkdownReader{})
+		Register(&PDFReader{})
+		Register(&DocxReader{})
+		Register(&JPEGReader{})
+		Register(&PNGReader{})
+	})
 }

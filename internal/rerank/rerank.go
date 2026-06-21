@@ -31,6 +31,10 @@ func New(url, model string) *Reranker {
 	}
 }
 
+// Model returns the reranker model identifier (satisfies index.Reranker; used by
+// the retrieval layer for failure logging — H09 FR-003).
+func (r *Reranker) Model() string { return r.model }
+
 // Score returns a normalised relevance score per candidate (0.0–1.0, higher =
 // more relevant). Sends one Ollama generate call with all candidates and parses
 // the comma-separated scores from the response.
@@ -59,7 +63,7 @@ func (r *Reranker) Score(ctx context.Context, query string, candidates []string)
 		"stream": false,
 		"options": map[string]any{
 			"temperature": 0,
-			"num_predict":  100,
+			"num_predict": 100,
 		},
 	})
 

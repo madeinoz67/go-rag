@@ -11,22 +11,26 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/daemon"
+	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
 	"github.com/spf13/cobra"
 )
 
 type statusInfo struct {
-	Sources        int    `json:"sources"`
-	Documents      int    `json:"documents"`
-	Chunks         int    `json:"chunks"`
-	EmbeddedPct    int    `json:"embedded_pct"`
-	StorageBytes   int64  `json:"storage_bytes"`
-	EmbeddingModel string `json:"embedding_model"`
-	Provider       string `json:"provider"`
-	Dimensions     int    `json:"dimensions"`
-	Health         string `json:"health"`
-	LastActivity   string `json:"last_activity"`
+	Sources        int            `json:"sources"`
+	Documents      int            `json:"documents"`
+	Chunks         int            `json:"chunks"`
+	EmbeddedPct    int            `json:"embedded_pct"`
+	StorageBytes   int64          `json:"storage_bytes"`
+	EmbeddingModel string         `json:"embedding_model"`
+	Provider       string         `json:"provider"`
+	Dimensions     int            `json:"dimensions"`
+	Health         string         `json:"health"`
+	LastActivity   string         `json:"last_activity"`
+	EmbeddingDrift bool           `json:"embedding_drift"`
+	ModelCounts    map[string]int `json:"model_counts,omitempty"`
+	DimCounts      map[int]int    `json:"dim_counts,omitempty"`
 }
 
 func newStatusCmd() *cobra.Command {
@@ -35,16 +39,24 @@ func newStatusCmd() *cobra.Command {
 		Short: "Show daemon and database status",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			asJSON, _ := cmd.Flags().GetBool("json")
-			running, pid, addr := daemon.Status(dbPath)
+			running, pid, addrs := daemon.Status(dbPath)
 
 			if running {
-				counts, _ := daemon.CallTool(addr, daemon.ReadToken(dbPath), "go_rag_status", nil)
+				counts, _ := daemon.CallTool(addrs.MCPAddr, daemon.ReadToken(dbPath), "go_rag_status", nil)
 				if asJSON {
 					return json.NewEncoder(os.Stdout).Encode(map[string]any{
-						"daemon": "running", "pid": pid, "mcp_addr": addr, "counts": counts,
+						"daemon": "running", "pid": pid,
+						"mcp_addr": addrs.MCPAddr, "rest_addr": addrs.RESTAddr, "grpc_addr": addrs.GRPCAddr,
+						"counts": counts,
 					})
 				}
-				fmt.Printf("Daemon: running (pid %d, MCP %s)\n", pid, addr)
+				fmt.Printf("Daemon: running (pid %d, MCP %s)\n", pid, addrs.MCPAddr)
+				if addrs.RESTAddr != "" {
+					fmt.Printf("  REST %s\n", addrs.RESTAddr)
+				}
+				if addrs.GRPCAddr != "" {
+					fmt.Printf("  gRPC %s\n", addrs.GRPCAddr)
+				}
 				if counts != "" {
 					fmt.Printf("  %s\n", counts)
 				}
@@ -80,11 +92,10 @@ func newStatusCmd() *cobra.Command {
 
 func gatherStats(db *storage.DB, cfg config.Config) statusInfo {
 	info := statusInfo{
-		Sources:        countPrefix(db, storage.PrefixSource),
-		Documents:      countPrefix(db, storage.PrefixDocument),
-		Chunks:         countPrefix(db, storage.PrefixChunk),
-		EmbeddingModel: cfg.EmbeddingModel,
-		Provider:       cfg.OllamaURL,
+		Sources:   countPrefix(db, storage.PrefixSource),
+		Documents: countPrefix(db, storage.PrefixDocument),
+		Chunks:    countPrefix(db, storage.PrefixChunk),
+		Provider:  cfg.OllamaURL,
 	}
 
 	embedded := 0
@@ -105,20 +116,18 @@ func gatherStats(db *storage.DB, cfg config.Config) statusInfo {
 		info.EmbeddedPct = embedded * 100 / info.Documents
 	}
 
-	_ = db.PrefixScanByte(storage.PrefixEmbedding, func(_, val []byte) bool {
-		var se struct {
-			Vector []float32 `json:"vector"`
-		}
-		if json.Unmarshal(val, &se) == nil && len(se.Vector) > 0 {
-			info.Dimensions = len(se.Vector)
-		} else {
-			var v []float32 // legacy bare-vector format
-			if json.Unmarshal(val, &v) == nil {
-				info.Dimensions = len(v)
-			}
-		}
-		return false
-	})
+	// Embedding profile (audit H03): report the STORED majority model/dim and
+	// surface drift (mixed models/dims) so an operator sees it without querying.
+	prof := engine.CorpusProfile(db)
+	if prof.Total > 0 {
+		info.EmbeddingModel = prof.MajorityModel
+		info.Dimensions = prof.MajorityDim
+		info.EmbeddingDrift = !prof.Consistent
+		info.ModelCounts = prof.ModelCounts
+		info.DimCounts = prof.DimCounts
+	} else {
+		info.EmbeddingModel = cfg.EmbeddingModel
+	}
 
 	if !last.IsZero() {
 		info.LastActivity = last.Format(time.RFC3339)
@@ -173,6 +182,9 @@ func printStatus(s statusInfo) {
 	fmt.Printf("  Model:      %s\n", s.EmbeddingModel)
 	fmt.Printf("  Provider:   %s\n", s.Provider)
 	fmt.Printf("  Dimensions: %d\n", s.Dimensions)
+	if s.EmbeddingDrift {
+		fmt.Printf("  Drift:      mixed embedding models/dims detected (%v)\n", s.ModelCounts)
+	}
 	fmt.Printf("  Health:     %s\n", s.Health)
 	if s.LastActivity != "" {
 		fmt.Printf("  Last:       %s\n", s.LastActivity)

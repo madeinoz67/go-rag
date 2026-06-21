@@ -4,7 +4,7 @@ PKG     := ./...
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X main.version=$(VERSION)
 
-.PHONY: build run test vet fmt lint vuln tidy install docker clean help
+.PHONY: build run test test-eval vet fmt lint vuln tidy install docker clean help
 
 build: ## Build the static go-rag binary into ./bin
 	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY) ./cmd/go-rag
@@ -14,6 +14,9 @@ run: build ## Build and run go-rag (pass ARGS="..." for flags)
 
 test: ## Run tests with race detector and coverage
 	go test -race -cover $(PKG)
+
+test-eval: build ## Retrieval-quality regression gate (offline, reproducible). Fails on recall@10 regression.
+	./$(BIN_DIR)/$(BINARY) eval --embedder offline --baseline testdata/golden/baseline.json --tolerance 2.0
 
 vet: ## Run go vet
 	go vet $(PKG)

@@ -41,6 +41,13 @@ func (v *Vector) Delete(id string) {
 }
 
 // Query returns the top-k chunks by cosine similarity to vec (Score = similarity).
+//
+// Audit H03 guard: a stored vector whose length differs from the query vector's
+// length is SKIPPED, never scored. Without this, cosine() would silently score
+// over min(len(a), len(b)) dimensions and return a plausible-but-wrong similarity
+// for a model/dimensionality mismatch — the silent-corruption failure mode. (On
+// the happy path the corpus is single-dimensionality, so nothing is skipped; the
+// guard only bites a mixed or mismatched corpus.)
 func (v *Vector) Query(vec []float32, k int) []Hit {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -51,6 +58,9 @@ func (v *Vector) Query(vec []float32, k int) []Hit {
 	}
 	all := make([]scored, 0, len(v.chunks))
 	for id, cv := range v.chunks {
+		if len(cv) != len(vec) {
+			continue // length mismatch: skip rather than garbage-score (audit H03)
+		}
 		all = append(all, scored{id, cosine(vec, cv)})
 	}
 	sort.Slice(all, func(i, j int) bool {

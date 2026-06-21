@@ -1,6 +1,7 @@
 // Package mcp exposes go-rag operations as Model Context Protocol tools over stdio
-// JSON-RPC (PRD G7, Principle V — every CLI op is also an agent tool). All six
-// operations are exposed: query, status, add, init, scan, config.
+// JSON-RPC (PRD G7, Principle V — every CLI op is also an agent tool). All
+// operations are thin renderings of the shared internal/engine facade, so MCP
+// returns identical results to the CLI, REST, and gRPC transports.
 package mcp
 
 import (
@@ -13,16 +14,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/config"
-	"github.com/madeinoz67/go-rag/internal/embed"
-	"github.com/madeinoz67/go-rag/internal/index"
-	"github.com/madeinoz67/go-rag/internal/model"
-	"github.com/madeinoz67/go-rag/internal/pipeline"
-	"github.com/madeinoz67/go-rag/internal/rerank"
+	"github.com/madeinoz67/go-rag/internal/engine"
+	"github.com/madeinoz67/go-rag/internal/eval"
 	"github.com/madeinoz67/go-rag/internal/storage"
-	"github.com/madeinoz67/go-rag/internal/vault"
-	"github.com/madeinoz67/go-rag/internal/watcher"
 )
 
 const protocolVersion = "2024-11-05"
@@ -102,162 +97,272 @@ func (s *Server) callTool(req rpcReq) any {
 }
 
 // dispatch routes a tool call. go_rag_init is handled before opening the DB (it
-// creates the DB); the rest require an existing database. In daemon mode the
-// shared DB is reused; in stdio mode it is opened (and closed) per call.
+// creates the DB); go_rag_vault_list and go_rag_guide are handled without a
+// specific vault's DB. The rest require an existing database and are rendered
+// from the shared engine facade. In daemon mode the shared DB is reused; in
+// stdio mode it is opened (and closed) per call.
 func (s *Server) dispatch(name string, args map[string]any) (string, error) {
-	if name == "go_rag_init" {
+	switch name {
+	case "go_rag_init":
 		return s.initTool(args)
-	}
-	if name == "go_rag_vault_list" {
-		return s.vaultList()
-	}
-	if name == "go_rag_guide" {
+	case "go_rag_vault_list":
+		return s.renderVaults()
+	case "go_rag_guide":
 		return s.guide()
+	case "go_rag_eval":
+		// Self-provisions a throwaway vault from the golden corpus; does not need
+		// (and does not touch) the caller's database.
+		return s.renderEval(nil, args)
 	}
 	if s.db != nil {
-		return s.dispatchDB(s.cfg, s.db, name, args)
+		return s.dispatchDB(engine.NewWithDB(s.cfg, s.db), name, args)
 	}
-	cfg, db, err := openDB(s.dbPath)
+	cfg, db, err := engine.Open(s.dbPath)
 	if err != nil {
 		return "", err
 	}
 	defer db.Close()
-	return s.dispatchDB(cfg, db, name, args)
+	return s.dispatchDB(engine.NewWithDB(cfg, db), name, args)
 }
 
-func (s *Server) dispatchDB(cfg config.Config, db *storage.DB, name string, args map[string]any) (string, error) {
+func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any) (string, error) {
+	// The engine's ingest pipeline is created lazily on write and drained
+	// async-after-ACK; close it here so short-lived per-dispatch engines finish
+	// their background embeddings before the MCP response returns (and don't
+	// leak worker goroutines). No-op for read-only engines.
+	defer eng.Close()
 	switch name {
 	case "go_rag_query":
-		return s.query(cfg, db, args)
+		return s.renderQuery(eng, args)
 	case "go_rag_status":
-		return s.status(cfg, db)
+		return s.renderStatus(eng)
 	case "go_rag_add":
-		return s.add(cfg, db, args)
+		return s.renderAdd(eng, args)
 	case "go_rag_scan":
-		return s.scan(cfg, db)
+		return s.renderScan(eng)
 	case "go_rag_config":
-		return s.configTool(cfg, args)
+		return s.renderConfig(eng, args)
 	case "go_rag_files":
-		return s.files(db)
+		return s.renderFiles(eng)
 	case "go_rag_dirs":
-		return s.dirs(db)
+		return s.renderDirs(eng)
 	case "go_rag_reprocess":
-		return s.reprocess(cfg, db, args)
+		return s.renderReprocess(eng, args)
 	case "go_rag_migrate":
-		return s.migrate(cfg, db)
+		return s.renderMigrate(eng)
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
 }
 
-func (s *Server) query(cfg config.Config, db *storage.DB, args map[string]any) (string, error) {
-	q, _ := args["query"].(string)
-	k := 5
-	if v, ok := args["k"].(float64); ok {
+// renderEval measures retrieval quality over a golden dataset. It is read-only
+// with respect to any real vault: it self-provisions a throwaway vault from the
+// (default committed) golden corpus with a deterministic offline embedder, so the
+// result is reproducible and needs no Ollama. Numbers are identical to the
+// `go-rag eval` CLI because both drive the same engine.Query path (Principle V).
+func (s *Server) renderEval(_ *engine.Engine, args map[string]any) (string, error) {
+	goldenPath, _ := args["golden"].(string)
+	if goldenPath == "" {
+		goldenPath = "testdata/golden/v1.jsonl"
+	}
+	corpus, _ := args["corpus"].(string)
+	if corpus == "" {
+		corpus = "testdata/golden/corpus/"
+	}
+	mode, _ := args["mode"].(string)
+	if mode == "" {
+		mode = "hybrid"
+	}
+	k := 10
+	if v, ok := args["k"].(float64); ok && v > 0 {
 		k = int(v)
 	}
-	mode := "hybrid"
+
+	golden, err := eval.LoadGolden(goldenPath)
+	if err != nil {
+		return "", err
+	}
+	em := eval.NewDeterministicEmbedder()
+	cfg, db, cleanup, err := eval.ProvisionCorpus(context.Background(), corpus, em)
+	if err != nil {
+		return "", err
+	}
+	defer cleanup()
+	run, err := eval.NewEvalRunner(cfg, db, em).Run(context.Background(), golden, mode, k, true)
+	if err != nil {
+		return "", err
+	}
+	return eval.FormatRun(run, nil, 0), nil
+}
+
+func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, error) {
+	req := engine.QueryRequest{Mode: "hybrid", K: 5}
+	req.Query, _ = args["query"].(string)
+	if v, ok := args["k"].(float64); ok {
+		req.K = int(v)
+	}
 	if v, ok := args["mode"].(string); ok {
-		mode = v
+		req.Mode = v
 	}
-	noRerank, _ := args["no_rerank"].(bool)
-	threshold := 0.0
+	if v, ok := args["no_rerank"].(bool); ok {
+		req.NoRerank = v
+	}
 	if v, ok := args["threshold"].(float64); ok {
-		threshold = v
+		req.Threshold = v
 	}
-	fts, vec, err := pipeline.LoadIndex(db)
+	res, err := eng.Query(context.Background(), req)
 	if err != nil {
 		return "", err
 	}
-	em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
-	r := index.NewRetrieval(fts, vec, em.Embed)
-	var reranker index.Reranker
-	if cfg.RerankModel != "" && !noRerank {
-		reranker = rerank.New(cfg.OllamaURL, cfg.RerankModel)
-	}
-	hits, err := r.SearchWithRerank(context.Background(), q, k, index.ParseMode(mode), docOf(db), reranker, func(id string) string {
-		c, ok := lookupChunk(db, id)
-		if !ok {
-			return ""
-		}
-		return c.Content
-	})
-	if err != nil {
-		return "", err
+	if len(res.Hits) == 0 {
+		return "no results", nil
 	}
 	var b strings.Builder
-	for _, h := range hits {
-		if h.Score < threshold {
-			continue
-		}
-		c, ok := lookupChunk(db, h.ChunkID)
-		if !ok {
-			continue
-		}
-		fmt.Fprintf(&b, "- (score %.3f) %s\n", h.Score, preview(c.Content, 160))
+	if res.RerankFailed { // H09: reranking was attempted but failed — results are fallback-ordered.
+		b.WriteString("⚠ reranking failed; showing fallback-ordered results (reranker may be down or mismatched)\n\n")
 	}
-	if b.Len() == 0 {
-		return "no results", nil
+	for _, h := range res.Hits {
+		fmt.Fprintf(&b, "- (score %.3f) %s\n", h.Score, h.Preview)
 	}
 	return strings.TrimSpace(b.String()), nil
 }
 
-func (s *Server) status(cfg config.Config, db *storage.DB) (string, error) {
-	docs := countPrefix(db, storage.PrefixDocument)
-	chunks := countPrefix(db, storage.PrefixChunk)
-	embs := countPrefix(db, storage.PrefixEmbedding)
-	dims := 0
-	_ = db.PrefixScanByte(storage.PrefixEmbedding, func(_, val []byte) bool {
-		var se struct {
-			Vector []float32 `json:"vector"`
-		}
-		if json.Unmarshal(val, &se) == nil && len(se.Vector) > 0 {
-			dims = len(se.Vector)
-		}
-		return false
-	})
-	reranker := cfg.RerankModel
-	if reranker == "" {
-		reranker = "disabled"
+func (s *Server) renderStatus(eng *engine.Engine) (string, error) {
+	st, err := eng.Status()
+	if err != nil {
+		return "", err
 	}
-	return fmt.Sprintf("documents: %d, chunks: %d, embeddings: %d, dimensions: %d, model: %s, reranker: %s",
-		docs, chunks, embs, dims, cfg.EmbeddingModel, reranker), nil
+	out := fmt.Sprintf("documents: %d, chunks: %d, embeddings: %d, dimensions: %d, model: %s, reranker: %s",
+		st.Documents, st.Chunks, st.Embeddings, st.Dimensions, st.EmbeddingModel, st.Reranker)
+	if st.EmbeddingDrift {
+		out += fmt.Sprintf(", drift: mixed models/dims (%v)", st.ModelCounts)
+	}
+	return out, nil
 }
 
-// vaultList lists all vaults with doc counts. Doesn't require a specific vault's DB.
-func (s *Server) vaultList() (string, error) {
-	names := vault.List()
-	if len(names) == 0 {
+func (s *Server) renderAdd(eng *engine.Engine, args map[string]any) (string, error) {
+	path, _ := args["path"].(string)
+	res, err := eng.Add(context.Background(), path)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("new=%d skipped=%d errors=%d", res.New, res.Skipped, res.Errors), nil
+}
+
+func (s *Server) renderScan(eng *engine.Engine) (string, error) {
+	res, err := eng.Scan(context.Background())
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("added=%d modified=%d deleted=%d", res.New, res.Modified, res.Deleted), nil
+}
+
+func (s *Server) renderReprocess(eng *engine.Engine, args map[string]any) (string, error) {
+	path, _ := args["path"].(string)
+	res, err := eng.Reprocess(context.Background(), path)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("reprocessed=%d errors=%d", res.New, res.Errors), nil
+}
+
+func (s *Server) renderMigrate(eng *engine.Engine) (string, error) {
+	res, err := eng.Migrate(context.Background())
+	if err != nil {
+		return "", err
+	}
+	if res.New == 0 && res.Errors == 0 {
+		return fmt.Sprintf("up to date: all embeddings use %s", eng.Config().EmbeddingModel), nil
+	}
+	return fmt.Sprintf("migrated=%d files re-embedded to %s (%d errors)", res.New, eng.Config().EmbeddingModel, res.Errors), nil
+}
+
+func (s *Server) renderConfig(eng *engine.Engine, args map[string]any) (string, error) {
+	action, _ := args["action"].(string)
+	if action == "set" {
+		key, _ := args["key"].(string)
+		val, _ := args["value"].(string)
+		if err := eng.SetConfig(key, val); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("%s=%s (saved)", key, val), nil
+	}
+	if key, ok := args["key"].(string); ok && key != "" {
+		vals, err := eng.GetConfig(key)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("%s=%s", key, vals[key]), nil
+	}
+	vals, err := eng.GetConfig("")
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	for _, k := range []string{"ollama_url", "embedding_model", "chunk_size", "chunk_overlap", "db_path", "poll_interval_secs"} {
+		if v, ok := vals[k]; ok {
+			fmt.Fprintf(&b, "%s=%s\n", k, v)
+		}
+	}
+	return strings.TrimSpace(b.String()), nil
+}
+
+func (s *Server) renderFiles(eng *engine.Engine) (string, error) {
+	files, err := eng.Files()
+	if err != nil {
+		return "", err
+	}
+	if len(files) == 0 {
+		return "no files ingested", nil
+	}
+	lines := make([]string, 0, len(files))
+	for _, f := range files {
+		lines = append(lines, fmt.Sprintf("%s (%s, %s, %d chunks)", f.FilePath, f.FileType, f.Status, f.ChunkCount))
+	}
+	sort.Strings(lines)
+	return strings.Join(lines, "\n"), nil
+}
+
+func (s *Server) renderDirs(eng *engine.Engine) (string, error) {
+	dirs, err := eng.Dirs()
+	if err != nil {
+		return "", err
+	}
+	if len(dirs) == 0 {
+		return "no files ingested", nil
+	}
+	var b strings.Builder
+	for _, d := range dirs {
+		fmt.Fprintf(&b, "%s (%d files, %d chunks)\n", d.Dir, d.Files, d.Chunks)
+	}
+	return strings.TrimSpace(b.String()), nil
+}
+
+// renderVaults lists all vaults with doc counts. No specific vault's DB required.
+func (s *Server) renderVaults() (string, error) {
+	vaults, err := engine.NewWithDB(config.Config{}, nil).ListVaults()
+	if err != nil {
+		return "", err
+	}
+	if len(vaults) == 0 {
 		return "no vaults", nil
 	}
 	var b strings.Builder
-	for _, n := range names {
-		docs := 0
-		if _, db, err := openDB(vault.Path(n)); err == nil {
-			docs = countPrefix(db, 0x02)
-			db.Close()
-		}
-		fmt.Fprintf(&b, "%s (%d docs)\n", n, docs)
+	for _, v := range vaults {
+		fmt.Fprintf(&b, "%s (%d docs)\n", v.Name, v.Documents)
 	}
 	return strings.TrimSpace(b.String()), nil
 }
 
 // guide returns a context document for the AI agent — what's connected, what's
-// available, what's needed. The agent should call this first to understand the
-// system state and available operations.
+// available, what's needed. The agent should call this first.
 func (s *Server) guide() (string, error) {
-	var b strings.Builder
-
-	// Check if a database exists at s.dbPath
-	cfg, db, err := openDB(s.dbPath)
+	cfg, db, err := engine.Open(s.dbPath)
 	dbReady := err == nil
 
-	b.WriteString("# go-rag Agent Guide\n\n")
-
-	// Status section
-	b.WriteString("## Status\n\n")
+	var b strings.Builder
+	b.WriteString("# go-rag Agent Guide\n\n## Status\n\n")
 	if !dbReady {
-		b.WriteString("**Database not initialized.** Call `go_rag_init` first with an embedding model name, then `go_rag_add` to ingest documents.\n\n")
-		b.WriteString("## Available Tools\n\n")
+		b.WriteString("**Database not initialized.** Call `go_rag_init` first with an embedding model name, then `go_rag_add` to ingest documents.\n\n## Available Tools\n\n")
 		b.WriteString("- **go_rag_init** — Initialize a new database (requires: model name, e.g. `mxbai-embed-large`)\n")
 		b.WriteString("- **go_rag_vault_list** — List all available vaults\n")
 		b.WriteString("- **go_rag_guide** — This guide (call it after setup changes)\n")
@@ -265,43 +370,36 @@ func (s *Server) guide() (string, error) {
 	}
 	defer db.Close()
 
-	docs := countPrefix(db, storage.PrefixDocument)
-	chunks := countPrefix(db, storage.PrefixChunk)
-	embs := countPrefix(db, storage.PrefixEmbedding)
+	eng := engine.NewWithDB(cfg, db)
+	st, _ := eng.Status()
 	pct := 0
-	if docs > 0 {
-		pct = embs * 100 / docs
+	if st.Documents > 0 {
+		pct = st.Embeddings * 100 / st.Documents
 	}
+	reranker := st.Reranker
 
-	reranker := cfg.RerankModel
-	if reranker == "" {
-		reranker = "disabled"
-	}
-
-	fmt.Fprintf(&b, "- Documents: %d\n", docs)
-	fmt.Fprintf(&b, "- Chunks: %d\n", chunks)
-	fmt.Fprintf(&b, "- Embeddings: %d (%d%% complete)\n", embs, pct)
-	fmt.Fprintf(&b, "- Embedding model: %s\n", cfg.EmbeddingModel)
+	fmt.Fprintf(&b, "- Documents: %d\n", st.Documents)
+	fmt.Fprintf(&b, "- Chunks: %d\n", st.Chunks)
+	fmt.Fprintf(&b, "- Embeddings: %d (%d%% complete)\n", st.Embeddings, pct)
+	fmt.Fprintf(&b, "- Embedding model: %s\n", st.EmbeddingModel)
 	fmt.Fprintf(&b, "- Reranker: %s\n", reranker)
 	fmt.Fprintf(&b, "- Chunk size: %d tokens, overlap: %d\n", cfg.ChunkSize, cfg.ChunkOverlap)
-	fmt.Fprintf(&b, "- Ollama: %s\n\n", cfg.OllamaURL)
+	fmt.Fprintf(&b, "- Ollama: %s\n\n", st.OllamaURL)
 
-	// What's needed
 	b.WriteString("## What's Needed\n\n")
-	if docs == 0 {
+	if st.Documents == 0 {
 		b.WriteString("**No documents ingested.** Call `go_rag_add` with a directory path to index documents.\n\n")
 	}
-	if pct < 100 && docs > 0 {
+	if pct < 100 && st.Documents > 0 {
 		b.WriteString(fmt.Sprintf("**Embeddings incomplete (%d%%).** Background embedding may still be running, or errors occurred. Query results will be partial.\n\n", pct))
 	}
 	if reranker == "disabled" {
 		b.WriteString("**Reranker disabled.** Set `rerank_model` via `go_rag_config` to enable cross-encoder reranking for better query precision.\n\n")
 	}
-	if docs > 0 && pct == 100 && reranker != "disabled" {
+	if st.Documents > 0 && pct == 100 && reranker != "disabled" {
 		b.WriteString("System is fully operational — all documents indexed and embeddings complete.\n\n")
 	}
 
-	// Available tools
 	b.WriteString("## Available Tools\n\n")
 	b.WriteString("- **go_rag_query** — Search the database (hybrid semantic + keyword). Params: `query` (required), `k` (results, default 5), `mode` (hybrid|semantic|keyword), `no_rerank` (skip reranker), `threshold` (min score).\n")
 	b.WriteString("- **go_rag_add** — Ingest documents from a file or directory path.\n")
@@ -314,28 +412,15 @@ func (s *Server) guide() (string, error) {
 	b.WriteString("- **go_rag_config** — Get or set configuration.\n")
 	b.WriteString("- **go_rag_init** — Initialize a new database.\n")
 	b.WriteString("- **go_rag_vault_list** — List all vaults.\n")
-	b.WriteString("- **go_rag_guide** — This guide.\n\n")
+	b.WriteString("- **go_rag_guide** — This guide.\n")
+	b.WriteString("- **go_rag_eval** — Measure retrieval quality (recall@k, precision@k, MRR, NDCG@k) over a golden dataset (offline, reproducible).\n\n")
 
-	// Usage patterns
 	b.WriteString("## Usage Patterns\n\n")
 	b.WriteString("1. **Query**: `go_rag_query(query=\"how does authentication work?\")` — returns ranked chunks with source files.\n")
 	b.WriteString("2. **Add documents**: `go_rag_add(path=\"/path/to/docs/\")` — ingests recursively.\n")
 	b.WriteString("3. **After adding**: Wait for embeddings to complete (check `go_rag_status` for embedded %).\n")
 	b.WriteString("4. **Quick search** (no reranker): `go_rag_query(query=\"...\", no_rerank=true)` — faster, less precise.\n")
-
 	return b.String(), nil
-}
-
-func (s *Server) add(cfg config.Config, db *storage.DB, args map[string]any) (string, error) {
-	path, _ := args["path"].(string)
-	em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
-	p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
-	defer p.Close()
-	res, err := p.Ingest(context.Background(), path, "*")
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("new=%d skipped=%d errors=%d", res.New, res.Skipped, res.Errors), nil
 }
 
 func (s *Server) initTool(args map[string]any) (string, error) {
@@ -371,158 +456,6 @@ func (s *Server) initTool(args map[string]any) (string, error) {
 	return fmt.Sprintf("initialized go-rag at %s (model %s, url %s)", cfg.DBPath, cfg.EmbeddingModel, cfg.OllamaURL), nil
 }
 
-func (s *Server) scan(cfg config.Config, db *storage.DB) (string, error) {
-	root := "."
-	if len(cfg.WatchDirs) > 0 && cfg.WatchDirs[0] != "" {
-		root = cfg.WatchDirs[0]
-	}
-	em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
-	pl := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
-	defer pl.Close()
-	cd := watcher.New(db, pl)
-	changes, err := cd.ScanOnce(context.Background(), root, "*")
-	if err != nil {
-		return "", err
-	}
-	added, modified, deleted := 0, 0, 0
-	for _, c := range changes {
-		switch c.Kind {
-		case "NEW":
-			added++
-		case "MODIFIED":
-			modified++
-		case "DELETED":
-			deleted++
-		}
-	}
-	return fmt.Sprintf("added=%d modified=%d deleted=%d", added, modified, deleted), nil
-}
-
-func (s *Server) configTool(cfg config.Config, args map[string]any) (string, error) {
-	action, _ := args["action"].(string)
-	path := filepath.Join(s.dbPath, "config.json")
-	switch action {
-	case "set":
-		key, _ := args["key"].(string)
-		val, _ := args["value"].(string)
-		if err := cfg.Set(key, val); err != nil {
-			return "", err
-		}
-		if err := cfg.Validate(); err != nil {
-			return "", err
-		}
-		if err := config.Save(path, cfg); err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("%s=%s (saved)", key, val), nil
-	default: // "get"
-		if key, ok := args["key"].(string); ok && key != "" {
-			v, ok := cfg.Get(key)
-			if !ok {
-				return "", fmt.Errorf("unknown key: %s", key)
-			}
-			return fmt.Sprintf("%s=%s", key, v), nil
-		}
-		var b strings.Builder
-		for _, k := range []string{"ollama_url", "embedding_model", "chunk_size", "chunk_overlap", "db_path", "poll_interval_secs"} {
-			if v, ok := cfg.Get(k); ok {
-				fmt.Fprintf(&b, "%s=%s\n", k, v)
-			}
-		}
-		return strings.TrimSpace(b.String()), nil
-	}
-}
-
-// files lists the paths of every ingested document.
-func (s *Server) files(db *storage.DB) (string, error) {
-	var lines []string
-	_ = db.PrefixScanByte(storage.PrefixDocument, func(_, val []byte) bool {
-		var d model.Document
-		if json.Unmarshal(val, &d) == nil {
-			lines = append(lines, fmt.Sprintf("%s (%s, %s, %d chunks)", d.FilePath, d.FileType, d.Status, d.ChunkCount))
-		}
-		return true
-	})
-	sort.Strings(lines)
-	if len(lines) == 0 {
-		return "no files ingested", nil
-	}
-	return strings.Join(lines, "\n"), nil
-}
-
-// dirs groups ingested documents by directory, returning file/chunk counts per dir.
-func (s *Server) dirs(db *storage.DB) (string, error) {
-	type counts struct{ files, chunks int }
-	m := map[string]*counts{}
-	_ = db.PrefixScanByte(storage.PrefixDocument, func(_, val []byte) bool {
-		var d model.Document
-		if json.Unmarshal(val, &d) == nil {
-			dir := filepath.Dir(d.FilePath)
-			e := m[dir]
-			if e == nil {
-				e = &counts{}
-				m[dir] = e
-			}
-			e.files++
-			e.chunks += d.ChunkCount
-		}
-		return true
-	})
-	if len(m) == 0 {
-		return "no files ingested", nil
-	}
-	dirs := make([]string, 0, len(m))
-	for d := range m {
-		dirs = append(dirs, d)
-	}
-	sort.Strings(dirs)
-	var b strings.Builder
-	for _, d := range dirs {
-		fmt.Fprintf(&b, "%s (%d files, %d chunks)\n", d, m[d].files, m[d].chunks)
-	}
-	return strings.TrimSpace(b.String()), nil
-}
-
-// reprocess force-reingests a path via the pipeline (T047).
-func (s *Server) reprocess(cfg config.Config, db *storage.DB, args map[string]any) (string, error) {
-	path, _ := args["path"].(string)
-	em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
-	p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
-	defer p.Close()
-	res, err := p.Reprocess(context.Background(), path, "*")
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("reprocessed=%d errors=%d", res.New, res.Errors), nil
-}
-
-// migrate re-embeds documents whose embeddings use a different model than the
-// configured one (T048).
-func (s *Server) migrate(cfg config.Config, db *storage.DB) (string, error) {
-	current := cfg.EmbeddingModel
-	stats := pipeline.EmbeddingModelStats(db)
-	if len(stats) == 0 {
-		return "no tracked embeddings yet", nil
-	}
-	stale := 0
-	for m, n := range stats {
-		if m != current {
-			stale += n
-		}
-	}
-	if stale == 0 {
-		return fmt.Sprintf("up to date: all embeddings use %s", current), nil
-	}
-	em := embed.NewOllama(cfg.OllamaURL, current)
-	p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
-	defer p.Close()
-	res, err := p.ReprocessAll(context.Background())
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("migrated=%d files re-embedded to %s (%d errors)", res.New, current, res.Errors), nil
-}
-
 // --- JSON-RPC helpers ---
 
 func ok(id any, result any) any {
@@ -533,55 +466,6 @@ func errResp(id any, code int, msg string) any {
 	return map[string]any{"jsonrpc": "2.0", "id": id, "error": map[string]any{"code": code, "message": msg}}
 }
 
-// --- db helpers (minimal, mirroring cli/wire.go) ---
-
-func openDB(base string) (config.Config, *storage.DB, error) {
-	cfg, err := config.Load(filepath.Join(base, "config.json"))
-	if err != nil {
-		return config.Config{}, nil, fmt.Errorf("no database — run `go-rag init` or go_rag_init first: %w", err)
-	}
-	db, err := storage.Open(filepath.Join(base, "data"))
-	return cfg, db, err
-}
-
-func countPrefix(db *storage.DB, prefix byte) int {
-	n := 0
-	_ = db.PrefixScanByte(prefix, func(_, _ []byte) bool { n++; return true })
-	return n
-}
-
-func docOf(db *storage.DB) func(string) string {
-	m := map[string]string{}
-	_ = db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
-		var c model.Chunk
-		if json.Unmarshal(val, &c) == nil {
-			m[c.ID] = c.DocumentID
-		}
-		return true
-	})
-	return func(id string) string { return m[id] }
-}
-
-func lookupChunk(db *storage.DB, id string) (model.Chunk, bool) {
-	raw, ok, _ := db.GetWithPrefix(storage.PrefixChunk, []byte(id))
-	if !ok {
-		return model.Chunk{}, false
-	}
-	var c model.Chunk
-	if json.Unmarshal(raw, &c) != nil {
-		return model.Chunk{}, false
-	}
-	return c, true
-}
-
-func preview(s string, n int) string {
-	s = strings.ReplaceAll(s, "\n", " ")
-	if len(s) > n {
-		return s[:n] + "…"
-	}
-	return s
-}
-
 func toolDefs() []map[string]any {
 	return []map[string]any{
 		{
@@ -590,11 +474,11 @@ func toolDefs() []map[string]any {
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"query":      map[string]any{"type": "string"},
-					"k":          map[string]any{"type": "integer", "default": 5},
-					"mode":       map[string]any{"type": "string", "enum": []string{"hybrid", "semantic", "keyword"}},
-					"no_rerank":  map[string]any{"type": "boolean", "default": false},
-					"threshold":  map[string]any{"type": "number", "default": 0.0},
+					"query":     map[string]any{"type": "string"},
+					"k":         map[string]any{"type": "integer", "default": 5},
+					"mode":      map[string]any{"type": "string", "enum": []string{"hybrid", "semantic", "keyword"}},
+					"no_rerank": map[string]any{"type": "boolean", "default": false},
+					"threshold": map[string]any{"type": "number", "default": 0.0},
 				},
 				"required": []string{"query"},
 			},
@@ -608,9 +492,9 @@ func toolDefs() []map[string]any {
 			"name":        "go_rag_add",
 			"description": "Ingest a file or directory path into the database.",
 			"inputSchema": map[string]any{
-				"type": "object",
+				"type":       "object",
 				"properties": map[string]any{"path": map[string]any{"type": "string"}},
-				"required": []string{"path"},
+				"required":   []string{"path"},
 			},
 		},
 		{
@@ -659,9 +543,9 @@ func toolDefs() []map[string]any {
 			"name":        "go_rag_reprocess",
 			"description": "Force re-ingest of a directory (applies the current reader/embedder; bypasses dedup).",
 			"inputSchema": map[string]any{
-				"type": "object",
+				"type":       "object",
 				"properties": map[string]any{"path": map[string]any{"type": "string"}},
-				"required": []string{"path"},
+				"required":   []string{"path"},
 			},
 		},
 		{
@@ -678,6 +562,19 @@ func toolDefs() []map[string]any {
 			"name":        "go_rag_guide",
 			"description": "Get a guide for the AI: system status, what's needed, available tools, and usage patterns. Call this first to understand the current state.",
 			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "go_rag_eval",
+			"description": "Measure retrieval quality (recall@k, precision@k, MRR, NDCG@k) over a golden dataset. Self-provisions a throwaway vault from the golden corpus with a deterministic offline embedder (no Ollama, reproducible).",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"golden": map[string]any{"type": "string", "description": "Path to golden JSONL (default testdata/golden/v1.jsonl)."},
+					"corpus": map[string]any{"type": "string", "description": "Source corpus dir (default testdata/golden/corpus/)."},
+					"mode":   map[string]any{"type": "string", "enum": []string{"hybrid", "semantic", "keyword"}, "default": "hybrid"},
+					"k":      map[string]any{"type": "integer", "default": 10},
+				},
+			},
 		},
 	}
 }

@@ -50,3 +50,28 @@ func TestVector_PersistenceSurvivesReload(t *testing.T) {
 		t.Fatalf("reloaded store must still rank 'keep' first, got %v", hits)
 	}
 }
+
+// TestVector_QuerySkipsMismatchedLength (audit H03): a stored vector whose length
+// differs from the query must be SKIPPED, not garbage-scored via cosine's silent
+// min(len) truncation.
+func TestVector_QuerySkipsMismatchedLength(t *testing.T) {
+	v := NewVector()
+	v.Add("match", []float32{1.0, 0.0, 0.0, 0.0}) // dim 4 — scoreable
+	v.Add("wrongdim", []float32{0.9, 0.1, 0.0})   // dim 3 — must be skipped, not scored
+
+	hits := v.Query([]float32{1.0, 0.0, 0.0, 0.0}, 5)
+	if len(hits) != 1 || hits[0].ChunkID != "match" {
+		t.Fatalf("mismatched-length vector must be skipped, got %v", hits)
+	}
+}
+
+// TestVector_QueryAllMismatchedReturnsNone: when every stored vector mismatches
+// the query dimensionality, no hits are returned (no panic, no garbage).
+func TestVector_QueryAllMismatchedReturnsNone(t *testing.T) {
+	v := NewVector()
+	v.Add("a", []float32{1.0, 0.0, 0.0})                                   // dim 3
+	v.Add("b", []float32{0.0, 1.0, 0.0})                                   // dim 3
+	if hits := v.Query([]float32{1.0, 0.0, 0.0, 0.0}, 5); len(hits) != 0 { // query dim 4
+		t.Fatalf("all-mismatched corpus must yield no hits, got %v", hits)
+	}
+}

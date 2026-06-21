@@ -14,30 +14,31 @@ import (
 
 // Config is the set of configurable options (PRD §5.7 table).
 type Config struct {
-	OllamaURL       string   `json:"ollama_url"`
-	EmbeddingModel     string   `json:"embedding_model,omitempty"`
-	WatchDirs       []string `json:"watch_dirs"`
-	ChunkSize       int      `json:"chunk_size"`
-	ChunkOverlap    int      `json:"chunk_overlap"`
-	DBPath          string   `json:"db_path"`
-	FileGlob        string   `json:"file_glob"`
-	PollIntervalSec int      `json:"poll_interval_secs"`
-	MCPAddr          string   `json:"mcp_addr"`
-	MCPToken         string   `json:"mcp_token,omitempty"`
-	RerankModel      string   `json:"rerank_model,omitempty"`
-	RerankCandidates int      `json:"rerank_candidates,omitempty"`
+	OllamaURL            string   `json:"ollama_url"`
+	EmbeddingModel       string   `json:"embedding_model,omitempty"`
+	WatchDirs            []string `json:"watch_dirs"`
+	ChunkSize            int      `json:"chunk_size"`
+	ChunkOverlap         int      `json:"chunk_overlap"`
+	DBPath               string   `json:"db_path"`
+	FileGlob             string   `json:"file_glob"`
+	PollIntervalSec      int      `json:"poll_interval_secs"`
+	MCPAddr              string   `json:"mcp_addr"`
+	MCPToken             string   `json:"mcp_token,omitempty"`
+	RerankModel          string   `json:"rerank_model,omitempty"`
+	RerankCandidates     int      `json:"rerank_candidates,omitempty"`
+	RerankRetryOnFailure bool     `json:"rerank_retry_on_failure,omitempty"`
 }
 
 // Default returns the configuration used by `go-rag init` when no overrides apply.
 func Default() Config {
 	return Config{
-		OllamaURL:       "http://localhost:11434",
-		WatchDirs:       []string{"."},
-		ChunkSize:       512,
-		ChunkOverlap:    50,
-		DBPath:          "./.go-rag",
-		FileGlob:        "*",
-		PollIntervalSec: 60,
+		OllamaURL:        "http://localhost:11434",
+		WatchDirs:        []string{"."},
+		ChunkSize:        512,
+		ChunkOverlap:     50,
+		DBPath:           "./.go-rag",
+		FileGlob:         "*",
+		PollIntervalSec:  60,
 		MCPAddr:          ":7878",
 		RerankCandidates: 20,
 	}
@@ -126,6 +127,8 @@ func (c Config) Get(key string) (string, bool) {
 		return c.RerankModel, true
 	case "rerank_candidates":
 		return strconv.Itoa(c.RerankCandidates), true
+	case "rerank_retry_on_failure":
+		return strconv.FormatBool(c.RerankRetryOnFailure), true
 	}
 	return "", false
 }
@@ -172,6 +175,12 @@ func (c *Config) Set(key, val string) error {
 			return fmt.Errorf("invalid rerank_candidates: %q", val)
 		}
 		c.RerankCandidates = n
+	case "rerank_retry_on_failure":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("invalid rerank_retry_on_failure: %q", val)
+		}
+		c.RerankRetryOnFailure = b
 	default:
 		return fmt.Errorf("unknown config key: %q", key)
 	}

@@ -11,10 +11,14 @@ import (
 )
 
 // Start re-execs the go-rag binary as a detached daemon (`go-rag serve`) and polls
-// the health endpoint until it is up (≤5s). Mirrors muninn's runStart.
-func Start(dbPath, mcpAddr string) error {
-	if mcpAddr == "" {
-		mcpAddr = ":7878"
+// the MCP health endpoint until it is up (≤5s). Mirrors muninn's runStart.
+//
+// addrs carries the per-transport listen addresses. MCPAddr defaults to
+// 127.0.0.1:7878 when empty (loopback-only, Principle I); RESTAddr/GRPCAddr are
+// passed through only when non-empty (empty ⇒ that transport is not started).
+func Start(dbPath string, addrs Addrs) error {
+	if addrs.MCPAddr == "" {
+		addrs.MCPAddr = "127.0.0.1:7878"
 	}
 	if pid, err := ReadPID(dbPath); err == nil && isProcessRunning(pid) {
 		return fmt.Errorf("go-rag already running (pid %d)", pid)
@@ -31,7 +35,13 @@ func Start(dbPath, mcpAddr string) error {
 		return fmt.Errorf("create db dir: %w", err)
 	}
 
-	args := []string{"serve", "--db-path", dbPath, "--mcp-addr", mcpAddr}
+	args := []string{"serve", "--db-path", dbPath, "--mcp-addr", addrs.MCPAddr}
+	if addrs.RESTAddr != "" {
+		args = append(args, "--rest-addr", addrs.RESTAddr)
+	}
+	if addrs.GRPCAddr != "" {
+		args = append(args, "--grpc-addr", addrs.GRPCAddr)
+	}
 	cmd := exec.Command(os.Args[0], args...)
 	cmd.SysProcAttr = daemonSysProcAttr()
 	daemonExtraSetup(cmd)
@@ -53,9 +63,9 @@ func Start(dbPath, mcpAddr string) error {
 	if err := WritePID(dbPath, cmd.Process.Pid); err != nil {
 		return fmt.Errorf("write pid: %w", err)
 	}
-	_ = WriteAddrs(dbPath, Addrs{MCPAddr: mcpAddr})
+	_ = WriteAddrs(dbPath, addrs)
 
-	health := HealthURL(mcpAddr)
+	health := HealthURL(addrs.MCPAddr)
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		time.Sleep(200 * time.Millisecond)
@@ -108,20 +118,23 @@ func IsRunning(dbPath string) bool {
 	return isProcessRunning(pid)
 }
 
-// Status reports the running state, pid, and bound MCP address (probes health).
-func Status(dbPath string) (running bool, pid int, addr string) {
+// Status reports the running state, pid, and the bound transport addresses
+// (probes the MCP health endpoint). RESTAddr/GRPCAddr are empty when those
+// transports were not started. Callers that only need liveness use the bool;
+// the status command surfaces all three addresses.
+func Status(dbPath string) (running bool, pid int, addrs Addrs) {
 	pid, err := ReadPID(dbPath)
 	if err != nil {
-		return false, 0, ""
+		return false, 0, Addrs{}
 	}
 	if !isProcessRunning(pid) {
-		return false, pid, ""
+		return false, pid, Addrs{}
 	}
-	addrs, _ := ReadAddrs(dbPath)
+	addrs, _ = ReadAddrs(dbPath)
 	if addrs.MCPAddr == "" {
 		addrs.MCPAddr = ":7878"
 	}
-	return probeHealth(HealthURL(addrs.MCPAddr)), pid, addrs.MCPAddr
+	return probeHealth(HealthURL(addrs.MCPAddr)), pid, addrs
 }
 
 // HealthURL turns a listen address into the daemon health-probe URL.

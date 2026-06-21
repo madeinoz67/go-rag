@@ -12,10 +12,13 @@ import (
 	"strings"
 )
 
-// Addrs records the address the daemon bound to, so stop/status and the stdio
-// proxy can find it even with a non-default --mcp-addr.
+// Addrs records the addresses the daemon bound to, so stop/status and the stdio
+// proxy can find each transport even with non-default --mcp-addr/--rest-addr/
+// --grpc-addr. RESTAddr/GRPCAddr are empty when those transports are disabled.
 type Addrs struct {
-	MCPAddr string `json:"mcp_addr"`
+	MCPAddr  string `json:"mcp_addr"`
+	RESTAddr string `json:"rest_addr"`
+	GRPCAddr string `json:"grpc_addr"`
 }
 
 const (
@@ -48,7 +51,7 @@ func ReadPID(dbPath string) (int, error) {
 	return pid, nil
 }
 
-// WriteAddrs records the bound MCP address.
+// WriteAddrs records the bound transport addresses.
 func WriteAddrs(dbPath string, a Addrs) error {
 	b, err := json.Marshal(a)
 	if err != nil {
@@ -57,7 +60,7 @@ func WriteAddrs(dbPath string, a Addrs) error {
 	return os.WriteFile(AddrsPath(dbPath), b, 0o600)
 }
 
-// ReadAddrs reads the bound MCP address (empty MCPAddr if absent).
+// ReadAddrs reads the bound transport addresses (fields empty if absent).
 func ReadAddrs(dbPath string) (Addrs, error) {
 	b, err := os.ReadFile(AddrsPath(dbPath))
 	if err != nil {

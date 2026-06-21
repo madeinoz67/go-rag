@@ -43,9 +43,23 @@ Keep `go build ./...`, `go vet ./...`, and `go test ./...` green at all times.
 | `internal/watcher` | fsnotify + polling change detection | §7 |
 | `internal/chunk` | text splitter | §4.4 |
 | `internal/config` | `.go-rag/config.json` | §5.7 |
+| `internal/daemon` | detached daemon: start/stop/status, PID + Pebble-lock single-instance, per-transport addrs | §5 |
+| `internal/engine` | unified operation facade shared by every transport (Query/Add/Status/…) | §4 |
+| `internal/rest` | REST adapter (stdlib net/http), serves `GET /openapi.yaml` | spec 003 |
+| `internal/grpc` | gRPC adapter (grpc-go) over the engine | spec 003 |
+| `proto/` | protobuf schema (`gorag.proto`) + generated `proto/gen` (Gorag service) | spec 003 |
 
 Every directory maps 1:1 to a PRD subsystem — when adding code, place it where the
 PRD says it belongs.
+
+**Multi-transport server (spec 003).** `go-rag start` runs a detached daemon
+serving three transports in one process, each on its own loopback port — MCP
+(`:7878`, HTTP/JSON-RPC), REST (`:7879`, stdlib `net/http`), gRPC (`:7880`,
+grpc-go). All three are adapters over a single `internal/engine.Engine`, so a
+query over REST/gRPC/MCP returns identical results (cross-transport parity,
+FR-002/003). `--rest-addr`/`--grpc-addr` override the ports; empty disables that
+transport. One Pebble writer; writes ACK on the durable store and embed async
+(Principle IV, `engine.Close` drains).
 
 ## Constraints
 
@@ -58,6 +72,12 @@ PRD says it belongs.
   and change-detection hashes are distinct.
 - **No Bun/Python/Node artifacts.** This is a Go project — do not create
   `package.json`, `pyproject.toml`, `tsconfig.json`, or a `src/` directory.
+- **Smoke-test the daemon on an isolated DB.** The default `dbPath` is the
+  global vault (`~/.go-rag/vaults/default`), not a cwd-local path — so a bare
+  `go-rag start`/`stop` targets the user's real running daemon. When scripting
+  the daemon for tests/smoke, always pass `--db-path <tmp>` plus non-default
+  `--mcp-addr`/`--rest-addr`/`--grpc-addr`, or you will collide with and stop a
+  live instance.
 
 ## Code navigation
 
@@ -72,6 +92,6 @@ system, embedding providers beyond Ollama. Don't build these without revisiting 
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan:
-`specs/002-document-vaults/plan.md`
+shell commands, and other important information, read the current plan
+at specs/006-rerank-error-surfacing/plan.md
 <!-- SPECKIT END -->

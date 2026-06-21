@@ -40,6 +40,29 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
+  eval:
+    # Retrieval-quality regression gate (audit item H02). Runs the offline,
+    # reproducible eval harness against the committed golden set + baseline and
+    # fails when recall@10 regresses beyond tolerance. Scoped to changes on the
+    # retrieval-quality surface so unrelated PRs don't trip it.
+    name: eval (retrieval-quality gate)
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' ||
+      !github.event.pull_request.draft
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Retrieval-quality gate
+        run: make test-eval
+
   build:
     name: build (static binary)
     runs-on: ubuntu-latest
