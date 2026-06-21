@@ -38,3 +38,7 @@ Thumbs.db
 
 # Claude Code local settings (per-developer; never commit)
 .claude/settings.local.json
+
+# RAG book source chapters — copyrighted reference material for the audit
+# (RAG_BOOK_AUDIT.md), not project code. Never commit.
+/rag-book-md/
