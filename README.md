@@ -65,7 +65,7 @@ make build                           # build the static binary into ./bin
 **Daemon (MCP-over-HTTP, muninn-style)**
 | Command | Description |
 |---------|-------------|
-| `go-rag start` | Start the MCP daemon in the background (`:7878`) |
+| `go-rag start` | Start the daemon in the background (loopback `127.0.0.1:7878`; `--bind-external` to bind a non-loopback address) |
 | `go-rag stop` | Stop the running daemon |
 | `go-rag mcp` | stdio→HTTP proxy (bridges Claude Desktop to the daemon) |
 
@@ -127,6 +127,27 @@ Wire into Claude Desktop:
   }
 }}
 ```
+
+## Network binding & security
+
+go-rag is **loopback-only by default**. Every transport (MCP `:7878`, REST
+`:7879`, gRPC `:7880`) binds to `127.0.0.1` and is unreachable from other
+machines unless you explicitly opt in:
+
+```bash
+# Refused — exits before opening any listener:
+go-rag start --mcp-addr 0.0.0.0:7878
+
+# Allowed, with a prominent exposure warning printed once at boot:
+go-rag start --mcp-addr 0.0.0.0:7878 --bind-external
+```
+
+`--bind-external` authorizes non-loopback binding for whichever transports you
+configured externally. go-rag ships **no TLS** — external binding is plaintext at
+your explicit risk, and access control is your responsibility. If you expose
+go-rag beyond loopback, front it with a TLS-terminating reverse proxy or tunnel.
+The default-close posture is deliberate: a frictionless local database should
+never silently expose your document vault to the network.
 
 ## Architecture
 

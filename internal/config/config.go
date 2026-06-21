@@ -39,7 +39,7 @@ func Default() Config {
 		DBPath:           "./.go-rag",
 		FileGlob:         "*",
 		PollIntervalSec:  60,
-		MCPAddr:          ":7878",
+		MCPAddr:          "127.0.0.1:7878", // loopback by default (spec 007, audit H13); never all-interfaces
 		RerankCandidates: 20,
 	}
 }

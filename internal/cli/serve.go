@@ -34,6 +34,19 @@ func newServeCmd() *cobra.Command {
 			mcpAddr, _ := cmd.Flags().GetString("mcp-addr")
 			restAddr, _ := cmd.Flags().GetString("rest-addr")
 			grpcAddr, _ := cmd.Flags().GetString("grpc-addr")
+			bindExternal, _ := cmd.Flags().GetBool("bind-external")
+
+			// Loopback-by-default contract (spec 007, FR-001/003): refuse to bind
+			// any enabled transport to a non-loopback address unless the user opted
+			// in with --bind-external. This RunE is the single chokepoint — every
+			// bind path (direct serve, start→serve, future config-sourced) flows
+			// through it — so gating here is necessary and sufficient. Runs before
+			// openDB/listeners, so a rejection opens no DB and no listener.
+			if err := daemon.ValidateBind(daemon.Addrs{
+				MCPAddr: mcpAddr, RESTAddr: restAddr, GRPCAddr: grpcAddr,
+			}, bindExternal); err != nil {
+				return err
+			}
 
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
@@ -105,6 +118,14 @@ func newServeCmd() *cobra.Command {
 				bound += ", gRPC " + grpcAddr
 			}
 			fmt.Fprintf(os.Stderr, "go-rag daemon serving %s\n", bound)
+			// Exposure warning (spec 007 FR-005): when external binding is
+			// authorized and at least one transport is actually non-loopback, say
+			// so loudly — once, at boot. All-loopback + --bind-external stays silent.
+			if w := daemon.ExternalBindWarning(daemon.Addrs{
+				MCPAddr: mcpAddr, RESTAddr: restAddr, GRPCAddr: grpcAddr,
+			}); w != "" {
+				fmt.Fprintln(os.Stderr, w)
+			}
 
 			// Start each listener in its own goroutine; collect their exit errors.
 			errCh := make(chan error, 3)
@@ -135,8 +156,9 @@ func newServeCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().String("mcp-addr", "127.0.0.1:7878", "MCP listen address (loopback)")
-	cmd.Flags().String("rest-addr", "127.0.0.1:7879", "REST listen address; empty disables REST")
-	cmd.Flags().String("grpc-addr", "127.0.0.1:7880", "gRPC listen address; empty disables gRPC")
+	cmd.Flags().String("mcp-addr", "127.0.0.1:7878", "MCP listen address (loopback by default)")
+	cmd.Flags().String("rest-addr", "127.0.0.1:7879", "REST listen address (loopback); empty disables REST")
+	cmd.Flags().String("grpc-addr", "127.0.0.1:7880", "gRPC listen address (loopback); empty disables gRPC")
+	cmd.Flags().Bool("bind-external", false, "allow non-loopback bind addresses (exposes the vault on the network; no TLS)")
 	return cmd
 }
