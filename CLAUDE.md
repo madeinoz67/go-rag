@@ -63,6 +63,12 @@ transport. One Pebble writer; writes ACK on the durable store and embed async
 
 ## Constraints
 
+- **Spec Kit work commits to `main` directly.** This is a single-author repo:
+  all Spec Kit changes (`/speckit-specify`, `-plan`, `-tasks`, `-implement`) and
+  their code land on `main` — **no feature branches, no PRs, no merge ceremony.**
+  Commit with Conventional Commits straight to `main` and push. (Standing
+  instruction until further notice; revisit if the repo ever takes outside
+  contributors.)
 - **Pure Go only.** Never introduce CGo or C dependencies (PRD §9.5).
 - **Single Pebble instance**, prefix-partitioned key space — see `internal/storage`
   for the fixed prefix constants before adding new key types (PRD §6.7).
