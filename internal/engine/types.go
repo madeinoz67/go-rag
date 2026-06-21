@@ -49,9 +49,15 @@ type StatusInfo struct {
 	Reranker           string // "disabled" when unset
 	OllamaURL          string
 	EmbeddingsComplete bool
-	EmbeddingDrift     bool           // true if >1 model or dimensionality is stored (audit H03)
+	EmbeddingDrift     bool           // true if >1 model, dimensionality, OR convention is stored (audit H03/H07)
 	ModelCounts        map[string]int // per-model record counts (drift detail)
 	DimCounts          map[int]int    // per-dimensionality record counts (drift detail)
+	EmbeddingConvention     string         // stored majority instruction-prefix convention (audit H07)
+	EmbeddingConventionDrift bool         // true if >1 prefix convention is stored (audit H07)
+	ConventionCounts   map[string]int // per-convention record counts (H07 drift detail)
+	ConfiguredPrefix   string         // active prefix mode resolved from config (auto|on|off)
+	QueryPrefix        string         // resolved query-role prefix (empty when none in effect)
+	DocPrefix          string         // resolved document-role prefix (empty when none in effect)
 }
 
 // IngestSummary describes one ingest/scan/reprocess/migrate run. Modified and

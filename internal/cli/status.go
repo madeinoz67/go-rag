@@ -11,6 +11,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/daemon"
+	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
@@ -31,6 +32,13 @@ type statusInfo struct {
 	EmbeddingDrift bool           `json:"embedding_drift"`
 	ModelCounts    map[string]int `json:"model_counts,omitempty"`
 	DimCounts      map[int]int    `json:"dim_counts,omitempty"`
+	// H07 instruction-prefix convention (audit H07).
+	EmbeddingConvention      string         `json:"embedding_convention,omitempty"`
+	EmbeddingConventionDrift bool           `json:"embedding_convention_drift,omitempty"`
+	ConventionCounts         map[string]int `json:"convention_counts,omitempty"`
+	ConfiguredPrefix         string         `json:"configured_prefix,omitempty"`
+	QueryPrefix              string         `json:"query_prefix,omitempty"`
+	DocPrefix                string         `json:"doc_prefix,omitempty"`
 }
 
 func newStatusCmd() *cobra.Command {
@@ -125,9 +133,23 @@ func gatherStats(db *storage.DB, cfg config.Config) statusInfo {
 		info.EmbeddingDrift = !prof.Consistent
 		info.ModelCounts = prof.ModelCounts
 		info.DimCounts = prof.DimCounts
+		info.EmbeddingConvention = prof.MajorityConvention
+		info.EmbeddingConventionDrift = len(prof.ConventionCounts) > 1
+		info.ConventionCounts = prof.ConventionCounts
 	} else {
 		info.EmbeddingModel = cfg.EmbeddingModel
 	}
+
+	// H07: resolved prefix convention from config (the role prefixes the prefixer
+	// will apply), so an operator sees the active setting without querying.
+	pre := cfg.Prefixer()
+	mode := cfg.EmbeddingPrefix
+	if mode == "" {
+		mode = "auto"
+	}
+	info.ConfiguredPrefix = mode
+	info.QueryPrefix = pre.ForRole(embed.RoleQuery)
+	info.DocPrefix = pre.ForRole(embed.RoleDocument)
 
 	if !last.IsZero() {
 		info.LastActivity = last.Format(time.RFC3339)
@@ -182,6 +204,16 @@ func printStatus(s statusInfo) {
 	fmt.Printf("  Model:      %s\n", s.EmbeddingModel)
 	fmt.Printf("  Provider:   %s\n", s.Provider)
 	fmt.Printf("  Dimensions: %d\n", s.Dimensions)
+	// H07: instruction-prefix convention in effect.
+	if s.EmbeddingModel != "" {
+		fmt.Printf("  Prefix:     %s (query=%q doc=%q)\n", s.ConfiguredPrefix, s.QueryPrefix, s.DocPrefix)
+	}
+	if s.EmbeddingConvention != "" || s.ConfiguredPrefix == "off" {
+		fmt.Printf("  Conv:       corpus=%q\n", s.EmbeddingConvention)
+	}
+	if s.EmbeddingConventionDrift {
+		fmt.Printf("  ConvDrift:  mixed prefix conventions detected (%v)\n", s.ConventionCounts)
+	}
 	if s.EmbeddingDrift {
 		fmt.Printf("  Drift:      mixed embedding models/dims detected (%v)\n", s.ModelCounts)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/index"
@@ -31,10 +32,18 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 	}
 	em := e.embedderOrOllama()
 	prof := CorpusProfile(e.db)
-	if err := checkEmbeddingMismatch(ctx, em, req.Query, prof); err != nil {
+	// H07: embed the query in its trained role. The query-role instruction prefix
+	// is prepended inside the EmbedFunc passed to the index, so the index layer
+	// stays dumb (Principle V) and every transport gets identical query encoding.
+	// The same prefixer also feeds the mismatch guard's convention check (US3).
+	qpre := e.cfg.Prefixer()
+	if err := checkEmbeddingMismatch(ctx, em, qpre, req.Query, prof); err != nil {
 		return nil, err
 	}
-	r := index.NewRetrieval(fts, vec, em.Embed)
+	queryEmbed := func(ctx context.Context, texts []string) ([][]float32, error) {
+		return em.Embed(ctx, qpre.ApplyAll(embed.RoleQuery, texts))
+	}
+	r := index.NewRetrieval(fts, vec, queryEmbed)
 	if e.cfg.RerankRetryOnFailure {
 		r.EnableRerankRetry() // H09 US3: optional retry of a failed rerank (off by default).
 	}
@@ -90,17 +99,41 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 	return &QueryResult{Hits: out, RerankFailed: rerankFailed}, nil
 }
 
-// checkEmbeddingMismatch enforces the H03 guard: refuse to score a query whose
-// embedding model or dimensionality does not match the corpus's stored majority,
-// so a model change without re-index can never produce plausible-but-wrong
-// results (or a panic). An empty corpus is not an error. The query dimensionality
-// comes from the embedder's reported Dimensions() (definitive for deterministic
-// embedders; populated for Ollama after its first response); when still unknown
-// the query is probe-embedded once to discover it.
-func checkEmbeddingMismatch(ctx context.Context, em embed.Embedder, query string, prof EmbeddingProfile) error {
+// checkEmbeddingMismatch enforces the H03 guard (model/dimensionality) and the
+// H07 guard (prefix convention): refuse to score a query whose embedding does not
+// match the corpus's stored majority, so a model change — or a convention change
+// (toggling instruction prefixes) — without re-embedding can never produce
+// plausible-but-wrong results. An empty corpus is not an error. The query
+// dimensionality comes from the embedder's reported Dimensions() (definitive for
+// deterministic embedders; populated for Ollama after its first response); when
+// still unknown the query is probe-embedded once to discover it.
+func checkEmbeddingMismatch(ctx context.Context, em embed.Embedder, pre *embed.Prefixer, query string, prof EmbeddingProfile) error {
 	if prof.Total == 0 {
 		return nil // empty corpus: a query simply returns no results
 	}
+
+	// H07 convention guard (US3): a query must use the same prefix convention as
+	// the corpus. A mixed-convention corpus is mid-re-embed: its minority vectors
+	// share the majority's dimensionality, so the H03 dim guard cannot exclude
+	// them — scoring would silently mix conventions (FR-006). Refuse and direct
+	// the operator to finish re-embedding. (Graceful skip-by-convention would
+	// require convention tagging in the vector index; out of scope for this
+	// S-effort item — refusing is the safe, correct behavior for the transient
+	// mixed state.)
+	qConv := ""
+	if pre != nil {
+		qConv = pre.Convention()
+	}
+	if len(prof.ConventionCounts) > 1 {
+		return fmt.Errorf("%w: corpus has mixed prefix conventions %v (majority=%q); query convention=%q; finish re-embedding the corpus under one convention before querying",
+			ErrEmbeddingMismatch, sortedKeys(prof.ConventionCounts), prof.MajorityConvention, qConv)
+	}
+	if qConv != prof.MajorityConvention {
+		return fmt.Errorf("%w: query prefix convention=%q vs corpus convention=%q; re-embed the corpus under the configured convention before querying (a half-prefixed corpus is never scored silently)",
+			ErrEmbeddingMismatch, qConv, prof.MajorityConvention)
+	}
+
+	// H03 model/dimensionality guard.
 	qModel := em.Model()
 	qDim := em.Dimensions()
 	if qDim == 0 {
@@ -113,4 +146,14 @@ func checkEmbeddingMismatch(ctx context.Context, em embed.Embedder, query string
 			ErrEmbeddingMismatch, qModel, qDim, prof.MajorityModel, prof.MajorityDim)
 	}
 	return nil
+}
+
+// sortedKeys returns the sorted keys of m for deterministic error messages.
+func sortedKeys(m map[string]int) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

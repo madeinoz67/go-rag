@@ -47,6 +47,7 @@ type Pipeline struct {
 	db       *storage.DB
 	splitter *chunk.Splitter
 	embed    embed.Embedder
+	prefixer *embed.Prefixer // H07: applies the document-role instruction prefix; nil = no prefixing
 	fts      *index.FTS
 	vec      *index.Vector
 
@@ -60,12 +61,15 @@ type Pipeline struct {
 }
 
 // New returns a Pipeline with background indexing workers started. Call Close to
-// drain pending work before exit.
-func New(db *storage.DB, sp *chunk.Splitter, em embed.Embedder, fts *index.FTS, vec *index.Vector) *Pipeline {
+// drain pending work before exit. pre is the instruction-prefix resolver (audit
+// H07); pass a no-op prefixer (e.g. from Config.Prefixer()) so documents are
+// embedded with the model's document-role prefix. nil disables prefixing.
+func New(db *storage.DB, sp *chunk.Splitter, em embed.Embedder, fts *index.FTS, vec *index.Vector, pre *embed.Prefixer) *Pipeline {
 	p := &Pipeline{
 		db:       db,
 		splitter: sp,
 		embed:    em,
+		prefixer: pre,
 		fts:      fts,
 		vec:      vec,
 		queue:    make(chan job, 64),

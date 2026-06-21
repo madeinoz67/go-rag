@@ -91,6 +91,7 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 		e.embedderOrOllama(),
 		index.NewFTS(),
 		index.NewVector(),
+		e.cfg.Prefixer(), // H07: document-role instruction prefixes
 	)
 	return e.pipe, nil
 }

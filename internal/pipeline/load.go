@@ -9,11 +9,14 @@ import (
 )
 
 // storedEmbedding is the on-disk shape of an embedding under prefix 0x04. The
-// model is recorded so model migrations (T048) can detect stale embeddings. Older
-// databases stored a bare []float32; LoadIndex reads both for backward compat.
+// model is recorded so model migrations (T048) can detect stale embeddings;
+// convention records the instruction-prefix convention so a half-prefixed corpus
+// is detectable (audit H07). Older databases stored a bare []float32, and pre-H07
+// records omit convention — LoadIndex reads all for backward compat.
 type storedEmbedding struct {
-	Model  string    `json:"model,omitempty"`
-	Vector []float32 `json:"vector"`
+	Model      string    `json:"model,omitempty"`
+	Convention string    `json:"convention,omitempty"` // H07 prefix-convention provenance ("" = legacy unprefixed)
+	Vector     []float32 `json:"vector"`
 }
 
 // LoadIndex rebuilds in-memory FTS and Vector indexes from persisted Chunks (0x03)

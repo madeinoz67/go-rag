@@ -10,12 +10,17 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/madeinoz67/go-rag/internal/embed"
 )
 
 // Config is the set of configurable options (PRD §5.7 table).
 type Config struct {
 	OllamaURL            string   `json:"ollama_url"`
 	EmbeddingModel       string   `json:"embedding_model,omitempty"`
+	EmbeddingPrefix      string   `json:"embedding_prefix,omitempty"`     // H07: auto|on|off ("" = auto)
+	EmbeddingQueryPrefix string   `json:"embedding_query_prefix,omitempty"` // H07: explicit query-prefix override
+	EmbeddingDocPrefix   string   `json:"embedding_doc_prefix,omitempty"`   // H07: explicit document-prefix override
 	WatchDirs            []string `json:"watch_dirs"`
 	ChunkSize            int      `json:"chunk_size"`
 	ChunkOverlap         int      `json:"chunk_overlap"`
@@ -33,6 +38,7 @@ type Config struct {
 func Default() Config {
 	return Config{
 		OllamaURL:        "http://localhost:11434",
+		EmbeddingPrefix:  "auto", // H07: derive instruction prefixes from the model by default
 		WatchDirs:        []string{"."},
 		ChunkSize:        512,
 		ChunkOverlap:     50,
@@ -109,6 +115,15 @@ func (c Config) Get(key string) (string, bool) {
 		return c.OllamaURL, true
 	case "embedding_model":
 		return c.EmbeddingModel, true
+	case "embedding_prefix":
+		if c.EmbeddingPrefix == "" {
+			return "auto", true // "" resolves to auto
+		}
+		return c.EmbeddingPrefix, true
+	case "embedding_query_prefix":
+		return c.EmbeddingQueryPrefix, true
+	case "embedding_doc_prefix":
+		return c.EmbeddingDocPrefix, true
 	case "db_path":
 		return c.DBPath, true
 	case "file_glob":
@@ -141,6 +156,25 @@ func (c *Config) Set(key, val string) error {
 		c.OllamaURL = val
 	case "embedding_model":
 		c.EmbeddingModel = val
+	case "embedding_prefix":
+		if val != "" {
+			switch val {
+			case "auto", "on", "off":
+			default:
+				return fmt.Errorf("invalid embedding_prefix: %q (want auto|on|off)", val)
+			}
+		}
+		c.EmbeddingPrefix = val
+	case "embedding_query_prefix":
+		if err := validatePrefixString(val); err != nil {
+			return err
+		}
+		c.EmbeddingQueryPrefix = val
+	case "embedding_doc_prefix":
+		if err := validatePrefixString(val); err != nil {
+			return err
+		}
+		c.EmbeddingDocPrefix = val
 	case "db_path":
 		c.DBPath = val
 	case "file_glob":
@@ -185,4 +219,32 @@ func (c *Config) Set(key, val string) error {
 		return fmt.Errorf("unknown config key: %q", key)
 	}
 	return nil
+}
+
+// validatePrefixString rejects instruction-prefix strings that would embed
+// degenerate input — control characters and newlines (audit H07 edge case). An
+// empty string is valid (it clears the override / means "derive").
+func validatePrefixString(s string) error {
+	for _, r := range s {
+		if r == '\n' || r == '\r' {
+			return fmt.Errorf("invalid prefix (contains newline): %q", s)
+		}
+		if r < 0x20 {
+			return fmt.Errorf("invalid prefix (contains control character): %q", s)
+		}
+	}
+	return nil
+}
+
+// Prefixer builds the instruction-prefix resolver from the configured embedding
+// settings (audit H07). Centralized here so the ingest pipeline and the query
+// path build identical prefixers — a document ingested by any transport gets the
+// same document prefix, and a query gets the same query prefix (cross-transport
+// parity, FR-009). A defensively-invalid mode falls back to auto.
+func (c Config) Prefixer() *embed.Prefixer {
+	mode, err := embed.ParseMode(c.EmbeddingPrefix)
+	if err != nil {
+		mode = embed.ModeAuto
+	}
+	return embed.NewPrefixer(c.EmbeddingModel, mode, c.EmbeddingQueryPrefix, c.EmbeddingDocPrefix)
 }

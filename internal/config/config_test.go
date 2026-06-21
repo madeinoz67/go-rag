@@ -82,3 +82,52 @@ func TestSet_GetRoundTrip(t *testing.T) {
 		t.Error("set unknown key must fail")
 	}
 }
+
+// TestEmbeddingPrefix_Config covers the H07 prefix-config surface: the default
+// mode, mode-enum validation, malformed-prefix rejection, and Get/Set round-trip.
+func TestEmbeddingPrefix_Config(t *testing.T) {
+	// Default mode is "auto" (FR-002) and normalizes "" to "auto" on Get.
+	c := Default()
+	if c.EmbeddingPrefix != "auto" {
+		t.Errorf("default embedding_prefix = %q, want auto", c.EmbeddingPrefix)
+	}
+	if v, _ := c.Get("embedding_prefix"); v != "auto" {
+		t.Errorf("get embedding_prefix = %q, want auto", v)
+	}
+
+	// Mode enum: auto/on/off/"" accepted; anything else rejected.
+	for _, ok := range []string{"auto", "on", "off", ""} {
+		var cc Config
+		if err := cc.Set("embedding_prefix", ok); err != nil {
+			t.Errorf("Set embedding_prefix=%q should succeed: %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"AUTO", "yes", "true", "1"} {
+		var cc Config
+		if err := cc.Set("embedding_prefix", bad); err == nil {
+			t.Errorf("Set embedding_prefix=%q must fail (not auto|on|off)", bad)
+		}
+	}
+
+	// Malformed prefixes (newline / control char) are rejected; clean ones accepted.
+	for _, bad := range []string{"bad\nprefix", "x\ry", "ctrl\x00x"} {
+		var cc Config
+		if err := cc.Set("embedding_query_prefix", bad); err == nil {
+			t.Errorf("Set embedding_query_prefix=%q must fail (malformed)", bad)
+		}
+		if err := cc.Set("embedding_doc_prefix", bad); err == nil {
+			t.Errorf("Set embedding_doc_prefix=%q must fail (malformed)", bad)
+		}
+	}
+	var cc Config
+	if err := cc.Set("embedding_query_prefix", "query: "); err != nil {
+		t.Fatalf("set clean query prefix: %v", err)
+	}
+	if v, _ := cc.Get("embedding_query_prefix"); v != "query: " {
+		t.Errorf("get embedding_query_prefix = %q, want %q", v, "query: ")
+	}
+	// Empty clears the override and is valid.
+	if err := cc.Set("embedding_doc_prefix", ""); err != nil {
+		t.Fatalf("set empty doc prefix should clear: %v", err)
+	}
+}

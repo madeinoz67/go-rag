@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
 )
@@ -31,8 +32,20 @@ func (p *Pipeline) processJob(j job) {
 		texts[i] = c.Content
 	}
 
+	// H07: embed documents in their trained role. The document-role instruction
+	// prefix is prepended to each chunk text before embedding; the prefix never
+	// touches the stored Chunk.Content or any identity hash (Principle II). The
+	// resolved convention is recorded as provenance so a later query can detect a
+	// convention mismatch (US3). A nil prefixer (no prefix in effect) is a no-op.
+	conv := ""
+	docTexts := texts
+	if p.prefixer != nil {
+		conv = p.prefixer.Convention()
+		docTexts = p.prefixer.ApplyAll(embed.RoleDocument, texts)
+	}
+
 	status := StatusEmbedded
-	vecs, err := p.embed.Embed(context.Background(), texts)
+	vecs, err := p.embed.Embed(context.Background(), docTexts)
 	if err != nil {
 		status = StatusError
 	} else {
@@ -42,7 +55,7 @@ func (p *Pipeline) processJob(j job) {
 				p.vec.Add(c.ID, vecs[i])
 				// Persist the embedding so a later `query` process can rebuild
 				// the in-memory index without re-embedding (data-model 0x04).
-				if vj, merr := json.Marshal(storedEmbedding{Model: p.embed.Model(), Vector: vecs[i]}); merr == nil {
+				if vj, merr := json.Marshal(storedEmbedding{Model: p.embed.Model(), Convention: conv, Vector: vecs[i]}); merr == nil {
 					_ = p.db.SetWithPrefix(storage.PrefixEmbedding, []byte(c.ID), vj)
 				}
 			}

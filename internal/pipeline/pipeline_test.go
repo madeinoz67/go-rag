@@ -37,7 +37,7 @@ func newTestPipeline(t *testing.T, embedDelay time.Duration) (*Pipeline, func())
 	if err != nil {
 		t.Fatalf("open storage: %v", err)
 	}
-	p := New(db, chunk.NewSplitter(512, 50), &fakeEmbed{delay: embedDelay}, index.NewFTS(), index.NewVector())
+	p := New(db, chunk.NewSplitter(512, 50), &fakeEmbed{delay: embedDelay}, index.NewFTS(), index.NewVector(), nil)
 	return p, func() { p.Close() }
 }
 

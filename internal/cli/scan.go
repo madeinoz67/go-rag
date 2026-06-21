@@ -33,7 +33,7 @@ func newScanCmd() *cobra.Command {
 			}
 
 			em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
-			pl := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector())
+			pl := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector(), cfg.Prefixer())
 			defer pl.Close()
 			cd := watcher.New(db, pl)
 

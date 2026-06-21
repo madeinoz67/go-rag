@@ -59,7 +59,7 @@ func newEngineWithCorpus(t *testing.T, doc string) *engine.Engine {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	p := pipeline.New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(), index.NewVector())
+	p := pipeline.New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(), index.NewVector(), nil)
 	defer p.Close()
 	dp := filepath.Join(dir, "doc.txt")
 	if err := os.WriteFile(dp, []byte(doc), 0o644); err != nil {

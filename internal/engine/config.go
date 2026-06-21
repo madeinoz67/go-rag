@@ -12,7 +12,9 @@ import (
 // knownConfigKeys is the public, ordered set of config keys surfaced to
 // consumers (mirrors the former mcp/cli config listing).
 var knownConfigKeys = []string{
-	"ollama_url", "embedding_model", "chunk_size", "chunk_overlap",
+	"ollama_url", "embedding_model",
+	"embedding_prefix", "embedding_query_prefix", "embedding_doc_prefix", // H07
+	"chunk_size", "chunk_overlap",
 	"db_path", "poll_interval_secs",
 }
 

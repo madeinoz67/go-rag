@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
 )
@@ -30,18 +31,32 @@ func (e *Engine) Status() (*StatusInfo, error) {
 		reranker = "disabled"
 	}
 	complete := docs == 0 || embs >= chunks
+	// H07: surface the resolved prefix convention in effect (config mode + the
+	// role prefixes the prefixer will apply), the corpus's stored majority
+	// convention, and a drift flag when more than one convention is present.
+	pre := e.cfg.Prefixer()
+	cfgMode := e.cfg.EmbeddingPrefix
+	if cfgMode == "" {
+		cfgMode = "auto"
+	}
 	return &StatusInfo{
-		Documents:          docs,
-		Chunks:             chunks,
-		Embeddings:         embs,
-		Dimensions:         dims,
-		EmbeddingModel:     model,
-		Reranker:           reranker,
-		OllamaURL:          e.cfg.OllamaURL,
-		EmbeddingsComplete: complete,
-		EmbeddingDrift:     prof.Total > 0 && !prof.Consistent,
-		ModelCounts:        prof.ModelCounts,
-		DimCounts:          prof.DimCounts,
+		Documents:               docs,
+		Chunks:                  chunks,
+		Embeddings:              embs,
+		Dimensions:              dims,
+		EmbeddingModel:          model,
+		Reranker:                reranker,
+		OllamaURL:               e.cfg.OllamaURL,
+		EmbeddingsComplete:      complete,
+		EmbeddingDrift:          prof.Total > 0 && !prof.Consistent,
+		ModelCounts:             prof.ModelCounts,
+		DimCounts:               prof.DimCounts,
+		EmbeddingConvention:     prof.MajorityConvention,
+		EmbeddingConventionDrift: prof.Total > 0 && len(prof.ConventionCounts) > 1,
+		ConventionCounts:        prof.ConventionCounts,
+		ConfiguredPrefix:        cfgMode,
+		QueryPrefix:             pre.ForRole(embed.RoleQuery),
+		DocPrefix:               pre.ForRole(embed.RoleDocument),
 	}, nil
 }
 

@@ -111,6 +111,31 @@ go-rag query "honeypot deception"            # reranked: noise scored 0.000
 go-rag query "honeypot deception" --no-rerank  # skip reranking (faster)
 ```
 
+## Embedding instruction prefixes
+
+Instruction-tuned embedding models (the default `nomic-embed-text`, plus E5 and
+BGE families) expect **asymmetric** prefixes: a retrieval query and an indexed
+document are different roles. go-rag applies the right prefix automatically so
+each text reaches the model in its trained role (`search_query:` for queries,
+`search_document:` for documents on nomic; `query:`/`passage:` on E5; a query
+instruction on BGE). Models that don't use prefixes (e.g. `mxbai-embed-large`,
+`all-MinLM-L6-v2`) are left untouched.
+
+This is on by default (`auto`) and requires no configuration for the common
+case. Override per vault:
+
+```bash
+go-rag config set embedding_prefix off              # disable prefixing
+go-rag config set embedding_query_prefix "query: " # explicit per-role overrides
+go-rag config set embedding_doc_prefix "passage: "
+```
+
+The prefix never alters stored document content or document identity, so changing
+the convention is a re-embed (`go-rag reprocess`), not a re-ingest. `go-rag
+status` reports the active convention; a query whose convention differs from the
+corpus is refused with a re-embed hint rather than scored across a
+half-prefixed corpus.
+
 ## MCP daemon
 
 `start` re-execs a detached daemon that owns the Pebble database and serves MCP
