@@ -15,10 +15,16 @@ import (
 // Addrs records the addresses the daemon bound to, so stop/status and the stdio
 // proxy can find each transport even with non-default --mcp-addr/--rest-addr/
 // --grpc-addr. RESTAddr/GRPCAddr are empty when those transports are disabled.
+//
+// BindExternal (spec 007) authorizes non-loopback binding for this run when
+// true; the detached `start` forwards it to `serve` as `--bind-external`. It is
+// run-time authorization, not a persisted preference (omitempty keeps it out of
+// the addrs sidecar unless explicitly set).
 type Addrs struct {
-	MCPAddr  string `json:"mcp_addr"`
-	RESTAddr string `json:"rest_addr"`
-	GRPCAddr string `json:"grpc_addr"`
+	MCPAddr      string `json:"mcp_addr"`
+	RESTAddr     string `json:"rest_addr"`
+	GRPCAddr     string `json:"grpc_addr"`
+	BindExternal bool   `json:"bind_external,omitempty"`
 }
 
 const (

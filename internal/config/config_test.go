@@ -19,6 +19,12 @@ func TestDefault_HasExpectedValues(t *testing.T) {
 	if c.PollIntervalSec != 60 {
 		t.Errorf("poll_interval_secs: got %d", c.PollIntervalSec)
 	}
+	// MCPAddr MUST default to loopback (spec 007 / audit H13). This exact-value
+	// check is the regression guard against a silent revert to ":7878"
+	// (all-interfaces) — the original accidental-exposure footgun.
+	if c.MCPAddr != "127.0.0.1:7878" {
+		t.Errorf("mcp_addr default must be loopback (127.0.0.1:7878), got %q", c.MCPAddr)
+	}
 	if err := c.Validate(); err != nil {
 		t.Errorf("default config must validate: %v", err)
 	}
