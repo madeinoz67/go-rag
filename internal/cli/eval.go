@@ -38,6 +38,8 @@ baseline. Pass --db-path to measure an existing vault read-only instead.`,
 	cmd.Flags().String("mode", "hybrid", "retrieval mode: hybrid|semantic|keyword")
 	cmd.Flags().Int("k", 10, "top-k cutoff for recall/MRR/NDCG pooling")
 	cmd.Flags().String("embedder", "auto", "embedder: offline (deterministic, no network) | ollama | auto")
+	cmd.Flags().String("embedding-model", "", "embedding model for a self-provisioned ollama run (enables --embedder ollama so real-model quality can be measured)")
+	cmd.Flags().String("embedding-prefix", "", "instruction-prefix mode for the run: auto|on|off (default auto; self-provision runs only — a --db-path vault keeps its own convention)")
 	cmd.Flags().Bool("no-rerank", false, "skip cross-encoder reranking")
 	cmd.Flags().String("baseline", "", "baseline file to compare against (sets the exit code)")
 	cmd.Flags().Float64("tolerance", 2.0, "max allowed recall@10 drop (percentage points) before the gate fails")
@@ -54,6 +56,13 @@ func runEval(cmd *cobra.Command, _ []string) error {
 	mode, _ := flags.GetString("mode")
 	k, _ := flags.GetInt("k")
 	embedderMode, _ := flags.GetString("embedder")
+	embModel, _ := flags.GetString("embedding-model")
+	embPrefix, _ := flags.GetString("embedding-prefix")
+	if embPrefix != "" {
+		if _, err := embed.ParseMode(embPrefix); err != nil {
+			return err
+		}
+	}
 	noRerank, _ := flags.GetBool("no-rerank")
 	baselinePath, _ := flags.GetString("baseline")
 	tolerance, _ := flags.GetFloat64("tolerance")
@@ -65,7 +74,7 @@ func runEval(cmd *cobra.Command, _ []string) error {
 	ctx := context.Background()
 
 	// 1. Acquire an open database + the embedder to use for it.
-	cfg, db, em, cleanup, err := openEvalDB(dbPath, useVault, corpusDir, embedderMode)
+	cfg, db, em, cleanup, err := openEvalDB(dbPath, useVault, corpusDir, embedderMode, embModel, embPrefix)
 	if err != nil {
 		return err
 	}
@@ -148,8 +157,10 @@ func runEval(cmd *cobra.Command, _ []string) error {
 //     Ollama embedder (or offline if requested). No ingest, no mutation (FR-006).
 //   - useVault=false (default): self-provision a throwaway vault from corpusDir,
 //     ingesting with the chosen embedder, so the run is hermetic and reproducible.
-func openEvalDB(vaultPath string, useVault bool, corpusDir, embedderMode string) (config.Config, *storage.DB, embed.Embedder, func(), error) {
+func openEvalDB(vaultPath string, useVault bool, corpusDir, embedderMode, model, prefix string) (config.Config, *storage.DB, embed.Embedder, func(), error) {
 	if useVault {
+		// A --db-path vault keeps its own embedding model + prefix convention
+		// (the corpus was ingested with it); flags do not override it.
 		cfg, db, err := engine.Open(vaultPath)
 		if err != nil {
 			return config.Config{}, nil, nil, nil, err
@@ -166,12 +177,19 @@ func openEvalDB(vaultPath string, useVault bool, corpusDir, embedderMode string)
 	// Self-provision: fresh tmp vault, ingest corpus with the chosen embedder.
 	// Use a default config only to resolve the embedder label first (so offline
 	// is reported honestly), then delegate the hermetic vault build to eval.
+	// --embedding-model / --embedding-prefix apply here only.
 	resolveCfg := config.Default()
+	if model != "" {
+		resolveCfg.EmbeddingModel = model
+	}
+	if prefix != "" {
+		resolveCfg.EmbeddingPrefix = prefix
+	}
 	em, err := resolveEmbedder(resolveCfg, embedderMode)
 	if err != nil {
 		return config.Config{}, nil, nil, nil, err
 	}
-	cfg, db, cleanup, err := eval.ProvisionCorpus(context.Background(), corpusDir, em)
+	cfg, db, cleanup, err := eval.ProvisionCorpus(context.Background(), corpusDir, em, prefix)
 	if err != nil {
 		return config.Config{}, nil, nil, nil, err
 	}

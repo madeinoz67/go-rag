@@ -24,7 +24,7 @@ func repoGolden(t *testing.T, rel string) string {
 func TestEvalRunner_EndToEnd_CommittedGolden(t *testing.T) {
 	ctx := context.Background()
 	em := NewDeterministicEmbedder()
-	cfg, db, cleanup, err := ProvisionCorpus(ctx, repoGolden(t, "corpus"), em)
+	cfg, db, cleanup, err := ProvisionCorpus(ctx, repoGolden(t, "corpus"), em, "")
 	if err != nil {
 		t.Fatalf("ProvisionCorpus: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestEvalRunner_ReadOnly(t *testing.T) {
 	// count before and after; it must be identical.
 	ctx := context.Background()
 	em := NewDeterministicEmbedder()
-	cfg, db, cleanup, err := ProvisionCorpus(ctx, repoGolden(t, "corpus"), em)
+	cfg, db, cleanup, err := ProvisionCorpus(ctx, repoGolden(t, "corpus"), em, "")
 	if err != nil {
 		t.Fatalf("ProvisionCorpus: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestEvalRunner_SkipsZeroRelevant(t *testing.T) {
 	// scored (and does not crash a divide-by-zero average).
 	ctx := context.Background()
 	em := NewDeterministicEmbedder()
-	cfg, db, cleanup, err := ProvisionCorpus(ctx, repoGolden(t, "corpus"), em)
+	cfg, db, cleanup, err := ProvisionCorpus(ctx, repoGolden(t, "corpus"), em, "")
 	if err != nil {
 		t.Fatalf("ProvisionCorpus: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestEvalRunner_SkipsStaleLabels(t *testing.T) {
 	// (stale label) is skipped with a reason.
 	ctx := context.Background()
 	em := NewDeterministicEmbedder()
-	cfg, db, cleanup, err := ProvisionCorpus(ctx, repoGolden(t, "corpus"), em)
+	cfg, db, cleanup, err := ProvisionCorpus(ctx, repoGolden(t, "corpus"), em, "")
 	if err != nil {
 		t.Fatalf("ProvisionCorpus: %v", err)
 	}

@@ -182,7 +182,7 @@ func (s *Server) renderEval(_ *engine.Engine, args map[string]any) (string, erro
 		return "", err
 	}
 	em := eval.NewDeterministicEmbedder()
-	cfg, db, cleanup, err := eval.ProvisionCorpus(context.Background(), corpus, em)
+	cfg, db, cleanup, err := eval.ProvisionCorpus(context.Background(), corpus, em, "")
 	if err != nil {
 		return "", err
 	}

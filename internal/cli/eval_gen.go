@@ -33,7 +33,7 @@ always human-authored.`,
 			corpus, _ := cmd.Flags().GetString("corpus")
 			em := eval.NewDeterministicEmbedder()
 			ctx := context.Background()
-			_, db, cleanup, err := eval.ProvisionCorpus(ctx, corpus, em)
+			_, db, cleanup, err := eval.ProvisionCorpus(ctx, corpus, em, "")
 			if err != nil {
 				return err
 			}

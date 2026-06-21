@@ -238,7 +238,12 @@ func preview(s string) string {
 // `go-rag eval` CLI and the `go_rag_eval` MCP tool (Principle V parity). The
 // caller MUST invoke cleanup when done. Eval is read-only with respect to any
 // real vault — this temp vault is the only thing written (FR-006).
-func ProvisionCorpus(ctx context.Context, corpusDir string, em embed.Embedder) (config.Config, *storage.DB, func(), error) {
+//
+// prefix sets the instruction-prefix convention for the ingest (audit H07): ""
+// leaves the default (auto); "off" ingests unprefixed (the baseline for an
+// SC-001 prefix-off vs prefix-on comparison). The same convention applies to the
+// queries the eval runner issues, since both derive their prefixer from cfg.
+func ProvisionCorpus(ctx context.Context, corpusDir string, em embed.Embedder, prefix string) (config.Config, *storage.DB, func(), error) {
 	tmp, err := os.MkdirTemp("", "go-rag-eval-*")
 	if err != nil {
 		return config.Config{}, nil, nil, err
@@ -252,6 +257,9 @@ func ProvisionCorpus(ctx context.Context, corpusDir string, em embed.Embedder) (
 	cfg.DBPath = tmp
 	cfg.WatchDirs = nil
 	cfg.EmbeddingModel = em.Model()
+	if prefix != "" {
+		cfg.EmbeddingPrefix = prefix
+	}
 
 	db, err := storage.Open(dataDir)
 	if err != nil {
