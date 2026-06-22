@@ -189,10 +189,5 @@ func (e *Engine) Close() {
 	// H06/spec 016: drop the query caches as well — they are stale relative to a
 	// re-seed, and the epoch resets to 0 on the next construction. In-process
 	// only; nothing persisted.
-	if e.resultCache != nil {
-		e.resultCache.Flush()
-	}
-	if e.embedCache != nil {
-		e.embedCache.Flush()
-	}
+	e.flushCaches()
 }

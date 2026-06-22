@@ -1,0 +1,140 @@
+package engine
+
+// cache_epoch_test.go (internal package `engine`) proves H06/spec 016
+// invalidation: the result cache never serves a stale result after the corpus
+// changes. The epoch must bump at every shared-index mutation — including the
+// asynchronous vector-add in processJob, which a write-ACK-only bump would miss.
+
+import (
+	"context"
+	"testing"
+)
+
+// TestEpoch_IngestInvalidates asserts a cached keyword query reflects a newly-
+// ingested document: the epoch bumped at the synchronous FTS add (storeDocument),
+// so the stale entry is never served.
+func TestEpoch_IngestInvalidates(t *testing.T) {
+	e := newResultCacheEngine(t, 8)
+	req := QueryRequest{Query: "uniqueingestterm", Mode: "keyword", K: 5}
+
+	// Cold: no such term in the corpus → empty result, cached.
+	r0, err := e.Query(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r0.Hits) != 0 {
+		t.Fatalf("precondition: expected 0 hits, got %d", len(r0.Hits))
+	}
+
+	// Ingest a document containing the term.
+	addDoc(t, e, "this document mentions uniqueingestterm explicitly")
+
+	// Same query: must reflect the new document (not the cached empty result).
+	hitsBefore := e.resultCache.Stats().Hits
+	r1, err := e.Query(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.resultCache.Stats().Hits != hitsBefore {
+		t.Fatalf("post-ingest query served from cache; want recomputation (epoch invalidation)")
+	}
+	if len(r1.Hits) == 0 {
+		t.Fatalf("post-ingest query returned 0 hits; want the new document (stale cache served)")
+	}
+}
+
+// TestEpoch_DeleteInvalidates asserts a cached query reflects a deletion: the
+// epoch bumped in DeleteDoc, so the now-deleted hit is not served.
+func TestEpoch_DeleteInvalidates(t *testing.T) {
+	e := newResultCacheEngine(t, 8)
+	path := addDoc(t, e, "deleteme document about deletable content")
+	req := QueryRequest{Query: "deletable", Mode: "keyword", K: 5}
+
+	r0, err := e.Query(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r0.Hits) == 0 {
+		t.Fatal("precondition: expected the doc to match")
+	}
+
+	// Delete via the engine's pipeline (the same path the watcher uses).
+	docID := docIDForPath(t, e, path)
+	pipe, err := e.pipeline()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pipe.DeleteDoc(docID); err != nil {
+		t.Fatalf("DeleteDoc: %v", err)
+	}
+
+	// Same query: must reflect the deletion (empty), served as a recomputation.
+	hitsBefore := e.resultCache.Stats().Hits
+	r1, err := e.Query(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.resultCache.Stats().Hits != hitsBefore {
+		t.Fatalf("post-delete query served from cache; want recomputation (epoch invalidation)")
+	}
+	if len(r1.Hits) != 0 {
+		t.Fatalf("post-delete query returned %d hits; want 0 (stale cache served a phantom hit)", len(r1.Hits))
+	}
+}
+
+// TestEpoch_AsyncVectorBump is the CRITICAL regression test for the asynchronous
+// epoch bump (audit H06, research D2). Each ingested document must advance the
+// epoch TWICE: once at the synchronous storeDocument (FTS add, pre-ACK) and once
+// at the asynchronous processJob (vector add, post-ACK). A write-ACK-only bump —
+// the bug this spec exists to prevent — would advance it only once, and a query
+// that cached between the two would freeze a pre-vector state. This test fails
+// the moment the processJob bump (T007) is removed.
+func TestEpoch_AsyncVectorBump(t *testing.T) {
+	e := newResultCacheEngine(t, 8)
+	epoch0 := e.indexEpoch()
+
+	addDoc(t, e, "first document content for the async epoch test")
+	// waitEmbedded guarantees the background processJob has completed.
+	epoch1 := e.indexEpoch()
+
+	const want = 2 // 1×storeDocument (sync FTS) + 1×processJob (async vector)
+	if got := epoch1 - epoch0; got != want {
+		t.Fatalf("epoch advanced by %d after one ingest+embed, want %d — the async processJob bump (workers.go) is missing or mis-wired", got, want)
+	}
+
+	// A second document advances it by another 2 (deterministic per-doc count).
+	addDoc(t, e, "second document content distinct from the first")
+	epoch2 := e.indexEpoch()
+	if got := epoch2 - epoch1; got != want {
+		t.Fatalf("epoch advanced by %d for the second ingest, want %d", got, want)
+	}
+}
+
+// TestEpoch_MigrateFlushesCaches asserts Migrate flushes the result cache (an
+// embedding-model change invalidates all cached results). We force a migration
+// by making the configured model differ from the stored embeddings' model.
+func TestEpoch_MigrateFlushesCaches(t *testing.T) {
+	e := newResultCacheEngine(t, 8)
+	addDoc(t, e, "migrate document content about re-embedding")
+
+	// Warm the result cache with a query (embedder model "fake" matches corpus).
+	req := QueryRequest{Query: "migrate", Mode: "keyword", K: 5}
+	if _, err := e.Query(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	if e.resultCache.Len() == 0 {
+		t.Fatalf("precondition: result cache should hold the warmed entry")
+	}
+
+	// Force a real migration: the stored embeddings are model "fake" (the injected
+	// embedder), so a different configured model makes EmbeddingModelStats report
+	// them all stale and Migrate proceeds past its no-op short-circuit.
+	e.cfg.EmbeddingModel = "different-model"
+
+	if _, err := e.Migrate(context.Background()); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	if e.resultCache.Len() != 0 {
+		t.Fatalf("result cache not flushed by Migrate (size=%d); want 0", e.resultCache.Len())
+	}
+}

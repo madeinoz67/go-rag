@@ -71,11 +71,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] Flush both caches at the start of `Migrate` in `internal/engine/ingest.go` (ingest.go:92) — result + embedding cache `Flush()`. (The ongoing `ReprocessAll`→`processJob` vector-adds bump the epoch via T007, so the result cache stays invalid during async re-embedding.)
-- [ ] T016 [US2] Test in `internal/engine/cache_epoch_test.go`: cached query reflects a newly-ingested document after `Add` + wait-for-embed (epoch advanced ⇒ stale entry not served).
-- [ ] T017 [US2] Test in `internal/engine/cache_epoch_test.go`: cached query reflects a deletion via the `DeleteDoc` path (epoch advanced).
-- [ ] T018 [US2] **CRITICAL async-epoch regression test** in `internal/engine/cache_epoch_test.go`: ingest → query (caches at epoch E) → wait for the background `processJob` vector-add (epoch E+1) → query again → assert the result reflects the now-landed vector and is NOT the stale E entry. (This is the bug a write-ACK-only epoch would cause; the spec's central correctness gate.)
-- [ ] T019 [US2] Test in `internal/engine/cache_epoch_test.go`: after `Migrate`, both caches are empty (SC-003) and the next query is a cold miss under the new profile.
+- [x] T015 [US2] Flush both caches at the start of `Migrate` in `internal/engine/ingest.go` (ingest.go:92) — result + embedding cache `Flush()`. (The ongoing `ReprocessAll`→`processJob` vector-adds bump the epoch via T007, so the result cache stays invalid during async re-embedding.)
+- [x] T016 [US2] Test in `internal/engine/cache_epoch_test.go`: cached query reflects a newly-ingested document after `Add` + wait-for-embed (epoch advanced ⇒ stale entry not served).
+- [x] T017 [US2] Test in `internal/engine/cache_epoch_test.go`: cached query reflects a deletion via the `DeleteDoc` path (epoch advanced).
+- [x] T018 [US2] **CRITICAL async-epoch regression test** in `internal/engine/cache_epoch_test.go`: ingest → query (caches at epoch E) → wait for the background `processJob` vector-add (epoch E+1) → query again → assert the result reflects the now-landed vector and is NOT the stale E entry. (This is the bug a write-ACK-only epoch would cause; the spec's central correctness gate.)
+- [x] T019 [US2] Test in `internal/engine/cache_epoch_test.go`: after `Migrate`, both caches are empty (SC-003) and the next query is a cold miss under the new profile.
 
 **Checkpoint**: US1 + US2 together — a correct, never-stale result cache.
 

@@ -101,6 +101,11 @@ func (e *Engine) Migrate(ctx context.Context) (*IngestSummary, error) {
 	if stale == 0 {
 		return &IngestSummary{}, nil
 	}
+	// H06/spec 016: a model change invalidates every cached result and every
+	// cached query embedding. Flush both caches up front (the ongoing re-embed
+	// also bumps the index epoch via processJob, so the result cache stays
+	// invalid as vectors land).
+	e.flushCaches()
 	p, err := e.pipeline()
 	if err != nil {
 		return nil, err

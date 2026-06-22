@@ -26,3 +26,15 @@ func (e *Engine) indexEpoch() uint64 {
 	}
 	return e.epoch.Load()
 }
+
+// flushCaches drops every cached result and query embedding. Used by Migrate (an
+// embedding-model change invalidates all cached results and vectors) and by
+// Close (the caches are stale relative to a re-seed). Counters are preserved.
+func (e *Engine) flushCaches() {
+	if e.resultCache != nil {
+		e.resultCache.Flush()
+	}
+	if e.embedCache != nil {
+		e.embedCache.Flush()
+	}
+}
