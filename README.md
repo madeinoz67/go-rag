@@ -136,6 +136,35 @@ status` reports the active convention; a query whose convention differs from the
 corpus is refused with a re-embed hint rather than scored across a
 half-prefixed corpus.
 
+### Retrieval-quality benchmark (BEIR, manual)
+
+The committed golden dataset (`testdata/golden/`) is a small **regression gate**
+— it saturates at recall 1.0, so it catches breakage but can't show a quality
+delta. To actually measure a retrieval change (e.g. the effect of instruction
+prefixes), run a real BEIR benchmark — opt-in and slow (it fully ingests the
+corpus with the real model), **not** in CI:
+
+```bash
+go-rag eval --benchmark scifact \
+  --embedder ollama --embedding-model nomic-embed-text \
+  --embedding-prefix off  --no-rerank --mode semantic   # baseline
+go-rag eval --benchmark scifact \
+  --embedder ollama --embedding-model nomic-embed-text \
+  --embedding-prefix auto --no-rerank --mode semantic   # prefixes on
+```
+
+The dataset is fetched once (cached under `~/.go-rag/benchmarks/`). Measured on
+SciFact (300 test queries, `nomic-embed-text`, semantic-only), instruction
+prefixes were **near-neutral**: recall@5 0.735→0.744 (+0.9pp), recall@10
+0.813→0.807 (−0.6pp), MRR/NDCG unchanged within noise. SciFact's claims are
+stylistically close to its abstracts (low query/passage asymmetry), where
+prefixes help least; a more asymmetric dataset (e.g. MS MARCO) or a
+prefix-sensitive model (E5) would show a larger effect.
+
+**Attribution:** BEIR (Thakur et al., 2021, https://arxiv.org/abs/2104.08663);
+SciFact is CC BY-NC. Benchmark data is fetched at runtime and is **not**
+committed to this repo.
+
 ## MCP daemon
 
 `start` re-execs a detached daemon that owns the Pebble database and serves MCP

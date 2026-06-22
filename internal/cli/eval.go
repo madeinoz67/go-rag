@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/eval"
+	"github.com/madeinoz67/go-rag/internal/eval/beir"
 	"github.com/madeinoz67/go-rag/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -40,6 +42,7 @@ baseline. Pass --db-path to measure an existing vault read-only instead.`,
 	cmd.Flags().String("embedder", "auto", "embedder: offline (deterministic, no network) | ollama | auto")
 	cmd.Flags().String("embedding-model", "", "embedding model for a self-provisioned ollama run (enables --embedder ollama so real-model quality can be measured)")
 	cmd.Flags().String("embedding-prefix", "", "instruction-prefix mode for the run: auto|on|off (default auto; self-provision runs only — a --db-path vault keeps its own convention)")
+	cmd.Flags().String("benchmark", "", "manual BEIR retrieval benchmark to run (e.g. scifact, or beir:scifact); fetches + fully ingests the corpus, so it is slow and opt-in — NOT for CI. Pair with --embedder ollama --embedding-model <model>")
 	cmd.Flags().Bool("no-rerank", false, "skip cross-encoder reranking")
 	cmd.Flags().String("baseline", "", "baseline file to compare against (sets the exit code)")
 	cmd.Flags().Float64("tolerance", 2.0, "max allowed recall@10 drop (percentage points) before the gate fails")
@@ -63,6 +66,7 @@ func runEval(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 	}
+	benchmark, _ := flags.GetString("benchmark")
 	noRerank, _ := flags.GetBool("no-rerank")
 	baselinePath, _ := flags.GetString("baseline")
 	tolerance, _ := flags.GetFloat64("tolerance")
@@ -73,7 +77,13 @@ func runEval(cmd *cobra.Command, _ []string) error {
 
 	ctx := context.Background()
 
-	// 1. Acquire an open database + the embedder to use for it.
+	// Manual BEIR benchmark (audit H07 SC-001): short-circuit the golden path —
+	// it fetches + fully ingests a real benchmark corpus, so it is slow and opt-in.
+	if benchmark != "" {
+		return runBenchmarkEval(ctx, benchmark, embedderMode, embModel, embPrefix, mode, k, format)
+	}
+
+	// 1. Acquire an open database + the embedder to use with it.
 	cfg, db, em, cleanup, err := openEvalDB(dbPath, useVault, corpusDir, embedderMode, embModel, embPrefix)
 	if err != nil {
 		return err
@@ -148,6 +158,59 @@ func runEval(cmd *cobra.Command, _ []string) error {
 	if cmp != nil && !cmp.Pass {
 		return fmt.Errorf("retrieval-quality gate FAILED: recall@10 dropped %.2f percentage points (tolerance %.2f)", cmp.RecallAt10Drop, tolerance)
 	}
+	return nil
+}
+
+// runBenchmarkEval runs a manual BEIR retrieval benchmark (audit H07 SC-001):
+// fetch + parse the dataset (cached), provision a throwaway vault, fully ingest
+// the corpus with the chosen embedder + prefix, map the test-split qrels to
+// go-rag chunk_ids, and score. It is the discriminating measurement the tiny
+// golden regression fixture cannot provide (that fixture saturates at recall 1.0).
+// Progress goes to stderr so stdout stays clean for --format json.
+func runBenchmarkEval(ctx context.Context, benchmark, embedderMode, model, prefix, mode string, k int, format string) error {
+	name := strings.TrimPrefix(benchmark, "beir:")
+	home, _ := os.UserHomeDir()
+	cacheDir := filepath.Join(home, ".go-rag", "benchmarks")
+
+	fmt.Fprintf(os.Stderr, "benchmark: loading BEIR dataset %q (cache %s)...\n", name, cacheDir)
+	ds, err := beir.Load(name, cacheDir)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "benchmark: %s loaded — %d docs, %d queries, %d test-split queries with qrels\n",
+		name, len(ds.Corpus), len(ds.Queries), len(ds.Qrels))
+
+	// Resolve the embedder via the same rules as a normal run.
+	cfg := config.Default()
+	if model != "" {
+		cfg.EmbeddingModel = model
+	}
+	if prefix != "" {
+		cfg.EmbeddingPrefix = prefix
+	}
+	em, err := resolveEmbedder(cfg, embedderMode)
+	if err != nil {
+		return err
+	}
+	resolvedPrefix := cfg.EmbeddingPrefix
+	if resolvedPrefix == "" {
+		resolvedPrefix = "auto"
+	}
+	if em.Model() == "deterministic-hash" {
+		fmt.Fprintln(os.Stderr, "benchmark: WARNING — offline embedder ignores instruction prefixes; use --embedder ollama --embedding-model nomic-embed-text for a real measurement")
+	}
+	fmt.Fprintf(os.Stderr, "benchmark: ingesting corpus with %s (prefix=%s, mode=%s, k=%d)... this takes a while\n", em.Model(), resolvedPrefix, mode, k)
+
+	run, err := eval.RunBenchmark(ctx, ds, em, mode, k, cfg.EmbeddingPrefix)
+	if err != nil {
+		return err
+	}
+	run.Dataset = name // tag the run for the report
+
+	if format == "json" {
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"dataset": name, "run": run})
+	}
+	fmt.Println(eval.FormatRun(run, nil, 0))
 	return nil
 }
 
