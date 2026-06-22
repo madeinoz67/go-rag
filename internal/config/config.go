@@ -33,6 +33,9 @@ type Config struct {
 	RerankCandidates     int      `json:"rerank_candidates,omitempty"`
 	RerankRetryOnFailure bool     `json:"rerank_retry_on_failure,omitempty"`
 	RRFK                 int      `json:"rrf_k,omitempty"` // H08/spec 009: RRF smoothing constant; 0 = default (60); <0 invalid
+	QueryCacheEnabled    bool     `json:"query_cache_enabled,omitempty"`    // H06/spec 016: global cache kill-switch; default true (omitted → true at runtime via EffectiveQueryCache*); false disables both caches
+	QueryCacheResults    int      `json:"query_cache_results,omitempty"`    // H06/spec 016: result-cache capacity (entries); 0 = result cache off; <0 invalid
+	QueryCacheEmbeddings int      `json:"query_cache_embeddings,omitempty"` // H06/spec 016: query-embedding-cache capacity (entries); 0 = embedding cache off; <0 invalid
 }
 
 // Default returns the configuration used by `go-rag init` when no overrides apply.
@@ -49,11 +52,21 @@ func Default() Config {
 		MCPAddr:          "127.0.0.1:7878", // loopback by default (spec 007, audit H13); never all-interfaces
 		RerankCandidates: 20,
 		RRFK:             60, // H08/spec 009: standard single-k RRF default (retrieval book §6.6)
+		QueryCacheEnabled:    true, // H06/spec 016: caching on by default (transparent; escape hatches exist)
+		QueryCacheResults:    DefaultQueryCacheResults,
+		QueryCacheEmbeddings: DefaultQueryCacheEmbeddings,
 	}
 }
 
 // DefaultRRFK is the RRF smoothing constant used when rrf_k is unset (spec 009).
 const DefaultRRFK = 60
+
+// Default query-cache capacities (spec 016 / audit H06). Kept modest so the
+// combined worst-case footprint stays well inside the memory budget (≈3–4 MB).
+const (
+	DefaultQueryCacheResults    = 256
+	DefaultQueryCacheEmbeddings = 512
+)
 
 // EffectiveRRFK returns the effective RRF smoothing constant: the configured
 // rrf_k when positive, else DefaultRRFK (60). This is the single resolution site
@@ -84,6 +97,12 @@ func (c Config) Validate() error {
 	if c.RRFK < 0 {
 		return fmt.Errorf("rrf_k must be non-negative (0 = default %d)", DefaultRRFK)
 	}
+	if c.QueryCacheResults < 0 {
+		return fmt.Errorf("query_cache_results must be non-negative (0 = result cache disabled)")
+	}
+	if c.QueryCacheEmbeddings < 0 {
+		return fmt.Errorf("query_cache_embeddings must be non-negative (0 = embedding cache disabled)")
+	}
 	if c.MCPAddr != "" {
 		if _, _, err := net.SplitHostPort(c.MCPAddr); err != nil {
 			return fmt.Errorf("invalid mcp_addr: %q", c.MCPAddr)
@@ -108,6 +127,24 @@ func Load(path string) (Config, error) {
 		_ = json.Unmarshal(data, &raw)
 		if v, ok := raw["ollama_model"]; ok {
 			c.EmbeddingModel = fmt.Sprintf("%v", v)
+		}
+	}
+	// H06/spec 016 backward compat: the query-cache keys default to ON with
+	// non-zero capacities, but a bool/int's zero value after unmarshal can't
+	// distinguish "absent" from "explicitly false/0". An old config (pre-016)
+	// omits all three, which would otherwise silently disable caching on
+	// upgrade. Treat an ABSENT key as the default; a PRESENT key (including an
+	// explicit 0 to disable one cache) is honored verbatim.
+	var raw map[string]any
+	if json.Unmarshal(data, &raw) == nil {
+		if _, ok := raw["query_cache_enabled"]; !ok {
+			c.QueryCacheEnabled = true
+		}
+		if _, ok := raw["query_cache_results"]; !ok {
+			c.QueryCacheResults = DefaultQueryCacheResults
+		}
+		if _, ok := raw["query_cache_embeddings"]; !ok {
+			c.QueryCacheEmbeddings = DefaultQueryCacheEmbeddings
 		}
 	}
 	return c, nil
@@ -165,6 +202,12 @@ func (c Config) Get(key string) (string, bool) {
 		return strconv.FormatBool(c.RerankRetryOnFailure), true
 	case "rrf_k":
 		return strconv.Itoa(c.EffectiveRRFK()), true
+	case "query_cache_enabled":
+		return strconv.FormatBool(c.QueryCacheEnabled), true
+	case "query_cache_results":
+		return strconv.Itoa(c.QueryCacheResults), true
+	case "query_cache_embeddings":
+		return strconv.Itoa(c.QueryCacheEmbeddings), true
 	}
 	return "", false
 }
@@ -242,6 +285,24 @@ func (c *Config) Set(key, val string) error {
 			return fmt.Errorf("invalid rrf_k: %q (want a non-negative integer; 0 = default %d)", val, DefaultRRFK)
 		}
 		c.RRFK = n
+	case "query_cache_enabled":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("invalid query_cache_enabled: %q", val)
+		}
+		c.QueryCacheEnabled = b
+	case "query_cache_results":
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 0 {
+			return fmt.Errorf("invalid query_cache_results: %q (want a non-negative integer; 0 = disabled)", val)
+		}
+		c.QueryCacheResults = n
+	case "query_cache_embeddings":
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 0 {
+			return fmt.Errorf("invalid query_cache_embeddings: %q (want a non-negative integer; 0 = disabled)", val)
+		}
+		c.QueryCacheEmbeddings = n
 	default:
 		return fmt.Errorf("unknown config key: %q", key)
 	}

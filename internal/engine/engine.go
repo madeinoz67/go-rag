@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/config"
@@ -55,6 +56,30 @@ type Engine struct {
 	// pure NormalizingTransformer; a custom one can be set (tests today; future
 	// HyDE/multi-query in an adapter) — internal/index stays Ollama-free.
 	qTransformer index.QueryTransformer
+
+	// Query caches (audit H06/spec 016): an exact-match result cache and a
+	// query-embedding cache, both in-process, bounded, and empty on restart.
+	// resultCache maps the full query shape + index epoch → *QueryResult;
+	// embedCache maps the embedding profile + prefixed query → its vector.
+	// Disabled (nil or capacity 0) = every Get misses, every Put no-ops. epoch
+	// is the invalidation counter bumped by the pipeline's OnChange callback at
+	// every shared-index mutation (including the async vector-add).
+	resultCache *LRU[string, *QueryResult]
+	embedCache  *LRU[string, [][]float32]
+	epoch       *atomic.Uint64
+}
+
+// newQueryCaches builds the result/embedding caches and epoch from config. When
+// QueryCacheEnabled is false both caches are disabled (capacity 0); a per-cache
+// capacity of 0 disables just that cache. The epoch is always allocated so
+// markIndexChanged works even when caching is off (harmless; it just bumps a
+// counter nothing reads).
+func newQueryCaches(cfg config.Config) (*LRU[string, *QueryResult], *LRU[string, [][]float32], *atomic.Uint64) {
+	resCap, embCap := cfg.QueryCacheResults, cfg.QueryCacheEmbeddings
+	if !cfg.QueryCacheEnabled {
+		resCap, embCap = 0, 0
+	}
+	return NewLRU[string, *QueryResult](resCap), NewLRU[string, [][]float32](embCap), &atomic.Uint64{}
 }
 
 // NewWithDB returns an Engine over a pre-opened database (daemon mode). The
@@ -62,7 +87,8 @@ type Engine struct {
 // pipeline is created lazily on the first write, so read-only engines (query,
 // status, files) never start background workers.
 func NewWithDB(cfg config.Config, db *storage.DB) *Engine {
-	return &Engine{cfg: cfg, db: db, qTransformer: index.NormalizingTransformer{}}
+	rc, ec, ep := newQueryCaches(cfg)
+	return &Engine{cfg: cfg, db: db, qTransformer: index.NormalizingTransformer{}, resultCache: rc, embedCache: ec, epoch: ep}
 }
 
 // NewWithEmbedder returns an Engine that uses em as its embedder for both ingest
@@ -71,7 +97,8 @@ func NewWithDB(cfg config.Config, db *storage.DB) *Engine {
 // and reproducibly (spec 004). Production callers use NewWithDB, which leaves
 // the embedder nil and falls back to Ollama — so this changes nothing for them.
 func NewWithEmbedder(cfg config.Config, db *storage.DB, em embed.Embedder) *Engine {
-	return &Engine{cfg: cfg, db: db, embedder: em, qTransformer: index.NormalizingTransformer{}}
+	rc, ec, ep := newQueryCaches(cfg)
+	return &Engine{cfg: cfg, db: db, embedder: em, qTransformer: index.NormalizingTransformer{}, resultCache: rc, embedCache: ec, epoch: ep}
 }
 
 // embedderOrOllama returns the injected embedder when one is present, otherwise
@@ -136,6 +163,11 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 		fts, vec,
 		e.cfg.Prefixer(), // H07: document-role instruction prefixes
 	)
+	// H06/spec 016: the pipeline signals every shared-index mutation via this
+	// callback so the engine can advance the result-cache epoch. Set under
+	// pipeMu before any job flows (workers start in New but only receive jobs
+	// once Ingest runs, which is after this returns), so no bump is missed.
+	e.pipe.OnChange = e.markIndexChanged
 	return e.pipe, nil
 }
 
@@ -154,4 +186,13 @@ func (e *Engine) Close() {
 	// Drop the shared index too, so a reused engine re-seeds from the current DB
 	// state rather than serving a stale in-memory snapshot (audit H01/spec 011).
 	e.idxFts, e.idxVec = nil, nil
+	// H06/spec 016: drop the query caches as well — they are stale relative to a
+	// re-seed, and the epoch resets to 0 on the next construction. In-process
+	// only; nothing persisted.
+	if e.resultCache != nil {
+		e.resultCache.Flush()
+	}
+	if e.embedCache != nil {
+		e.embedCache.Flush()
+	}
 }

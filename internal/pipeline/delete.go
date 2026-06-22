@@ -34,6 +34,11 @@ func (p *Pipeline) DeleteDoc(docID string) error {
 			p.vec.Delete(cid)
 		}
 	}
+	// H06/spec 016: removals mutated the searchable corpus — advance the
+	// result-cache epoch so subsequent queries never serve a now-deleted hit.
+	if len(chunkIDs) > 0 {
+		p.indexChanged()
+	}
 
 	if raw, ok, _ := db.GetWithPrefix(storage.PrefixDocument, []byte(docID)); ok {
 		var d model.Document

@@ -58,6 +58,22 @@ type Pipeline struct {
 	// OnProgress, if non-nil, is called after each file is processed during
 	// Ingest/Reprocess/ReprocessAll (enables a CLI progress bar).
 	OnProgress Progress
+
+	// OnChange, if non-nil, is called whenever the shared in-memory index is
+	// mutated (chunk added in storeDocument, vector added in processJob, chunks
+	// removed in DeleteDoc). The Engine binds it to its epoch-bumper so the
+	// query result cache can invalidate on corpus change (audit H06/spec 016).
+	// Set once, under the engine's pipeMu, before any job flows.
+	OnChange func()
+}
+
+// indexChanged fires the OnChange callback when set. Centralizing the nil guard
+// keeps the mutation sites one-liners and means a pipeline constructed without a
+// bound callback (e.g. some tests) simply skips the bump.
+func (p *Pipeline) indexChanged() {
+	if p.OnChange != nil {
+		p.OnChange()
+	}
 }
 
 // New returns a Pipeline with background indexing workers started. Call Close to
@@ -272,6 +288,10 @@ func (p *Pipeline) storeDocument(doc model.Document, chunks []model.Chunk, conte
 			p.fts.Index(c.ID, map[string]string{"body": c.Content})
 		}
 	}
+	// H06/spec 016: the synchronous FTS add just mutated the searchable corpus
+	// (keyword hits land immediately, before the ACK returns) — advance the
+	// result-cache epoch so a query after the ACK never serves a stale entry.
+	p.indexChanged()
 	return nil
 }
 

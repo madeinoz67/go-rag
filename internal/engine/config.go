@@ -16,6 +16,7 @@ var knownConfigKeys = []string{
 	"embedding_prefix", "embedding_query_prefix", "embedding_doc_prefix", // H07
 	"chunk_size", "chunk_overlap",
 	"db_path", "poll_interval_secs",
+	"query_cache_enabled", "query_cache_results", "query_cache_embeddings", // H06/spec 016
 }
 
 // GetConfig returns config values as strings. If key is non-empty, only that

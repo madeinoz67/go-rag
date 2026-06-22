@@ -60,6 +60,12 @@ func (p *Pipeline) processJob(j job) {
 				}
 			}
 		}
+		// H06/spec 016: vectors just landed asynchronously (post-ACK) — this is
+		// the mutation a write-ACK-only epoch bump would miss. Advance the epoch
+		// so a query that cached before the vector landed cannot serve a
+		// pre-vector result. Only on the success path: an embed failure added no
+		// vectors, so the vector index is unchanged.
+		p.indexChanged()
 	}
 	p.markStatus(j.docID, status)
 }
