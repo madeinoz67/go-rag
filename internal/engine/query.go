@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/index"
@@ -73,6 +74,24 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 		effRRFK = e.cfg.EffectiveRRFK()
 	}
 	r.SetRRFK(effRRFK)
+
+	// H14/spec 014: apply the optional metadata filter (source/type/tags) as a
+	// pre-fusion keep predicate. The engine resolves chunk→document→attributes
+	// via the existing lookupChunk/lookupDoc resolvers. nil/empty filter = no-op.
+	if req.Filter != nil && !req.Filter.Empty() {
+		f := *req.Filter // copy to avoid capturing the pointer
+		r.SetFilter(func(chunkID string) bool {
+			c, ok := lookupChunk(e.db, chunkID)
+			if !ok {
+				return false
+			}
+			d, ok := lookupDoc(e.db, c.DocumentID)
+			if !ok {
+				return false
+			}
+			return f.Matches(d.FilePath, d.FileType, tagsFromMetadata(d.Metadata))
+		})
+	}
 
 	var reranker index.Reranker
 	if e.cfg.RerankModel != "" && !req.NoRerank {
@@ -182,4 +201,31 @@ func sortedKeys(m map[string]int) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// tagsFromMetadata extracts document tags from Metadata["tags"] (H14/spec 014).
+// Supports []string, []any (JSON array), or comma-separated string.
+func tagsFromMetadata(m map[string]any) []string {
+	if m == nil {
+		return nil
+	}
+	v, ok := m["tags"]
+	if !ok {
+		return nil
+	}
+	switch t := v.(type) {
+	case []string:
+		return t
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, e := range t {
+			if s, ok := e.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	case string:
+		return strings.Split(t, ",")
+	}
+	return nil
 }

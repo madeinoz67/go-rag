@@ -21,6 +21,7 @@ func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
 		NoRerank:  req.NoRerank,
 		Threshold: req.Threshold,
 		RRFK:      req.RRFK,
+		Filter:    engine.NewFilter(req.Source, req.Type, req.Tags),
 	})
 	if err != nil {
 		writeEngineErr(w, err)

@@ -49,6 +49,11 @@ type Retrieval struct {
 	// by default; the engine enables it from config so the common path incurs no
 	// extra latency.
 	retryRerank bool
+
+	// keep (H14/spec 014): optional pre-fusion filter predicate. When non-nil,
+	// candidates not passing keep(chunkID) are dropped from the FTS and Vector
+	// lists BEFORE fusion/collapse/rerank. nil = no filter (today's behavior).
+	keep func(string) bool
 }
 
 // NewRetrieval wires an FTS index, a Vector index, and a query embedder.
@@ -75,26 +80,47 @@ func (r *Retrieval) SetRRFK(k int) {
 // retrieval degrades to fallback-ordered hits. Off by default.
 func (r *Retrieval) EnableRerankRetry() { r.retryRerank = true }
 
+// SetFilter sets the optional pre-fusion filter predicate (H14/spec 014). A
+// non-nil keep drops candidates that don't pass it from the FTS and Vector lists
+// before fusion/collapse/rerank. nil (the default) = no filtering.
+func (r *Retrieval) SetFilter(keep func(string) bool) { r.keep = keep }
+
+// filterHits drops candidates that don't pass the keep predicate (H14/spec 014).
+// nil keep = no filter (returns hits unchanged, zero overhead).
+func (r *Retrieval) filterHits(hits []Hit) []Hit {
+	if r.keep == nil {
+		return hits
+	}
+	out := make([]Hit, 0, len(hits))
+	for _, h := range hits {
+		if r.keep(h.ChunkID) {
+			out = append(out, h)
+		}
+	}
+	return out
+}
+
 // Search runs retrieval in the given mode, returning the top-k chunk hits. docOf
 // (optional) maps a chunkID to its document ID; when non-nil, hits are collapsed to
-// the top-1 per document (research Q8).
+// the top-1 per document (research Q8). If a filter predicate is set (SetFilter),
+// candidates are dropped pre-fusion (H14/spec 014).
 func (r *Retrieval) Search(ctx context.Context, query string, k int, mode Mode, docOf func(string) string) ([]Hit, error) {
 	switch mode {
 	case ModeKeyword:
-		return collapseByDoc(r.fts.Search(query, r.poolSize), k, docOf), nil
+		return collapseByDoc(r.filterHits(r.fts.Search(query, r.poolSize)), k, docOf), nil
 	case ModeSemantic:
 		hits, err := r.semantic(ctx, query)
 		if err != nil {
 			return nil, err
 		}
-		return collapseByDoc(hits, k, docOf), nil
+		return collapseByDoc(r.filterHits(hits), k, docOf), nil
 	default: // hybrid
-		fHits := r.fts.Search(query, r.poolSize)
+		fHits := r.filterHits(r.fts.Search(query, r.poolSize))
 		vHits, err := r.semantic(ctx, query)
 		if err != nil {
 			return nil, err
 		}
-		fused := reciprocalRankFusion(vHits, fHits, r.rrfK)
+		fused := reciprocalRankFusion(r.filterHits(vHits), fHits, r.rrfK)
 		return collapseByDoc(fused, k, docOf), nil
 	}
 }

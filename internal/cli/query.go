@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/engine"
+	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/spf13/cobra"
 )
 
@@ -36,6 +37,19 @@ func newQueryCmd() *cobra.Command {
 				return fmt.Errorf("--rrf-k must be a positive integer (0 = use configured/default; got %d)", rrfK)
 			}
 
+			// H14/spec 014: optional metadata filter (source/type/tags).
+			source, _ := cmd.Flags().GetString("source")
+			filtType, _ := cmd.Flags().GetString("type")
+			tagsStr, _ := cmd.Flags().GetString("tags")
+			var filt *index.Filter
+			if source != "" || filtType != "" || tagsStr != "" {
+				var tags []string
+				if tagsStr != "" {
+					tags = strings.Split(tagsStr, ",")
+				}
+				filt = &index.Filter{Source: source, Type: filtType, Tags: tags}
+			}
+
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
 				return err
@@ -47,7 +61,7 @@ func newQueryCmd() *cobra.Command {
 			// which refuses a query whose model/dim doesn't match the corpus.
 			eng := engine.NewWithDB(cfg, db)
 			res, err := eng.Query(context.Background(), engine.QueryRequest{
-				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK,
+				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK, Filter: filt,
 			})
 			if err != nil {
 				return err
@@ -75,6 +89,8 @@ func newQueryCmd() *cobra.Command {
 	cmd.Flags().Float64("threshold", 0.0, "minimum relevance score")
 	cmd.Flags().Bool("no-rerank", false, "disable cross-encoder reranking for this query")
 	cmd.Flags().Int("rrf-k", 0, "RRF smoothing constant override (0 = use configured rrf_k / default 60)")
+	cmd.Flags().String("type", "", "filter by file type (e.g. markdown, pdf)")
+	cmd.Flags().String("tags", "", "filter by document tags (comma-separated, conjunction)")
 	return cmd
 }
 

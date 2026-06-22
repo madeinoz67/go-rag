@@ -6,6 +6,8 @@
 // (cross-transport parity, spec 003 FR-002/003).
 package engine
 
+import "github.com/madeinoz67/go-rag/internal/index"
+
 // QueryRequest is the input to Engine.Query.
 type QueryRequest struct {
 	Query     string
@@ -14,6 +16,18 @@ type QueryRequest struct {
 	NoRerank  bool
 	Threshold float64 // minimum score; hits below are dropped
 	RRFK      int     // H08/spec 009: per-query RRF constant override; 0 = use config EffectiveRRFK() (default 60)
+	Filter    *index.Filter // H14/spec 014: optional metadata filter (source/type/tags); nil = no filter
+}
+
+// NewFilter constructs a metadata Filter for a query (H14/spec 014). Returns nil
+// when no dimension is set (no filtering). Transports use this to avoid importing
+// the index package directly.
+func NewFilter(source, ftype string, tags []string) *index.Filter {
+	f := index.Filter{Source: source, Type: ftype, Tags: tags}
+	if f.Empty() {
+		return nil
+	}
+	return &f
 }
 
 // QueryHit is one ranked result. Adapters serialize this verbatim.

@@ -38,6 +38,9 @@ type QueryRequest struct {
 	NoRerank      bool                   `protobuf:"varint,4,opt,name=no_rerank,json=noRerank,proto3" json:"no_rerank,omitempty"`
 	Threshold     float64                `protobuf:"fixed64,5,opt,name=threshold,proto3" json:"threshold,omitempty"`  // min score, default 0.0
 	RrfK          int32                  `protobuf:"varint,6,opt,name=rrf_k,json=rrfK,proto3" json:"rrf_k,omitempty"` // H08/spec 009: RRF smoothing constant override; 0 = config/default (60)
+	Source        string                 `protobuf:"bytes,7,opt,name=source,proto3" json:"source,omitempty"`          // H14/spec 014: path glob/prefix filter (empty = no constraint)
+	Type          string                 `protobuf:"bytes,8,opt,name=type,proto3" json:"type,omitempty"`              // H14/spec 014: file type filter (empty = no constraint)
+	Tags          []string               `protobuf:"bytes,9,rep,name=tags,proto3" json:"tags,omitempty"`              // H14/spec 014: tag conjunction filter (empty = no constraint)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -112,6 +115,27 @@ func (x *QueryRequest) GetRrfK() int32 {
 		return x.RrfK
 	}
 	return 0
+}
+
+func (x *QueryRequest) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *QueryRequest) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *QueryRequest) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
 }
 
 type QueryHit struct {
@@ -1334,14 +1358,17 @@ var File_proto_gorag_proto protoreflect.FileDescriptor
 
 const file_proto_gorag_proto_rawDesc = "" +
 	"\n" +
-	"\x11proto/gorag.proto\x12\x05gorag\"\x96\x01\n" +
+	"\x11proto/gorag.proto\x12\x05gorag\"\xd6\x01\n" +
 	"\fQueryRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\f\n" +
 	"\x01k\x18\x02 \x01(\x05R\x01k\x12\x12\n" +
 	"\x04mode\x18\x03 \x01(\tR\x04mode\x12\x1b\n" +
 	"\tno_rerank\x18\x04 \x01(\bR\bnoRerank\x12\x1c\n" +
 	"\tthreshold\x18\x05 \x01(\x01R\tthreshold\x12\x13\n" +
-	"\x05rrf_k\x18\x06 \x01(\x05R\x04rrfK\"\xa7\x01\n" +
+	"\x05rrf_k\x18\x06 \x01(\x05R\x04rrfK\x12\x16\n" +
+	"\x06source\x18\a \x01(\tR\x06source\x12\x12\n" +
+	"\x04type\x18\b \x01(\tR\x04type\x12\x12\n" +
+	"\x04tags\x18\t \x03(\tR\x04tags\"\xa7\x01\n" +
 	"\bQueryHit\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x1f\n" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +

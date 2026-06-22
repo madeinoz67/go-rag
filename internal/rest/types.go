@@ -5,12 +5,15 @@ package rest
 // serialization. See specs/003-rest-grpc-api/data-model.md.
 
 type queryRequest struct {
-	Query     string  `json:"query"`
-	K         int     `json:"k"`
-	Mode      string  `json:"mode"`
-	NoRerank  bool    `json:"no_rerank"`
-	Threshold float64 `json:"threshold"`
-	RRFK      int     `json:"rrf_k,omitempty"` // H08/spec 009: RRF constant override; 0 = config/default (60)
+	Query     string   `json:"query"`
+	K         int      `json:"k"`
+	Mode      string   `json:"mode"`
+	NoRerank  bool     `json:"no_rerank"`
+	Threshold float64  `json:"threshold"`
+	RRFK      int      `json:"rrf_k,omitempty"` // H08/spec 009
+	Source    string   `json:"source,omitempty"`
+	Type      string   `json:"type,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
 }
 
 type queryHit struct {

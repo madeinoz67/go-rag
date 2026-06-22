@@ -212,6 +212,23 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 	if v, ok := args["rrf_k"].(float64); ok && v > 0 { // H08/spec 009: per-query RRF override (>0); 0 = config/default
 		req.RRFK = int(v)
 	}
+	// H14/spec 014: metadata filter (source/type/tags).
+	var src, ftype string
+	var ftags []string
+	if v, ok := args["source"].(string); ok {
+		src = v
+	}
+	if v, ok := args["type"].(string); ok {
+		ftype = v
+	}
+	if v, ok := args["tags"].([]any); ok {
+		for _, t := range v {
+			if s, ok := t.(string); ok {
+				ftags = append(ftags, s)
+			}
+		}
+	}
+	req.Filter = engine.NewFilter(src, ftype, ftags)
 	res, err := eng.Query(context.Background(), req)
 	if err != nil {
 		return "", err
@@ -483,6 +500,9 @@ func toolDefs() []map[string]any {
 					"no_rerank": map[string]any{"type": "boolean", "default": false},
 					"threshold": map[string]any{"type": "number", "default": 0.0},
 					"rrf_k":     map[string]any{"type": "integer", "default": 60},
+					"source":    map[string]any{"type": "string"},
+					"type":      map[string]any{"type": "string"},
+					"tags":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 				},
 				"required": []string{"query"},
 			},
