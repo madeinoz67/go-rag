@@ -8,7 +8,6 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/index"
-	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/rerank"
 )
 
@@ -26,7 +25,11 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 		req.K = 100
 	}
 
-	fts, vec, err := pipeline.LoadIndex(e.db)
+	// H01/spec 011: reuse the engine's shared seeded index instead of rebuilding
+	// it from disk on every query. The pipeline/watcher/migrate mutate this same
+	// pair, so it is always current; FTS/Vector are goroutine-safe for concurrent
+	// query reads + background writes.
+	fts, vec, err := e.indexes()
 	if err != nil {
 		return nil, err
 	}

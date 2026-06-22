@@ -37,6 +37,17 @@ type Engine struct {
 
 	pipeMu sync.Mutex
 	pipe   *pipeline.Pipeline
+
+	// idxFts/idxVec are the engine's shared in-memory search index (audit H01 /
+	// spec 011): seeded once from LoadIndex and reused by every query — no
+	// per-query rebuild (the single biggest latency win). The pipeline, watcher,
+	// and migrate mutate this same pair in place, so it stays live and current;
+	// FTS and Vector are each goroutine-safe, so concurrent query reads +
+	// background writes need no Engine-level read/write lock. idxMu guards only
+	// the seed-once; reads of the stable pointers are lock-free thereafter.
+	idxMu  sync.Mutex
+	idxFts *index.FTS
+	idxVec *index.Vector
 }
 
 // NewWithDB returns an Engine over a pre-opened database (daemon mode). The
@@ -73,9 +84,31 @@ func (e *Engine) Config() config.Config { return e.cfg }
 // access, e.g. for prefix scans not yet wrapped here).
 func (e *Engine) DB() *storage.DB { return e.db }
 
+// indexes returns the engine's shared in-memory search index (FTS + Vector),
+// seeding it once from the persisted corpus via LoadIndex on first access and
+// reusing it on every later call (audit H01/spec 011 — no per-query rebuild).
+// Both Query and the ingest pipeline use the pair returned here, so writes
+// (processJob, DeleteDoc) flow straight into the same indexes queries read.
+// Lock ordering: pipeline() acquires pipeMu then idxMu (via this method); Query
+// acquires only idxMu — no inversion, and indexes() never reaches back to pipeMu.
+func (e *Engine) indexes() (*index.FTS, *index.Vector, error) {
+	e.idxMu.Lock()
+	defer e.idxMu.Unlock()
+	if e.idxFts == nil || e.idxVec == nil {
+		fts, vec, err := pipeline.LoadIndex(e.db)
+		if err != nil {
+			return nil, nil, err
+		}
+		e.idxFts, e.idxVec = fts, vec
+	}
+	return e.idxFts, e.idxVec, nil
+}
+
 // pipeline returns the engine's long-lived ingest pipeline, creating it on first
 // use (concurrency-safe). It is intentionally NOT closed per write — that is what
-// makes writes ACK before embeddings finish (async-after-ACK).
+// makes writes ACK before embeddings finish (async-after-ACK). The pipeline
+// shares the engine's seeded index (audit H01/spec 011) so ingest/watcher/migrate
+// mutate the same FTS/Vector that queries read.
 func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	e.pipeMu.Lock()
 	defer e.pipeMu.Unlock()
@@ -85,12 +118,15 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	if e.cfg.EmbeddingModel == "" {
 		return nil, fmt.Errorf("no embedding model configured")
 	}
+	fts, vec, err := e.indexes() // H01: share the seeded index, not fresh empties.
+	if err != nil {
+		return nil, err
+	}
 	e.pipe = pipeline.New(
 		e.db,
 		chunk.NewSplitter(e.cfg.ChunkSize, e.cfg.ChunkOverlap),
 		e.embedderOrOllama(),
-		index.NewFTS(),
-		index.NewVector(),
+		fts, vec,
 		e.cfg.Prefixer(), // H07: document-role instruction prefixes
 	)
 	return e.pipe, nil
@@ -108,4 +144,7 @@ func (e *Engine) Close() {
 		e.pipe.Close()
 		e.pipe = nil
 	}
+	// Drop the shared index too, so a reused engine re-seeds from the current DB
+	// state rather than serving a stale in-memory snapshot (audit H01/spec 011).
+	e.idxFts, e.idxVec = nil, nil
 }

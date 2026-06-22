@@ -250,6 +250,18 @@ func (p *Pipeline) storeDocument(doc model.Document, chunks []model.Chunk, conte
 			return err
 		}
 	}
+	// H01/spec 011: index the just-stored chunks into the shared FTS synchronously,
+	// so the cached index reflects durable-stored chunks immediately — a keyword
+	// query right after the ACK must see them, exactly as the old per-query disk
+	// rebuild did. Vectors still land asynchronously via processJob. FTS is
+	// goroutine-safe, so this is safe alongside the background workers. (processJob
+	// also calls fts.Index; the second call is an idempotent replace, kept to avoid
+	// touching the H07 prefix logic there.)
+	for _, c := range chunks {
+		if p.fts != nil {
+			p.fts.Index(c.ID, map[string]string{"body": c.Content})
+		}
+	}
 	return nil
 }
 

@@ -93,7 +93,7 @@ func (cd *ChangeDetector) ScanOnce(ctx context.Context, root, glob string) ([]Ch
 			cd.ingest(ctx, path)
 			changes = append(changes, Change{Path: path, Kind: "NEW"})
 		case tr.hash != h:
-			_ = pipeline.DeleteDoc(cd.db, tr.docID)
+			_ = cd.pl.DeleteDoc(tr.docID)
 			cd.ingest(ctx, path)
 			changes = append(changes, Change{Path: path, Kind: "MODIFIED"})
 		default:
@@ -102,7 +102,7 @@ func (cd *ChangeDetector) ScanOnce(ctx context.Context, root, glob string) ([]Ch
 	}
 	for path, tr := range dbFiles {
 		if _, onDisk := disk[path]; !onDisk {
-			_ = pipeline.DeleteDoc(cd.db, tr.docID)
+			_ = cd.pl.DeleteDoc(tr.docID)
 			changes = append(changes, Change{Path: path, Kind: "DELETED"})
 		}
 	}
