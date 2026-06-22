@@ -43,6 +43,8 @@ baseline. Pass --db-path to measure an existing vault read-only instead.`,
 	cmd.Flags().String("embedding-model", "", "embedding model for a self-provisioned ollama run (enables --embedder ollama so real-model quality can be measured)")
 	cmd.Flags().String("embedding-prefix", "", "instruction-prefix mode for the run: auto|on|off (default auto; self-provision runs only — a --db-path vault keeps its own convention)")
 	cmd.Flags().String("benchmark", "", "manual BEIR retrieval benchmark to run (e.g. scifact, or beir:scifact); fetches + fully ingests the corpus, so it is slow and opt-in — NOT for CI. Pair with --embedder ollama --embedding-model <model>")
+	cmd.Flags().Int("benchmark-queries", 200, "benchmark: number of queries to score (MS MARCO subsamples to this many; ignored for small datasets)")
+	cmd.Flags().Int("benchmark-distractors", 0, "benchmark: MS MARCO distractor-pool size (0 = queries*40). Larger pools are harder/more realistic but slower to ingest — the ~8k default saturates (recall~0.99); use ~50k+ for discrimination")
 	cmd.Flags().Bool("no-rerank", false, "skip cross-encoder reranking")
 	cmd.Flags().String("baseline", "", "baseline file to compare against (sets the exit code)")
 	cmd.Flags().Float64("tolerance", 2.0, "max allowed recall@10 drop (percentage points) before the gate fails")
@@ -67,6 +69,8 @@ func runEval(cmd *cobra.Command, _ []string) error {
 		}
 	}
 	benchmark, _ := flags.GetString("benchmark")
+	benchQueries, _ := flags.GetInt("benchmark-queries")
+	benchDistractors, _ := flags.GetInt("benchmark-distractors")
 	noRerank, _ := flags.GetBool("no-rerank")
 	baselinePath, _ := flags.GetString("baseline")
 	tolerance, _ := flags.GetFloat64("tolerance")
@@ -80,7 +84,7 @@ func runEval(cmd *cobra.Command, _ []string) error {
 	// Manual BEIR benchmark (audit H07 SC-001): short-circuit the golden path —
 	// it fetches + fully ingests a real benchmark corpus, so it is slow and opt-in.
 	if benchmark != "" {
-		return runBenchmarkEval(ctx, benchmark, embedderMode, embModel, embPrefix, mode, k, format)
+		return runBenchmarkEval(ctx, benchmark, embedderMode, embModel, embPrefix, mode, k, benchQueries, benchDistractors, format)
 	}
 
 	// 1. Acquire an open database + the embedder to use with it.
@@ -167,18 +171,34 @@ func runEval(cmd *cobra.Command, _ []string) error {
 // go-rag chunk_ids, and score. It is the discriminating measurement the tiny
 // golden regression fixture cannot provide (that fixture saturates at recall 1.0).
 // Progress goes to stderr so stdout stays clean for --format json.
-func runBenchmarkEval(ctx context.Context, benchmark, embedderMode, model, prefix, mode string, k int, format string) error {
+func runBenchmarkEval(ctx context.Context, benchmark, embedderMode, model, prefix, mode string, k int, numQueries, distractors int, format string) error {
 	name := strings.TrimPrefix(benchmark, "beir:")
 	home, _ := os.UserHomeDir()
 	cacheDir := filepath.Join(home, ".go-rag", "benchmarks")
 
 	fmt.Fprintf(os.Stderr, "benchmark: loading BEIR dataset %q (cache %s)...\n", name, cacheDir)
-	ds, err := beir.Load(name, cacheDir)
+	// MS MARCO's full corpus is ~8.8M passages — subsample to a tractable,
+	// reproducible subset (sampled dev queries + their relevant passages + a
+	// stride sample of distractors). Small datasets (SciFact) load whole.
+	var ds *beir.Dataset
+	var err error
+	if name == "msmarco" {
+		if numQueries <= 0 {
+			numQueries = 200
+		}
+		if distractors <= 0 {
+			distractors = numQueries * 40 // ~8k at the default; use --benchmark-distractors for more
+		}
+		fmt.Fprintf(os.Stderr, "benchmark: %s subsampling — %d queries, ~%d distractor passages (one-time corpus stream)...\n", name, numQueries, distractors)
+		ds, err = beir.LoadSubsampled(name, cacheDir, numQueries, distractors)
+	} else {
+		ds, err = beir.Load(name, cacheDir)
+	}
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "benchmark: %s loaded — %d docs, %d queries, %d test-split queries with qrels\n",
-		name, len(ds.Corpus), len(ds.Queries), len(ds.Qrels))
+	fmt.Fprintf(os.Stderr, "benchmark: %s ready — %d docs, %d scorable queries\n",
+		name, len(ds.Corpus), len(ds.Qrels))
 
 	// Resolve the embedder via the same rules as a normal run.
 	cfg := config.Default()

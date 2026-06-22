@@ -153,13 +153,33 @@ go-rag eval --benchmark scifact \
   --embedding-prefix auto --no-rerank --mode semantic   # prefixes on
 ```
 
-The dataset is fetched once (cached under `~/.go-rag/benchmarks/`). Measured on
-SciFact (300 test queries, `nomic-embed-text`, semantic-only), instruction
-prefixes were **near-neutral**: recall@5 0.735→0.744 (+0.9pp), recall@10
-0.813→0.807 (−0.6pp), MRR/NDCG unchanged within noise. SciFact's claims are
-stylistically close to its abstracts (low query/passage asymmetry), where
-prefixes help least; a more asymmetric dataset (e.g. MS MARCO) or a
-prefix-sensitive model (E5) would show a larger effect.
+The dataset is fetched once (cached under `~/.go-rag/benchmarks/`). For large
+datasets, MS MARCO is supported via subsampling — its full corpus is ~8.8M
+passages, so `--benchmark msmarco` streams it once and keeps a tractable,
+reproducible subset (sampled dev queries + their relevant passages + a stride
+sample of distractors):
+
+```bash
+go-rag eval --benchmark msmarco \
+  --embedder ollama --embedding-model nomic-embed-text \
+  --embedding-prefix auto --no-rerank --mode semantic \
+  --benchmark-queries 200 --benchmark-distractors 8000
+```
+
+`--benchmark-distractors` sizes the distractor pool (larger = harder/more
+realistic but slower to ingest). **Measured results** (`nomic-embed-text`,
+semantic-only):
+
+| dataset | asymmetry | prefix effect (off → on) |
+|---------|-----------|--------------------------|
+| **SciFact** (300 q) | low (claims ~ abstracts) | near-neutral: recall@5 0.735→0.744, recall@10 0.813→0.807 |
+| **MS MARCO** (200 q, 8k pool) | high (short query / long passage) | **positive on every metric**: recall@5 0.988→0.998, MRR 0.954→0.971, NDCG 0.964→0.977 |
+
+The contrast is the point: instruction prefixes help where query/passage
+asymmetry is high (MS MARCO) and help least where it's low (SciFact). The MS
+MARCO magnitude here is capped by the easy ~8k subsample (recall near-saturated);
+a larger pool (`--benchmark-distractors 50000+`) would show a bigger effect but
+ingests slowly (~1000 passages/min — cross-document embed batching is audit H12).
 
 **Attribution:** BEIR (Thakur et al., 2021, https://arxiv.org/abs/2104.08663);
 SciFact is CC BY-NC. Benchmark data is fetched at runtime and is **not**
