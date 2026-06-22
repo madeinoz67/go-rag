@@ -23,6 +23,7 @@ func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
 		RRFK:      req.RRFK,
 		Filter:        engine.NewFilter(req.Source, req.Type, req.Tags),
 		ContextWindow: req.ContextWindow,
+		NoCache:       req.NoCache,
 	})
 	if err != nil {
 		writeEngineErr(w, err)

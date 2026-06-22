@@ -201,11 +201,12 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 		}
 	}
 	res := &QueryResult{Hits: out, RerankFailed: rerankFailed}
-	// H06/spec 016: store the fresh result. Skip when bypassed/disabled, when the
-	// reranker failed (degraded — a retry may succeed; FR-009), or when a
-	// concurrent corpus mutation advanced the epoch mid-query (this result may be
-	// stale relative to the new epoch — better to recompute next time).
-	if !req.NoCache && e.resultCache.Enabled() && !rerankFailed && e.indexEpoch() == keyEpoch {
+	// H06/spec 016: store the fresh result. NoCache only bypasses SERVING (D5):
+	// the freshly-computed result is still stored so the next normal caller can
+	// hit. Skip only when disabled, when the reranker failed (degraded — a retry
+	// may succeed; FR-009), or when a concurrent corpus mutation advanced the
+	// epoch mid-query (this result may be stale relative to the new epoch).
+	if e.resultCache.Enabled() && !rerankFailed && e.indexEpoch() == keyEpoch {
 		e.resultCache.Put(e.resultKey(req, effRRFK, keyEpoch), res)
 	}
 	return res, nil

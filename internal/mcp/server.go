@@ -232,6 +232,9 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 	if v, ok := args["context_window"].(float64); ok && v > 0 {
 		req.ContextWindow = int(v)
 	}
+	if v, ok := args["no_cache"].(bool); ok { // H06/spec 016: bypass the result cache for this query
+		req.NoCache = v
+	}
 	res, err := eng.Query(context.Background(), req)
 	if err != nil {
 		return "", err
@@ -520,6 +523,7 @@ func toolDefs() []map[string]any {
 					"type":      map[string]any{"type": "string"},
 					"tags":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 					"context_window": map[string]any{"type": "integer", "default": 0},
+					"no_cache":       map[string]any{"type": "boolean", "default": false},
 				},
 				"required": []string{"query"},
 			},

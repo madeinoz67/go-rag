@@ -15,6 +15,7 @@ type queryRequest struct {
 	Type      string   `json:"type,omitempty"`
 	Tags          []string `json:"tags,omitempty"`
 	ContextWindow int      `json:"context_window,omitempty"`
+	NoCache       bool     `json:"no_cache,omitempty"` // H06/spec 016: bypass the result cache for this query
 }
 
 type queryHit struct {

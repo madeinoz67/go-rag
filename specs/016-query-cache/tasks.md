@@ -125,11 +125,11 @@
 
 ### Implementation for User Story 5
 
-- [ ] T030 [P] [US5] Add the `--no-cache` bool flag in `internal/cli/query.go` (mirror `--no-rerank` at query.go:92) → `QueryRequest.NoCache`.
-- [ ] T031 [P] [US5] Add `no_cache` to the REST request in `internal/rest/types.go` (`json:"no_cache,omitempty"`) + passthrough in `internal/rest/engine_adapter.go`.
-- [ ] T032 [US5] Add `bool no_cache = 11;` to `message QueryRequest` in `proto/gorag.proto`; regen `proto/gen`; map it in `internal/grpc/engine_adapter.go`. (**Single batched regen with T026.**)
-- [ ] T033 [P] [US5] Add `no_cache` to the MCP query tool input schema + passthrough in `internal/mcp/server.go` (no result-rendering change — cache is transparent).
-- [ ] T034 [US5] Extend the cross-transport parity test with `nocache=true` in `internal/engine/parity_test.go` — identical fresh results over CLI/REST/gRPC/MCP (FR-010/SC-007).
+- [x] T030 [P] [US5] Add the `--no-cache` bool flag in `internal/cli/query.go` (mirror `--no-rerank` at query.go:92) → `QueryRequest.NoCache`.
+- [x] T031 [P] [US5] Add `no_cache` to the REST request in `internal/rest/types.go` (`json:"no_cache,omitempty"`) + passthrough in `internal/rest/engine_adapter.go`.
+- [x] T032 [US5] Add `bool no_cache = 11;` to `message QueryRequest` in `proto/gorag.proto`; regen `proto/gen`; map it in `internal/grpc/engine_adapter.go`. (**Single batched regen with T026.**)
+- [x] T033 [P] [US5] Add `no_cache` to the MCP query tool input schema + passthrough in `internal/mcp/server.go` (no result-rendering change — cache is transparent).
+- [x] T034 [US5] Extend the cross-transport parity test with `nocache=true` in `internal/engine/parity_test.go` — identical fresh results over CLI/REST/gRPC/MCP (FR-010/SC-007).
 
 **Checkpoint**: All five stories complete; `nocache` is a first-class, parity-guaranteed override.
 

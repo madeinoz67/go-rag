@@ -45,6 +45,7 @@ func (a *Adapter) Query(ctx context.Context, req *goragpb.QueryRequest) (*goragp
 		RRFK:      int(req.GetRrfK()),
 		Filter:        engine.NewFilter(req.GetSource(), req.GetType(), req.GetTags()),
 		ContextWindow: int(req.GetContextWindow()),
+		NoCache:       req.GetNoCache(),
 	})
 	if err != nil {
 		return nil, toStatusErr(err)

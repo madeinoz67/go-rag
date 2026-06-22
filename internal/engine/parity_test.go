@@ -728,3 +728,78 @@ func TestCrossTransport_RRFK_Parity(t *testing.T) {
 			ref.Hits[0].Score, diff.Hits[0].Score)
 	}
 }
+
+// TestCrossTransport_NoCache_Parity proves the no_cache flag (H06/spec 016) is
+// threaded identically through REST and gRPC: both bypass the result cache and
+// return the same hits as a direct engine.Query with NoCache=true (transparency
+// — bypassing the cache never changes the result a caller sees).
+func TestCrossTransport_NoCache_Parity(t *testing.T) {
+	ollama := fastFakeOllama(t)
+	eng := openEngine(t, ollama.URL)
+
+	dir := t.TempDir()
+	doc := writeDoc(t, dir, "nocache.txt",
+		"no cache parity corpus document for the go-rag retrieval bypass surface")
+	if _, err := eng.Add(context.Background(), doc); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	waitEmbeddings(t, eng)
+
+	const (
+		q  = "cache"
+		md = "hybrid"
+		k  = 5
+	)
+
+	// Warm the result cache with a normal query first.
+	if _, err := eng.Query(context.Background(), engine.QueryRequest{Query: q, Mode: md, K: k}); err != nil {
+		t.Fatalf("warm query: %v", err)
+	}
+
+	// Reference: facade with NoCache=true (bypasses the warmed entry).
+	ref, err := eng.Query(context.Background(), engine.QueryRequest{Query: q, Mode: md, K: k, NoCache: true})
+	if err != nil {
+		t.Fatalf("engine.Query NoCache: %v", err)
+	}
+	if len(ref.Hits) == 0 {
+		t.Fatal("need >=1 hit for a meaningful parity test")
+	}
+	want := make([]canonHit, len(ref.Hits))
+	for i, h := range ref.Hits {
+		want[i] = fromEngine(h)
+	}
+
+	// REST with no_cache=true → identical to facade.
+	restSrv := httptest.NewServer(rest.New(eng, "").Handler())
+	defer restSrv.Close()
+	body, _ := json.Marshal(map[string]any{"query": q, "mode": md, "k": k, "no_cache": true})
+	resp, err := http.Post(restSrv.URL+"/v1/query", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("REST query: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("REST status = %d, want 200", resp.StatusCode)
+	}
+	var rresp restQueryResponse
+	if err := json.NewDecoder(resp.Body).Decode(&rresp); err != nil {
+		t.Fatalf("decode REST response: %v", err)
+	}
+	restCanon := make([]canonHit, 0, len(rresp.Hits))
+	for _, h := range rresp.Hits {
+		restCanon = append(restCanon, fromREST(h))
+	}
+	assertHitsEqual(t, "REST no_cache", restCanon, want)
+
+	// gRPC with no_cache=true → identical to facade.
+	client := dialGRPC(t, eng)
+	gresp, err := client.Query(context.Background(), &goragpb.QueryRequest{Query: q, Mode: md, K: int32(k), NoCache: true})
+	if err != nil {
+		t.Fatalf("gRPC Query: %v", err)
+	}
+	grpcCanon := make([]canonHit, 0, len(gresp.GetHits()))
+	for _, h := range gresp.GetHits() {
+		grpcCanon = append(grpcCanon, fromGRPC(h))
+	}
+	assertHitsEqual(t, "gRPC no_cache", grpcCanon, want)
+}

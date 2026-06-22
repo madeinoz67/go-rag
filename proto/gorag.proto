@@ -64,6 +64,7 @@ message QueryRequest {
   string type = 8;              // H14/spec 014: file type filter (empty = no constraint)
   repeated string tags = 9;     // H14/spec 014: tag conjunction filter (empty = no constraint)
   int32 context_window = 10;    // H15/spec 015: N sibling chunks of context each side; 0 = off
+  bool no_cache = 11;            // H06/spec 016: bypass the query result cache for this query (forces a fresh result)
 }
 message QueryHit {
   string chunk_id = 1;

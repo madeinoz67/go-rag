@@ -51,6 +51,7 @@ func newQueryCmd() *cobra.Command {
 			}
 
 			cw, _ := cmd.Flags().GetInt("context-window")
+			noCache, _ := cmd.Flags().GetBool("no-cache")
 
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
@@ -63,7 +64,7 @@ func newQueryCmd() *cobra.Command {
 			// which refuses a query whose model/dim doesn't match the corpus.
 			eng := engine.NewWithDB(cfg, db)
 			res, err := eng.Query(context.Background(), engine.QueryRequest{
-				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK, Filter: filt, ContextWindow: cw,
+				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK, Filter: filt, ContextWindow: cw, NoCache: noCache,
 			})
 			if err != nil {
 				return err
@@ -94,6 +95,7 @@ func newQueryCmd() *cobra.Command {
 	cmd.Flags().String("type", "", "filter by file type (e.g. markdown, pdf)")
 	cmd.Flags().String("tags", "", "filter by document tags (comma-separated, conjunction)")
 	cmd.Flags().Int("context-window", 0, "include N sibling chunks of context around each hit (0 = off)")
+	cmd.Flags().Bool("no-cache", false, "bypass the query result cache for this query (forces a fresh result)")
 	return cmd
 }
 

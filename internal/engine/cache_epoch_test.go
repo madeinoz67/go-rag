@@ -29,6 +29,24 @@ func waitForEpoch(t *testing.T, e *Engine, want uint64) {
 	t.Fatalf("epoch never reached %d (got %d) within 5s", want, e.indexEpoch())
 }
 
+// waitForEpochStable polls until the index epoch stops advancing between two
+// samples — i.e. all pending async indexChanged bumps have drained. Used by
+// cache tests that cache a result and re-query the same key: a lingering async
+// bump would otherwise advance the epoch between the two queries and turn an
+// expected hit into a miss (the same race waitForEpoch guards against).
+func waitForEpochStable(t *testing.T, e *Engine) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		a := e.indexEpoch()
+		time.Sleep(30 * time.Millisecond)
+		if e.indexEpoch() == a {
+			return // quiescent
+		}
+	}
+	t.Fatalf("epoch never stabilized within 5s (still advancing)")
+}
+
 // TestEpoch_IngestInvalidates asserts a cached keyword query reflects a newly-
 // ingested document: the epoch bumped at the synchronous FTS add (storeDocument),
 // so the stale entry is never served.

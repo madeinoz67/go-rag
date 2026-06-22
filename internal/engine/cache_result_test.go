@@ -49,6 +49,7 @@ func newResultCacheEngine(t *testing.T, results int) *Engine {
 func TestResultCache_RepeatIsHit(t *testing.T) {
 	e := newResultCacheEngine(t, 8)
 	addDoc(t, e, "alpha retrieval document about searching and ranking")
+	waitForEpochStable(t, e)
 
 	req := QueryRequest{Query: "alpha", Mode: "keyword", K: 5}
 	cold, err := e.Query(context.Background(), req)
@@ -110,6 +111,7 @@ func TestResultCache_KeyComponentsMiss(t *testing.T) {
 func TestResultCache_Eviction(t *testing.T) {
 	e := newResultCacheEngine(t, 1) // capacity 1
 	addDoc(t, e, "alpha beta gamma delta epsilon zeta")
+	waitForEpochStable(t, e)
 
 	// Query A (fills the single slot), then query B (evicts A), then query A
 	// again — must be a miss (A was evicted), proving bounded LRU, not unbounded.
@@ -132,18 +134,15 @@ func TestResultCache_Eviction(t *testing.T) {
 }
 
 // TestResultCache_NoCacheBypass asserts NoCache bypasses serving but still
-// stores, so the next normal query of the same key hits.
+// stores (D5): a NoCache query is recomputed fresh (not served from cache), and
+// the next NORMAL query of the same key hits.
 func TestResultCache_NoCacheBypass(t *testing.T) {
 	e := newResultCacheEngine(t, 8)
 	addDoc(t, e, "alpha retrieval document about searching")
+	waitForEpochStable(t, e) // ensure no lingering async bump invalidates the key
 
-	req := QueryRequest{Query: "alpha", Mode: "keyword", K: 5}
-	// Warm with a normal query.
-	if _, err := e.Query(context.Background(), req); err != nil {
-		t.Fatal(err)
-	}
-
-	// NoCache query: must NOT be served from cache (a miss on serve)...
+	// First query is NoCache: must NOT be served (cache is empty anyway), and
+	// must still STORE the result (D5).
 	hitsBefore := e.resultCache.Stats().Hits
 	if _, err := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5, NoCache: true}); err != nil {
 		t.Fatal(err)
@@ -151,12 +150,13 @@ func TestResultCache_NoCacheBypass(t *testing.T) {
 	if e.resultCache.Stats().Hits != hitsBefore {
 		t.Fatalf("NoCache query was served from cache; want bypass")
 	}
-	// ...but it stored the fresh result, so the next NORMAL query hits.
-	if _, err := e.Query(context.Background(), req); err != nil {
+
+	// Next NORMAL query of the same key must HIT — NoCache stored the result.
+	if _, err := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5}); err != nil {
 		t.Fatal(err)
 	}
 	if got, want := e.resultCache.Stats().Hits, hitsBefore+1; got != want {
-		t.Fatalf("hits after normal query following NoCache = %d, want %d (NoCache must still store)", got, want)
+		t.Fatalf("hits after normal query following NoCache = %d, want %d (NoCache must still store, D5)", got, want)
 	}
 }
 

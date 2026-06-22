@@ -42,6 +42,7 @@ type QueryRequest struct {
 	Type          string                 `protobuf:"bytes,8,opt,name=type,proto3" json:"type,omitempty"`                                          // H14/spec 014: file type filter (empty = no constraint)
 	Tags          []string               `protobuf:"bytes,9,rep,name=tags,proto3" json:"tags,omitempty"`                                          // H14/spec 014: tag conjunction filter (empty = no constraint)
 	ContextWindow int32                  `protobuf:"varint,10,opt,name=context_window,json=contextWindow,proto3" json:"context_window,omitempty"` // H15/spec 015: N sibling chunks of context each side; 0 = off
+	NoCache       bool                   `protobuf:"varint,11,opt,name=no_cache,json=noCache,proto3" json:"no_cache,omitempty"`                   // H06/spec 016: bypass the query result cache for this query (forces a fresh result)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -144,6 +145,13 @@ func (x *QueryRequest) GetContextWindow() int32 {
 		return x.ContextWindow
 	}
 	return 0
+}
+
+func (x *QueryRequest) GetNoCache() bool {
+	if x != nil {
+		return x.NoCache
+	}
+	return false
 }
 
 type QueryHit struct {
@@ -1366,7 +1374,7 @@ var File_proto_gorag_proto protoreflect.FileDescriptor
 
 const file_proto_gorag_proto_rawDesc = "" +
 	"\n" +
-	"\x11proto/gorag.proto\x12\x05gorag\"\xfd\x01\n" +
+	"\x11proto/gorag.proto\x12\x05gorag\"\x98\x02\n" +
 	"\fQueryRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\f\n" +
 	"\x01k\x18\x02 \x01(\x05R\x01k\x12\x12\n" +
@@ -1378,7 +1386,8 @@ const file_proto_gorag_proto_rawDesc = "" +
 	"\x04type\x18\b \x01(\tR\x04type\x12\x12\n" +
 	"\x04tags\x18\t \x03(\tR\x04tags\x12%\n" +
 	"\x0econtext_window\x18\n" +
-	" \x01(\x05R\rcontextWindow\"\xa7\x01\n" +
+	" \x01(\x05R\rcontextWindow\x12\x19\n" +
+	"\bno_cache\x18\v \x01(\bR\anoCache\"\xa7\x01\n" +
 	"\bQueryHit\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x1f\n" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +
