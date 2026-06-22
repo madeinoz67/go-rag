@@ -2,11 +2,14 @@ package engine
 
 import (
 	"container/list"
+	"fmt"
 	"hash/fnv"
 	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
+
+	"github.com/madeinoz67/go-rag/internal/embed"
 )
 
 // CacheStats is the observable state of one cache, surfaced by Status() for the
@@ -220,4 +223,25 @@ func (e *Engine) resultKey(req QueryRequest, effRRFK int, epoch uint64) string {
 		k.RerankModel = e.cfg.RerankModel
 	}
 	return k.hash()
+}
+
+// embedFingerprint is the embedding-profile component of the query-embedding
+// cache key: the embedder's model + dimensionality + the active prefix
+// convention. Two queries under the same profile share embeddings; a
+// model/convention change produces a different fingerprint (and so a different
+// key), evicting the old vectors by key. em is the query embedder, pre the
+// instruction-prefix resolver in effect.
+func embedFingerprint(em embed.Embedder, pre *embed.Prefixer) string {
+	conv := ""
+	if pre != nil {
+		conv = pre.Convention()
+	}
+	return fmt.Sprintf("%s|%d|%s", em.Model(), em.Dimensions(), conv)
+}
+
+// embedCacheKey composes the embedding-profile fingerprint and the prefixed
+// query text into a single cache key. The NUL byte separates them so no text
+// can span the boundary.
+func embedCacheKey(profileFP, text string) string {
+	return profileFP + "\x00" + text
 }

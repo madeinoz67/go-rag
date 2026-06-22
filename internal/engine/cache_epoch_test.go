@@ -8,7 +8,26 @@ package engine
 import (
 	"context"
 	"testing"
+	"time"
 )
+
+// waitForEpoch polls until the index epoch reaches want (or the deadline
+// passes). Used by the async-bump test because waitEmbedded returns as soon as
+// embeddings are *persisted* (inside the vec.Add loop), which can precede the
+// processJob indexChanged() call that fires *after* the loop — so the epoch's
+// async advance must be awaited explicitly. If want is never reached (e.g. the
+// async bump were removed), the deadline trips and the test fails.
+func waitForEpoch(t *testing.T, e *Engine, want uint64) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if e.indexEpoch() == want {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("epoch never reached %d (got %d) within 5s", want, e.indexEpoch())
+}
 
 // TestEpoch_IngestInvalidates asserts a cached keyword query reflects a newly-
 // ingested document: the epoch bumped at the synchronous FTS add (storeDocument),
@@ -93,21 +112,14 @@ func TestEpoch_AsyncVectorBump(t *testing.T) {
 	e := newResultCacheEngine(t, 8)
 	epoch0 := e.indexEpoch()
 
+	// addDoc ACKs after storeDocument (sync FTS bump, epoch +1), then the async
+	// processJob adds the vector and bumps again (+1). Await the full +2.
 	addDoc(t, e, "first document content for the async epoch test")
-	// waitEmbedded guarantees the background processJob has completed.
-	epoch1 := e.indexEpoch()
-
-	const want = 2 // 1×storeDocument (sync FTS) + 1×processJob (async vector)
-	if got := epoch1 - epoch0; got != want {
-		t.Fatalf("epoch advanced by %d after one ingest+embed, want %d — the async processJob bump (workers.go) is missing or mis-wired", got, want)
-	}
+	waitForEpoch(t, e, epoch0+2) // 1×storeDocument (sync FTS) + 1×processJob (async vector)
 
 	// A second document advances it by another 2 (deterministic per-doc count).
 	addDoc(t, e, "second document content distinct from the first")
-	epoch2 := e.indexEpoch()
-	if got := epoch2 - epoch1; got != want {
-		t.Fatalf("epoch advanced by %d for the second ingest, want %d", got, want)
-	}
+	waitForEpoch(t, e, epoch0+4)
 }
 
 // TestEpoch_MigrateFlushesCaches asserts Migrate flushes the result cache (an

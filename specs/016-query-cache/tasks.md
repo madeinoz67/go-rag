@@ -89,8 +89,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T020 [US3] Wrap the `queryEmbed` closure in `internal/engine/query.go` (query.go:61–63) with the embedding cache: key = `profileFingerprint(model|dim|convention)` + `"\x00"` + prefixed query text; `Get` before `em.Embed`, `Put` after. (The mismatch-probe embed at query.go:232 is intentionally NOT cached.)
-- [ ] T021 [US3] Tests in `internal/engine/cache_embed_test.go`: (a) a result-cache miss with identical query text does not re-embed (recording embedder asserts one call); (b) ingest does NOT flush the embedding cache; (c) a profile change (model/convention) produces a different key ⇒ re-embed; (d) `Migrate` flushes the embedding cache.
+- [x] T020 [US3] Wrap the `queryEmbed` closure in `internal/engine/query.go` (query.go:61–63) with the embedding cache: key = `profileFingerprint(model|dim|convention)` + `"\x00"` + prefixed query text; `Get` before `em.Embed`, `Put` after. (The mismatch-probe embed at query.go:232 is intentionally NOT cached.)
+- [x] T021 [US3] Tests in `internal/engine/cache_embed_test.go`: (a) a result-cache miss with identical query text does not re-embed (recording embedder asserts one call); (b) ingest does NOT flush the embedding cache; (c) a profile change (model/convention) produces a different key ⇒ re-embed; (d) `Migrate` flushes the embedding cache.
 
 **Checkpoint**: US1–US3 — the two-layer cache (result + embedding) fully working.
 

@@ -80,7 +80,43 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 		return nil, err
 	}
 	queryEmbed := func(ctx context.Context, texts []string) ([][]float32, error) {
-		return em.Embed(ctx, qpre.ApplyAll(embed.RoleQuery, texts))
+		prefixed := qpre.ApplyAll(embed.RoleQuery, texts)
+		// H06/spec 016: query-embedding cache. The query path embeds the (prefixed)
+		// query text; cache each (profile, prefixed-text) → vector so a repeated
+		// query reuses its vector without an Ollama round-trip — even when the
+		// result cache misses (e.g. a different k). The profile fingerprint
+		// (embedder model + dim + prefix convention) is part of the key, so a
+		// model/convention change evicts by key; Migrate flushes the whole cache.
+		// The cache is transparent (a query vector is deterministic in its text +
+		// profile), so it is consulted regardless of req.NoCache (that flag is about
+		// result freshness, not embed freshness).
+		if !e.embedCache.Enabled() {
+			return em.Embed(ctx, prefixed)
+		}
+		fp := embedFingerprint(em, qpre)
+		out := make([][]float32, len(prefixed))
+		var missText []string
+		var missIdx []int
+		for i, t := range prefixed {
+			if v, ok := e.embedCache.Get(embedCacheKey(fp, t)); ok {
+				out[i] = v
+			} else {
+				missText = append(missText, t)
+				missIdx = append(missIdx, i)
+			}
+		}
+		if len(missText) == 0 {
+			return out, nil
+		}
+		got, err := em.Embed(ctx, missText)
+		if err != nil {
+			return nil, err
+		}
+		for j, idx := range missIdx {
+			out[idx] = got[j]
+			e.embedCache.Put(embedCacheKey(fp, missText[j]), got[j])
+		}
+		return out, nil
 	}
 	r := index.NewRetrieval(fts, vec, queryEmbed)
 	if e.cfg.RerankRetryOnFailure {

@@ -65,7 +65,7 @@ type Engine struct {
 	// is the invalidation counter bumped by the pipeline's OnChange callback at
 	// every shared-index mutation (including the async vector-add).
 	resultCache *LRU[string, *QueryResult]
-	embedCache  *LRU[string, [][]float32]
+	embedCache  *LRU[string, []float32]
 	epoch       *atomic.Uint64
 }
 
@@ -74,12 +74,12 @@ type Engine struct {
 // capacity of 0 disables just that cache. The epoch is always allocated so
 // markIndexChanged works even when caching is off (harmless; it just bumps a
 // counter nothing reads).
-func newQueryCaches(cfg config.Config) (*LRU[string, *QueryResult], *LRU[string, [][]float32], *atomic.Uint64) {
+func newQueryCaches(cfg config.Config) (*LRU[string, *QueryResult], *LRU[string, []float32], *atomic.Uint64) {
 	resCap, embCap := cfg.QueryCacheResults, cfg.QueryCacheEmbeddings
 	if !cfg.QueryCacheEnabled {
 		resCap, embCap = 0, 0
 	}
-	return NewLRU[string, *QueryResult](resCap), NewLRU[string, [][]float32](embCap), &atomic.Uint64{}
+	return NewLRU[string, *QueryResult](resCap), NewLRU[string, []float32](embCap), &atomic.Uint64{}
 }
 
 // NewWithDB returns an Engine over a pre-opened database (daemon mode). The
