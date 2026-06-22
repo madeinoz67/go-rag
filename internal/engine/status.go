@@ -57,6 +57,8 @@ func (e *Engine) Status() (*StatusInfo, error) {
 		ConfiguredPrefix:        cfgMode,
 		QueryPrefix:             pre.ForRole(embed.RoleQuery),
 		DocPrefix:               pre.ForRole(embed.RoleDocument),
+		ResultCache:             e.resultCache.Stats(), // H06/spec 016
+		EmbeddingCache:          e.embedCache.Stats(),  // H06/spec 016
 	}, nil
 }
 

@@ -84,6 +84,8 @@ type StatusInfo struct {
 	ConfiguredPrefix   string         // active prefix mode resolved from config (auto|on|off)
 	QueryPrefix        string         // resolved query-role prefix (empty when none in effect)
 	DocPrefix          string         // resolved document-role prefix (empty when none in effect)
+	ResultCache    CacheStats // H06/spec 016: query result-cache stats (enabled/size/capacity/hits/misses)
+	EmbeddingCache CacheStats // H06/spec 016: query-embedding-cache stats
 }
 
 // IngestSummary describes one ingest/scan/reprocess/migrate run. Modified and

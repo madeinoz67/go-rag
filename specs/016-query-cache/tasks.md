@@ -104,14 +104,14 @@
 
 ### Implementation for User Story 4
 
-- [ ] T022 [P] [US4] Add `CacheStats` struct + `ResultCache`/`EmbeddingCache` fields to `StatusInfo` in `internal/engine/types.go`.
-- [ ] T023 [US4] Populate both `CacheStats` in `Engine.Status` in `internal/engine/status.go` (status.go:42 return block).
-- [ ] T024 [US4] Render a "Cache" section in the CLI status command `internal/cli/status.go` (result + embedding: enabled/size/capacity/hits/misses).
-- [ ] T025 [P] [US4] Add cache-stats fields to the REST status response in `internal/rest/types.go` and render them in the REST status handler.
-- [ ] T026 [P] [US4] Add cache-stats fields to the gRPC status response — edit `proto/gorag.proto` `StatusResponse` + regen `proto/gen` + map in `internal/grpc/` adapter. **Batch this proto edit + regen with T031** (the `no_cache` QueryRequest field) to do one regen.
-- [ ] T027 [P] [US4] Add cache-stats to the MCP status tool output in `internal/mcp/server.go`.
-- [ ] T028 [US4] Concurrency test in `internal/engine/cache_concurrency_test.go`: parallel queries + a concurrent ingest under `go test -race`; assert no race/corruption (a stale-epoch read simply misses).
-- [ ] T029 [US4] Restart-empty test in `internal/engine/cache_test.go`: reopen the DB / construct a fresh Engine ⇒ first query is a cold miss (cache is in-process, FR-007).
+- [x] T022 [P] [US4] Add `CacheStats` struct + `ResultCache`/`EmbeddingCache` fields to `StatusInfo` in `internal/engine/types.go`.
+- [x] T023 [US4] Populate both `CacheStats` in `Engine.Status` in `internal/engine/status.go` (status.go:42 return block).
+- [x] T024 [US4] Render a "Cache" section in the CLI status command `internal/cli/status.go` (result + embedding: enabled/size/capacity/hits/misses).
+- [x] T025 [P] [US4] Add cache-stats fields to the REST status response in `internal/rest/types.go` and render them in the REST status handler.
+- [x] T026 [P] [US4] Add cache-stats fields to the gRPC status response — edit `proto/gorag.proto` `StatusResponse` + regen `proto/gen` + map in `internal/grpc/` adapter. **Batch this proto edit + regen with T031** (the `no_cache` QueryRequest field) to do one regen.
+- [x] T027 [P] [US4] Add cache-stats to the MCP status tool output in `internal/mcp/server.go`.
+- [x] T028 [US4] Concurrency test in `internal/engine/cache_concurrency_test.go`: parallel queries + a concurrent ingest under `go test -race`; assert no race/corruption (a stale-epoch read simply misses).
+- [x] T029 [US4] Restart-empty test in `internal/engine/cache_test.go`: reopen the DB / construct a fresh Engine ⇒ first query is a cold miss (cache is in-process, FR-007).
 
 **Checkpoint**: US1–US4 — a visible, bounded, race-safe, restart-cold cache.
 

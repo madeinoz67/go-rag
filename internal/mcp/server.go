@@ -259,7 +259,20 @@ func (s *Server) renderStatus(eng *engine.Engine) (string, error) {
 	if st.EmbeddingDrift {
 		out += fmt.Sprintf(", drift: mixed models/dims (%v)", st.ModelCounts)
 	}
+	// H06/spec 016: query-cache stats (result + embedding) so an operator or
+	// agent can see hit rates and bounded footprint via `go-rag status`.
+	if st.ResultCache.Enabled || st.EmbeddingCache.Enabled {
+		out += fmt.Sprintf(", cache: result %s, embedding %s", cacheSummary(st.ResultCache), cacheSummary(st.EmbeddingCache))
+	}
 	return out, nil
+}
+
+// cacheSummary formats one CacheStats as "size/cap (hits hits, misses misses)".
+func cacheSummary(c engine.CacheStats) string {
+	if !c.Enabled {
+		return "off"
+	}
+	return fmt.Sprintf("%d/%d (%d hits, %d misses)", c.Size, c.Capacity, c.Hits, c.Misses)
 }
 
 func (s *Server) renderAdd(eng *engine.Engine, args map[string]any) (string, error) {
