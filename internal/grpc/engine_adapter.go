@@ -43,7 +43,8 @@ func (a *Adapter) Query(ctx context.Context, req *goragpb.QueryRequest) (*goragp
 		NoRerank:  req.GetNoRerank(),
 		Threshold: req.GetThreshold(),
 		RRFK:      int(req.GetRrfK()),
-		Filter:    engine.NewFilter(req.GetSource(), req.GetType(), req.GetTags()),
+		Filter:        engine.NewFilter(req.GetSource(), req.GetType(), req.GetTags()),
+		ContextWindow: int(req.GetContextWindow()),
 	})
 	if err != nil {
 		return nil, toStatusErr(err)

@@ -13,7 +13,8 @@ type queryRequest struct {
 	RRFK      int      `json:"rrf_k,omitempty"` // H08/spec 009
 	Source    string   `json:"source,omitempty"`
 	Type      string   `json:"type,omitempty"`
-	Tags      []string `json:"tags,omitempty"`
+	Tags          []string `json:"tags,omitempty"`
+	ContextWindow int      `json:"context_window,omitempty"`
 }
 
 type queryHit struct {

@@ -16,7 +16,8 @@ type QueryRequest struct {
 	NoRerank  bool
 	Threshold float64 // minimum score; hits below are dropped
 	RRFK      int     // H08/spec 009: per-query RRF constant override; 0 = use config EffectiveRRFK() (default 60)
-	Filter    *index.Filter // H14/spec 014: optional metadata filter (source/type/tags); nil = no filter
+	Filter        *index.Filter // H14/spec 014: optional metadata filter (source/type/tags); nil = no filter
+	ContextWindow int           // H15/spec 015: N sibling chunks each side of a hit; 0 = off (default)
 }
 
 // NewFilter constructs a metadata Filter for a query (H14/spec 014). Returns nil
@@ -30,6 +31,14 @@ func NewFilter(source, ftype string, tags []string) *index.Filter {
 	return &f
 }
 
+// ContextChunk is a sibling chunk included for reading context around a hit
+// (H15/spec 015). It is NOT a ranked result — it provides the surrounding text.
+type ContextChunk struct {
+	ChunkID   string
+	Content   string
+	Direction string // "previous" | "next" relative to the hit
+}
+
 // QueryHit is one ranked result. Adapters serialize this verbatim.
 type QueryHit struct {
 	ChunkID    string
@@ -39,6 +48,7 @@ type QueryHit struct {
 	FilePath   string
 	Page       int    // Chunk.PageNumber; 0 when not paginated
 	Preview    string // convenience truncated preview for text renders
+	Context    []ContextChunk // H15/spec 015: sibling chunks for reading context; nil when ContextWindow=0
 }
 
 // QueryResult wraps the ranked hits returned by Engine.Query.

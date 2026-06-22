@@ -141,7 +141,54 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 		log.Printf("embedding drift: corpus has mixed models/dims; %d of %d vectors differ from the %q/%d-dim majority and were skipped",
 			skipped, prof.Total, prof.MajorityModel, prof.MajorityDim)
 	}
+	// H15/spec 015: expand context (sibling chunks) if requested. This is purely
+	// additive — after ranking/rerank/collapse; does not affect top-k or ranking.
+	if req.ContextWindow > 0 {
+		for i := range out {
+			out[i].Context = e.expandContext(out[i].ChunkID, req.ContextWindow)
+		}
+	}
 	return &QueryResult{Hits: out, RerankFailed: rerankFailed}, nil
+}
+
+// expandContext follows the chunk's linked list (PreviousChunkID/NextChunkID) up
+// to n steps each way, fetching sibling text for reading context (H15/spec 015).
+// Missing siblings (boundary chunks, empty IDs) are skipped gracefully. The
+// previous entries are reversed so the context reads in document order.
+func (e *Engine) expandContext(chunkID string, n int) []ContextChunk {
+	var ctx []ContextChunk
+	// Previous N: walk backward, then reverse for document order.
+	id := chunkID
+	for i := 0; i < n; i++ {
+		c, ok := lookupChunk(e.db, id)
+		if !ok || c.PreviousChunkID == "" {
+			break
+		}
+		prev, ok := lookupChunk(e.db, c.PreviousChunkID)
+		if !ok {
+			break
+		}
+		ctx = append(ctx, ContextChunk{ChunkID: prev.ID, Content: prev.Content, Direction: "previous"})
+		id = prev.ID
+	}
+	for i, j := 0, len(ctx)-1; i < j; i, j = i+1, j-1 {
+		ctx[i], ctx[j] = ctx[j], ctx[i]
+	}
+	// Next N: walk forward.
+	id = chunkID
+	for i := 0; i < n; i++ {
+		c, ok := lookupChunk(e.db, id)
+		if !ok || c.NextChunkID == "" {
+			break
+		}
+		nxt, ok := lookupChunk(e.db, c.NextChunkID)
+		if !ok {
+			break
+		}
+		ctx = append(ctx, ContextChunk{ChunkID: nxt.ID, Content: nxt.Content, Direction: "next"})
+		id = nxt.ID
+	}
+	return ctx
 }
 
 // checkEmbeddingMismatch enforces the H03 guard (model/dimensionality) and the

@@ -219,6 +219,16 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 			CreatedAt:    now,
 		}
 	}
+	// H15/spec 015: populate the per-document linked list so context-window
+	// retrieval can fetch sibling chunks around a hit.
+	for i := range chunks {
+		if i > 0 {
+			chunks[i].PreviousChunkID = chunks[i-1].ID
+		}
+		if i < len(chunks)-1 {
+			chunks[i].NextChunkID = chunks[i+1].ID
+		}
+	}
 	doc.ChunkCount = len(chunks)
 
 	// Synchronous, durable store -> the <10ms ACK (Principle IV).

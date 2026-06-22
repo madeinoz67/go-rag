@@ -229,6 +229,9 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 		}
 	}
 	req.Filter = engine.NewFilter(src, ftype, ftags)
+	if v, ok := args["context_window"].(float64); ok && v > 0 {
+		req.ContextWindow = int(v)
+	}
 	res, err := eng.Query(context.Background(), req)
 	if err != nil {
 		return "", err
@@ -503,6 +506,7 @@ func toolDefs() []map[string]any {
 					"source":    map[string]any{"type": "string"},
 					"type":      map[string]any{"type": "string"},
 					"tags":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"context_window": map[string]any{"type": "integer", "default": 0},
 				},
 				"required": []string{"query"},
 			},

@@ -50,6 +50,8 @@ func newQueryCmd() *cobra.Command {
 				filt = &index.Filter{Source: source, Type: filtType, Tags: tags}
 			}
 
+			cw, _ := cmd.Flags().GetInt("context-window")
+
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
 				return err
@@ -61,7 +63,7 @@ func newQueryCmd() *cobra.Command {
 			// which refuses a query whose model/dim doesn't match the corpus.
 			eng := engine.NewWithDB(cfg, db)
 			res, err := eng.Query(context.Background(), engine.QueryRequest{
-				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK, Filter: filt,
+				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK, Filter: filt, ContextWindow: cw,
 			})
 			if err != nil {
 				return err
@@ -91,6 +93,7 @@ func newQueryCmd() *cobra.Command {
 	cmd.Flags().Int("rrf-k", 0, "RRF smoothing constant override (0 = use configured rrf_k / default 60)")
 	cmd.Flags().String("type", "", "filter by file type (e.g. markdown, pdf)")
 	cmd.Flags().String("tags", "", "filter by document tags (comma-separated, conjunction)")
+	cmd.Flags().Int("context-window", 0, "include N sibling chunks of context around each hit (0 = off)")
 	return cmd
 }
 
