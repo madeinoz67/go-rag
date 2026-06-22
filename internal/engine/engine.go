@@ -48,6 +48,13 @@ type Engine struct {
 	idxMu  sync.Mutex
 	idxFts *index.FTS
 	idxVec *index.Vector
+
+	// qTransformer is the query-transformation seam (audit H05/spec 012): it
+	// normalizes (default) or otherwise alters the query before retrieval, applied
+	// once at the top of Query so every transport/mode benefits. Default is the
+	// pure NormalizingTransformer; a custom one can be set (tests today; future
+	// HyDE/multi-query in an adapter) — internal/index stays Ollama-free.
+	qTransformer index.QueryTransformer
 }
 
 // NewWithDB returns an Engine over a pre-opened database (daemon mode). The
@@ -55,7 +62,7 @@ type Engine struct {
 // pipeline is created lazily on the first write, so read-only engines (query,
 // status, files) never start background workers.
 func NewWithDB(cfg config.Config, db *storage.DB) *Engine {
-	return &Engine{cfg: cfg, db: db}
+	return &Engine{cfg: cfg, db: db, qTransformer: index.NormalizingTransformer{}}
 }
 
 // NewWithEmbedder returns an Engine that uses em as its embedder for both ingest
@@ -64,7 +71,7 @@ func NewWithDB(cfg config.Config, db *storage.DB) *Engine {
 // and reproducibly (spec 004). Production callers use NewWithDB, which leaves
 // the embedder nil and falls back to Ollama — so this changes nothing for them.
 func NewWithEmbedder(cfg config.Config, db *storage.DB, em embed.Embedder) *Engine {
-	return &Engine{cfg: cfg, db: db, embedder: em}
+	return &Engine{cfg: cfg, db: db, embedder: em, qTransformer: index.NormalizingTransformer{}}
 }
 
 // embedderOrOllama returns the injected embedder when one is present, otherwise

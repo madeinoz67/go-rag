@@ -15,6 +15,20 @@ import (
 // It is the single implementation shared by the CLI, MCP, REST, and gRPC
 // adapters — extracted from the former inline mcp/server.go:query.
 func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, error) {
+	// H05/spec 012: transform the query (default: normalize) once, before any
+	// retrieval path, in the shared engine path so every transport and mode
+	// benefits. A transform that yields no usable query (whitespace-only input
+	// normalizing to empty) is an error mapped to ErrInvalid so transports return a
+	// client error (FR-006). The default normalizer returns exactly one query;
+	// multi-query fan-out is future work, so the first is used.
+	transformed, err := e.qTransformer.Transform(ctx, req.Query)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalid, err)
+	}
+	if len(transformed) == 0 {
+		return nil, fmt.Errorf("%w: transformer returned no queries", ErrInvalid)
+	}
+	req.Query = transformed[0]
 	if req.Query == "" {
 		return nil, fmt.Errorf("query is required: %w", ErrInvalid)
 	}
