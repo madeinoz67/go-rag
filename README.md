@@ -153,6 +153,25 @@ go-rag config set embedding_query_prefix "query: " # explicit per-role overrides
 go-rag config set embedding_doc_prefix "passage: "
 ```
 
+## Query caching
+
+The daemon caches query results and query embeddings in-process so a repeated
+query returns instantly — no Ollama round-trip, no retrieve/fuse/rerank work.
+Caching is **on by default**, transparent (a cached hit is byte-identical to a
+cold result), and never goes stale: an internal index epoch bumps on every
+ingest/delete/migrate (including the asynchronous vector landing), and `migrate`
+flushes both caches. It only helps the long-lived **daemon** (one-shot `go-rag
+query` calls each start cold).
+
+```bash
+go-rag query "..." --no-cache          # force a fresh result this once (still caches it)
+go-rag config set query_cache_enabled false   # global kill-switch
+go-rag config set query_cache_results 512     # result-cache capacity (0 = off)
+go-rag config set query_cache_embeddings 1024 # query-embedding-cache capacity (0 = off)
+go-rag status                            # shows: cache: result 2/256 (3 hits, 1 misses), …
+```
+
+
 The prefix never alters stored document content or document identity, so changing
 the convention is a re-embed (`go-rag reprocess`), not a re-ingest. `go-rag
 status` reports the active convention; a query whose convention differs from the

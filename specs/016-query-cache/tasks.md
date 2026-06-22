@@ -139,11 +139,11 @@
 
 **Purpose**: Eval-harness integration, end-to-end validation, docs, gates, and backlog closure.
 
-- [ ] T035 [P] Make the H02 eval harness cold: in `internal/eval/`, construct the eval engine with `QueryCacheEnabled=false` (D8) so every measurement is pure retrieval (SC-006) — confirm `make test-eval` recall@10 is unchanged from the T001 baseline.
-- [ ] T036 Run every quickstart.md scenario (1–7) on an isolated DB with non-default transport ports (per CLAUDE.md §Constraints — never bare `go-rag start` against the live vault); capture the observed hit rates + that all scenarios pass.
-- [ ] T037 [P] Update `README.md` if it documents query flags/config — add `--no-cache` and the three `query_cache_*` config keys (match the existing flag/config documentation style).
-- [ ] T038 Final gates all green: `CGO_ENABLED=0 go build ./...`, `go vet ./...`, `go test -race -cover ./...`, and `make test-eval`. Record coverage.
-- [ ] T039 Mark H06 complete in `RAG_BOOK_AUDIT_BACKLOG.md`: change the H06 line checkbox `[ ] → [x]` and append a `✅ COMPLETE (spec 016)` note — following the exact format of the neighbouring H01/H15 completion entries — summarising what shipped (result + query-embedding LRU, engine-owned index-epoch invalidation incl. the async `processJob` vector-add, `Migrate` flush, `nocache` on all four transports, `status` cache stats), the gates passed, and any caveat (e.g. `golangci-lint` skipped if the env still lacks a compatible config). This is the explicit "make the backlog item complete when finished" task requested for this spec.
+- [x] T035 [P] Make the H02 eval harness cold: in `internal/eval/`, construct the eval engine with `QueryCacheEnabled=false` (D8) so every measurement is pure retrieval (SC-006) — confirm `make test-eval` recall@10 is unchanged from the T001 baseline.
+- [x] T036 Run every quickstart.md scenario (1–7) on an isolated DB with non-default transport ports (per CLAUDE.md §Constraints — never bare `go-rag start` against the live vault); capture the observed hit rates + that all scenarios pass.
+- [x] T037 [P] Update `README.md` if it documents query flags/config — add `--no-cache` and the three `query_cache_*` config keys (match the existing flag/config documentation style).
+- [x] T038 Final gates all green: `CGO_ENABLED=0 go build ./...`, `go vet ./...`, `go test -race -cover ./...`, and `make test-eval`. Record coverage.
+- [x] T039 Mark H06 complete in `RAG_BOOK_AUDIT_BACKLOG.md`: change the H06 line checkbox `[ ] → [x]` and append a `✅ COMPLETE (spec 016)` note — following the exact format of the neighbouring H01/H15 completion entries — summarising what shipped (result + query-embedding LRU, engine-owned index-epoch invalidation incl. the async `processJob` vector-add, `Migrate` flush, `nocache` on all four transports, `status` cache stats), the gates passed, and any caveat (e.g. `golangci-lint` skipped if the env still lacks a compatible config). This is the explicit "make the backlog item complete when finished" task requested for this spec.
 
 ---
 
