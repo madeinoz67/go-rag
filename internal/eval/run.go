@@ -261,6 +261,11 @@ func ProvisionCorpus(ctx context.Context, corpusDir string, em embed.Embedder, p
 	if prefix != "" {
 		cfg.EmbeddingPrefix = prefix
 	}
+	// H06/spec 016 (D8/SC-006): the eval harness queries COLD (caching disabled)
+	// so every measurement is pure retrieval and a repeat query can't be served
+	// from the cache. Cached results are identical to cold anyway (transparency),
+	// but a cold harness keeps any future latency measurement honest.
+	cfg.QueryCacheEnabled = false
 
 	db, err := storage.Open(dataDir)
 	if err != nil {
