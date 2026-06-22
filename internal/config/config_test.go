@@ -131,3 +131,62 @@ func TestEmbeddingPrefix_Config(t *testing.T) {
 		t.Fatalf("set empty doc prefix should clear: %v", err)
 	}
 }
+
+// TestRRFK_Config covers the H08/spec 009 RRF-constant config surface: the
+// default, the zero-value sentinel (absent key = default), Get/Set round-trip,
+// and validation (negative rejected; zero accepted as "use default").
+func TestRRFK_Config(t *testing.T) {
+	// Default is 60 and validates.
+	c := Default()
+	if c.RRFK != 60 {
+		t.Errorf("default rrf_k = %d, want 60", c.RRFK)
+	}
+	if c.EffectiveRRFK() != 60 {
+		t.Errorf("default EffectiveRRFK = %d, want 60", c.EffectiveRRFK())
+	}
+
+	// Absent key (zero value) resolves to default — backward compat for existing
+	// configs that omit rrf_k.
+	var zero Config
+	if zero.EffectiveRRFK() != 60 {
+		t.Errorf("zero-value EffectiveRRFK = %d, want 60", zero.EffectiveRRFK())
+	}
+
+	// Set + Get round-trip (Get reports the effective value).
+	if err := c.Set("rrf_k", "120"); err != nil {
+		t.Fatalf("set rrf_k 120: %v", err)
+	}
+	if c.EffectiveRRFK() != 120 {
+		t.Errorf("after set 120, EffectiveRRFK = %d, want 120", c.EffectiveRRFK())
+	}
+	if v, ok := c.Get("rrf_k"); !ok || v != "120" {
+		t.Errorf("get rrf_k = %q (ok=%v), want 120", v, ok)
+	}
+
+	// Set 0 = "use default" (clears the override); valid.
+	if err := c.Set("rrf_k", "0"); err != nil {
+		t.Fatalf("set rrf_k 0 should be valid (means default): %v", err)
+	}
+	if c.EffectiveRRFK() != 60 {
+		t.Errorf("after set 0, EffectiveRRFK = %d, want 60", c.EffectiveRRFK())
+	}
+
+	// Negative is rejected by Set...
+	if err := c.Set("rrf_k", "-1"); err == nil {
+		t.Error("set rrf_k -1 must fail")
+	}
+	// ...and by Validate.
+	c.RRFK = -5
+	if err := c.Validate(); err == nil {
+		t.Error("Validate must reject negative rrf_k")
+	}
+	c.RRFK = 0
+	if err := c.Validate(); err != nil {
+		t.Errorf("Validate must accept rrf_k=0 (default): %v", err)
+	}
+
+	// Non-numeric is rejected.
+	if err := c.Set("rrf_k", "bogus"); err == nil {
+		t.Error("set non-numeric rrf_k must fail")
+	}
+}

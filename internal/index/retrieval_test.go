@@ -39,6 +39,126 @@ func TestRetrieval_Hybrid_BothListsRankAboveOneList(t *testing.T) {
 	}
 }
 
+// closef is a tolerance helper that avoids importing math just for Abs.
+func closef(a, b float64) bool { d := a - b; return d < 1e-9 && d > -1e-9 }
+
+// TestRRF_FormulaPin (H08/spec 009, FR-006) pins the exact fusion formula so any
+// future drift is caught immediately: score(d) = Σ 1/(k + rank), rank 1-based
+// (the 0-based loop adds +1). Tested directly on the fuser, independent of
+// FTS/Vector ordering:
+//   - "both"  ranks #1 (index 0) in each list → 1/(k+1) + 1/(k+1) = 2/(k+1)
+//   - "vonly" ranks #2 (index 1) in vector only → 1/(k+2)
+//   - "fonly" ranks #2 (index 1) in FTS only    → 1/(k+2)
+func TestRRF_FormulaPin(t *testing.T) {
+	vecHits := []Hit{{ChunkID: "both"}, {ChunkID: "vonly"}}
+	ftsHits := []Hit{{ChunkID: "both"}, {ChunkID: "fonly"}}
+	fused := reciprocalRankFusion(vecHits, ftsHits, 60)
+
+	byID := map[string]float64{}
+	for _, h := range fused {
+		byID[h.ChunkID] = h.Score
+	}
+	if !closef(byID["both"], 2.0/61.0) {
+		t.Errorf("both-lists score = %v, want 2/61 (%v)", byID["both"], 2.0/61.0)
+	}
+	if !closef(byID["vonly"], 1.0/62.0) {
+		t.Errorf("vector-only score = %v, want 1/62 (%v)", byID["vonly"], 1.0/62.0)
+	}
+	if !closef(byID["fonly"], 1.0/62.0) {
+		t.Errorf("fts-only score = %v, want 1/62 (%v)", byID["fonly"], 1.0/62.0)
+	}
+	// The both-lists chunk must rank first; the two single-list chunks tie and are
+	// broken by ChunkID ("fonly" < "vonly").
+	if len(fused) == 0 || fused[0].ChunkID != "both" {
+		t.Errorf("both-lists chunk must rank first, got %v", fused)
+	}
+	if len(fused) != 3 || fused[1].ChunkID != "fonly" || fused[2].ChunkID != "vonly" {
+		t.Errorf("tie-break order wrong: got %v", fused)
+	}
+}
+
+// TestRetrieval_SetRRFK_ChangesFusionScore (H08/spec 009, US1) proves the RRF
+// constant is honored end-to-end through Search: a chunk that ranks #1 in BOTH
+// lists scores 2/(k+1), so the default (60), SetRRFK(30), and SetRRFK(200) yield
+// three distinct, predictable scores. The fixture makes c1 unambiguously rank 0
+// in both lists — the sole FTS match for "alpha" and an exact vector match.
+func TestRetrieval_SetRRFK_ChangesFusionScore(t *testing.T) {
+	mk := func() *Retrieval {
+		fts := NewFTS()
+		vec := NewVector()
+		fts.Index("c1", map[string]string{"body": "alpha"})
+		vec.Add("c1", []float32{1.0, 0.0})
+		fts.Index("c2", map[string]string{"body": "beta"}) // no "alpha" → not in FTS hits
+		vec.Add("c2", []float32{0.5, 0.5})                 // cosine 0.707 → vector rank 1
+		return NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+	}
+	scoreOf := func(r *Retrieval) float64 {
+		hits, err := r.Search(context.Background(), "alpha", 5, ModeHybrid, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(hits) == 0 || hits[0].ChunkID != "c1" {
+			t.Fatalf("c1 must be the top hit, got %v", hits)
+		}
+		return hits[0].Score
+	}
+
+	def := scoreOf(mk()) // default k=60 → 2/(60+1)
+	if !closef(def, 2.0/61.0) {
+		t.Errorf("default k=60 score = %v, want 2/61 (%v)", def, 2.0/61.0)
+	}
+	r30 := mk()
+	r30.SetRRFK(30)
+	if s := scoreOf(r30); !closef(s, 2.0/31.0) {
+		t.Errorf("k=30 score = %v, want 2/31 (%v)", s, 2.0/31.0)
+	}
+	r200 := mk()
+	r200.SetRRFK(200)
+	if s := scoreOf(r200); !closef(s, 2.0/201.0) {
+		t.Errorf("k=200 score = %v, want 2/201 (%v)", s, 2.0/201.0)
+	}
+	// SetRRFK(0) is a no-op → default stays in effect.
+	r0 := mk()
+	r0.SetRRFK(0)
+	if !closef(scoreOf(r0), def) {
+		t.Error("SetRRFK(0) must leave the default in effect")
+	}
+}
+
+// TestRetrieval_RRFK_NoOpInSingleListModes (H08/spec 009 edge case) confirms the
+// RRF constant is inert in keyword and semantic modes (single list, no fusion):
+// SetRRFK does not error and does not change single-list results.
+func TestRetrieval_RRFK_NoOpInSingleListModes(t *testing.T) {
+	fts := NewFTS()
+	vec := NewVector()
+	fts.Index("c1", map[string]string{"body": "alpha keyword"})
+	vec.Add("c1", []float32{1.0, 0.0})
+
+	base := NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+	kwBase, err := base.Search(context.Background(), "alpha", 5, ModeKeyword, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tweaked := NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+	tweaked.SetRRFK(999) // would be nonsensical for fusion; must be harmless here
+	kwTweaked, err := tweaked.Search(context.Background(), "alpha", 5, ModeKeyword, nil)
+	if err != nil {
+		t.Fatalf("keyword search with SetRRFK must not error: %v", err)
+	}
+	if len(kwTweaked) != len(kwBase) || (len(kwTweaked) > 0 && kwTweaked[0].ChunkID != kwBase[0].ChunkID) {
+		t.Errorf("keyword results must be unaffected by rrf_k: base=%v tweaked=%v", kwBase, kwTweaked)
+	}
+
+	semTweaked, err := tweaked.Search(context.Background(), "alpha", 5, ModeSemantic, nil)
+	if err != nil {
+		t.Fatalf("semantic search with SetRRFK must not error: %v", err)
+	}
+	if len(semTweaked) == 0 || semTweaked[0].ChunkID != "c1" {
+		t.Errorf("semantic results must be unaffected by rrf_k: got %v", semTweaked)
+	}
+}
+
 func TestRetrieval_CollapseSameDocument(t *testing.T) {
 	fts := NewFTS()
 	vec := NewVector()

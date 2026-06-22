@@ -20,6 +20,7 @@ func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
 		Mode:      req.Mode,
 		NoRerank:  req.NoRerank,
 		Threshold: req.Threshold,
+		RRFK:      req.RRFK,
 	})
 	if err != nil {
 		writeEngineErr(w, err)

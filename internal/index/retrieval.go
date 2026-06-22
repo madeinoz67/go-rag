@@ -31,14 +31,17 @@ func ParseMode(s string) Mode {
 type EmbedFunc func(ctx context.Context, texts []string) ([][]float32, error)
 
 // Retrieval fuses BM25 (FTS) and vector search via Reciprocal Rank Fusion
-// (PRD §4.3). K constants per the PRD: vector 40, FTS 60.
+// (RRF), spec 009: a single symmetric constant k (default 60) per the retrieval
+// book §6.6 — score(d) = Σ 1/(k + rank), rank 1-based. The prior asymmetric
+// per-list kVec/kFTS is removed. k is configurable (config rrf_k) and overridable
+// per query via SetRRFK; the engine resolves the effective value (request > config
+// > 60) before each query.
 type Retrieval struct {
 	fts   *FTS
 	vec   *Vector
 	embed EmbedFunc
 
-	kVec     int
-	kFTS     int
+	rrfK     int
 	poolSize int
 
 	// retryRerank (H09 US3): when true, a failed rerank is retried once against a
@@ -52,7 +55,18 @@ type Retrieval struct {
 func NewRetrieval(fts *FTS, vec *Vector, embed EmbedFunc) *Retrieval {
 	return &Retrieval{
 		fts: fts, vec: vec, embed: embed,
-		kVec: 40, kFTS: 60, poolSize: 60,
+		rrfK: 60, poolSize: 60,
+	}
+}
+
+// SetRRFK sets the RRF smoothing constant for this Retrieval (spec 009). A
+// non-positive k is ignored so the default (60) stays in effect — the engine
+// resolves the effective value (request override > config > 60) before calling,
+// so a no-op here just preserves the constructor default for unit tests that
+// build a Retrieval directly.
+func (r *Retrieval) SetRRFK(k int) {
+	if k > 0 {
+		r.rrfK = k
 	}
 }
 
@@ -80,7 +94,7 @@ func (r *Retrieval) Search(ctx context.Context, query string, k int, mode Mode, 
 		if err != nil {
 			return nil, err
 		}
-		fused := reciprocalRankFusion(vHits, fHits, r.kVec, r.kFTS)
+		fused := reciprocalRankFusion(vHits, fHits, r.rrfK)
 		return collapseByDoc(fused, k, docOf), nil
 	}
 }
@@ -227,14 +241,17 @@ func (r *Retrieval) attemptRerank(ctx context.Context, query string, k int, mode
 	return out, nil, nil
 }
 
-// reciprocalRankFusion merges two ranked lists: score(d) = Σ 1/(k + rank+1).
-func reciprocalRankFusion(vectorHits, ftsHits []Hit, kVec, kFTS int) []Hit {
+// reciprocalRankFusion merges two ranked lists with a single symmetric RRF
+// constant k (spec 009 / retrieval book §6.6): score(d) = Σ 1/(k + rank) with
+// rank 1-based — i.e. 1/(k + i + 1) for the 0-based loop index i. The same k
+// applies to both lists; the prior asymmetric per-list kVec/kFTS is removed.
+func reciprocalRankFusion(vectorHits, ftsHits []Hit, k int) []Hit {
 	scores := map[string]float64{}
 	for rank, h := range vectorHits {
-		scores[h.ChunkID] += 1.0 / float64(kVec+rank+1)
+		scores[h.ChunkID] += 1.0 / float64(k+rank+1)
 	}
 	for rank, h := range ftsHits {
-		scores[h.ChunkID] += 1.0 / float64(kFTS+rank+1)
+		scores[h.ChunkID] += 1.0 / float64(k+rank+1)
 	}
 	out := make([]Hit, 0, len(scores))
 	for id, s := range scores {

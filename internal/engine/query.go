@@ -47,6 +47,15 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 	if e.cfg.RerankRetryOnFailure {
 		r.EnableRerankRetry() // H09 US3: optional retry of a failed rerank (off by default).
 	}
+	// H08/spec 009: apply the effective RRF constant. A per-query override
+	// (req.RRFK > 0) wins, else the configured rrf_k, else the default (60). The
+	// Retrieval is built fresh per query, so this is the single injection point
+	// and every transport gets identical fusion for the same effective k.
+	effRRFK := req.RRFK
+	if effRRFK <= 0 {
+		effRRFK = e.cfg.EffectiveRRFK()
+	}
+	r.SetRRFK(effRRFK)
 
 	var reranker index.Reranker
 	if e.cfg.RerankModel != "" && !req.NoRerank {

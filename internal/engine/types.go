@@ -13,6 +13,7 @@ type QueryRequest struct {
 	Mode      string // "hybrid" (default) | "semantic" | "keyword"
 	NoRerank  bool
 	Threshold float64 // minimum score; hits below are dropped
+	RRFK      int     // H08/spec 009: per-query RRF constant override; 0 = use config EffectiveRRFK() (default 60)
 }
 
 // QueryHit is one ranked result. Adapters serialize this verbatim.

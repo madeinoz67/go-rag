@@ -36,7 +36,8 @@ type QueryRequest struct {
 	K             int32                  `protobuf:"varint,2,opt,name=k,proto3" json:"k,omitempty"`      // default 5, clamped [1,100]
 	Mode          string                 `protobuf:"bytes,3,opt,name=mode,proto3" json:"mode,omitempty"` // "hybrid" (default) | "semantic" | "keyword"
 	NoRerank      bool                   `protobuf:"varint,4,opt,name=no_rerank,json=noRerank,proto3" json:"no_rerank,omitempty"`
-	Threshold     float64                `protobuf:"fixed64,5,opt,name=threshold,proto3" json:"threshold,omitempty"` // min score, default 0.0
+	Threshold     float64                `protobuf:"fixed64,5,opt,name=threshold,proto3" json:"threshold,omitempty"`  // min score, default 0.0
+	RrfK          int32                  `protobuf:"varint,6,opt,name=rrf_k,json=rrfK,proto3" json:"rrf_k,omitempty"` // H08/spec 009: RRF smoothing constant override; 0 = config/default (60)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -102,6 +103,13 @@ func (x *QueryRequest) GetNoRerank() bool {
 func (x *QueryRequest) GetThreshold() float64 {
 	if x != nil {
 		return x.Threshold
+	}
+	return 0
+}
+
+func (x *QueryRequest) GetRrfK() int32 {
+	if x != nil {
+		return x.RrfK
 	}
 	return 0
 }
@@ -1326,13 +1334,14 @@ var File_proto_gorag_proto protoreflect.FileDescriptor
 
 const file_proto_gorag_proto_rawDesc = "" +
 	"\n" +
-	"\x11proto/gorag.proto\x12\x05gorag\"\x81\x01\n" +
+	"\x11proto/gorag.proto\x12\x05gorag\"\x96\x01\n" +
 	"\fQueryRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\f\n" +
 	"\x01k\x18\x02 \x01(\x05R\x01k\x12\x12\n" +
 	"\x04mode\x18\x03 \x01(\tR\x04mode\x12\x1b\n" +
 	"\tno_rerank\x18\x04 \x01(\bR\bnoRerank\x12\x1c\n" +
-	"\tthreshold\x18\x05 \x01(\x01R\tthreshold\"\xa7\x01\n" +
+	"\tthreshold\x18\x05 \x01(\x01R\tthreshold\x12\x13\n" +
+	"\x05rrf_k\x18\x06 \x01(\x05R\x04rrfK\"\xa7\x01\n" +
 	"\bQueryHit\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x1f\n" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +

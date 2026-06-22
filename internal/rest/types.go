@@ -10,6 +10,7 @@ type queryRequest struct {
 	Mode      string  `json:"mode"`
 	NoRerank  bool    `json:"no_rerank"`
 	Threshold float64 `json:"threshold"`
+	RRFK      int     `json:"rrf_k,omitempty"` // H08/spec 009: RRF constant override; 0 = config/default (60)
 }
 
 type queryHit struct {

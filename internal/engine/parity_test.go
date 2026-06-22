@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/config"
@@ -627,5 +628,103 @@ func TestCrossTransport_RerankFailureParity(t *testing.T) {
 	}
 	if len(gresp.GetHits()) == 0 {
 		t.Error("gRPC: should still return fallback-ordered hits (FR-007)")
+	}
+}
+
+// waitEmbeddings polls Status until the async embedders have caught up (Principle
+// IV: writes ACK before embedding), so a subsequent HYBRID query has a populated
+// vector list and fusion is actually exercised. Keyword-only tests don't need it.
+func waitEmbeddings(t *testing.T, eng *engine.Engine) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		st, _ := eng.Status()
+		if st.Embeddings > 0 && st.EmbeddingsComplete {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("embeddings did not drain within 5s; hybrid fusion cannot be exercised")
+}
+
+// TestCrossTransport_RRFK_Parity (H08/spec 009, US2): a per-query rrf_k override
+// produces IDENTICAL hits+scores over the facade, REST, and gRPC (FR-003 parity),
+// and the override is non-trivial — a very different k yields a different top-hit
+// score (score = f(k)), proving the constant reaches fusion through the shared
+// engine path that every transport projects.
+func TestCrossTransport_RRFK_Parity(t *testing.T) {
+	ollama := fastFakeOllama(t)
+	eng := openEngine(t, ollama.URL)
+
+	dir := t.TempDir()
+	doc := writeDoc(t, dir, "rrf.txt",
+		"reciprocal rank fusion parity corpus document for the go-rag retrieval surface")
+	if _, err := eng.Add(context.Background(), doc); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	waitEmbeddings(t, eng) // hybrid query needs the vector list populated
+
+	const (
+		q  = "fusion"
+		md = "hybrid" // RRF fusion only runs in hybrid mode
+		k  = 5
+	)
+
+	// Reference: facade with rrf_k = 30.
+	ref, err := eng.Query(context.Background(), engine.QueryRequest{Query: q, Mode: md, K: k, RRFK: 30})
+	if err != nil {
+		t.Fatalf("engine.Query rrf_k=30: %v", err)
+	}
+	if len(ref.Hits) == 0 {
+		t.Fatal("need >=1 hit for a meaningful parity test")
+	}
+	want := make([]canonHit, len(ref.Hits))
+	for i, h := range ref.Hits {
+		want[i] = fromEngine(h)
+	}
+
+	// REST with rrf_k = 30 → identical to facade.
+	restSrv := httptest.NewServer(rest.New(eng, "").Handler())
+	defer restSrv.Close()
+	body, _ := json.Marshal(map[string]any{"query": q, "mode": md, "k": k, "rrf_k": 30})
+	resp, err := http.Post(restSrv.URL+"/v1/query", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("REST query: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("REST status = %d, want 200", resp.StatusCode)
+	}
+	var rresp restQueryResponse
+	if err := json.NewDecoder(resp.Body).Decode(&rresp); err != nil {
+		t.Fatalf("decode REST response: %v", err)
+	}
+	restCanon := make([]canonHit, 0, len(rresp.Hits))
+	for _, h := range rresp.Hits {
+		restCanon = append(restCanon, fromREST(h))
+	}
+	assertHitsEqual(t, "REST", restCanon, want)
+
+	// gRPC with rrf_k = 30 → identical to facade.
+	client := dialGRPC(t, eng)
+	gresp, err := client.Query(context.Background(), &goragpb.QueryRequest{Query: q, Mode: md, K: int32(k), RrfK: 30})
+	if err != nil {
+		t.Fatalf("gRPC Query: %v", err)
+	}
+	grpcCanon := make([]canonHit, 0, len(gresp.GetHits()))
+	for _, h := range gresp.GetHits() {
+		grpcCanon = append(grpcCanon, fromGRPC(h))
+	}
+	assertHitsEqual(t, "gRPC", grpcCanon, want)
+
+	// Override is non-trivial: a very different k yields a different top-hit score
+	// (every hit's score is a function of k), proving rrf_k reaches fusion.
+	diff, err := eng.Query(context.Background(), engine.QueryRequest{Query: q, Mode: md, K: k, RRFK: 1000})
+	if err != nil {
+		t.Fatalf("engine.Query rrf_k=1000: %v", err)
+	}
+	if len(diff.Hits) == 0 || math.Abs(diff.Hits[0].Score-ref.Hits[0].Score) < 1e-9 {
+		t.Errorf("rrf_k override should change the top-hit score: k=30 score=%v k=1000 score=%v",
+			ref.Hits[0].Score, diff.Hits[0].Score)
 	}
 }

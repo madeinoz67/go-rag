@@ -99,6 +99,29 @@ go-rag vault list
 Vault root: `~/.go-rag/vaults/` (override via `GO_RAG_VAULT_ROOT`). Vault names:
 lowercase alphanumeric + hyphens, 1–64 chars.
 
+## Hybrid retrieval (RRF)
+
+Hybrid mode fuses the BM25 (keyword) and vector (semantic) ranked lists with
+**Reciprocal Rank Fusion** using a single symmetric constant `k` (default **60**,
+the retrieval book's canonical value):
+
+```
+score(d) = Σ 1/(k + rank)        # rank is 1-based; summed over the lists d appears in
+```
+
+The same `k` applies to both lists — the prior asymmetric per-list constants have
+been removed so the fusion is reviewable and matches the standard formula. You can
+tune `k` per corpus (a larger `k` flattens rank dominance):
+
+```bash
+go-rag config set rrf_k 120              # persist a non-default constant
+go-rag query "..." --rrf-k 30            # one-off override for a single query
+```
+
+`rrf_k` is honoured identically by the CLI, REST, gRPC, and MCP surfaces, and is
+inert in `keyword`/`semantic` mode (those use a single list, so there is nothing
+to fuse). An absent `rrf_k` (or `0`) means "use the default 60".
+
 ## Cross-encoder reranking
 
 After RRF retrieval returns top-20 candidates, an optional Ollama LLM scores each

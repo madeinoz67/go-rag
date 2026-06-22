@@ -32,6 +32,7 @@ type Config struct {
 	RerankModel          string   `json:"rerank_model,omitempty"`
 	RerankCandidates     int      `json:"rerank_candidates,omitempty"`
 	RerankRetryOnFailure bool     `json:"rerank_retry_on_failure,omitempty"`
+	RRFK                 int      `json:"rrf_k,omitempty"` // H08/spec 009: RRF smoothing constant; 0 = default (60); <0 invalid
 }
 
 // Default returns the configuration used by `go-rag init` when no overrides apply.
@@ -47,7 +48,22 @@ func Default() Config {
 		PollIntervalSec:  60,
 		MCPAddr:          "127.0.0.1:7878", // loopback by default (spec 007, audit H13); never all-interfaces
 		RerankCandidates: 20,
+		RRFK:             60, // H08/spec 009: standard single-k RRF default (retrieval book §6.6)
 	}
+}
+
+// DefaultRRFK is the RRF smoothing constant used when rrf_k is unset (spec 009).
+const DefaultRRFK = 60
+
+// EffectiveRRFK returns the effective RRF smoothing constant: the configured
+// rrf_k when positive, else DefaultRRFK (60). This is the single resolution site
+// for the "absent key = default" rule, so an existing config that omits rrf_k
+// (which unmarshals to 0) keeps working.
+func (c Config) EffectiveRRFK() int {
+	if c.RRFK > 0 {
+		return c.RRFK
+	}
+	return DefaultRRFK
 }
 
 // Validate returns an error if the config has invalid values.
@@ -64,6 +80,9 @@ func (c Config) Validate() error {
 	}
 	if c.PollIntervalSec <= 0 {
 		return fmt.Errorf("poll_interval_secs must be positive")
+	}
+	if c.RRFK < 0 {
+		return fmt.Errorf("rrf_k must be non-negative (0 = default %d)", DefaultRRFK)
 	}
 	if c.MCPAddr != "" {
 		if _, _, err := net.SplitHostPort(c.MCPAddr); err != nil {
@@ -144,6 +163,8 @@ func (c Config) Get(key string) (string, bool) {
 		return strconv.Itoa(c.RerankCandidates), true
 	case "rerank_retry_on_failure":
 		return strconv.FormatBool(c.RerankRetryOnFailure), true
+	case "rrf_k":
+		return strconv.Itoa(c.EffectiveRRFK()), true
 	}
 	return "", false
 }
@@ -215,6 +236,12 @@ func (c *Config) Set(key, val string) error {
 			return fmt.Errorf("invalid rerank_retry_on_failure: %q", val)
 		}
 		c.RerankRetryOnFailure = b
+	case "rrf_k":
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 0 {
+			return fmt.Errorf("invalid rrf_k: %q (want a non-negative integer; 0 = default %d)", val, DefaultRRFK)
+		}
+		c.RRFK = n
 	default:
 		return fmt.Errorf("unknown config key: %q", key)
 	}

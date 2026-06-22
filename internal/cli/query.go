@@ -31,6 +31,10 @@ func newQueryCmd() *cobra.Command {
 			format, _ := cmd.Flags().GetString("format")
 			threshold, _ := cmd.Flags().GetFloat64("threshold")
 			noRerank, _ := cmd.Flags().GetBool("no-rerank")
+			rrfK, _ := cmd.Flags().GetInt("rrf-k")
+			if cmd.Flags().Changed("rrf-k") && rrfK <= 0 {
+				return fmt.Errorf("--rrf-k must be a positive integer (0 = use configured/default; got %d)", rrfK)
+			}
 
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
@@ -43,7 +47,7 @@ func newQueryCmd() *cobra.Command {
 			// which refuses a query whose model/dim doesn't match the corpus.
 			eng := engine.NewWithDB(cfg, db)
 			res, err := eng.Query(context.Background(), engine.QueryRequest{
-				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold,
+				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK,
 			})
 			if err != nil {
 				return err
@@ -70,6 +74,7 @@ func newQueryCmd() *cobra.Command {
 	cmd.Flags().String("source", "", "filter by source file glob")
 	cmd.Flags().Float64("threshold", 0.0, "minimum relevance score")
 	cmd.Flags().Bool("no-rerank", false, "disable cross-encoder reranking for this query")
+	cmd.Flags().Int("rrf-k", 0, "RRF smoothing constant override (0 = use configured rrf_k / default 60)")
 	return cmd
 }
 

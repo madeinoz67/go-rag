@@ -59,6 +59,7 @@ message QueryRequest {
   string mode = 3;              // "hybrid" (default) | "semantic" | "keyword"
   bool no_rerank = 4;
   double threshold = 5;         // min score, default 0.0
+  int32 rrf_k = 6;              // H08/spec 009: RRF smoothing constant override; 0 = config/default (60)
 }
 message QueryHit {
   string chunk_id = 1;
