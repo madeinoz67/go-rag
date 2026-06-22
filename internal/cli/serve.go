@@ -62,10 +62,13 @@ func newServeCmd() *cobra.Command {
 			defer eng.Close()
 
 			// MCP (HTTP/JSON-RPC) — always on; its /mcp/health is the daemon's
-			// startup/health probe target.
+			// startup/health probe target. Backed by the SAME shared engine as
+			// REST/gRPC (audit H06/spec 016) so MCP queries hit the cache,
+			// go_rag_status reports real cache stats, and the seeded index (H01)
+			// is shared across all three transports.
 			mcpSrv := &http.Server{
 				Addr:    mcpAddr,
-				Handler: mcp.NewWithDB(dbPath, db, cfg).HTTPHandler(token),
+				Handler: mcp.NewWithEngine(dbPath, eng, cfg).HTTPHandler(token),
 			}
 
 			// REST (stdlib net/http) — optional; empty addr disables it.

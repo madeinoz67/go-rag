@@ -26,7 +26,8 @@ const protocolVersion = "2024-11-05"
 // (New, opens the DB per call) or as a long-lived daemon (NewWithDB, shared DB).
 type Server struct {
 	dbPath string
-	db     *storage.DB // nil => open per call (stdio); non-nil => shared (daemon)
+	db     *storage.DB     // nil => open per call (stdio); non-nil => shared DB, fresh engine per call
+	eng    *engine.Engine  // shared engine (daemon mode via NewWithEngine): reused across calls so its query cache (H06) and seeded index (H01) persist
 	cfg    config.Config
 }
 
@@ -37,6 +38,16 @@ func New(dbPath string) *Server { return &Server{dbPath: dbPath} }
 // The caller owns the database's lifetime; it is NOT closed per call.
 func NewWithDB(dbPath string, db *storage.DB, cfg config.Config) *Server {
 	return &Server{dbPath: dbPath, db: db, cfg: cfg}
+}
+
+// NewWithEngine returns an MCP server backed by a caller-owned shared engine
+// (daemon mode). All DB tool calls reuse this one engine, so the query cache
+// (audit H06/spec 016) and the seeded search index (audit H01/spec 011) persist
+// across calls — repeated MCP queries hit the cache, and go_rag_status reports
+// the real cache stats. The caller owns the engine's lifetime (closes it on
+// shutdown); the server does not close it per call.
+func NewWithEngine(dbPath string, eng *engine.Engine, cfg config.Config) *Server {
+	return &Server{dbPath: dbPath, eng: eng, cfg: cfg}
 }
 
 type rpcReq struct {
@@ -114,23 +125,31 @@ func (s *Server) dispatch(name string, args map[string]any) (string, error) {
 		// (and does not touch) the caller's database.
 		return s.renderEval(nil, args)
 	}
+	if s.eng != nil {
+		// Daemon mode with a shared engine: reuse it (no per-call close) so the
+		// query cache (H06) and seeded index (H01) persist across tool calls.
+		return s.dispatchDB(s.eng, name, args, false)
+	}
 	if s.db != nil {
-		return s.dispatchDB(engine.NewWithDB(s.cfg, s.db), name, args)
+		return s.dispatchDB(engine.NewWithDB(s.cfg, s.db), name, args, true)
 	}
 	cfg, db, err := engine.Open(s.dbPath)
 	if err != nil {
 		return "", err
 	}
 	defer db.Close()
-	return s.dispatchDB(engine.NewWithDB(cfg, db), name, args)
+	return s.dispatchDB(engine.NewWithDB(cfg, db), name, args, true)
 }
 
-func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any) (string, error) {
+func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any, closeAfter bool) (string, error) {
 	// The engine's ingest pipeline is created lazily on write and drained
 	// async-after-ACK; close it here so short-lived per-dispatch engines finish
 	// their background embeddings before the MCP response returns (and don't
-	// leak worker goroutines). No-op for read-only engines.
-	defer eng.Close()
+	// leak worker goroutines). No-op for read-only engines. Skipped for the
+	// shared daemon engine (closeAfter=false) — the caller owns its lifetime.
+	if closeAfter {
+		defer eng.Close()
+	}
 	switch name {
 	case "go_rag_query":
 		return s.renderQuery(eng, args)
