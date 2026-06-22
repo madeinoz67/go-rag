@@ -18,6 +18,7 @@ type QueryRequest struct {
 	RRFK      int     // H08/spec 009: per-query RRF constant override; 0 = use config EffectiveRRFK() (default 60)
 	Filter        *index.Filter // H14/spec 014: optional metadata filter (source/type/tags); nil = no filter
 	ContextWindow int           // H15/spec 015: N sibling chunks each side of a hit; 0 = off (default)
+	NoCache       bool          // H06/spec 016: bypass serving from the result cache for this call (still stores on success)
 }
 
 // NewFilter constructs a metadata Filter for a query (H14/spec 014). Returns nil

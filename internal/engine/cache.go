@@ -2,6 +2,9 @@ package engine
 
 import (
 	"container/list"
+	"hash/fnv"
+	"sort"
+	"strconv"
 	"sync"
 	"sync/atomic"
 )
@@ -137,4 +140,84 @@ func (c *LRU[K, V]) Stats() CacheStats {
 		Hits:     c.hits.Load(),
 		Misses:   c.misses.Load(),
 	}
+}
+
+// cacheKey is the exact-match key for the result cache (audit H06/spec 016). It
+// captures EVERY input that affects the ranked output, so two queries that would
+// produce different results always get different keys (and vice versa). The key
+// is hashed (FNV-1a, null-separated, tags sorted) into a short string for the
+// LRU map. req.NoCache is deliberately NOT part of the key — it is a per-call
+// serve-bypass flag, not a result-shape input.
+type cacheKey struct {
+	Query         string
+	Mode          string
+	K             int
+	Threshold     float64
+	RRFK          int
+	FilterSource  string
+	FilterType    string
+	FilterTags    []string // sorted before hashing; nil/empty both hash the same
+	ContextWindow int
+	RerankEnabled bool
+	RerankModel   string // only populated when RerankEnabled (avoids false key splits)
+	Epoch         uint64
+}
+
+// hash returns the FNV-1a digest of the key as a hex string. Deterministic for a
+// given cacheKey (tags sorted, numbers in canonical string form, null-separated
+// so no field can be confused with its neighbor).
+func (k cacheKey) hash() string {
+	tags := k.FilterTags
+	if !sort.StringsAreSorted(tags) {
+		dup := append([]string(nil), tags...)
+		sort.Strings(dup)
+		tags = dup
+	}
+	h := fnv.New64a()
+	write := func(s string) {
+		h.Write([]byte(s))
+		h.Write([]byte{0}) // null separator — unambiguous field boundaries
+	}
+	write(k.Query)
+	write(k.Mode)
+	write(strconv.Itoa(k.K))
+	write(strconv.FormatFloat(k.Threshold, 'f', -1, 64))
+	write(strconv.Itoa(k.RRFK))
+	write(k.FilterSource)
+	write(k.FilterType)
+	for _, t := range tags {
+		write(t)
+	}
+	write(strconv.Itoa(k.ContextWindow))
+	write(strconv.FormatBool(k.RerankEnabled))
+	write(k.RerankModel)
+	write(strconv.FormatUint(k.Epoch, 10))
+	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+// resultKey builds the result-cache key for a query against the engine's config
+// and current index epoch. effRRFK is the already-resolved effective RRF k
+// (caller resolves req.RRFK>0 vs config). Rerank model is folded in only when
+// reranking is enabled for this request, so a no-rerank query and a reranker-
+// not-configured query that both skip reranking share a key.
+func (e *Engine) resultKey(req QueryRequest, effRRFK int, epoch uint64) string {
+	k := cacheKey{
+		Query:         req.Query,
+		Mode:          req.Mode,
+		K:             req.K,
+		Threshold:     req.Threshold,
+		RRFK:          effRRFK,
+		ContextWindow: req.ContextWindow,
+		Epoch:         epoch,
+	}
+	if req.Filter != nil {
+		k.FilterSource = req.Filter.Source
+		k.FilterType = req.Filter.Type
+		k.FilterTags = req.Filter.Tags
+	}
+	if e.cfg.RerankModel != "" && !req.NoRerank {
+		k.RerankEnabled = true
+		k.RerankModel = e.cfg.RerankModel
+	}
+	return k.hash()
 }

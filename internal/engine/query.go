@@ -40,6 +40,27 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 		req.K = 100
 	}
 
+	// H08/spec 009: resolve the effective RRF k once (per-query override > config
+	// > default). Used both for the result-cache key below and for the retrieval
+	// fusion further down, so the key and the actual fusion can never disagree.
+	effRRFK := req.RRFK
+	if effRRFK <= 0 {
+		effRRFK = e.cfg.EffectiveRRFK()
+	}
+
+	// H06/spec 016: result cache. Check before any embed/retrieve work — a hit
+	// skips the Ollama round-trip and the whole retrieve/fuse/rerank pipeline.
+	// The key folds in the normalized query, every retrieval-affecting input
+	// (mode/k/threshold/rrf_k/filter/context_window/rerank), and the current
+	// index epoch. NoCache bypasses serving; the freshly-computed result is still
+	// stored below so the next non-override caller can hit.
+	keyEpoch := e.indexEpoch()
+	if !req.NoCache && e.resultCache.Enabled() {
+		if cached, ok := e.resultCache.Get(e.resultKey(req, effRRFK, keyEpoch)); ok {
+			return cached, nil
+		}
+	}
+
 	// H01/spec 011: reuse the engine's shared seeded index instead of rebuilding
 	// it from disk on every query. The pipeline/watcher/migrate mutate this same
 	// pair, so it is always current; FTS/Vector are goroutine-safe for concurrent
@@ -65,14 +86,9 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 	if e.cfg.RerankRetryOnFailure {
 		r.EnableRerankRetry() // H09 US3: optional retry of a failed rerank (off by default).
 	}
-	// H08/spec 009: apply the effective RRF constant. A per-query override
-	// (req.RRFK > 0) wins, else the configured rrf_k, else the default (60). The
-	// Retrieval is built fresh per query, so this is the single injection point
-	// and every transport gets identical fusion for the same effective k.
-	effRRFK := req.RRFK
-	if effRRFK <= 0 {
-		effRRFK = e.cfg.EffectiveRRFK()
-	}
+	// H08/spec 009: apply the effective RRF constant (resolved once above so the
+	// result-cache key and the actual fusion agree). The Retrieval is built fresh
+	// per query; this is the single fusion injection point.
 	r.SetRRFK(effRRFK)
 
 	// H14/spec 014: apply the optional metadata filter (source/type/tags) as a
@@ -148,7 +164,15 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 			out[i].Context = e.expandContext(out[i].ChunkID, req.ContextWindow)
 		}
 	}
-	return &QueryResult{Hits: out, RerankFailed: rerankFailed}, nil
+	res := &QueryResult{Hits: out, RerankFailed: rerankFailed}
+	// H06/spec 016: store the fresh result. Skip when bypassed/disabled, when the
+	// reranker failed (degraded — a retry may succeed; FR-009), or when a
+	// concurrent corpus mutation advanced the epoch mid-query (this result may be
+	// stale relative to the new epoch — better to recompute next time).
+	if !req.NoCache && e.resultCache.Enabled() && !rerankFailed && e.indexEpoch() == keyEpoch {
+		e.resultCache.Put(e.resultKey(req, effRRFK, keyEpoch), res)
+	}
+	return res, nil
 }
 
 // expandContext follows the chunk's linked list (PreviousChunkID/NextChunkID) up

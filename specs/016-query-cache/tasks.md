@@ -50,12 +50,12 @@
 
 ### Implementation for User Story 1
 
-- [ ] T009 [P] [US1] Add the `cacheKey` struct + deterministic `hash() string` (FNV-1a) in `internal/engine/cache.go` covering every D3 component: normalized query, mode, clamped k, threshold, effective RRFK, filter(source/type/tags — sorted), contextWindow, rerank{enabled,model}, and the epoch. (`req.NoCache` is NOT part of the key.)
-- [ ] T010 [P] [US1] Add `NoCache bool` field to `QueryRequest` in `internal/engine/types.go` (engine-level bypass; transport exposure is US5).
-- [ ] T011 [US1] Wire the result-cache **check** into `Engine.Query` in `internal/engine/query.go`: after K-clamp (query.go:41), before `indexes()` (query.go:47) — build the `cacheKey` with the current epoch; if enabled and `!req.NoCache`, `Get`; on hit return the cached `*QueryResult`.
-- [ ] T012 [US1] Wire the result-cache **store** in `internal/engine/query.go`: after building the `QueryResult` (query.go:151), `Put` iff enabled and `!rerankFailed` and `err==nil` (FR-009 — never cache degraded/erroring results).
-- [ ] T013 [US1] Tests in `internal/engine/cache_test.go`: (a) second identical query is a hit and byte-identical to cold (transparency, FR-008/SC-004); (b) changing any single key component (k/mode/threshold/rrf_k/filter/context_window) is a miss; (c) capacity eviction is LRU; (d) `req.NoCache=true` bypasses serving (still stores); (e) `RerankFailed=true` result is not stored.
-- [ ] T014 [US1] Test in `internal/engine/cache_test.go`: cache disabled (`QueryCacheEnabled=false` / capacity 0) ⇒ every query is a miss and nothing is stored (the kill-switch path).
+- [x] T009 [P] [US1] Add the `cacheKey` struct + deterministic `hash() string` (FNV-1a) in `internal/engine/cache.go` covering every D3 component: normalized query, mode, clamped k, threshold, effective RRFK, filter(source/type/tags — sorted), contextWindow, rerank{enabled,model}, and the epoch. (`req.NoCache` is NOT part of the key.)
+- [x] T010 [P] [US1] Add `NoCache bool` field to `QueryRequest` in `internal/engine/types.go` (engine-level bypass; transport exposure is US5).
+- [x] T011 [US1] Wire the result-cache **check** into `Engine.Query` in `internal/engine/query.go`: after K-clamp (query.go:41), before `indexes()` (query.go:47) — build the `cacheKey` with the current epoch; if enabled and `!req.NoCache`, `Get`; on hit return the cached `*QueryResult`.
+- [x] T012 [US1] Wire the result-cache **store** in `internal/engine/query.go`: after building the `QueryResult` (query.go:151), `Put` iff enabled and `!rerankFailed` and `err==nil` (FR-009 — never cache degraded/erroring results).
+- [x] T013 [US1] Tests in `internal/engine/cache_test.go`: (a) second identical query is a hit and byte-identical to cold (transparency, FR-008/SC-004); (b) changing any single key component (k/mode/threshold/rrf_k/filter/context_window) is a miss; (c) capacity eviction is LRU; (d) `req.NoCache=true` bypasses serving (still stores); (e) `RerankFailed=true` result is not stored.
+- [x] T014 [US1] Test in `internal/engine/cache_test.go`: cache disabled (`QueryCacheEnabled=false` / capacity 0) ⇒ every query is a miss and nothing is stored (the kill-switch path).
 
 **Checkpoint**: US1 fully functional and independently testable — repeated queries are served from the result cache.
 
