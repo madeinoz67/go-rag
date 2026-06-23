@@ -77,4 +77,4 @@ These hold identically over CLI/REST/gRPC/MCP — properties of the engine, not 
 - No continuous drift *scoring*/metric (a numeric drift score over time) — verdict is a discrete
   clean/hard/soft/unknown state, recomputed at boot/status/migrate.
 - No auto-reindex on drift (the operator runs `migrate`; documented in the spec).
-- No new Pebble key families beyond the single `PrefixCorpusMeta` (0x07) baseline record.
+- No new Pebble key families beyond the single `PrefixCorpusMeta` (0x10) baseline record.

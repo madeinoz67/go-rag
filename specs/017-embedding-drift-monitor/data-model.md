@@ -6,7 +6,7 @@
 
 ## New persisted entity: `CorpusBaseline` (`internal/engine/baseline.go`)
 
-One record per vault, under `PrefixCorpusMeta = 0x07`, fixed key (e.g. `0x07 || "default"`). The
+One record per vault, under `PrefixCorpusMeta = 0x10`, fixed key (e.g. `0x10 || "default"`). The
 authoritative snapshot of the embedding profile the corpus was built under.
 
 | Field | Type | Meaning |
@@ -80,7 +80,7 @@ report intra-corpus drift; the H11 fields report corpus-vs-config + ollama-versi
 ## Delta: storage (`internal/storage/storage.go`) — **+1 prefix constant**
 
 ```
-PrefixCorpusMeta byte = 0x07 // H11: corpus baseline metadata (single record)
+PrefixCorpusMeta byte = 0x10 // H11: corpus baseline metadata (single record)
 ```
 
 (0x06 intentionally left free for H16's persistent index snapshot.)

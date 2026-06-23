@@ -14,7 +14,7 @@ Layer a **proactive** embedding-drift detector on top of the shipped H03 (query-
 
 **Primary Dependencies**: stdlib (`net/http`, `encoding/json`, `sync`, `time`); existing `internal/engine`, `internal/storage`, `internal/embed`, `internal/config`, `internal/cli` (serve). **No new module dependencies.**
 
-**Storage**: Pebble KV — **one new prefix**, `PrefixCorpusMeta = 0x07` (free; H16 reserves 0x06), holding a single fixed corpus-baseline record (JSON). No schema change to existing records; the baseline is a new corpus-level header, distinct from per-embedding provenance (H07's 0x04) and from user config (0x09).
+**Storage**: Pebble KV — **one new prefix**, `PrefixCorpusMeta = 0x10` (free; H16 reserves 0x06), holding a single fixed corpus-baseline record (JSON). No schema change to existing records; the baseline is a new corpus-level header, distinct from per-embedding provenance (H07's 0x04) and from user config (0x09).
 
 **Testing**: `go test -race -cover ./...`; new tests (baseline write on first embed, refresh on migrate, backfill, boot drift verdict for hard/soft/clean/unreachable/offline, readiness flag, status surface). H02 eval gate — recall@10 unchanged (version check skipped on the offline embedder, FR-010/SC-006).
 
@@ -56,7 +56,7 @@ specs/017-embedding-drift-monitor/
 ### Source Code (repository root)
 
 ```text
-internal/storage/storage.go       # EDIT: PrefixCorpusMeta byte = 0x07 (new prefix constant)
+internal/storage/storage.go       # EDIT: PrefixCorpusMeta byte = 0x10 (new prefix constant)
 internal/engine/
 ├── baseline.go        # NEW: CorpusBaseline struct; Load/Save/Backfill; the persisted {model,dim,convention,ollama-version,recorded-at}
 ├── drift.go           # NEW: DriftVerdict type; computeDriftVerdict(); engine caches the verdict; RefreshDriftVerdict()

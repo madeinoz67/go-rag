@@ -67,6 +67,11 @@ type Engine struct {
 	resultCache *LRU[string, *QueryResult]
 	embedCache  *LRU[string, []float32]
 	epoch       *atomic.Uint64
+
+	// drift (audit H11/spec 017) caches the embedding-drift verdict + live
+	// Ollama version computed at boot / after migrate. /health reads it (fast);
+	// Status recomputes live.
+	drift driftCache
 }
 
 // newQueryCaches builds the result/embedding caches and epoch from config. When

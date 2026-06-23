@@ -20,4 +20,5 @@ const (
 	PrefixContentHash  byte = 0x0D // Content hash index (dedup)
 	PrefixChangeDetect byte = 0x0E // Change detection state
 	PrefixIdempotency  byte = 0x0F // Idempotency receipts
+	PrefixCorpusMeta   byte = 0x10 // H11/spec 017: corpus baseline metadata (embedding drift) — single record
 )

@@ -19,16 +19,16 @@
 
 ## D1 — Corpus baseline: storage prefix + shape
 
-**Decision**: a new Pebble prefix `PrefixCorpusMeta = 0x07` holding a **single fixed** record (key =
-`0x07` + sentinel, e.g. `"default"`), JSON-encoded `CorpusBaseline`. Read/written via the existing
+**Decision**: a new Pebble prefix `PrefixCorpusMeta = 0x10` holding a **single fixed** record (key =
+`0x10` + sentinel, e.g. `"default"`), JSON-encoded `CorpusBaseline`. Read/written via the existing
 `db.{Get,Set}WithPrefix` helpers.
 
 **Shape**: `{model, dim, convention, ollama_version, recorded_at}`.
 
 **Rationale**: the baseline is corpus-level metadata, not a document and not user config — it deserves
 its own prefix to keep it out of the `config get` namespace (0x09) and distinct from per-embedding
-provenance (0x04). Prefix choice: 0x05/0x07/0x08 are free (storage.go: 0x01–0x04, 0x09–0x0F used);
-**0x07** chosen, leaving 0x05/0x08 spare and **0x06 reserved for H16** (persistent index snapshot, per
+provenance (0x04). Prefix choice: 0x05/0x10/0x08 are free (storage.go: 0x01–0x04, 0x09–0x0F used);
+**0x10** chosen, leaving 0x05/0x08 spare and **0x06 reserved for H16** (persistent index snapshot, per
 its backlog note). Single record under the prefix (the prefix denotes the subsystem, matching the
 codebase's "prefix = subsystem" idiom).
 
@@ -176,7 +176,7 @@ processJob-once and migrate-serially).
 
 | ID | Decision | One-line |
 |----|----------|----------|
-| D1 | Baseline storage | New prefix `0x07`, single fixed JSON record `{model,dim,convention,ollama-version,recorded-at}` |
+| D1 | Baseline storage | New prefix `0x10`, single fixed JSON record `{model,dim,convention,ollama-version,recorded-at}` |
 | D2 | Ollama version fetch | Standalone `ollamaVersion(ctx, baseURL)` helper (not on the Embedder interface); `""` offline, `"unknown"` on error |
 | D3 | Startup check | `serve.go` calls `RefreshDriftVerdict` + logs at boot; verdict cached; `Status` recomputes live; `Migrate` refreshes |
 | D4 | Liveness vs readiness | `HealthInfo.Ready` distinct from `.OK`; `/health` = 200 + body `ready`; gRPC health RPC NOT_SERVING on hard drift (no 503 → no restart-loop) |
