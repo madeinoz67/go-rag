@@ -6,16 +6,28 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/index"
+	"github.com/madeinoz67/go-rag/internal/observe"
 	"github.com/madeinoz67/go-rag/internal/rerank"
 )
 
 // Query runs hybrid/semantic/keyword retrieval and returns ranked, cited hits.
 // It is the single implementation shared by the CLI, MCP, REST, and gRPC
 // adapters — extracted from the former inline mcp/server.go:query.
-func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, error) {
+func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult, err error) {
+	ctx, span := observe.StartSpan(ctx, observe.SpanQuery, observe.ModeAttr(req.Mode), observe.KAttr(req.K))
+	start := time.Now()
+	defer func() {
+		observe.RecordQuery(ctx, req.Mode, time.Since(start), err)
+		if res != nil {
+			observe.RecordQueryResults(ctx, req.Mode, len(res.Hits))
+		}
+		observe.SpanError(span, err)
+		span.End()
+	}()
 	// H05/spec 012: transform the query (default: normalize) once, before any
 	// retrieval path, in the shared engine path so every transport and mode
 	// benefits. A transform that yields no usable query (whitespace-only input
@@ -57,8 +69,10 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 	keyEpoch := e.indexEpoch()
 	if !req.NoCache && e.resultCache.Enabled() {
 		if cached, ok := e.resultCache.Get(e.resultKey(req, effRRFK, keyEpoch)); ok {
+			observe.CacheHit(ctx, "result") // H17 tie-in
 			return cached, nil
 		}
+		observe.CacheMiss(ctx, "result") // H17 tie-in
 	}
 
 	// H01/spec 011: reuse the engine's shared seeded index instead of rebuilding
@@ -216,7 +230,7 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 			out[i].Context = e.expandContext(out[i].ChunkID, req.ContextWindow)
 		}
 	}
-	res := &QueryResult{Hits: out, RerankFailed: rerankFailed}
+	res = &QueryResult{Hits: out, RerankFailed: rerankFailed}
 	// H06/spec 016: store the fresh result. NoCache only bypasses SERVING (D5):
 	// the freshly-computed result is still stored so the next normal caller can
 	// hit. Skip only when disabled, when the reranker failed (degraded — a retry

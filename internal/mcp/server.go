@@ -318,6 +318,10 @@ func (s *Server) renderStatus(eng *engine.Engine) (string, error) {
 	out += fmt.Sprintf(", poison: enabled=%v flagged=%d sources=%d phrases=%d (thr %.2f/%.2f)",
 		st.PoisoningEnabled, st.PoisonFlagged, st.PoisonSources, st.PoisonPhrases,
 		st.PoisonThresholdSus, st.PoisonThresholdQua)
+	// H17/spec 020: observability state — metrics endpoint + trace exporter mode
+	// (so an operator/agent sees whether telemetry is on and where to scrape).
+	c := eng.Config()
+	out += fmt.Sprintf(", obs: metrics=%v traces=%s (scrape /metrics)", c.EffectiveMetricsEnabled(), c.EffectiveOTelExport())
 	return out, nil
 }
 

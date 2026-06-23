@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/engine"
+	"github.com/madeinoz67/go-rag/internal/observe"
 )
 
 // Server is the REST transport adapter over the engine facade.
@@ -37,6 +38,7 @@ type route struct {
 
 var routes = []route{
 	{"GET", "/health", false},
+	{"GET", "/metrics", false}, // H17/spec 020: scraped Prometheus endpoint (unauth, loopback)
 	{"GET", "/openapi.yaml", false},
 	{"POST", "/v1/query", true},
 	{"GET", "/v1/status", true},
@@ -77,6 +79,8 @@ func (s *Server) handlerFor(method, path string) http.HandlerFunc {
 	switch method + " " + path {
 	case "GET /health":
 		return s.handleHealth
+	case "GET /metrics":
+		return s.handleMetrics
 	case "GET /openapi.yaml":
 		return s.handleOpenAPI
 	case "POST /v1/query":
@@ -140,6 +144,16 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"embedder_reachable": h.EmbedderReachable,
 		"drift_verdict":      h.DriftVerdict,
 	})
+}
+
+// handleMetrics serves the scraped Prometheus /metrics endpoint (H17/spec 020).
+// Unauthenticated + loopback-only (like /health); disabled when metrics_enabled=false.
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	if !s.eng.Config().EffectiveMetricsEnabled() {
+		http.NotFound(w, r)
+		return
+	}
+	observe.MetricsHandler().ServeHTTP(w, r)
 }
 
 // --- helpers ---

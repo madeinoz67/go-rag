@@ -99,6 +99,16 @@ paths:
       responses:
         '200': { description: openapi spec }
 
+  /metrics:
+    get:
+      summary: Scraped Prometheus metrics (gorag_* latency/count/error families; unauth, loopback)
+      responses:
+        '200':
+          description: Prometheus text exposition
+          content:
+            text/plain:
+              schema:
+                type: string
   /v1/query:
     post:
       summary: Hybrid/semantic/keyword search

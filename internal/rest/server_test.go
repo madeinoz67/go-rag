@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/index"
+	"github.com/madeinoz67/go-rag/internal/observe"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/storage"
 )
@@ -290,5 +292,40 @@ func TestREST_Add_AsyncAfterACK(t *testing.T) {
 	}
 	if sum.New != 1 {
 		t.Fatalf("new = %d, want 1", sum.New)
+	}
+}
+
+// TestREST_MetricsEndpoint (H17/spec 020, US1) proves the /metrics surface
+// end-to-end through the REST stack: after a query, a /metrics scrape carries the
+// gorag_* query-latency + op-counter families. (This test binary is a fresh process,
+// so observe.Init's global registerer is uncontended.)
+func TestREST_MetricsEndpoint(t *testing.T) {
+	cfg := config.Default()
+	cfg.MetricsEnabled = true
+	cfg.OTelExport = "none"
+	if err := observe.Init(cfg); err != nil {
+		t.Fatalf("observe.Init: %v", err)
+	}
+	defer observe.Shutdown(context.Background())
+
+	eng := newEngineWithCorpus(t, "metrics endpoint test document about retrieval and search")
+	srv := httptest.NewServer(New(eng, "").Handler())
+	defer srv.Close()
+
+	// Drive a query so the query-duration metric records (status=ok regardless of hits).
+	if _, err := eng.Query(context.Background(), engine.QueryRequest{Query: "retrieval", Mode: "keyword", K: 5}); err != nil {
+		t.Fatalf("Query: %v", err)
+	}
+
+	resp, err := http.Get(srv.URL + "/metrics")
+	if err != nil {
+		t.Fatalf("scrape /metrics: %v", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	for _, want := range []string{"gorag_query_duration_seconds", "gorag_operations_total"} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("/metrics: family %q not present after a query", want)
+		}
 	}
 }

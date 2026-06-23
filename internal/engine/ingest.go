@@ -3,7 +3,9 @@ package engine
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/madeinoz67/go-rag/internal/observe"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/watcher"
 )
@@ -22,7 +24,14 @@ func fromResult(r pipeline.Result) IngestSummary {
 // commit completes (async-after-ACK, Principle IV); embedding and indexing
 // continue on the engine's background workers after this call returns. Call
 // Close to wait for that background work to finish.
-func (e *Engine) Add(ctx context.Context, path string) (*IngestSummary, error) {
+func (e *Engine) Add(ctx context.Context, path string) (sum *IngestSummary, err error) {
+	ctx, span := observe.StartSpan(ctx, observe.SpanIngest, observe.OpAttr("add"))
+	start := time.Now()
+	defer func() {
+		observe.RecordIngest(ctx, "add", time.Since(start), err, 0)
+		observe.SpanError(span, err)
+		span.End()
+	}()
 	if path == "" {
 		return nil, fmt.Errorf("path is required: %w", ErrInvalid)
 	}
@@ -41,7 +50,14 @@ func (e *Engine) Add(ctx context.Context, path string) (*IngestSummary, error) {
 // Scan runs a single change-detection pass over the configured watch directory
 // and applies adds/modifications/deletions. Like Add, it ACKs after the durable
 // store commits and embeds asynchronously.
-func (e *Engine) Scan(ctx context.Context) (*IngestSummary, error) {
+func (e *Engine) Scan(ctx context.Context) (sum *IngestSummary, err error) {
+	ctx, span := observe.StartSpan(ctx, observe.SpanIngest, observe.OpAttr("scan"))
+	start := time.Now()
+	defer func() {
+		observe.RecordIngest(ctx, "scan", time.Since(start), err, 0)
+		observe.SpanError(span, err)
+		span.End()
+	}()
 	root := "."
 	if len(e.cfg.WatchDirs) > 0 && e.cfg.WatchDirs[0] != "" {
 		root = e.cfg.WatchDirs[0]
@@ -71,7 +87,14 @@ func (e *Engine) Scan(ctx context.Context) (*IngestSummary, error) {
 
 // Reprocess force-re-ingests a path, bypassing SHA-256 dedup (applies the
 // current reader/embedder).
-func (e *Engine) Reprocess(ctx context.Context, path string) (*IngestSummary, error) {
+func (e *Engine) Reprocess(ctx context.Context, path string) (sum *IngestSummary, err error) {
+	ctx, span := observe.StartSpan(ctx, observe.SpanIngest, observe.OpAttr("reprocess"))
+	start := time.Now()
+	defer func() {
+		observe.RecordIngest(ctx, "reprocess", time.Since(start), err, 0)
+		observe.SpanError(span, err)
+		span.End()
+	}()
 	if path == "" {
 		return nil, fmt.Errorf("path is required: %w", ErrInvalid)
 	}
@@ -89,7 +112,14 @@ func (e *Engine) Reprocess(ctx context.Context, path string) (*IngestSummary, er
 
 // Migrate re-embeds documents whose embeddings use a different model than the
 // configured one. If everything is current, returns a zero summary.
-func (e *Engine) Migrate(ctx context.Context) (*IngestSummary, error) {
+func (e *Engine) Migrate(ctx context.Context) (sum *IngestSummary, err error) {
+	ctx, span := observe.StartSpan(ctx, observe.SpanMigrate)
+	start := time.Now()
+	defer func() {
+		observe.RecordIngest(ctx, "migrate", time.Since(start), err, 0)
+		observe.SpanError(span, err)
+		span.End()
+	}()
 	current := e.cfg.EmbeddingModel
 	stats := pipeline.EmbeddingModelStats(e.db)
 	stale := 0

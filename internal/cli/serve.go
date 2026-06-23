@@ -17,6 +17,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/engine"
 	goraggrpc "github.com/madeinoz67/go-rag/internal/grpc"
 	"github.com/madeinoz67/go-rag/internal/mcp"
+	"github.com/madeinoz67/go-rag/internal/observe"
 	"github.com/madeinoz67/go-rag/internal/rest"
 	"github.com/spf13/cobra"
 )
@@ -61,6 +62,13 @@ func newServeCmd() *cobra.Command {
 			// before the database closes on shutdown. Runs before the deferred
 			// db.Close() above (LIFO defer order).
 			defer eng.Close()
+
+			// H17/spec 020: init observability (OTel providers/exporters — local by
+			// default; OTLP opt-in only). Drain on shutdown so in-flight spans flush.
+			if err := observe.Init(cfg); err != nil {
+				return err
+			}
+			defer observe.Shutdown(context.Background())
 
 			// H11/spec 017: compute the embedding-drift verdict at boot and log it
 			// (loud-at-startup signal, FR-004/FR-005). Hard drift (model/dim/

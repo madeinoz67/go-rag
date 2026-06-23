@@ -53,8 +53,8 @@ The whole point of building H02 first: each of these can now be proven to help.
 
 ## Phase 5 — Security/ops hardening
 
-- [ ] **H04** · P0 · M · security — **Indirect prompt-injection / retrieval poisoning, zero defense.** Pre-index `PoisoningDetector`-style pass (repetition / keyword-stuffing / instruction-phrase scoring); flag/quarantine; document the threat. *(Audit §1.8)*
-- [ ] **H17** · P2 · M · ops — **No observability/metrics/tracing.** OTel spans around `Engine.Query`/`Ingest`/`Migrate`; expose `/metrics` on loopback; `status --metrics`. *(Audit §1.8)*
+- [x] **H04** · P0 · M · security — **Indirect prompt-injection / retrieval poisoning, zero defense.** ✅ COMPLETE (spec 019, shipped): ingest-time 3-signal PoisoningDetector, quarantine-by-default, verdict on all 4 transports, poison list/release/reset, re-scan, air-gapped threat import. Pre-index `PoisoningDetector`-style pass (repetition / keyword-stuffing / instruction-phrase scoring); flag/quarantine; document the threat. *(Audit §1.8)*
+- [x] **H17** · P2 · M · ops — **No observability/metrics/tracing.** OTel spans around `Engine.Query`/`Ingest`/`Migrate`; expose `/metrics` on loopback; `status --metrics`. *(Audit §1.8)* ✅ COMPLETE (spec 020, shipped): OpenTelemetry metrics (`/metrics` scraped Prometheus) + traces (gorag.Query/Ingest/Migrate) to a local sink; OTLP opt-in only (air-gap proven).
 - [ ] **H18** · P2 · S · security — **No audit log.** Structured append-only JSONL of query + ingest + auth-fail events; hash query text. *(Audit §1.8)*
 - [ ] **H19** · P2 · S · security — **No PII/secret scanning at ingest.** Optional regex secret/PII scanner in `internal/reader` with `--redact`. *(Audit §1.8)*
 

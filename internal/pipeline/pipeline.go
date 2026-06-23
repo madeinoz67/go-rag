@@ -20,6 +20,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/model"
+	"github.com/madeinoz67/go-rag/internal/observe"
 	"github.com/madeinoz67/go-rag/internal/poison"
 	"github.com/madeinoz67/go-rag/internal/reader"
 	"github.com/madeinoz67/go-rag/internal/storage"
@@ -272,6 +273,9 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 		for i := range chunks {
 			v := p.detector.Score(chunks[i].Content)
 			chunks[i].Poisoning = &v
+			if v.Level.Quarantined() {
+				observe.PoisonFlagged(context.Background(), string(v.Level)) // H17 tie-in
+			}
 		}
 	}
 

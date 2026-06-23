@@ -45,6 +45,13 @@ type Config struct {
 	PoisoningThresholdSuspicious float64 `json:"poisoning_threshold_suspicious,omitempty"` // 0 = default 0.40
 	PoisoningThresholdQuarantine float64 `json:"poisoning_threshold_quarantine,omitempty"` // 0 = default 0.70
 	PoisoningPhraseList          string  `json:"poisoning_phrase_list,omitempty"`          // path to an override instruction-phrase source (D9/D12)
+
+	// H17/spec 020: observability (OpenTelemetry). Metrics expose a scraped /metrics
+	// endpoint (loopback, default on); traces export to a LOCAL sink by default, with
+	// OTLP remote export opt-in only (Constitution I — zero telemetry egress unless set).
+	MetricsEnabled bool   `json:"metrics_enabled,omitempty"` // default true; false disables the /metrics endpoint
+	OTelExport     string `json:"otel_export,omitempty"`     // none|stdout (default)|otlp
+	OTelEndpoint   string `json:"otel_endpoint,omitempty"`   // OTLP endpoint; used only when otel_export=otlp
 }
 
 // Default returns the configuration used by `go-rag init` when no overrides apply.
@@ -67,6 +74,8 @@ func Default() Config {
 		PoisoningEnabled:             true, // Q2=A: detection default-on (closes the P0 blind spot out of the box)
 		PoisoningThresholdSuspicious: DefaultPoisonThresholdSuspicious,
 		PoisoningThresholdQuarantine: DefaultPoisonThresholdQuarantine,
+		MetricsEnabled:               true,              // H17: /metrics on by default (loopback, scraped)
+		OTelExport:                   DefaultOTelExport, // H17: local stdout trace exporter by default
 	}
 }
 
@@ -87,6 +96,25 @@ const (
 	DefaultPoisonThresholdSuspicious = 0.40
 	DefaultPoisonThresholdQuarantine = 0.70
 )
+
+// DefaultOTelExport is the trace exporter used when otel_export is unset (spec 020):
+// "stdout" — a LOCAL sink. OTLP ("otlp", remote) is opt-in; "none" disables traces.
+const DefaultOTelExport = "stdout"
+
+// EffectiveMetricsEnabled reports whether the /metrics endpoint is exposed (spec 020).
+// Defaults to true: an absent metrics_enabled key is treated as on via Load(); an
+// explicit false disables the endpoint.
+func (c Config) EffectiveMetricsEnabled() bool { return c.MetricsEnabled }
+
+// EffectiveOTelExport returns the configured trace exporter, or the default ("stdout",
+// local) when unset. Air-gap posture: "stdout"/"none" are local; "otlp" is the only
+// remote (opt-in) path.
+func (c Config) EffectiveOTelExport() string {
+	if c.OTelExport == "" {
+		return DefaultOTelExport
+	}
+	return c.OTelExport
+}
 
 // EffectiveRRFK returns the effective RRF smoothing constant: the configured
 // rrf_k when positive, else DefaultRRFK (60). This is the single resolution site
@@ -157,6 +185,15 @@ func (c Config) Validate() error {
 		return fmt.Errorf("poisoning_threshold_suspicious (%.2f) must be <= poisoning_threshold_quarantine (%.2f)",
 			c.EffectivePoisonThresholdSuspicious(), c.EffectivePoisonThresholdQuarantine())
 	}
+	// H17/spec 020: otel_export must be a known mode; otlp requires an endpoint.
+	switch c.EffectiveOTelExport() {
+	case "none", "stdout", "otlp":
+	default:
+		return fmt.Errorf("invalid otel_export: %q (want none|stdout|otlp)", c.OTelExport)
+	}
+	if c.EffectiveOTelExport() == "otlp" && c.OTelEndpoint == "" {
+		return fmt.Errorf("otel_endpoint is required when otel_export=otlp")
+	}
 	if c.MCPAddr != "" {
 		if _, _, err := net.SplitHostPort(c.MCPAddr); err != nil {
 			return fmt.Errorf("invalid mcp_addr: %q", c.MCPAddr)
@@ -204,6 +241,10 @@ func Load(path string) (Config, error) {
 		// A pre-019 config omits it; an absent key stays on, an explicit false disables.
 		if _, ok := raw["poisoning_enabled"]; !ok {
 			c.PoisoningEnabled = true
+		}
+		// H17/spec 020 backward compat: metrics_enabled defaults to true (/metrics on).
+		if _, ok := raw["metrics_enabled"]; !ok {
+			c.MetricsEnabled = true
 		}
 	}
 	return c, nil
@@ -275,6 +316,12 @@ func (c Config) Get(key string) (string, bool) {
 		return strconv.FormatFloat(c.EffectivePoisonThresholdQuarantine(), 'f', -1, 64), true
 	case "poisoning_phrase_list":
 		return c.PoisoningPhraseList, true
+	case "metrics_enabled":
+		return strconv.FormatBool(c.EffectiveMetricsEnabled()), true
+	case "otel_export":
+		return c.EffectiveOTelExport(), true
+	case "otel_endpoint":
+		return c.OTelEndpoint, true
 	}
 	return "", false
 }
@@ -390,6 +437,21 @@ func (c *Config) Set(key, val string) error {
 		c.PoisoningThresholdQuarantine = f
 	case "poisoning_phrase_list":
 		c.PoisoningPhraseList = val
+	case "metrics_enabled":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("invalid metrics_enabled: %q", val)
+		}
+		c.MetricsEnabled = b
+	case "otel_export":
+		switch val {
+		case "", "none", "stdout", "otlp":
+		default:
+			return fmt.Errorf("invalid otel_export: %q (want none|stdout|otlp)", val)
+		}
+		c.OTelExport = val
+	case "otel_endpoint":
+		c.OTelEndpoint = val
 	default:
 		return fmt.Errorf("unknown config key: %q", key)
 	}
