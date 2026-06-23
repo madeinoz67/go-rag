@@ -5,7 +5,7 @@ import (
 )
 
 func TestFTS_RanksRelevantChunkFirst(t *testing.T) {
-	f := NewFTS()
+	f := newTestFTS(t)
 	f.Index("c1", map[string]string{"body": "the authentication system uses jwt tokens"})
 	f.Index("c2", map[string]string{"body": "recipes for chocolate cake and cookies"})
 
@@ -16,7 +16,7 @@ func TestFTS_RanksRelevantChunkFirst(t *testing.T) {
 }
 
 func TestFTS_TitleFieldOutranksBody(t *testing.T) {
-	f := NewFTS()
+	f := newTestFTS(t)
 	// "auth" appears in a body chunk and in a title chunk; title must rank higher.
 	f.Index("bodyChunk", map[string]string{"body": "auth middleware handles requests"})
 	f.Index("titleChunk", map[string]string{"title": "Auth Overview", "body": "intro material"})
@@ -31,7 +31,7 @@ func TestFTS_TitleFieldOutranksBody(t *testing.T) {
 }
 
 func TestFTS_CaseFoldingAndStopwords(t *testing.T) {
-	f := NewFTS()
+	f := newTestFTS(t)
 	f.Index("c1", map[string]string{"body": "The Quick Brown Fox"})
 	// Uppercase query; stopword "the" ignored.
 	hits := f.Search("THE quick", 5)
@@ -41,7 +41,7 @@ func TestFTS_CaseFoldingAndStopwords(t *testing.T) {
 }
 
 func TestFTS_ShortTermFallback(t *testing.T) {
-	f := NewFTS()
+	f := newTestFTS(t)
 	f.Index("c1", map[string]string{"body": "category catalog"})
 	// "cat" (len 3 < 4) has no exact posting but should match via prefix fallback.
 	hits := f.Search("cat", 5)
@@ -51,9 +51,9 @@ func TestFTS_ShortTermFallback(t *testing.T) {
 }
 
 func TestFTS_Delete(t *testing.T) {
-	f := NewFTS()
+	f := newTestFTS(t)
 	f.Index("c1", map[string]string{"body": "solo uniqueterm here"})
-	f.Delete("c1")
+	f.Delete("c1", "solo uniqueterm here")
 	if hits := f.Search("uniqueterm", 5); len(hits) != 0 {
 		t.Fatalf("deleted chunk should not match, got %v", hits)
 	}

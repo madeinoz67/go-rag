@@ -15,28 +15,31 @@ import (
 // query would serve phantom hits.
 func (p *Pipeline) DeleteDoc(docID string) error {
 	db := p.db
-	var chunkIDs []string
+	// Save chunkID + content during the scan — the Pebble-backed FTS.Delete
+	// needs the content to re-tokenize (recover terms for key construction).
+	type chunkRef struct{ id, content string }
+	var chunks []chunkRef
 	_ = db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(val, &c) == nil && c.DocumentID == docID {
-			chunkIDs = append(chunkIDs, c.ID)
+			chunks = append(chunks, chunkRef{id: c.ID, content: c.Content})
 		}
 		return true
 	})
-	for _, cid := range chunkIDs {
-		_ = db.DeleteWithPrefix(storage.PrefixChunk, []byte(cid))
-		_ = db.DeleteWithPrefix(storage.PrefixEmbedding, []byte(cid))
-		// H01/spec 011: keep the shared in-memory index fresh — no phantom hits.
+	for _, ch := range chunks {
+		_ = db.DeleteWithPrefix(storage.PrefixChunk, []byte(ch.id))
+		_ = db.DeleteWithPrefix(storage.PrefixEmbedding, []byte(ch.id))
+		// H01/spec 011 + H16/spec 018: keep the index fresh — no phantom hits.
 		if p.fts != nil {
-			p.fts.Delete(cid)
+			p.fts.Delete(ch.id, ch.content)
 		}
 		if p.vec != nil {
-			p.vec.Delete(cid)
+			p.vec.Delete(ch.id)
 		}
 	}
 	// H06/spec 016: removals mutated the searchable corpus — advance the
 	// result-cache epoch so subsequent queries never serve a now-deleted hit.
-	if len(chunkIDs) > 0 {
+	if len(chunks) > 0 {
 		p.indexChanged()
 	}
 

@@ -61,7 +61,7 @@ func TestQuery_AppliesQueryPrefix(t *testing.T) {
 	// Populate the corpus via a standalone pipeline with the SAME embedder + a
 	// nomic prefixer (documents embedded with "search_document:").
 	ppre := cfg.Prefixer()
-	pp := pipeline.New(db, chunk.NewSplitter(512, 50), em, index.NewFTS(), index.NewVector(), ppre)
+	pp := pipeline.New(db, chunk.NewSplitter(512, 50), em, index.NewFTS(db.Pebble()), index.NewVector(), ppre)
 	docPath := dir + "/doc.txt"
 	if err := os.WriteFile(docPath, []byte("retrieval augmented generation combines retrieval with a language model"), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)

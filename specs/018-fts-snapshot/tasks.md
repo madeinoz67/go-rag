@@ -20,7 +20,7 @@
 
 **Purpose**: Confirm a clean baseline.
 
-- [ ] T001 Record clean baseline: `CGO_ENABLED=0 go build ./...`, `go vet ./...`, `go test ./...` green; `make test-eval` recall@10 baseline (must not regress).
+- [x] T001 Record clean baseline: `CGO_ENABLED=0 go build ./...`, `go vet ./...`, `go test ./...` green; `make test-eval` recall@10 baseline (must not regress).
 
 ---
 
@@ -30,12 +30,12 @@
 
 **⚠️ CRITICAL**: The BM25 math (k1=1.2, b=0.75, field weights concept=3.0/tags=2.0/body=1.0) MUST be identical to the current in-memory FTS (transparency, FR-008). The rewrite changes the DATA SOURCE (map → Pebble prefix scans), not the MATH.
 
-- [ ] T002 [P] Assign prefix roles in `internal/storage/storage.go`: `PrefixFTSPosting = 0x05`, `PrefixFTSTermStat = 0x06`, `PrefixFTSGlobalStat = 0x08` (within the reserved `0x05–0x08` BM25 FTS range). Add key-constructor helpers (posting key, term-stat key, global-stat key) or document the layout.
-- [ ] T003 Rewrite the FTS struct in `internal/index/fts.go`: replace `postings map[string]map[string]float64` + `docLen` + `totalLen` + `N` with a thin Pebble-backed adapter `{db *pebble.DB, mu sync.RWMutex, idfCache map[string]float64}`. `NewFTS(db *pebble.DB) *FTS` (signature change — gains the db param). Keep `Tokenize`/`Trigrams`/`fieldWeight` unchanged. Remove the in-memory posting map entirely.
-- [ ] T004 Implement `FTS.Index` in `internal/index/fts.go`: tokenize each field → build one atomic Pebble batch (posting keys `0x05|term|sep|field|chunkID` with 7-byte values + DF updates `0x06|term` + global-stats `0x08|"stats"`) → commit `pebble.NoSync`. Same field-weight semantics as today. Invalidate the IDF cache for the touched terms.
-- [ ] T005 Implement `FTS.Search` in `internal/index/fts.go`: tokenize query → for each term, prefix-scan `0x05|term|0x00|*` via `db.NewIter` (LowerBound/UpperBound per term) → decode 7-byte posting values → accumulate BM25 (k1=1.2, b=0.75, field weights, IDF from cached DF `0x06|term`) → top-k `[]Hit`. Read N + avgdl from `0x08|"stats"`. **Math unchanged from the current Search.** IDF computed lazily + cached (pattern: MuninnDB `getIDF`).
-- [ ] T006 Implement `FTS.Delete` in `internal/index/fts.go`: **signature change** `(chunkID, content string)` — re-tokenize content → for each term, batch-delete `0x05|term|sep|field|chunkID` for all fields + invalidate IDF cache. Same delete semantics as today (remove the chunk's postings).
-- [ ] T007 Tests in `internal/index/fts_test.go`: Index/Search round-trip (index chunks, search, assert correct hits + BM25 order); Delete (index, delete, assert gone); prefix-scan query for a multi-term query; field weighting (concept > tags > body); stats correctness (N, avgdl, DF). Use a temp Pebble DB.
+- [x] T002 [P] Assign prefix roles in `internal/storage/storage.go`: `PrefixFTSPosting = 0x05`, `PrefixFTSTermStat = 0x06`, `PrefixFTSGlobalStat = 0x08` (within the reserved `0x05–0x08` BM25 FTS range). Add key-constructor helpers (posting key, term-stat key, global-stat key) or document the layout.
+- [x] T003 Rewrite the FTS struct in `internal/index/fts.go`: replace `postings map[string]map[string]float64` + `docLen` + `totalLen` + `N` with a thin Pebble-backed adapter `{db *pebble.DB, mu sync.RWMutex, idfCache map[string]float64}`. `NewFTS(db *pebble.DB) *FTS` (signature change — gains the db param). Keep `Tokenize`/`Trigrams`/`fieldWeight` unchanged. Remove the in-memory posting map entirely.
+- [x] T004 Implement `FTS.Index` in `internal/index/fts.go`: tokenize each field → build one atomic Pebble batch (posting keys `0x05|term|sep|field|chunkID` with 7-byte values + DF updates `0x06|term` + global-stats `0x08|"stats"`) → commit `pebble.NoSync`. Same field-weight semantics as today. Invalidate the IDF cache for the touched terms.
+- [x] T005 Implement `FTS.Search` in `internal/index/fts.go`: tokenize query → for each term, prefix-scan `0x05|term|0x00|*` via `db.NewIter` (LowerBound/UpperBound per term) → decode 7-byte posting values → accumulate BM25 (k1=1.2, b=0.75, field weights, IDF from cached DF `0x06|term`) → top-k `[]Hit`. Read N + avgdl from `0x08|"stats"`. **Math unchanged from the current Search.** IDF computed lazily + cached (pattern: MuninnDB `getIDF`).
+- [x] T006 Implement `FTS.Delete` in `internal/index/fts.go`: **signature change** `(chunkID, content string)` — re-tokenize content → for each term, batch-delete `0x05|term|sep|field|chunkID` for all fields + invalidate IDF cache. Same delete semantics as today (remove the chunk's postings).
+- [x] T007 Tests in `internal/index/fts_test.go`: Index/Search round-trip (index chunks, search, assert correct hits + BM25 order); Delete (index, delete, assert gone); prefix-scan query for a multi-term query; field weighting (concept > tags > body); stats correctness (N, avgdl, DF). Use a temp Pebble DB.
 
 **Checkpoint**: The Pebble-backed FTS works standalone — Index writes postings, Search reads them via prefix scans, Delete removes them. BM25 math is identical. Ready to wire into the pipeline.
 
@@ -49,8 +49,8 @@
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Simplify `LoadIndex` in `internal/pipeline/load.go`: replace the `PrefixScan(PrefixChunk)` FTS rebuild with `fts := index.NewFTS(db)` (O(1) adapter). Keep the vector reload from `PrefixEmbedding` (unchanged). Return `(fts, vec, err)`.
-- [ ] T009 [US1] Add the one-time migration backfill in `internal/pipeline/load.go`: if the `0x08|"stats"` key is absent (pre-pivot vault), scan `PrefixChunk`, tokenize each, write postings + DF + stats (the same logic as the old LoadIndex, now writing to Pebble). Gated by the stats-key check so it runs exactly once.
+- [x] T008 [US1] Simplify `LoadIndex` in `internal/pipeline/load.go`: replace the `PrefixScan(PrefixChunk)` FTS rebuild with `fts := index.NewFTS(db)` (O(1) adapter). Keep the vector reload from `PrefixEmbedding` (unchanged). Return `(fts, vec, err)`.
+- [x] T009 [US1] Add the one-time migration backfill in `internal/pipeline/load.go`: if the `0x08|"stats"` key is absent (pre-pivot vault), scan `PrefixChunk`, tokenize each, write postings + DF + stats (the same logic as the old LoadIndex, now writing to Pebble). Gated by the stats-key check so it runs exactly once.
 - [ ] T010 [US1] Test in `internal/pipeline/load_test.go`: cold start with a Pebble-backed FTS (stats key present) does NOT scan PrefixChunk for FTS (only vectors); cold start with a pre-pivot vault (no stats key) triggers the migration backfill (writes postings, subsequent starts skip it).
 
 **Checkpoint**: US1 — cold start has no FTS rebuild; the FTS is durable in Pebble.

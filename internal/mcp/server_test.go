@@ -75,7 +75,7 @@ func populateDB(t *testing.T, dbPath, ollamaURL, doc string) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	p := pipeline.New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(), index.NewVector(), nil)
+	p := pipeline.New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
 	defer p.Close()
 	dp := filepath.Join(filepath.Dir(dbPath), "doc.txt")
 	if err := os.WriteFile(dp, []byte(doc), 0o644); err != nil {

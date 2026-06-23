@@ -44,7 +44,7 @@ func TestPipeline_DocumentPrefixApplied(t *testing.T) {
 	}
 	pre := embed.NewPrefixer("nomic-embed-text", embed.ModeAuto, "", "")
 	em := &captureEmbed{}
-	p := New(db, chunk.NewSplitter(512, 50), em, index.NewFTS(), index.NewVector(), pre)
+	p := New(db, chunk.NewSplitter(512, 50), em, index.NewFTS(db.Pebble()), index.NewVector(), pre)
 	if _, err := p.Ingest(context.Background(), dir, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestPipeline_NilPrefixerNoPrefix(t *testing.T) {
 		t.Fatalf("open storage: %v", err)
 	}
 	em := &captureEmbed{}
-	p := New(db, chunk.NewSplitter(512, 50), em, index.NewFTS(), index.NewVector(), nil)
+	p := New(db, chunk.NewSplitter(512, 50), em, index.NewFTS(db.Pebble()), index.NewVector(), nil)
 	if _, err := p.Ingest(context.Background(), dir, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}

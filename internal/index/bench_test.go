@@ -9,7 +9,7 @@ import (
 // BenchmarkRetrieval_Hybrid measures hybrid (vector + BM25, RRF) query latency over
 // a 100-chunk index, guarding the <500ms hybrid top-5 budget (PRD §10.1).
 func BenchmarkRetrieval_Hybrid(b *testing.B) {
-	fts := NewFTS()
+	fts := newTestFTS(b)
 	vec := NewVector()
 	for i := 0; i < 100; i++ {
 		id := fmt.Sprintf("c%d", i)

@@ -58,7 +58,7 @@ func TestFilter_Empty(t *testing.T) {
 // TestRetrieval_SetFilter_PreFusion (H14 US2, FR-005): a keep predicate drops
 // candidates from the fused results — non-matching chunks never reach the output.
 func TestRetrieval_SetFilter_PreFusion(t *testing.T) {
-	fts := NewFTS()
+	fts := newTestFTS(t)
 	vec := NewVector()
 	fts.Index("keep1", map[string]string{"body": "alpha keyword"})
 	fts.Index("drop1", map[string]string{"body": "alpha other"})

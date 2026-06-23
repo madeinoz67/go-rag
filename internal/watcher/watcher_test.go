@@ -31,7 +31,7 @@ func newDetector(t *testing.T) (*ChangeDetector, *pipeline.Pipeline, *storage.DB
 	if err != nil {
 		t.Fatal(err)
 	}
-	pl := pipeline.New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(), index.NewVector(), nil)
+	pl := pipeline.New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
 	return New(db, pl), pl, db
 }
 

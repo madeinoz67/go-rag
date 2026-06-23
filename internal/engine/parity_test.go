@@ -121,7 +121,7 @@ func sharedEngine(t *testing.T, doc string) *engine.Engine {
 		// No engine writes happen for this corpus (ingested via a separate
 		// pipeline below), so the engine's own pipeline is never created.
 	})
-	p := pipeline.New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(), index.NewVector(), nil)
+	p := pipeline.New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
 	defer p.Close()
 	dp := filepath.Join(dir, "doc.txt")
 	if err := os.WriteFile(dp, []byte(doc), 0o644); err != nil {

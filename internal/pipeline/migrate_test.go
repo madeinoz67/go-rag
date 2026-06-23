@@ -21,7 +21,7 @@ func TestEmbeddingModelRecorded(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	p := New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(), index.NewVector(), nil)
+	p := New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
 	_, _ = p.Ingest(context.Background(), dir, "*")
 	p.Close() // drain async embedding so 0x04 entries are written
 

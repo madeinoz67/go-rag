@@ -13,6 +13,9 @@ const (
 	PrefixChunk        byte = 0x03 // Chunk records
 	PrefixEmbedding    byte = 0x04 // Embedding metadata
 	// 0x05–0x08 reserved for the BM25 FTS inverted index.
+	PrefixFTSPosting  byte = 0x05 // H16/spec 018: FTS postings (term → chunkID → tf+docLen)
+	PrefixFTSIndexed  byte = 0x07 // H16/spec 018: indexed-chunk set (chunkID → docLen; idempotency guard)
+	PrefixFTSGlobalSt byte = 0x08 // H16/spec 018: global BM25 stats (N + totalLen)
 	PrefixConfig       byte = 0x09 // Config key/value store
 	PrefixSourceDocs   byte = 0x0A // Source -> Document secondary index
 	PrefixDocChunks    byte = 0x0B // Document -> Chunks ordered index

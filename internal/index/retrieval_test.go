@@ -19,7 +19,7 @@ func staticEmbed(vec []float32) EmbedFunc {
 }
 
 func TestRetrieval_Hybrid_BothListsRankAboveOneList(t *testing.T) {
-	fts := NewFTS()
+	fts := newTestFTS(t)
 	vec := NewVector()
 
 	// c1 matches FTS ("alpha") and is near the query vector.
@@ -84,7 +84,7 @@ func TestRRF_FormulaPin(t *testing.T) {
 // in both lists — the sole FTS match for "alpha" and an exact vector match.
 func TestRetrieval_SetRRFK_ChangesFusionScore(t *testing.T) {
 	mk := func() *Retrieval {
-		fts := NewFTS()
+		fts := newTestFTS(t)
 		vec := NewVector()
 		fts.Index("c1", map[string]string{"body": "alpha"})
 		vec.Add("c1", []float32{1.0, 0.0})
@@ -129,7 +129,7 @@ func TestRetrieval_SetRRFK_ChangesFusionScore(t *testing.T) {
 // RRF constant is inert in keyword and semantic modes (single list, no fusion):
 // SetRRFK does not error and does not change single-list results.
 func TestRetrieval_RRFK_NoOpInSingleListModes(t *testing.T) {
-	fts := NewFTS()
+	fts := newTestFTS(t)
 	vec := NewVector()
 	fts.Index("c1", map[string]string{"body": "alpha keyword"})
 	vec.Add("c1", []float32{1.0, 0.0})
@@ -160,7 +160,7 @@ func TestRetrieval_RRFK_NoOpInSingleListModes(t *testing.T) {
 }
 
 func TestRetrieval_CollapseSameDocument(t *testing.T) {
-	fts := NewFTS()
+	fts := newTestFTS(t)
 	vec := NewVector()
 	fts.Index("c1", map[string]string{"body": "alpha beta"})
 	fts.Index("c1b", map[string]string{"body": "alpha gamma"})
@@ -193,7 +193,7 @@ func TestRetrieval_CollapseSameDocument(t *testing.T) {
 }
 
 func TestRetrieval_ModeSelection(t *testing.T) {
-	fts := NewFTS()
+	fts := newTestFTS(t)
 	vec := NewVector()
 	// cFTS: only in FTS. cVEC: only in vector.
 	fts.Index("cFTS", map[string]string{"body": "unique keyword term"})
@@ -231,8 +231,8 @@ func captureLog(t *testing.T) *bytes.Buffer {
 
 // rerankFixture builds a retrieval over three FTS+vector chunks and returns it
 // with a chunkText lookup, ready for SearchWithRerank tests.
-func rerankFixture() (*Retrieval, func(string) string) {
-	fts := NewFTS()
+func rerankFixture(t testing.TB) (*Retrieval, func(string) string) {
+	fts := newTestFTS(t)
 	vec := NewVector()
 	chunks := []struct {
 		id, body string
@@ -305,7 +305,7 @@ func (f *eventuallyOKReranker) Model() string { return f.model }
 // diagnostic log line (and never an error return, never the query text logged).
 func TestSearchWithRerank_RerankError_DegradesWithFlagAndLog(t *testing.T) {
 	logbuf := captureLog(t)
-	r, chunkText := rerankFixture()
+	r, chunkText := rerankFixture(t)
 	rr := &fakeReranker{err: errors.New("ollama down"), model: "bge-reranker"}
 
 	hits, failed, err := r.SearchWithRerank(context.Background(), "alpha", 5, ModeHybrid, nil, rr, chunkText)
@@ -336,7 +336,7 @@ func TestSearchWithRerank_RerankError_DegradesWithFlagAndLog(t *testing.T) {
 // T007: a score-count mismatch is treated identically to a rerank error.
 func TestSearchWithRerank_LengthMismatch_DegradesWithFlag(t *testing.T) {
 	logbuf := captureLog(t)
-	r, chunkText := rerankFixture()
+	r, chunkText := rerankFixture(t)
 	rr := &fakeReranker{short: true, model: "bge-reranker"}
 
 	hits, failed, err := r.SearchWithRerank(context.Background(), "alpha", 5, ModeHybrid, nil, rr, chunkText)
@@ -359,7 +359,7 @@ func TestSearchWithRerank_LengthMismatch_DegradesWithFlag(t *testing.T) {
 // (FR-009/SC-006) — never silent empty results, never a rerank-failed flag.
 func TestSearchWithRerank_RetrievalError_Propagates(t *testing.T) {
 	logbuf := captureLog(t)
-	fts := NewFTS()
+	fts := newTestFTS(t)
 	vec := NewVector()
 	fts.Index("c1", map[string]string{"body": "alpha document"})
 	vec.Add("c1", []float32{1.0, 0.0})
@@ -390,7 +390,7 @@ func TestSearchWithRerank_RetrievalError_Propagates(t *testing.T) {
 // Happy path: a successful rerank returns reranked hits, no flag, no log.
 func TestSearchWithRerank_Success_ReranksAndNoFlag(t *testing.T) {
 	logbuf := captureLog(t)
-	r, chunkText := rerankFixture()
+	r, chunkText := rerankFixture(t)
 	rr := &fakeReranker{model: "bge-reranker"}
 
 	hits, failed, err := r.SearchWithRerank(context.Background(), "alpha", 3, ModeHybrid, nil, rr, chunkText)
@@ -411,7 +411,7 @@ func TestSearchWithRerank_Success_ReranksAndNoFlag(t *testing.T) {
 // T019: retry is off by default (one attempt); when enabled it retries once.
 func TestSearchWithRerank_Retry_DisabledByDefault(t *testing.T) {
 	captureLog(t) // swallow the expected log line
-	r, chunkText := rerankFixture()
+	r, chunkText := rerankFixture(t)
 	rr := &fakeReranker{err: errors.New("down"), model: "bge"}
 	_, failed, err := r.SearchWithRerank(context.Background(), "alpha", 5, ModeHybrid, nil, rr, chunkText)
 	if err != nil || !failed || rr.calls != 1 {
@@ -421,7 +421,7 @@ func TestSearchWithRerank_Retry_DisabledByDefault(t *testing.T) {
 
 func TestSearchWithRerank_Retry_AlwaysFails(t *testing.T) {
 	captureLog(t)
-	r, chunkText := rerankFixture()
+	r, chunkText := rerankFixture(t)
 	r.EnableRerankRetry()
 	rr := &fakeReranker{err: errors.New("down"), model: "bge"}
 	hits, failed, err := r.SearchWithRerank(context.Background(), "alpha", 5, ModeHybrid, nil, rr, chunkText)
@@ -438,7 +438,7 @@ func TestSearchWithRerank_Retry_AlwaysFails(t *testing.T) {
 
 func TestSearchWithRerank_Retry_Recovers(t *testing.T) {
 	logbuf := captureLog(t)
-	r, chunkText := rerankFixture()
+	r, chunkText := rerankFixture(t)
 	r.EnableRerankRetry()
 	rr := &eventuallyOKReranker{failsLeft: 1, model: "bge"}
 

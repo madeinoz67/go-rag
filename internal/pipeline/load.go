@@ -19,20 +19,28 @@ type storedEmbedding struct {
 	Vector     []float32 `json:"vector"`
 }
 
-// LoadIndex rebuilds in-memory FTS and Vector indexes from persisted Chunks (0x03)
-// and Embeddings (0x04). Reads both the current {model,vector} embedding format and
-// the legacy bare []float32 format.
+// LoadIndex seeds the FTS and Vector indexes. The FTS is Pebble-backed (audit
+// H16/spec 018, pivoted) — no rebuild on cold start; it's queried in place. A
+// one-time migration writes the postings from existing chunks for pre-pivot
+// vaults. The Vector index is reloaded from persisted embeddings (unchanged).
 func LoadIndex(db *storage.DB) (*index.FTS, *index.Vector, error) {
-	fts := index.NewFTS()
-	vec := index.NewVector()
+	pebbleDB := db.Pebble()
+	fts := index.NewFTS(pebbleDB)
 
-	_ = db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
-		var c model.Chunk
-		if json.Unmarshal(val, &c) == nil {
-			fts.Index(c.ID, map[string]string{"body": c.Content})
-		}
-		return true
-	})
+	// H16/spec 018: one-time migration for pre-pivot vaults (no postings yet).
+	if !index.HasPostings(pebbleDB) {
+		_ = index.MigrateFromChunks(pebbleDB, func(yield func(string, string) bool) {
+			_ = db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
+				var c model.Chunk
+				if json.Unmarshal(val, &c) == nil {
+					return yield(c.ID, c.Content)
+				}
+				return true
+			})
+		})
+	}
+
+	vec := index.NewVector()
 
 	_ = db.PrefixScanByte(storage.PrefixEmbedding, func(key, val []byte) bool {
 		var se storedEmbedding

@@ -42,6 +42,17 @@ func (d *DB) Close() error {
 	return d.db.Close()
 }
 
+// Pebble returns the underlying *pebble.DB handle for low-level operations
+// (iterators, batches) that the prefix-partitioned helpers don't expose.
+// Callers MUST use the correct key prefixes (see storage.go) — this bypasses
+// the prefix discipline. Used by the Pebble-backed FTS (audit H16/spec 018).
+func (d *DB) Pebble() *pebble.DB {
+	if d == nil {
+		return nil
+	}
+	return d.db
+}
+
 // Set stores key->value with a durable (Sync) write.
 func (d *DB) Set(key, value []byte) error {
 	return d.db.Set(key, value, pebble.Sync)

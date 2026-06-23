@@ -32,7 +32,7 @@ func newAddCmd() *cobra.Command {
 			defer db.Close()
 
 			em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
-			p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(), index.NewVector(), cfg.Prefixer())
+			p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(db.Pebble()), index.NewVector(), cfg.Prefixer())
 			p.OnProgress = progressBar
 			res, err := p.Ingest(context.Background(), path, glob)
 			p.Close() // drain async embedding+indexing
