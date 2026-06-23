@@ -31,20 +31,17 @@
 
 ## Notes
 
-- **Zero [NEEDS CLARIFICATION] markers.** The one genuinely open design decision — the snapshot
-  *currency strategy* (per-mutation vs checkpoint-on-close vs debounced) — is recorded with a reasoned
-  default (checkpoint-on-close + a persisted staleness marker) in Assumptions and explicitly deferred to
-  `/speckit-plan`; it has a reasonable default, so it is not a blocking clarification.
-- **Project-idiom note on "no implementation details" (pass with rationale):** this repo's spec audience
-  is the technical product owner, and specs 011–017 (house style) reference concrete anchors (Pebble
-  prefixes, `LoadIndex`, the FTS, the H01/H06 interactions) inside Assumptions/Edge-Cases as "plan
-  decides" handles, while User Stories/FRs/SCs stay at WHAT/WHY. 018 matches that idiom. Marked
-  compliant.
-- **Highest-risk item flagged for plan**: the **currency mechanism + staleness marker** (FR-003/FR-008/
-  FR-009). A snapshot that goes stale silently → wrong cold-start results; a per-mutation write → bulk-
-  ingest perf cliff. Plan must pick a strategy that is both correct (never stale) and efficient (no
-  per-chunk write), and the staleness check must be O(1) (no full scan) to preserve the cold-start win.
-- **Scope discipline**: H16 = FTS postings snapshot only. Vector-map persistence (audit's unused
-  Save/Load hooks) and HNSW/`Index`-interface extraction (H27) are explicitly out of scope.
-- Items marked incomplete would require spec updates before `/speckit-clarify` or `/speckit-plan`; none
-  are incomplete.
+- **Pivoted 2026-06-23**: the feature changed from "snapshot the in-memory FTS" to "make the FTS a
+  durable Pebble-backed inverted index, indexed async." The quality items above still pass (the spec is
+  complete, testable, scope-bounded) — re-validated against the pivoted spec. **16/16 still passing.**
+- **Zero [NEEDS CLARIFICATION] markers.** The pivot was a design decision grounded in MuninnDB research
+  + a benchmark (Pebble prefix-scan query ~0.3 ms worst-case vs ~0.24 ms in-memory; durable store
+  6.7 MB), recorded in the spec's Clarifications section.
+- **Highest-risk item for plan**: the **async-FTS visibility window + the FTS rewrite** (the in-memory
+  `*FTS` becomes a thin Pebble-backed adapter; `Index`/`Delete`/`Search` all change; the H01/H06 query-
+  path + eval interactions). Plan must preserve BM25 transparency (FR-008) and the < 50 ms budget.
+- **Constitution**: the pivot *improves* the check — Principle IV (BM25 indexing async post-ACK) passes
+  by the letter (the current sync-FTS-in-`storeDocument` bent it).
+- The plan/research/data-model/contracts/quickstart artifacts still describe the OLD snapshot design and
+  are **stale** — regenerate via `/speckit-plan` against this pivoted spec.
+- Items marked incomplete would require spec updates before `/speckit-plan`; none are incomplete.
