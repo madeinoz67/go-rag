@@ -10,6 +10,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
+	"github.com/madeinoz67/go-rag/internal/redact"
 	"github.com/madeinoz67/go-rag/internal/storage"
 )
 
@@ -180,6 +181,11 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	// list (built-in + managed sources, US4 FR-012/013) via poisonDetector().
 	if e.cfg.EffectivePoisoningEnabled() {
 		e.pipe.SetDetector(e.poisonDetector())
+	}
+	// H19/spec 022: bind the secret/PII redactor (opt-in, default off).
+	if e.cfg.PIIRedactEnabled {
+		custom, _ := redact.LoadCustom(e.cfg.PIIPatterns)
+		e.pipe.SetRedactor(redact.NewScanner(redact.DefaultPatterns(custom)))
 	}
 	return e.pipe, nil
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
+	"github.com/madeinoz67/go-rag/internal/redact"
 	"github.com/spf13/cobra"
 )
 
@@ -34,6 +35,10 @@ func newAddCmd() *cobra.Command {
 			em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
 			p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(db.Pebble()), index.NewVector(), cfg.Prefixer())
 			p.OnProgress = progressBar
+			if redactOn, _ := cmd.Flags().GetBool("redact"); redactOn {
+				custom, _ := redact.LoadCustom(cfg.PIIPatterns)
+				p.SetRedactor(redact.NewScanner(redact.DefaultPatterns(custom)))
+			}
 			res, err := p.Ingest(context.Background(), path, glob)
 			p.Close() // drain async embedding+indexing
 			if err != nil {
@@ -50,5 +55,6 @@ func newAddCmd() *cobra.Command {
 	cmd.Flags().Bool("recursive", true, "recurse into subdirectories")
 	cmd.Flags().String("glob", "", "file pattern filter (e.g. \"*.pdf\")")
 	cmd.Flags().Bool("dry-run", false, "show what would be added without ingesting")
+	cmd.Flags().Bool("redact", false, "redact detected secrets/PII before indexing (opt-in)")
 	return cmd
 }

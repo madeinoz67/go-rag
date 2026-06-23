@@ -23,6 +23,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/observe"
 	"github.com/madeinoz67/go-rag/internal/poison"
 	"github.com/madeinoz67/go-rag/internal/reader"
+	"github.com/madeinoz67/go-rag/internal/redact"
 	"github.com/madeinoz67/go-rag/internal/storage"
 )
 
@@ -53,6 +54,7 @@ type Pipeline struct {
 	fts      *index.FTS
 	vec      *index.Vector
 	detector poison.Detector // H04/spec 019: scores chunks at ingest; nil = detection disabled
+	redactor *redact.Scanner // H19/spec 022: redacts secrets/PII pre-chunk; nil = disabled
 
 	queue chan job
 	wg    sync.WaitGroup
@@ -113,6 +115,10 @@ func New(db *storage.DB, sp *chunk.Splitter, em embed.Embedder, fts *index.FTS, 
 // poisoning_enabled is false (the default-on resolution lives in the caller).
 // Mirrors the OnChange/OnFirstEmbed bind pattern.
 func (p *Pipeline) SetDetector(d poison.Detector) { p.detector = d }
+
+// SetRedactor binds the secret/PII redactor (audit H19/spec 022). Bound once by the
+// Engine under pipeMu before any job flows; nil disables redaction.
+func (p *Pipeline) SetRedactor(s *redact.Scanner) { p.redactor = s }
 
 // Close drains the async queue and stops workers.
 func (p *Pipeline) Close() {
@@ -220,6 +226,11 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	}
 
 	docID := model.GenerateID(content, mimeType(ext), metadata)
+	// H19/spec 022: redact secrets/PII AFTER identity (docID over original content —
+	// Constitution II) but BEFORE chunking (so indexed text is redacted, not the original).
+	if p.redactor != nil {
+		content, _ = p.redactor.Apply(content)
+	}
 	now := time.Now().UTC()
 	doc := model.Document{
 		ID:          docID,

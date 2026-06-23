@@ -58,6 +58,11 @@ type Config struct {
 	AuditLogEnabled  bool   `json:"audit_log_enabled,omitempty"`   // default true; false disables auditing
 	AuditLogMaxBytes int    `json:"audit_log_max_bytes,omitempty"` // 0 = default (~16 MiB)
 	AuditPath        string `json:"audit_path,omitempty"`          // optional override of the audit log path
+
+	// H19/spec 022: opt-in regex secret/PII redaction at ingest. Default off;
+	// when enabled, secrets are replaced with placeholders before indexing.
+	PIIRedactEnabled bool   `json:"pii_redact_enabled,omitempty"` // default false (opt-in)
+	PIIPatterns      string `json:"pii_patterns,omitempty"`       // path to a custom patterns file
 }
 
 // Default returns the configuration used by `go-rag init` when no overrides apply.
@@ -360,6 +365,10 @@ func (c Config) Get(key string) (string, bool) {
 		return strconv.Itoa(c.EffectiveAuditLogMaxBytes()), true
 	case "audit_path":
 		return c.AuditPath, true
+	case "pii_redact_enabled":
+		return strconv.FormatBool(c.PIIRedactEnabled), true
+	case "pii_patterns":
+		return c.PIIPatterns, true
 	}
 	return "", false
 }
@@ -504,6 +513,14 @@ func (c *Config) Set(key, val string) error {
 		c.AuditLogMaxBytes = n
 	case "audit_path":
 		c.AuditPath = val
+	case "pii_redact_enabled":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("invalid pii_redact_enabled: %q", val)
+		}
+		c.PIIRedactEnabled = b
+	case "pii_patterns":
+		c.PIIPatterns = val
 	default:
 		return fmt.Errorf("unknown config key: %q", key)
 	}

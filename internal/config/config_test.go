@@ -33,11 +33,11 @@ func TestDefault_HasExpectedValues(t *testing.T) {
 func TestValidate_RejectsBadValues(t *testing.T) {
 	good := "http://localhost:11434"
 	cases := map[string]Config{
-		"bad url":        {OllamaURL: "not a url"},
-		"empty url":      {OllamaURL: ""},
-		"zero chunk":     {OllamaURL: good, ChunkSize: 0},
-		"neg overlap":    {OllamaURL: good, ChunkSize: 512, ChunkOverlap: -1},
-		"zero poll":      {OllamaURL: good, PollIntervalSec: 0},
+		"bad url":     {OllamaURL: "not a url"},
+		"empty url":   {OllamaURL: ""},
+		"zero chunk":  {OllamaURL: good, ChunkSize: 0},
+		"neg overlap": {OllamaURL: good, ChunkSize: 512, ChunkOverlap: -1},
+		"zero poll":   {OllamaURL: good, PollIntervalSec: 0},
 	}
 	for name, c := range cases {
 		if err := c.Validate(); err == nil {
