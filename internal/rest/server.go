@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/madeinoz67/go-rag/internal/audit"
 	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/observe"
 )
@@ -121,6 +122,7 @@ func (s *Server) handlerFor(method, path string) http.HandlerFunc {
 func (s *Server) guard(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if s.token != "" && !checkBearer(r, s.token) {
+			audit.Log(audit.AuthFailEvent("rest", "missing or invalid bearer")) // H18 audit
 			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}

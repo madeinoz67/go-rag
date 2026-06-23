@@ -52,6 +52,12 @@ type Config struct {
 	MetricsEnabled bool   `json:"metrics_enabled,omitempty"` // default true; false disables the /metrics endpoint
 	OTelExport     string `json:"otel_export,omitempty"`     // none|stdout (default)|otlp
 	OTelEndpoint   string `json:"otel_endpoint,omitempty"`   // OTLP endpoint; used only when otel_export=otlp
+
+	// H18/spec 021: structured audit log (local, append-only JSONL). Default-on
+	// (security); query text is hashed, never plaintext; rotation bounds growth.
+	AuditLogEnabled  bool   `json:"audit_log_enabled,omitempty"`   // default true; false disables auditing
+	AuditLogMaxBytes int    `json:"audit_log_max_bytes,omitempty"` // 0 = default (~16 MiB)
+	AuditPath        string `json:"audit_path,omitempty"`          // optional override of the audit log path
 }
 
 // Default returns the configuration used by `go-rag init` when no overrides apply.
@@ -74,8 +80,10 @@ func Default() Config {
 		PoisoningEnabled:             true, // Q2=A: detection default-on (closes the P0 blind spot out of the box)
 		PoisoningThresholdSuspicious: DefaultPoisonThresholdSuspicious,
 		PoisoningThresholdQuarantine: DefaultPoisonThresholdQuarantine,
-		MetricsEnabled:               true,              // H17: /metrics on by default (loopback, scraped)
-		OTelExport:                   DefaultOTelExport, // H17: local stdout trace exporter by default
+		MetricsEnabled:               true,                    // H17: /metrics on by default (loopback, scraped)
+		OTelExport:                   DefaultOTelExport,       // H17: local stdout trace exporter by default
+		AuditLogEnabled:              true,                    // H18: audit on by default
+		AuditLogMaxBytes:             DefaultAuditLogMaxBytes, // H18: ~16 MiB rotation cap
 	}
 }
 
@@ -114,6 +122,23 @@ func (c Config) EffectiveOTelExport() string {
 		return DefaultOTelExport
 	}
 	return c.OTelExport
+}
+
+// DefaultAuditLogMaxBytes is the audit-log rotation cap when audit_log_max_bytes is
+// unset (spec 021): ~16 MiB. Keep-last-3 archives ⇒ ~64 MiB worst case.
+const DefaultAuditLogMaxBytes = 16 << 20
+
+// EffectiveAuditLogEnabled reports whether auditing is on (spec 021). Default true
+// (absent key ⇒ on via Load); explicit false disables.
+func (c Config) EffectiveAuditLogEnabled() bool { return c.AuditLogEnabled }
+
+// EffectiveAuditLogMaxBytes returns the rotation cap, or the default (~16 MiB) when
+// unset/non-positive.
+func (c Config) EffectiveAuditLogMaxBytes() int {
+	if c.AuditLogMaxBytes > 0 {
+		return c.AuditLogMaxBytes
+	}
+	return DefaultAuditLogMaxBytes
 }
 
 // EffectiveRRFK returns the effective RRF smoothing constant: the configured
@@ -194,6 +219,9 @@ func (c Config) Validate() error {
 	if c.EffectiveOTelExport() == "otlp" && c.OTelEndpoint == "" {
 		return fmt.Errorf("otel_endpoint is required when otel_export=otlp")
 	}
+	if c.AuditLogMaxBytes < 0 {
+		return fmt.Errorf("audit_log_max_bytes must be non-negative (0 = default)")
+	}
 	if c.MCPAddr != "" {
 		if _, _, err := net.SplitHostPort(c.MCPAddr); err != nil {
 			return fmt.Errorf("invalid mcp_addr: %q", c.MCPAddr)
@@ -245,6 +273,10 @@ func Load(path string) (Config, error) {
 		// H17/spec 020 backward compat: metrics_enabled defaults to true (/metrics on).
 		if _, ok := raw["metrics_enabled"]; !ok {
 			c.MetricsEnabled = true
+		}
+		// H18/spec 021 backward compat: audit_log_enabled defaults to true.
+		if _, ok := raw["audit_log_enabled"]; !ok {
+			c.AuditLogEnabled = true
 		}
 	}
 	return c, nil
@@ -322,6 +354,12 @@ func (c Config) Get(key string) (string, bool) {
 		return c.EffectiveOTelExport(), true
 	case "otel_endpoint":
 		return c.OTelEndpoint, true
+	case "audit_log_enabled":
+		return strconv.FormatBool(c.EffectiveAuditLogEnabled()), true
+	case "audit_log_max_bytes":
+		return strconv.Itoa(c.EffectiveAuditLogMaxBytes()), true
+	case "audit_path":
+		return c.AuditPath, true
 	}
 	return "", false
 }
@@ -452,6 +490,20 @@ func (c *Config) Set(key, val string) error {
 		c.OTelExport = val
 	case "otel_endpoint":
 		c.OTelEndpoint = val
+	case "audit_log_enabled":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("invalid audit_log_enabled: %q", val)
+		}
+		c.AuditLogEnabled = b
+	case "audit_log_max_bytes":
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 0 {
+			return fmt.Errorf("invalid audit_log_max_bytes: %q (want a non-negative integer; 0 = default)", val)
+		}
+		c.AuditLogMaxBytes = n
+	case "audit_path":
+		c.AuditPath = val
 	default:
 		return fmt.Errorf("unknown config key: %q", key)
 	}

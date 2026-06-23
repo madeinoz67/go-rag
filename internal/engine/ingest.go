@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/madeinoz67/go-rag/internal/audit"
 	"github.com/madeinoz67/go-rag/internal/observe"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/watcher"
@@ -29,6 +30,9 @@ func (e *Engine) Add(ctx context.Context, path string) (sum *IngestSummary, err 
 	start := time.Now()
 	defer func() {
 		observe.RecordIngest(ctx, "add", time.Since(start), err, 0)
+		if sum != nil {
+			audit.Log(audit.IngestEvent("add", path, sum.New, sum.Skipped, sum.Errors, err))
+		}
 		observe.SpanError(span, err)
 		span.End()
 	}()
@@ -55,6 +59,9 @@ func (e *Engine) Scan(ctx context.Context) (sum *IngestSummary, err error) {
 	start := time.Now()
 	defer func() {
 		observe.RecordIngest(ctx, "scan", time.Since(start), err, 0)
+		if sum != nil {
+			audit.Log(audit.IngestEvent("scan", "", sum.New, sum.Skipped, sum.Errors, err))
+		}
 		observe.SpanError(span, err)
 		span.End()
 	}()
@@ -92,6 +99,9 @@ func (e *Engine) Reprocess(ctx context.Context, path string) (sum *IngestSummary
 	start := time.Now()
 	defer func() {
 		observe.RecordIngest(ctx, "reprocess", time.Since(start), err, 0)
+		if sum != nil {
+			audit.Log(audit.IngestEvent("reprocess", path, sum.New, sum.Skipped, sum.Errors, err))
+		}
 		observe.SpanError(span, err)
 		span.End()
 	}()
@@ -117,6 +127,9 @@ func (e *Engine) Migrate(ctx context.Context) (sum *IngestSummary, err error) {
 	start := time.Now()
 	defer func() {
 		observe.RecordIngest(ctx, "migrate", time.Since(start), err, 0)
+		if sum != nil {
+			audit.Log(audit.IngestEvent("migrate", "", sum.New, sum.Skipped, sum.Errors, err))
+		}
 		observe.SpanError(span, err)
 		span.End()
 	}()

@@ -71,6 +71,7 @@ func Execute(version string) error {
 		newMigrateCmd(),
 		newPoisonCmd(),
 		newThreatCmd(),
+		newAuditCmd(),
 		newEvalCmd(),
 		newEvalGenCmd(),
 		newMCPCmd(),

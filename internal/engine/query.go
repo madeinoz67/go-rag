@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/madeinoz67/go-rag/internal/audit"
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/observe"
@@ -22,9 +23,12 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 	start := time.Now()
 	defer func() {
 		observe.RecordQuery(ctx, req.Mode, time.Since(start), err)
+		hits := 0
 		if res != nil {
-			observe.RecordQueryResults(ctx, req.Mode, len(res.Hits))
+			hits = len(res.Hits)
+			observe.RecordQueryResults(ctx, req.Mode, hits)
 		}
+		audit.Log(audit.QueryEvent(req.Query, req.Mode, req.K, hits, err)) // H18 audit (query hashed, never plaintext)
 		observe.SpanError(span, err)
 		span.End()
 	}()

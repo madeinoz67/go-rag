@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/madeinoz67/go-rag/internal/audit"
 	"github.com/madeinoz67/go-rag/internal/daemon"
 	"github.com/madeinoz67/go-rag/internal/engine"
 	goraggrpc "github.com/madeinoz67/go-rag/internal/grpc"
@@ -69,6 +70,21 @@ func newServeCmd() *cobra.Command {
 				return err
 			}
 			defer observe.Shutdown(context.Background())
+
+			// H18/spec 021: structured audit log (local, append-only JSONL). Init +
+			// set the global appender; Close drains on shutdown.
+			if cfg.EffectiveAuditLogEnabled() {
+				ap := cfg.AuditPath
+				if ap == "" {
+					ap = audit.DefaultPath(cfg.DBPath)
+				}
+				aud, err := audit.Init(ap, cfg.EffectiveAuditLogMaxBytes())
+				if err != nil {
+					return err
+				}
+				audit.SetGlobal(aud)
+				defer aud.Close(context.Background())
+			}
 
 			// H11/spec 017: compute the embedding-drift verdict at boot and log it
 			// (loud-at-startup signal, FR-004/FR-005). Hard drift (model/dim/

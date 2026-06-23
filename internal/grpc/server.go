@@ -7,6 +7,7 @@ package grpc
 import (
 	"context"
 
+	"github.com/madeinoz67/go-rag/internal/audit"
 	"github.com/madeinoz67/go-rag/internal/engine"
 	goragpb "github.com/madeinoz67/go-rag/proto/gen"
 	grpcc "google.golang.org/grpc"
@@ -38,6 +39,7 @@ func NewServer(eng *engine.Engine, token string) *grpcc.Server {
 func bearerInterceptor(token string) grpcc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpcc.UnaryServerInfo, handler grpcc.UnaryHandler) (any, error) {
 		if token != "" && !hasBearer(ctx, token) {
+			audit.Log(audit.AuthFailEvent("grpc", "missing or invalid bearer token")) // H18 audit
 			return nil, status.Error(codes.Unauthenticated, "missing or invalid bearer token")
 		}
 		return handler(ctx, req)
