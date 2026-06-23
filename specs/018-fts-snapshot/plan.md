@@ -1,64 +1,42 @@
-# Implementation Plan: Persistent FTS Index Snapshot (Fast Cold Start) (H16)
+# Implementation Plan: Pebble-backed Async FTS Index (H16, pivoted)
 
 **Branch**: `main` | **Date**: 2026-06-23 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `/specs/018-fts-snapshot/spec.md` (audit backlog item **H16**, P1 — Phase 4, last item).
+**Input**: Pivoted spec from `/specs/018-fts-snapshot/spec.md` (audit backlog item **H16**, P1 — Phase 4, last item). Originally "FTS snapshot"; pivoted to **Pebble-backed async FTS** after MuninnDB research + a benchmark (2026-06-23) showed snapshotting patches an in-memory index that shouldn't be the source of truth.
 
 ## Summary
 
-Persist the built BM25 FTS postings to Pebble so a cold start (daemon boot / one-shot CLI) **loads the
-snapshot** instead of re-tokenizing every chunk. New prefix `PrefixFTSSnapshot = 0x06` (within the
-reserved FTS range) holds two keys: a serialized FTS blob (`gob` over `{postings, docLen, totalLen, N}`)
-+ a staleness marker. A `LoadIndex` decision tree loads the snapshot when its embedded marker matches the
-current marker (O(1) check) and the format version is current; otherwise it rebuilds from chunks (today's
-path). The snapshot is written on engine `Close` when the session mutated (checkpoint), and the marker is
-bumped **lazily once per session** on the first chunk mutation (cheap, crash-safe — a crash always leaves
-the marker ahead of the snapshot ⇒ next cold start rebuilds). **FTS only** (locked clarification); the
-vector-map reload is unchanged. Transparent — identical results; pure latency win. No new dependencies.
+Rewrite go-rag's BM25 FTS from an in-memory `map[string]map[string]float64` to a **durable Pebble-backed inverted index**: postings as keys under `0x05`, queried in place via per-term prefix scans, indexed **asynchronously** (post-ACK, in the existing `processJob`). This **eliminates the cold-start rebuild entirely** (the index IS the durable key space — nothing to reconstruct), moves BM25 indexing off the ACK path (Principle IV compliance — the current sync-FTS in `storeDocument` bends it), and **deletes the snapshot/marker/size machinery** H16 originally proposed. Patterned on MuninnDB's proven `internal/index/fts/`. Benchmark-verified: Pebble prefix-scan BM25 queries measure ~0.3 ms worst-case (vs ~0.24 ms in-memory; both ~170× under the 50 ms budget); durable store 6.7 MB for ~2.9 K chunks. FTS-only (vector map unchanged). No new dependencies.
 
 ## Technical Context
 
 **Language/Version**: Go 1.26.4 (`go.mod`). Pure Go, `CGO_ENABLED=0`.
 
-**Primary Dependencies**: stdlib (`encoding/gob`, `encoding/json`, `sync`); existing `internal/index`
-(FTS), `internal/storage`, `internal/pipeline`, `internal/engine`. **No new module dependencies.**
+**Primary Dependencies**: stdlib (`encoding/binary`, `math`, `sort`, `strings`, `sync`); existing `internal/index`, `internal/storage`, `internal/pipeline`, `internal/engine`, Pebble (already a dep). **No new module dependencies.**
 
-**Storage**: Pebble KV — **one new prefix**, `PrefixFTSSnapshot = 0x06` (within the `0x05`–`0x08` range
-`storage.go` reserves for the BM25 FTS index), holding two keys: `"snapshot"` (the serialized FTS blob)
-and `"marker"` (the staleness counter). No change to chunk/embedding records; the snapshot is a derived,
-non-authoritative cache.
+**Storage**: Pebble KV — the FTS range `0x05–0x08` (reserved in `storage.go` for BM25 FTS) is now **assigned specific roles**: `0x05` postings, `0x06` per-term document-frequency, `0x08` global stats (N, avgdl). No new prefix constants beyond what's reserved; no change to chunk/embedding records.
 
-**Testing**: `go test -race -cover ./...`; new tests (snapshot load = rebuild results [transparency],
-cold-start faster [timing], currency after ingest/delete, stale/absent/corrupt → rebuild + rewrite,
-backward-compat backfill, format-version invalidation). H02 eval gate — recall@10 unchanged (FR-010).
+**Testing**: `go test -race -cover ./...`; new tests (Pebble-backed Index/Search/Delete round-trip; prefix-scan query; transparency vs old in-memory; cold-start no-rebuild; migration backfill; no quality regression). H02 eval gate — recall@10 unchanged.
 
-**Project Type**: CLI + multi-transport server. Touches: index (FTS Save/Load), storage (new prefix),
-pipeline (LoadIndex decision tree + the pre-mutation marker-bump callback), engine (snapshot write on
-Close, dirty tracking).
+**Project Type**: CLI + multi-transport server. Touches: index (FTS rewrite from map to Pebble adapter), storage (prefix role assignment), pipeline (LoadIndex simplification + storeDocument drops sync FTS + processJob writes Pebble postings + DeleteDoc re-tokenizes for key deletion), and the FTS tests.
 
-**Performance Goals**: a cold start with a valid snapshot loads the FTS in a `gob` decode (≪ the
-re-tokenization it replaces); target ≥5× faster than the rebuild on a multi-thousand-chunk corpus
-(SC-002). Bulk ingest does **not** regress — the marker bumps once per session and the snapshot writes
-once on Close (no per-chunk snapshot write, FR-009).
+**Performance Goals**: keyword query < 5 ms p99 (benchmarked ~0.3 ms worst at ~2.9 K chunks — wide headroom under the 50 ms budget). Cold start: no FTS rebuild (just `NewFTS(db)` + vector reload). Ingest ACK: unchanged (FTS moved off the ACK path).
 
-**Constraints**: Pure Go, no new deps; cold start must never return wrong results from a stale/corrupt
-snapshot (rebuild fallback); the staleness check is O(1) (one Get) so the speed win survives; chunks
-remain authoritative (snapshot loss = latency, not data loss).
+**Constraints**: Pure Go, no new deps; BM25 math unchanged (k1=1.2, b=0.75, field weights); transparency (identical results); FTS indexing async (Principle IV); FTS-only (vector map unchanged); backward-compat migration for pre-pivot vaults.
 
-**Scale/Scope**: local single-user; one snapshot blob per vault.
+**Scale/Scope**: local single-user; postings as Pebble keys (LSM-compressed, ~6.7 MB at ~2.9 K chunks).
 
 ## Constitution Check
 
 | # | Principle | Verdict | Evidence |
 |---|-----------|---------|----------|
-| I  | Local-First, Single-Binary | ✅ Pass | All local (Pebble + in-process gob); no network, no new dependency. Single binary unchanged. |
-| II | Content-Addressed Identity | ✅ Pass | The snapshot is derived FTS state, non-authoritative; document/chunk identities + content hashes are unchanged. Loss ⇒ rebuild from chunks (latency, not data loss). |
-| III | Pure Go — No CGo/External Runtime | ✅ Pass | stdlib only (`encoding/gob`). gob chosen over JSON for snapshot compactness/speed (the whole point is fast load); JSON would parse slower than the re-tokenization being avoided. |
-| IV | Async-After-ACK Writes | ✅ Pass | The snapshot is written on engine `Close` (drain), never on the ACK path. The marker bump is **lazy-once-per-session** (only the first chunk mutation of a session does one extra Pebble put on the sync storeDocument path — sub-ms, once per session; well inside the < 10 ms budget). Subsequent mutations don't re-bump. |
-| V | Extension by Interface, MCP-First | ✅ Pass | The FTS gains `Save`/`Load` methods (serialization); the `Embedder`/`FileReader` interfaces are unchanged. The snapshot is internal and transparent — no transport/API surface change (no new CLI/REST/gRPC/MCP contract). |
+| I  | Local-First, Single-Binary | ✅ Pass | All local (Pebble + in-process); no network, no new dependency. |
+| II | Content-Addressed Identity | ✅ Pass | Postings are derived from chunk content (re-tokenizable); chunk identities/ContentHash unchanged. |
+| III | Pure Go — No CGo/External Runtime | ✅ Pass | stdlib + Pebble (already a dep). |
+| IV | Async-After-ACK Writes | ✅ **Pass (improved)** | FTS postings are written **asynchronously** in `processJob` (post-ACK, alongside vectors). The ACK carries only the durable chunk write. The current sync-FTS-in-`storeDocument` (H01/spec 011) bends IV ("BM25 indexing MUST occur asynchronously"); the pivot **corrects** this — BM25 indexing is now async as the constitution mandates. |
+| V | Extension by Interface, MCP-First | ✅ Pass | The `FTS` type's `Index`/`Delete`/`Search` methods remain (the backing changes from a map to Pebble; the interface is stable for callers). No transport/API surface change (transparent). |
 
-**No violations.** (Re-check after Phase 1 design — still clean: one new Pebble prefix for two derived
-keys, no new process/dependency, no public-surface change. The lazy-once marker bump keeps IV intact.)
+**No violations.** (Cleaner than the snapshot design — Principle IV now passes by the letter.)
 
 ## Project Structure
 
@@ -67,10 +45,10 @@ keys, no new process/dependency, no public-surface change. The lazy-once marker 
 ```text
 specs/018-fts-snapshot/
 ├── plan.md                  # this file
-├── research.md              # Phase 0 — D1–D6 decisions resolved
-├── data-model.md            # Phase 1 — FTS snapshot record, marker, decision tree
+├── research.md              # Phase 0 — D1–D8 decisions resolved
+├── data-model.md            # Phase 1 — posting key layout, FTS adapter, stats management
 ├── contracts/
-│   └── fts-snapshot-contract.md  # Phase 1 — internal contract (no transport surface; transparency + escape)
+│   └── fts-pebble-contract.md  # Phase 1 — transparency invariant + async-readiness contract
 ├── quickstart.md            # Phase 1 — runnable validation scenarios
 └── tasks.md                 # Phase 2 (/speckit-tasks — NOT created here)
 ```
@@ -78,31 +56,26 @@ specs/018-fts-snapshot/
 ### Source Code (repository root)
 
 ```text
-internal/storage/storage.go        # EDIT: PrefixFTSSnapshot byte = 0x06 (new prefix; within reserved FTS range)
-internal/index/fts.go              # EDIT: add MarshalSnapshot()/RestoreSnapshot() (gob over the 4 FTS fields); no change to Index/Delete/Query
-internal/pipeline/load.go          # EDIT: LoadIndex decision tree — load snapshot if marker+version valid, else rebuild; returns whether it rebuilt
-internal/pipeline/pipeline.go      # EDIT: a pre-mutation hook (OnChunkMutation) fired at the start of storeDocument + DeleteDoc for the marker bump
-internal/pipeline/delete.go        # EDIT: fire OnChunkMutation at the start of DeleteDoc
-internal/engine/snapshot.go        # NEW: writeSnapshotIfDirty (serialize idxFts → 0x06/"snapshot" with marker+version); loadMarker/bumpMarker (0x06/"marker", lazy-once-per-session)
-internal/engine/engine.go          # EDIT: track dirty (FTS mutated); bump marker via OnChunkMutation; Close writes the snapshot if dirty
+internal/index/fts.go              # REWRITE: FTS → Pebble-backed adapter (NewFTS(db); Index writes posting
+                                   #   batch; Search prefix-scans + BM25; Delete re-tokenizes + batch-deletes;
+                                   #   IDF cache + stats). BM25 math unchanged.
+internal/storage/storage.go        # EDIT: assign roles in the 0x05–0x08 FTS range (0x05=PrefixFTSPosting,
+                                   #   0x06=PrefixFTSTermStat, 0x08=PrefixFTSGlobalStat)
+internal/pipeline/load.go          # EDIT: LoadIndex — no FTS rebuild (NewFTS(db) + vector reload only);
+                                   #   migration backfill if no global-stats key (one-time)
+internal/pipeline/pipeline.go      # EDIT: storeDocument drops the sync fts.Index call (FTS moves to async)
+internal/pipeline/workers.go       # EDIT: processJob — fts.Index now writes Pebble postings (was in-memory map)
+internal/pipeline/delete.go        # EDIT: DeleteDoc — fts.Delete now re-tokenizes content → batch-deletes keys
 ```
 
-**Structure Decision**: Three cohesive, independently-testable layers:
+**Structure Decision**: One cohesive rewrite (the FTS) + three small pipeline edits:
 
-1. **FTS serialization** (`internal/index/fts.go`) — `MarshalSnapshot`/`RestoreSnapshot` over the 4
-   serializable fields (`postings`, `docLen`, `totalLen`, `N`). Pure, no storage coupling. Unit-testable
-   round-trip (index → marshal → restore → same query results).
-2. **Snapshot store + marker** (`internal/engine/snapshot.go` + `internal/storage` prefix) — two keys
-   under `0x06`: the blob + the marker counter; lazy-once-per-session bump; write-on-Close-if-dirty.
-3. **Cold-start wiring** (`internal/pipeline/load.go` decision tree + `internal/engine/engine.go`) —
-   LoadIndex loads-or-rebuilds; the engine writes the snapshot on Close when the session mutated, and
-   bumps the marker lazily via the pipeline's pre-mutation hook.
+1. **FTS rewrite** (`internal/index/fts.go`) — the in-memory posting map → a Pebble-backed adapter. `IndexEngram`/`IndexChunk` writes posting keys + DF + stats atomically; `Search` prefix-scans per term + accumulates BM25 (same math); `Delete` re-tokenizes + batch-deletes; IDF lazy-cached in memory. Patterned directly on MuninnDB's `fts.go`.
+2. **Pipeline edits** — `storeDocument` drops the sync `fts.Index` (the ACK path change); `processJob` keeps calling `fts.Index` but it now writes Pebble (async); `DeleteDoc` passes content to `fts.Delete` for re-tokenization; `LoadIndex` stops re-tokenizing (creates the adapter + reloads vectors; migration backfill on first start).
+3. **Storage** — assigns specific prefixes within the reserved `0x05–0x08` range.
 
-**Highest-risk correctness item**: the **marker ordering + crash safety** (D4/FR-004/FR-008). The marker
-must be bumped+persisted before the chunk is durable, so a crash always leaves the marker ≥ the snapshot
-⇒ next cold start rebuilds (never serves a stale snapshot). A regression test for each crash window
-(stale marker, corrupt blob, absent snapshot, out-of-band chunk change) gates it.
+**Highest-risk items**: (a) the **FTS rewrite** — many tests touch the FTS (parity, eval, H06 cache, H14 filter, H15 context-window); the BM25 math must be identical (FR-008). (b) the **async visibility window** — tests assuming immediate keyword visibility after `add` must now `waitEmbedded`. (c) the **DeleteDoc signature change** — `fts.Delete` gains a content parameter.
 
 ## Complexity Tracking
 
-*(Empty — Constitution Check passes on all five principles. No violations to justify.)*
+*(Empty — Constitution Check passes on all five principles, improved over the snapshot design.)*

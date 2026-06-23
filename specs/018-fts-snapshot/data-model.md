@@ -1,101 +1,95 @@
-# Data Model — Persistent FTS Index Snapshot (H16)
+# Data Model — Pebble-backed Async FTS (H16, pivoted)
 
-> Phase 1 output. New persisted records (two keys under one new prefix) + the
-> in-process dirty/decision state. No change to chunk/embedding/document records;
-> the snapshot is a derived, non-authoritative cache.
+> Phase 1 output. The FTS backing changes from an in-memory map to durable
+> Pebble keys. No change to chunk/embedding records; the posting keys + stats are
+> new derived data in the reserved FTS prefix range.
 
-## New persisted records (per vault, under `PrefixFTSSnapshot = 0x06`)
+## Pebble key layout (the FTS range `0x05–0x08`, now assigned)
 
-Two keys in the vault's Pebble DB:
+### `PrefixFTSPosting = 0x05` — posting keys
 
-### `0x06 || "snapshot"` — the FTS snapshot blob
+```
+key:   0x05 | term[n] | 0x00 | field(1) | chunkID(16)
+value: tf(float32, 4B) | field(uint8, 1B) | docLen(uint16, 2B) = 7 bytes total
+```
+One key per (term, field, chunk). Prefix-scanned per term on query (LowerBound =
+`0x05|term|0x00|0x00|0*`, UpperBound = `0x05|term|0x01`). Field weights:
+concept=3.0 (0x01), tags=2.0 (0x02), body=1.0 (0x03), creator=0.5 (0x04) — same
+as today's in-memory FTS.
 
-A `gob`-encoded record:
+### `PrefixFTSTermStat = 0x06` — per-term document frequency
 
-| Field | Go type | Meaning |
-|-------|---------|---------|
-| `Version` | `uint32` | Snapshot format version (D6); mismatch ⇒ rebuild. Bumped only when the serialized shape changes. |
-| `Marker` | `uint64` | The staleness-marker value at write time (D4); must equal the current `0x06/"marker"` on load or the snapshot is stale ⇒ rebuild. |
-| `Postings` | `map[string]map[string]float64` | term → chunkID → weighted tf (the FTS `postings` field) |
-| `DocLen` | `map[string]int` | chunkID → total weighted term count (the FTS `docLen` field) |
-| `TotalLen` | `int` | the FTS `totalLen` |
-| `N` | `int` | number of chunks (the FTS `N`) |
+```
+key:   0x06 | term[n]
+value: df(uint32, 4B)
+```
+Document frequency (how many chunks contain the term). Used for IDF:
+`idf = log((N - df + 0.5) / (df + 0.5) + 1)`. Updated atomically with postings
+in the same Pebble batch.
 
-(`Postings`/`DocLen`/`TotalLen`/`N` are an **exported** projection of the FTS's unexported working
-fields — gob can't reach unexported fields, so `MarshalSnapshot`/`RestoreSnapshot` translate. The FTS's
-mutex is not serialized.)
+### `PrefixFTSGlobalStat = 0x08` — vault-level BM25 stats
 
-### `0x06 || "marker"` — the staleness counter
+```
+key:   0x08 | "stats"
+value: N(uint64, 8B) | avgdl(float32, 4B) = 12 bytes
+```
+N = total chunk count; avgdl = rolling average doc length. Used for BM25 length
+normalization. Updated atomically with postings. **Presence is the migration
+gate**: if absent → pre-pivot vault → one-time backfill.
 
-A small persisted integer (`uint64`, gob- or string-encoded). Bumped **lazily once per engine session**
-on the first chunk mutation, **persisted before the chunk is durable** (D4). Read on every cold start to
-gate the snapshot (O(1) `Get`).
+## FTS adapter (`internal/index/fts.go`, rewritten)
 
-## New in-process state (on `*Engine`)
+```go
+type FTS struct {
+    db       *pebble.DB
+    mu       sync.RWMutex           // guards idfCache
+    idfCache map[string]float64     // term → IDF (lazy, invalidated on Index/Delete)
+}
+func NewFTS(db *pebble.DB) *FTS
+```
 
-| Field | Type | Meaning |
-|-------|------|---------|
-| `ftsDirty` | `bool` | set when the FTS is mutated this session (chunk add/delete) OR when `LoadIndex` rebuilt (backfill); gates the Close write. |
-| `ftsMarkerBumped` | `bool` | in-memory guard for the lazy-once-per-session marker bump. |
-| (mutex) | `sync.Mutex` | guards the dirty/marker-bumped read-modify-write. |
+No posting map, no docLen map, no N/totalLen — those live in Pebble. The only
+in-memory state is the IDF cache (populated lazily on Search, invalidated on
+Index/Delete). O(1) construction — nothing to load.
 
-`Engine.Close` writes `0x06/"snapshot"` (serialize `idxFts` + current marker + version) **iff `ftsDirty`**.
+### Methods
 
-## FTS methods added (`internal/index/fts.go`)
-
-| Method | Signature | Notes |
-|--------|-----------|-------|
-| `MarshalSnapshot` | `() ([]byte, error)` | gob-encodes `{Version, Marker?(0 at marshal time), Postings, DocLen, TotalLen, N}` under the engine's read lock. (Marker/Version are stamped by the engine when writing.) |
-| `RestoreSnapshot` | `([]byte) error` | gob-decodes into the FTS fields under the write lock; a decode error ⇒ the caller treats the snapshot as invalid (rebuild). |
-
-`Index`/`Delete`/`Query` are **unchanged**.
+| Method | Signature | Behavior |
+|--------|-----------|----------|
+| `Index` | `(chunkID string, fields map[string]string)` | Tokenizes each field → builds one Pebble batch (posting keys + DF updates + global-stats update) → commits (async, NoSync). Same field-weight semantics as today. |
+| `Delete` | `(chunkID, content string)` | Re-tokenizes content → batch-deletes `0x05\|term\|...\|chunkID` for each term + field → invalidates IDF cache. **Signature change**: gains `content` param (the caller has it). |
+| `Search` | `(query string, k int) []Hit` | Tokenizes query → per-term prefix-scan + BM25 (k1=1.2, b=0.75, field weights, cached IDF) → top-k. **Math unchanged.** |
 
 ## `LoadIndex` decision tree (`internal/pipeline/load.go`)
 
 ```
-LoadIndex(db) → (*FTS, *Vector, fromSnapshot bool, err):
-  marker   = Get(0x06/"marker")          // 0 if absent
-  blob, ok = Get(0x06/"snapshot")
-  if ok && decode(blob).Version == CurrentVersion && decode(blob).Marker == marker:
-      fts = new FTS; fts.RestoreSnapshot(blob)   // FAST
-      fromSnapshot = true
-  else:
-      fts = rebuild from PrefixChunk (today's path)  // SLOW
-      fromSnapshot = false
-  vec = reload from PrefixEmbedding          // unchanged
-  return fts, vec, fromSnapshot
+LoadIndex(db) → (*FTS, *Vector, error):
+  fts := NewFTS(db)                                    // O(1) — thin adapter
+  if !exists(db, 0x08|"stats"):
+      migrateFTS(db)                                   // ONE-TIME: scan PrefixChunk → tokenize → write
+                                                       // postings(0x05) + DF(0x06) + stats(0x08)
+  vec := reload from PrefixEmbedding                   // unchanged
+  return fts, vec
 ```
 
-The engine seeds via this (H01's `indexes()`), and treats `fromSnapshot == false` as `ftsDirty = true`
-so its `Close` re-caches (the backfill). The vector reload is unchanged (FTS-only scope).
-
-## State transitions
-
-```
-(no snapshot) --cold start--> rebuild --Close--> snapshot(M0)
-snapshot(M0) --mutate (lazy bump M0→M1, dirty)--> in-memory FTS updated --Close--> snapshot(M1)
-snapshot(M0) --crash after mutate, before Close--> marker M1 on disk, snapshot M0
-                --next cold start--> M0≠M1 ⇒ rebuild ⇒ snapshot(M1)   (self-heal)
-snapshot(Mk) --format upgrade (Version bump)--> load: Version≠current ⇒ rebuild ⇒ snapshot(Mk, newVersion)
-corrupt blob --load--> decode fails ⇒ treated as absent ⇒ rebuild ⇒ overwrite
-```
-
-## Validation rules (testable)
-
-- Loading a valid snapshot yields keyword results byte-identical to a forced rebuild (FR-007).
-- After an ingest or delete + Close, a subsequent cold start reflects the change (FR-003).
-- A stale marker (out-of-band chunk change / simulated crash) ⇒ rebuild + correct results + fresh
-  snapshot (FR-004).
-- A corrupt/absent snapshot ⇒ rebuild + overwrite, no error to the caller (FR-005/FR-006).
-- A format-version mismatch ⇒ rebuild (D6).
-- Bulk ingest wall-time does not regress vs today (the marker bumps once; the snapshot writes once on
-  Close — FR-009).
+After migration, cold start is O(vectors) only — the FTS is durable.
 
 ## Relationships
 
-- `Engine` **1—1** cached `*FTS` (H01) — now seeded from the snapshot-or-rebuild; **1—1** snapshot
-  blob + marker (per vault).
-- `processJob`/`storeDocument`/`DeleteDoc` mutate the FTS (H01) and fire the pre-mutation hook → the
-  engine bumps the marker (lazy) + sets dirty.
-- No relationship change to `QueryResult`/`Chunk`/`Document`, the query cache (H06), or the corpus
-  baseline (H11) — the FTS snapshot is read-only w.r.t. those.
+- `Engine` **1—1** `*FTS` (H01's shared index) — now a Pebble-backed adapter; seeded once via `LoadIndex` (which no longer rebuilds the FTS).
+- `processJob` **writes** postings async (calls `fts.Index`, which now hits Pebble).
+- `storeDocument` **no longer** calls `fts.Index` (the sync ACK-path call is removed — Principle IV).
+- `DeleteDoc` **calls** `fts.Delete(chunkID, content)` (re-tokenizes + batch-deletes).
+- `Retrieval.SearchWithRerank` **calls** `fts.Search` (now prefix-scans Pebble) — transparent to the retrieval layer.
+- `H06` query-cache epoch: bumps from `processJob` (where postings are written) — unaffected.
+- `H11` corpus baseline: unaffected (FTS backing is orthogonal to the drift baseline).
+
+## Validation rules (testable)
+
+- `Search` on the Pebble-backed FTS returns byte-identical hits (chunkIDs + scores + order) to the pre-pivot in-memory FTS (FR-008/SC-001).
+- Cold start with the Pebble-backed FTS performs no re-tokenization (no PrefixChunk scan for FTS — only for the one-time migration when the stats key is absent) (FR-005/SC-002).
+- After ingest + async drain, a cold start reflects the change (FR-004/SC-003).
+- A pre-pivot vault migrates on first start (stats key absent → backfill → subsequent starts skip) (FR-006/SC-004).
+- A delete removes postings so a subsequent cold start doesn't return the chunk (FR-004).
+- `make test-eval` recall@10 unchanged (FR-010/SC-005).
+- Keyword query < 5 ms p99 (benchmarked ~0.3 ms worst; SC-006).
