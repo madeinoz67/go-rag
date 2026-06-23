@@ -113,14 +113,20 @@ func (s *Server) guard(h http.HandlerFunc) http.HandlerFunc {
 }
 
 // handleHealth is the unified liveness/readiness probe (GET /health). Reports
-// ok, storage_open, and embedder_reachable — identical to the gRPC Health RPC
-// (both call engine.Health). Unauthenticated so probes don't need a token.
+// liveness (ok) + readiness (ready) — ready is false on hard embedding drift
+// (audit H11/spec 017), so clients/orchestrators reading the body do not route
+// query traffic; ok stays true while the process is up. Identical to the gRPC
+// Health RPC (both call engine.Health). Unauthenticated so probes don't need a
+// token. HTTP stays 200 on drift (liveness) — readiness is in the body, not the
+// status code, to avoid restart-loops if /health is used as a liveness probe.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	h := s.eng.Health(r.Context())
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":                  h.OK,
+		"ready":               h.Ready,
 		"storage_open":        h.StorageOpen,
 		"embedder_reachable":  h.EmbedderReachable,
+		"drift_verdict":       h.DriftVerdict,
 	})
 }
 

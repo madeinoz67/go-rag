@@ -1315,6 +1315,8 @@ type HealthResponse struct {
 	Ok                bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
 	StorageOpen       bool                   `protobuf:"varint,2,opt,name=storage_open,json=storageOpen,proto3" json:"storage_open,omitempty"`
 	EmbedderReachable bool                   `protobuf:"varint,3,opt,name=embedder_reachable,json=embedderReachable,proto3" json:"embedder_reachable,omitempty"`
+	Ready             bool                   `protobuf:"varint,4,opt,name=ready,proto3" json:"ready,omitempty"`                                  // H11/spec 017: readiness — false on hard embedding drift (queries not servable); ok stays true (liveness)
+	DriftVerdict      string                 `protobuf:"bytes,5,opt,name=drift_verdict,json=driftVerdict,proto3" json:"drift_verdict,omitempty"` // H11/spec 017: clean|hard-drift|version-warning|unknown|n/a
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1368,6 +1370,20 @@ func (x *HealthResponse) GetEmbedderReachable() bool {
 		return x.EmbedderReachable
 	}
 	return false
+}
+
+func (x *HealthResponse) GetReady() bool {
+	if x != nil {
+		return x.Ready
+	}
+	return false
+}
+
+func (x *HealthResponse) GetDriftVerdict() string {
+	if x != nil {
+		return x.DriftVerdict
+	}
+	return ""
 }
 
 var File_proto_gorag_proto protoreflect.FileDescriptor
@@ -1463,11 +1479,13 @@ const file_proto_gorag_proto_rawDesc = "" +
 	"\tdocuments\x18\x02 \x01(\x05R\tdocuments\"?\n" +
 	"\x12ListVaultsResponse\x12)\n" +
 	"\x06vaults\x18\x01 \x03(\v2\x11.gorag.VaultEntryR\x06vaults\"\x0f\n" +
-	"\rHealthRequest\"r\n" +
+	"\rHealthRequest\"\xad\x01\n" +
 	"\x0eHealthResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12!\n" +
 	"\fstorage_open\x18\x02 \x01(\bR\vstorageOpen\x12-\n" +
-	"\x12embedder_reachable\x18\x03 \x01(\bR\x11embedderReachable2\xa7\x05\n" +
+	"\x12embedder_reachable\x18\x03 \x01(\bR\x11embedderReachable\x12\x14\n" +
+	"\x05ready\x18\x04 \x01(\bR\x05ready\x12#\n" +
+	"\rdrift_verdict\x18\x05 \x01(\tR\fdriftVerdict2\xa7\x05\n" +
 	"\x05Gorag\x122\n" +
 	"\x05Query\x12\x13.gorag.QueryRequest\x1a\x14.gorag.QueryResponse\x125\n" +
 	"\x06Status\x12\x14.gorag.StatusRequest\x1a\x15.gorag.StatusResponse\x12.\n" +

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -72,11 +73,54 @@ func (e *Engine) CachedLiveVersion() string {
 	return e.drift.liveVersion
 }
 
-// computeDriftVerdict compares the persisted baseline to the live config +
-// live Ollama version and returns the verdict. US1 fills the hard-drift
-// (model/dim/convention) comparison; US2 adds the version (soft) comparison;
-// US3 adds the first-boot backfill. This foundational stub returns n/a so the
-// engine boots before the comparison logic lands.
-func (e *Engine) computeDriftVerdict(_ context.Context) DriftVerdict {
-	return DriftVerdict{Verdict: VerdictNA}
+// computeDriftVerdict compares the persisted baseline to the live config + live
+// Ollama version and returns the verdict. US1 (this impl) does the hard-drift
+// (model/dim/convention) comparison; US2 adds the soft version comparison;
+// US3 adds first-boot backfill. With no baseline (empty corpus, or a pre-H11
+// corpus before backfill lands) the verdict is n/a — nothing to compare.
+func (e *Engine) computeDriftVerdict(ctx context.Context) DriftVerdict {
+	v := DriftVerdict{Verdict: VerdictNA, ConfiguredModel: e.cfg.EmbeddingModel}
+	if pre := e.cfg.Prefixer(); pre != nil {
+		v.LiveConvention = pre.Convention()
+	}
+	if em := e.embedderOrOllama(); em != nil {
+		v.LiveDim = em.Dimensions()
+	}
+	// Live Ollama version (populated for status display; US2 compares it).
+	// "" for an empty OllamaURL (offline/injected embedder); "unknown" on
+	// unreachable — both cause the version comparison to be skipped.
+	v.LiveVersion = ollamaVersion(ctx, e.cfg.OllamaURL)
+
+	base, ok := LoadBaseline(e.db)
+	if !ok {
+		return v // no baseline → n/a (US3 backfills on first boot for real corpora)
+	}
+	v.BaselineModel = base.Model
+	v.BaselineDim = base.Dim
+	v.BaselineConvention = base.Convention
+	v.BaselineVersion = base.OllamaVersion
+
+	// Hard drift: model / dim / convention mismatch. (Dim is skipped when the
+	// live dim is unknown — 0 — which it is until the embedder's first response;
+	// the model check already catches a swap at boot.)
+	var reasons []string
+	if base.Model != "" && v.ConfiguredModel != "" && base.Model != v.ConfiguredModel {
+		reasons = append(reasons, fmt.Sprintf("model: %s vs %s", base.Model, v.ConfiguredModel))
+	}
+	if base.Dim != 0 && v.LiveDim != 0 && base.Dim != v.LiveDim {
+		reasons = append(reasons, fmt.Sprintf("dim: %d vs %d", base.Dim, v.LiveDim))
+	}
+	if base.Convention != v.LiveConvention {
+		reasons = append(reasons, fmt.Sprintf("convention: %q vs %q", base.Convention, v.LiveConvention))
+	}
+	if len(reasons) > 0 {
+		v.Verdict = VerdictHardDrift
+		v.Hard = true
+		v.Reasons = reasons
+		return v
+	}
+
+	// US2 fills the soft version comparison here. For US1, a profile match is clean.
+	v.Verdict = VerdictClean
+	return v
 }

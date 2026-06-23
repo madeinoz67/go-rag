@@ -191,5 +191,7 @@ func (a *Adapter) Health(ctx context.Context, _ *goragpb.HealthRequest) (*goragp
 		Ok:                h.OK,
 		StorageOpen:       h.StorageOpen,
 		EmbedderReachable: h.EmbedderReachable,
+		Ready:             h.Ready,       // H11/spec 017: readiness (false on hard drift)
+		DriftVerdict:      h.DriftVerdict, // H11/spec 017
 	}, nil
 }

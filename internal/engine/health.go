@@ -10,20 +10,33 @@ import (
 // endpoint and the gRPC Health RPC. Both adapters call Engine.Health so they
 // report identical status (parity).
 type HealthInfo struct {
-	OK                bool // process alive and storage open
+	OK                bool // process alive and storage open (liveness)
 	StorageOpen       bool
 	EmbedderReachable bool
+
+	// Ready (audit H11/spec 017) is readiness — distinct from OK (liveness).
+	// false when there is hard embedding drift (model/dim/convention mismatch),
+	// so clients/orchestrators do not route query traffic; the process stays up
+	// (OK) so the operator can run status/migrate in place. Read from the cached
+	// boot verdict (no per-probe fetch).
+	Ready        bool
+	DriftVerdict string
 }
 
 // Health reports the engine's liveness/readiness. The embedder probe uses a
 // short timeout so a down Ollama never makes the health endpoint hang (a
-// refused loopback connection returns immediately).
+// refused loopback connection returns immediately). Readiness reads the cached
+// drift verdict (FR-011); call RefreshDriftVerdict at boot / after migrate to
+// keep it current.
 func (e *Engine) Health(ctx context.Context) HealthInfo {
 	storageOpen := e.db != nil
+	v := e.currentVerdict()
 	return HealthInfo{
 		OK:                storageOpen,
 		StorageOpen:       storageOpen,
 		EmbedderReachable: e.embedderReachable(ctx),
+		Ready:             storageOpen && !v.Hard,
+		DriftVerdict:      v.Verdict,
 	}
 }
 

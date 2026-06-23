@@ -147,4 +147,6 @@ message HealthResponse {
   bool ok = 1;
   bool storage_open = 2;
   bool embedder_reachable = 3;
+  bool ready = 4;            // H11/spec 017: readiness — false on hard embedding drift (queries not servable); ok stays true (liveness)
+  string drift_verdict = 5;  // H11/spec 017: clean|hard-drift|version-warning|unknown|n/a
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -60,6 +61,19 @@ func newServeCmd() *cobra.Command {
 			// before the database closes on shutdown. Runs before the deferred
 			// db.Close() above (LIFO defer order).
 			defer eng.Close()
+
+			// H11/spec 017: compute the embedding-drift verdict at boot and log it
+			// (loud-at-startup signal, FR-004/FR-005). Hard drift (model/dim/
+			// convention mismatch) makes readiness NOT READY (Health.Ready) while
+			// liveness stays OK — the daemon starts degraded so the operator can run
+			// migrate in place; soft (ollama-version) change warns but stays ready.
+			if v := eng.RefreshDriftVerdict(context.Background()); v.Hard || v.Verdict == engine.VerdictVersionWarning {
+				detail := v.Verdict
+				if len(v.Reasons) > 0 {
+					detail += " (" + strings.Join(v.Reasons, "; ") + ")"
+				}
+				fmt.Fprintf(os.Stderr, "go-rag drift: %s — run `migrate` to re-embed under the current model\n", detail)
+			}
 
 			// MCP (HTTP/JSON-RPC) — always on; its /mcp/health is the daemon's
 			// startup/health probe target. Backed by the SAME shared engine as
