@@ -173,6 +173,8 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	// pipeMu before any job flows (workers start in New but only receive jobs
 	// once Ingest runs, which is after this returns), so no bump is missed.
 	e.pipe.OnChange = e.markIndexChanged
+	// H11/spec 017: persist the corpus baseline on first embed.
+	e.pipe.OnFirstEmbed = e.handleFirstEmbed
 	return e.pipe, nil
 }
 

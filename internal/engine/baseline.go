@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -53,4 +54,47 @@ func SaveBaseline(db *storage.DB, b *CorpusBaseline) error {
 		return err
 	}
 	return db.SetWithPrefix(storage.PrefixCorpusMeta, []byte(corpusBaselineKey), data)
+}
+
+// handleFirstEmbed persists the corpus baseline on the first successful embed
+// (audit H11/spec 017), bound to the pipeline's OnFirstEmbed hook. It no-ops
+// once a baseline exists (so it doesn't overwrite on every ingest) and stamps
+// the live Ollama version captured at boot (CachedLiveVersion). kept in the
+// engine package so the baseline store stays out of internal/pipeline.
+func (e *Engine) handleFirstEmbed(model string, dim int, convention string) {
+	if _, ok := LoadBaseline(e.db); ok {
+		return // baseline already exists — don't overwrite on routine ingests
+	}
+	_ = SaveBaseline(e.db, &CorpusBaseline{
+		Model:         model,
+		Dim:           dim,
+		Convention:    convention,
+		OllamaVersion: e.CachedLiveVersion(),
+	})
+}
+
+// refreshBaselineAfterMigrate rewrites the corpus baseline to the current
+// embedding profile + live Ollama version after a successful migrate (audit
+// H11/spec 017) — post-migrate the corpus is uniform under the new model, so
+// the baseline is freshly authoritative. Also refreshes the cached verdict so
+// the daemon flips to clean without a restart.
+func (e *Engine) refreshBaselineAfterMigrate(ctx context.Context) {
+	var model string
+	var dim int
+	if em := e.embedderOrOllama(); em != nil {
+		model = em.Model()
+		dim = em.Dimensions()
+	}
+	conv := ""
+	if pre := e.cfg.Prefixer(); pre != nil {
+		conv = pre.Convention()
+	}
+	live := e.CachedLiveVersion()
+	if live == "" {
+		live = ollamaVersion(ctx, e.cfg.OllamaURL)
+	}
+	_ = SaveBaseline(e.db, &CorpusBaseline{
+		Model: model, Dim: dim, Convention: conv, OllamaVersion: live,
+	})
+	e.RefreshDriftVerdict(ctx)
 }

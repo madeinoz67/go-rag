@@ -114,6 +114,10 @@ func (e *Engine) Migrate(ctx context.Context) (*IngestSummary, error) {
 	if err != nil {
 		return nil, err
 	}
+	// H11/spec 017: refresh the corpus baseline to the new profile + current
+	// Ollama version (post-migrate the corpus is uniform under the new model),
+	// and refresh the cached verdict so the daemon flips to clean.
+	e.refreshBaselineAfterMigrate(ctx)
 	s := fromResult(res)
 	return &s, nil
 }

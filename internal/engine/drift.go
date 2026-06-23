@@ -93,7 +93,23 @@ func (e *Engine) computeDriftVerdict(ctx context.Context) DriftVerdict {
 
 	base, ok := LoadBaseline(e.db)
 	if !ok {
-		return v // no baseline → n/a (US3 backfills on first boot for real corpora)
+		// US3: backfill a baseline for a pre-H11 corpus (embeddings present, no
+		// baseline yet) from the stored majority profile + the live Ollama
+		// version — no re-ingestion (FR-007). An empty corpus has nothing to
+		// backfill, so the verdict stays n/a.
+		if prof := CorpusProfile(e.db); prof.Total > 0 {
+			base = &CorpusBaseline{
+				Model:         prof.MajorityModel,
+				Dim:           prof.MajorityDim,
+				Convention:    prof.MajorityConvention,
+				OllamaVersion: v.LiveVersion,
+			}
+			if err := SaveBaseline(e.db, base); err != nil {
+				return v // couldn't persist; n/a rather than crash
+			}
+		} else {
+			return v // empty corpus → n/a
+		}
 	}
 	v.BaselineModel = base.Model
 	v.BaselineDim = base.Dim

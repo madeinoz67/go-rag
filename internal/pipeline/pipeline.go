@@ -65,6 +65,13 @@ type Pipeline struct {
 	// query result cache can invalidate on corpus change (audit H06/spec 016).
 	// Set once, under the engine's pipeMu, before any job flows.
 	OnChange func()
+
+	// OnFirstEmbed, if non-nil, is called after a document's chunks are embedded
+	// with the embedding profile (model, dim, convention). The Engine uses it to
+	// persist the corpus baseline on first embed (audit H11/spec 017); it no-ops
+	// once a baseline exists. Keeps internal/pipeline free of the engine + the
+	// baseline store (Principle V).
+	OnFirstEmbed func(model string, dim int, convention string)
 }
 
 // indexChanged fires the OnChange callback when set. Centralizing the nil guard

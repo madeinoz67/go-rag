@@ -66,6 +66,11 @@ func (p *Pipeline) processJob(j job) {
 		// pre-vector result. Only on the success path: an embed failure added no
 		// vectors, so the vector index is unchanged.
 		p.indexChanged()
+		// H11/spec 017: signal the embedding profile so the engine can persist
+		// the corpus baseline on first embed (no-op once a baseline exists).
+		if p.OnFirstEmbed != nil && len(vecs) > 0 {
+			p.OnFirstEmbed(p.embed.Model(), len(vecs[0]), conv)
+		}
 	}
 	p.markStatus(j.docID, status)
 }
