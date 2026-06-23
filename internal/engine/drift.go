@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 )
 
 // Drift verdict constants (audit H11/spec 017).
@@ -30,6 +31,7 @@ type DriftVerdict struct {
 	LiveConvention     string   // resolved configured convention
 	BaselineVersion    string   // baseline Ollama version
 	LiveVersion        string   // live Ollama version (""/unknown possible)
+	BaselineRecordedAt time.Time // when the baseline was last written (for status)
 	Reasons            []string // human-readable mismatch list, e.g. "model: nomic vs mxbai"
 }
 
@@ -115,6 +117,7 @@ func (e *Engine) computeDriftVerdict(ctx context.Context) DriftVerdict {
 	v.BaselineDim = base.Dim
 	v.BaselineConvention = base.Convention
 	v.BaselineVersion = base.OllamaVersion
+	v.BaselineRecordedAt = base.RecordedAt
 
 	// Hard drift: model / dim / convention mismatch. (Dim is skipped when the
 	// live dim is unknown — 0 — which it is until the embedder's first response;

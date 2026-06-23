@@ -1,25 +1,44 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
 )
 
+// baselineRecordedAt formats the baseline timestamp for status display ("" when
+// zero / no baseline).
+func baselineRecordedAt(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
+}
+
 // Status returns corpus counts, the active embedding model, and embedding
 // reachability metadata. The model/dimensionality reported are the **stored**
 // majority (from the embedding profile), not the configured values, so a
 // model/config mismatch or a mid-migration drift is visible without querying
 // (audit H03, US2).
+//
+// H11/spec 017: also reports the corpus baseline vs live (model/dim/convention/
+// ollama-version) and the drift verdict, computed LIVE on each call (distinct
+// from the cached boot verdict /health reads).
 func (e *Engine) Status() (*StatusInfo, error) {
 	docs := countPrefix(e.db, storage.PrefixDocument)
 	chunks := countPrefix(e.db, storage.PrefixChunk)
 	embs := countPrefix(e.db, storage.PrefixEmbedding)
 	prof := CorpusProfile(e.db)
+
+	// H11/spec 017: live drift verdict (re-fetches the Ollama version; this is
+	// the on-demand detailed view — /health reads the cached boot verdict).
+	dv := e.computeDriftVerdict(context.Background())
 	model := e.cfg.EmbeddingModel
 	dims := 0
 	if prof.Total > 0 {
@@ -59,6 +78,16 @@ func (e *Engine) Status() (*StatusInfo, error) {
 		DocPrefix:               pre.ForRole(embed.RoleDocument),
 		ResultCache:             e.resultCache.Stats(), // H06/spec 016
 		EmbeddingCache:          e.embedCache.Stats(),  // H06/spec 016
+		// H11/spec 017: corpus baseline vs live + drift verdict (live-computed above).
+		CorpusBaselineModel:      dv.BaselineModel,
+		CorpusBaselineDim:        dv.BaselineDim,
+		CorpusBaselineConvention: dv.BaselineConvention,
+		CorpusBaselineOllamaVer:  dv.BaselineVersion,
+		CorpusBaselineRecordedAt: baselineRecordedAt(dv.BaselineRecordedAt),
+		LiveOllamaVersion:        dv.LiveVersion,
+		DriftVerdict:             dv.Verdict,
+		HardDrift:                dv.Hard,
+		VersionDrift:             dv.Verdict == VerdictVersionWarning,
 	}, nil
 }
 

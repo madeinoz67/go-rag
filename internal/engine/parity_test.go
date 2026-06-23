@@ -803,3 +803,63 @@ func TestCrossTransport_NoCache_Parity(t *testing.T) {
 	}
 	assertHitsEqual(t, "gRPC no_cache", grpcCanon, want)
 }
+
+// TestCrossTransport_ReadinessParity (H11/spec 017) proves the readiness signal
+// is exposed consistently on REST /health and the gRPC Health RPC (both map
+// engine.Health.Ready). For a clean corpus (baseline matches config) both report
+// ready=true; the drift→ready=false logic is covered by the engine-level drift
+// tests. Establishes the transport wiring for the degraded-readiness posture.
+func TestCrossTransport_ReadinessParity(t *testing.T) {
+	ollama := fastFakeOllama(t)
+	eng := openEngine(t, ollama.URL)
+
+	dir := t.TempDir()
+	doc := writeDoc(t, dir, "ready.txt", "readiness parity corpus document content")
+	if _, err := eng.Add(context.Background(), doc); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	waitEmbeddings(t, eng)
+	eng.RefreshDriftVerdict(context.Background()) // cache the boot verdict
+
+	// REST /health → body carries ready + drift_verdict; clean corpus → ready=true.
+	restSrv := httptest.NewServer(rest.New(eng, "").Handler())
+	defer restSrv.Close()
+	resp, err := http.Get(restSrv.URL + "/health")
+	if err != nil {
+		t.Fatalf("GET /health: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("/health status = %d, want 200 (liveness, even if not ready)", resp.StatusCode)
+	}
+	var body struct {
+		OK           bool   `json:"ok"`
+		Ready        bool   `json:"ready"`
+		DriftVerdict string `json:"drift_verdict"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode /health: %v", err)
+	}
+	if !body.OK {
+		t.Errorf("/health ok=false, want true (liveness)")
+	}
+	if !body.Ready {
+		t.Errorf("/health ready=false on a clean corpus, want true")
+	}
+
+	// gRPC Health → Ready mirrors the REST body.
+	client := dialGRPC(t, eng)
+	hresp, err := client.Health(context.Background(), &goragpb.HealthRequest{})
+	if err != nil {
+		t.Fatalf("gRPC Health: %v", err)
+	}
+	if !hresp.GetOk() {
+		t.Errorf("gRPC Health Ok=false, want true")
+	}
+	if !hresp.GetReady() {
+		t.Errorf("gRPC Health Ready=false on a clean corpus, want true")
+	}
+	if hresp.GetDriftVerdict() != body.DriftVerdict {
+		t.Errorf("drift verdict diverges: REST=%q gRPC=%q", body.DriftVerdict, hresp.GetDriftVerdict())
+	}
+}

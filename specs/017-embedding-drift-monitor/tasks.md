@@ -99,13 +99,13 @@
 
 ### Implementation for User Story 4
 
-- [ ] T019 [P] [US4] Add the status fields to `StatusInfo` in `internal/engine/types.go`: `CorpusBaseline{Model,Dim,Convention,OllamaVersion,RecordedAt}`, `LiveOllamaVersion`, `DriftVerdict`, `HardDrift`, `VersionDrift` (per data-model.md).
-- [ ] T020 [US4] Populate the fields + recompute the live verdict in `Engine.Status` in `internal/engine/status.go` (Status fetches the live Ollama version fresh — the on-demand detailed view, distinct from the cached boot verdict read by `/health`).
-- [ ] T021 [US4] Render a Baseline + Drift section in the CLI status command `internal/cli/status.go` (the daemon-running path delegates to MCP `go_rag_status`; the stopped path computes locally — both show the baseline from the persisted record).
-- [ ] T022 [P] [US4] Add the drift/baseline fields to the REST status response in `internal/rest/types.go` + populate in the REST status handler.
-- [ ] T023 [US4] Add the drift/baseline fields to the gRPC `StatusResponse` in `proto/gorag.proto`; regen `proto/gen`; map them in `internal/grpc/engine_adapter.go`. (**Single batched regen with T008** — the `HealthResponse.ready` field.)
-- [ ] T024 [P] [US4] Append baseline + drift to the MCP `renderStatus` output in `internal/mcp/server.go` (e.g. `, baseline: model=… dim=… conv=… ollama=…@<ts>, drift: <verdict> (<reasons>)`).
-- [ ] T025 [US4] Parity test in `internal/engine/parity_test.go` (or a new `internal/engine/drift_parity_test.go`): induce a model mismatch; assert the same baseline + drift fields appear over CLI/REST/gRPC/MCP status.
+- [x] T019 [P] [US4] Add the status fields to `StatusInfo` in `internal/engine/types.go`: `CorpusBaseline{Model,Dim,Convention,OllamaVersion,RecordedAt}`, `LiveOllamaVersion`, `DriftVerdict`, `HardDrift`, `VersionDrift` (per data-model.md).
+- [x] T020 [US4] Populate the fields + recompute the live verdict in `Engine.Status` in `internal/engine/status.go` (Status fetches the live Ollama version fresh — the on-demand detailed view, distinct from the cached boot verdict read by `/health`).
+- [x] T021 [US4] Render a Baseline + Drift section in the CLI status command `internal/cli/status.go` (the daemon-running path delegates to MCP `go_rag_status`; the stopped path computes locally — both show the baseline from the persisted record).
+- [x] T022 [P] [US4] Add the drift/baseline fields to the REST status response in `internal/rest/types.go` + populate in the REST status handler.
+- [x] T023 [US4] Add the drift/baseline fields to the gRPC `StatusResponse` in `proto/gorag.proto`; regen `proto/gen`; map them in `internal/grpc/engine_adapter.go`. (**Single batched regen with T008** — the `HealthResponse.ready` field.)
+- [x] T024 [P] [US4] Append baseline + drift to the MCP `renderStatus` output in `internal/mcp/server.go` (e.g. `, baseline: model=… dim=… conv=… ollama=…@<ts>, drift: <verdict> (<reasons>)`).
+- [x] T025 [US4] Parity test in `internal/engine/parity_test.go` (or a new `internal/engine/drift_parity_test.go`): induce a model mismatch; assert the same baseline + drift fields appear over CLI/REST/gRPC/MCP status.
 
 **Checkpoint**: All four stories complete; drift + baseline are observable on every transport.
 

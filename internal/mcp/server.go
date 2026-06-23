@@ -286,7 +286,27 @@ func (s *Server) renderStatus(eng *engine.Engine) (string, error) {
 	if st.ResultCache.Enabled || st.EmbeddingCache.Enabled {
 		out += fmt.Sprintf(", cache: result %s, embedding %s", cacheSummary(st.ResultCache), cacheSummary(st.EmbeddingCache))
 	}
+	// H11/spec 017: corpus baseline (the profile the corpus was built under) +
+	// the drift verdict, so drift is visible without a query.
+	if st.CorpusBaselineModel != "" {
+		out += fmt.Sprintf(", baseline: model=%s dim=%d conv=%q ollama=%s",
+			st.CorpusBaselineModel, st.CorpusBaselineDim, st.CorpusBaselineConvention, orUnknown(st.CorpusBaselineOllamaVer))
+		if st.LiveOllamaVersion != "" {
+			out += fmt.Sprintf("/live=%s", orUnknown(st.LiveOllamaVersion))
+		}
+	}
+	if st.DriftVerdict != "" && st.DriftVerdict != "clean" && st.DriftVerdict != "n/a" {
+		out += fmt.Sprintf(", drift: %s", st.DriftVerdict)
+	}
 	return out, nil
+}
+
+// orUnknown renders an empty version string as "unknown" for display.
+func orUnknown(s string) string {
+	if s == "" {
+		return "unknown"
+	}
+	return s
 }
 
 // cacheSummary formats one CacheStats as "size/cap (hits hits, misses misses)".

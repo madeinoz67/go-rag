@@ -86,6 +86,20 @@ type StatusInfo struct {
 	DocPrefix          string         // resolved document-role prefix (empty when none in effect)
 	ResultCache    CacheStats // H06/spec 016: query result-cache stats (enabled/size/capacity/hits/misses)
 	EmbeddingCache CacheStats // H06/spec 016: query-embedding-cache stats
+
+	// H11/spec 017: embedding-drift monitoring. The corpus baseline (profile the
+	// corpus was built under) vs live, plus the drift verdict. Orthogonal to the
+	// H03/H07 intra-corpus drift fields above (those report mixed records within
+	// the corpus; these report corpus-vs-config + Ollama-version drift).
+	CorpusBaselineModel      string
+	CorpusBaselineDim        int
+	CorpusBaselineConvention string
+	CorpusBaselineOllamaVer  string
+	CorpusBaselineRecordedAt string // RFC3339
+	LiveOllamaVersion        string // "" offline, "unknown" unreachable
+	DriftVerdict             string // clean|hard-drift|version-warning|unknown|n/a
+	HardDrift                bool   // true on model/dim/convention mismatch
+	VersionDrift             bool   // true on Ollama-version change (soft)
 }
 
 // IngestSummary describes one ingest/scan/reprocess/migrate run. Modified and
