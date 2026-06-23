@@ -120,7 +120,31 @@ func (e *Engine) computeDriftVerdict(ctx context.Context) DriftVerdict {
 		return v
 	}
 
-	// US2 fills the soft version comparison here. For US1, a profile match is clean.
-	v.Verdict = VerdictClean
+	// Soft drift (US2): Ollama-server version change — full-string compare.
+	// Skipped when either side is unknown/empty (offline/injected embedder or
+	// unreachable Ollama). Hard drift already returned above, so reaching here
+	// means model/dim/convention all match — hard-wins-over-soft by structure.
+	if knownVersion(v.BaselineVersion) && knownVersion(v.LiveVersion) &&
+		v.BaselineVersion != v.LiveVersion {
+		v.Verdict = VerdictVersionWarning
+		v.Hard = false
+		v.Reasons = append(v.Reasons,
+			fmt.Sprintf("ollama-version: %s vs %s", v.BaselineVersion, v.LiveVersion))
+		return v
+	}
+
+	// If a comparison was attempted but the live version was unknown (Ollama
+	// unreachable while a baseline exists), surface that distinctly; otherwise
+	// the profile match is clean.
+	if v.LiveVersion == "unknown" && v.BaselineVersion != "" {
+		v.Verdict = VerdictUnknown
+	}
+	if v.Verdict == VerdictNA {
+		v.Verdict = VerdictClean
+	}
 	return v
 }
+
+// knownVersion reports whether a version string is a real, comparable value
+// (not "" for offline/injected embedders, nor "unknown" for unreachable Ollama).
+func knownVersion(s string) bool { return s != "" && s != "unknown" }

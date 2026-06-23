@@ -65,10 +65,10 @@
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] Add the version comparison to `computeDriftVerdict` in `internal/engine/drift.go`: fetch the live version via `ollamaVersion` (T003); if baseline.OllamaVersion and live are both non-empty/non-`"unknown"` and differ → set `Verdict="version-warning"` (soft, `Hard=false`); **hard wins over soft** (a hard-drift verdict stays hard-drift); skip the comparison when either side is `""`/`"unknown"` (offline/unreachable). Cache the live version on the engine.
-- [ ] T012 [US2] Test in `internal/engine/drift_test.go`: baseline version `0.1.0`, live `0.5.0`, matching model/dim/convention → `Verdict="version-warning"`, `Ready==true` (soft, serve). Then: model ALSO mismatched → verdict stays `hard-drift` (hard-wins-over-soft), `Ready==false`.
-- [ ] T013 [US2] Test in `internal/engine/drift_test.go`: Ollama unreachable → `liveOllamaVersion=="unknown"`, `RefreshDriftVerdict` returns no error, boot would succeed, version comparison skipped, model/convention comparison still runs.
-- [ ] T014 [US2] Test in `internal/engine/drift_test.go`: an injected (offline) embedder (`NewWithEmbedder`) → version fetch returns `""`, comparison skipped (FR-010); a stored baseline still allows the model/convention check.
+- [x] T011 [US2] Add the version comparison to `computeDriftVerdict` in `internal/engine/drift.go`: fetch the live version via `ollamaVersion` (T003); if baseline.OllamaVersion and live are both non-empty/non-`"unknown"` and differ → set `Verdict="version-warning"` (soft, `Hard=false`); **hard wins over soft** (a hard-drift verdict stays hard-drift); skip the comparison when either side is `""`/`"unknown"` (offline/unreachable). Cache the live version on the engine.
+- [x] T012 [US2] Test in `internal/engine/drift_test.go`: baseline version `0.1.0`, live `0.5.0`, matching model/dim/convention → `Verdict="version-warning"`, `Ready==true` (soft, serve). Then: model ALSO mismatched → verdict stays `hard-drift` (hard-wins-over-soft), `Ready==false`.
+- [x] T013 [US2] Test in `internal/engine/drift_test.go`: Ollama unreachable → `liveOllamaVersion=="unknown"`, `RefreshDriftVerdict` returns no error, boot would succeed, version comparison skipped, model/convention comparison still runs.
+- [x] T014 [US2] Test in `internal/engine/drift_test.go`: an injected (offline) embedder (`NewWithEmbedder`) → version fetch returns `""`, comparison skipped (FR-010); a stored baseline still allows the model/convention check.
 
 **Checkpoint**: US1 + US2 — both drift dimensions detected, with the correct hard/soft severity and the safe unreachable/offline paths.
 
