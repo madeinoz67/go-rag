@@ -335,9 +335,11 @@ func TestCrossTransport_ReadAfterWrite_Idempotent(t *testing.T) {
 	if sum := addOverREST(t, restSrv.URL, doc); sum.New != 1 {
 		t.Fatalf("first REST add: new=%d, want 1", sum.New)
 	}
+	// H16/spec 018 (pivoted): FTS indexing is now async (processJob). Keyword
+	// search is eventually consistent — drain the async worker before querying.
+	waitEmbeddings(t, eng)
 
-	// Query over gRPC immediately — the doc must be retrievable (FR-003). Keyword
-	// mode reads the synchronously-stored chunks, so this needs no embedding.
+	// Query over gRPC — the doc must be retrievable (FR-003).
 	resp, err := grpcClient.Query(context.Background(), &goragpb.QueryRequest{
 		Query: "transport", Mode: "keyword", K: 5,
 	})
@@ -587,6 +589,7 @@ func TestCrossTransport_RerankFailureParity(t *testing.T) {
 	if _, err := eng.Add(context.Background(), doc); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
+	waitEmbeddings(t, eng) // H16/spec 018: FTS indexing is async — drain before querying
 
 	const (
 		q  = "rerank"

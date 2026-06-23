@@ -130,14 +130,15 @@ func TestEpoch_AsyncVectorBump(t *testing.T) {
 	e := newResultCacheEngine(t, 8)
 	epoch0 := e.indexEpoch()
 
-	// addDoc ACKs after storeDocument (sync FTS bump, epoch +1), then the async
-	// processJob adds the vector and bumps again (+1). Await the full +2.
+	// addDoc ACKs after storeDocument (durable writes only; FTS moved async —
+	// H16/spec 018). The async processJob adds the vector + FTS postings and
+	// bumps the epoch (+1). Await the +1.
 	addDoc(t, e, "first document content for the async epoch test")
-	waitForEpoch(t, e, epoch0+2) // 1×storeDocument (sync FTS) + 1×processJob (async vector)
+	waitForEpoch(t, e, epoch0+1) // 1×processJob (async vector + FTS postings)
 
-	// A second document advances it by another 2 (deterministic per-doc count).
+	// A second document advances it by another 1.
 	addDoc(t, e, "second document content distinct from the first")
-	waitForEpoch(t, e, epoch0+4)
+	waitForEpoch(t, e, epoch0+2)
 }
 
 // TestEpoch_MigrateFlushesCaches asserts Migrate flushes the result cache (an

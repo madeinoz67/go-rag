@@ -65,8 +65,8 @@
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] Remove the sync `fts.Index` call from `storeDocument` in `internal/pipeline/pipeline.go` (the FTS is now async in `processJob`). Leave the durable Pebble writes (doc/chunks/path/contenthash) — the ACK path is now only durable writes.
-- [ ] T012 [US2] Verify `processJob` in `internal/pipeline/workers.go` still calls `fts.Index(c.ID, fields)` — the call site is unchanged, but the backing is now Pebble (the FTS.Index from T004 writes posting keys). Confirm the field map `{"body": c.Content}` matches what Search expects.
+- [x] T011 [US2] Remove the sync `fts.Index` call from `storeDocument` in `internal/pipeline/pipeline.go` (the FTS is now async in `processJob`). Leave the durable Pebble writes (doc/chunks/path/contenthash) — the ACK path is now only durable writes.
+- [x] T012 [US2] Verify `processJob` in `internal/pipeline/workers.go` still calls `fts.Index(c.ID, fields)` — the call site is unchanged, but the backing is now Pebble (the FTS.Index from T004 writes posting keys). Confirm the field map `{"body": c.Content}` matches what Search expects.
 - [ ] T013 [US2] Test in `internal/pipeline/workers_test.go`: ingest a chunk; immediately query (before async drain) — the chunk is NOT keyword-visible (async pending); `waitEmbedded`; query — now visible. Assert ACK time is unchanged vs pre-pivot.
 
 **Checkpoint**: US1 + US2 — cold start is fast + FTS indexing is async (Principle IV).
@@ -81,7 +81,7 @@
 
 ### Implementation for User Story 3
 
-- [ ] T014 [US3] Update `DeleteDoc` in `internal/pipeline/delete.go`: pass the chunk content to `fts.Delete(chunkID, content)` (the new signature from T006). DeleteDoc already reads chunk records (has `c.Content`). Remove the old `fts.Delete(cid)` call (no content) and replace with `fts.Delete(cid, c.Content)`.
+- [x] T014 [US3] Update `DeleteDoc` in `internal/pipeline/delete.go`: pass the chunk content to `fts.Delete(chunkID, content)` (the new signature from T006). DeleteDoc already reads chunk records (has `c.Content`). Remove the old `fts.Delete(cid)` call (no content) and replace with `fts.Delete(cid, c.Content)`.
 - [ ] T015 [US3] Test in `internal/pipeline/delete_test.go`: ingest doc A + `waitEmbedded`; cold-start + query → A found. Delete A; cold-start + query → A gone. Ingest doc B; cold-start + query → B found, A still gone.
 
 **Checkpoint**: US1–US3 — the Pebble-backed FTS is durable, current, and async.
@@ -97,8 +97,8 @@
 ### Implementation for User Story 4
 
 - [ ] T016 [US4] Transparency test in `internal/index/fts_test.go` (or a dedicated `fts_transparency_test.go`): build a Pebble-backed FTS and (for comparison) the old in-memory FTS over the same corpus; run identical queries; assert byte-identical hits (chunkIDs + BM25 scores within epsilon). This is the FR-008 gate.
-- [ ] T017 [US4] Run `make test-eval` — recall@10 must be unchanged from the T001 baseline (the BM25 math is identical; only the backing changed).
-- [ ] T018 [US4] Run the full test suite `go test -race ./...` — all existing tests pass with the rewritten FTS. Fix any breakage in tests that assumed the old in-memory FTS (e.g., tests that checked `fts.postings` directly, or assumed sync keyword visibility without `waitEmbedded`).
+- [x] T017 [US4] Run `make test-eval` — recall@10 must be unchanged from the T001 baseline (the BM25 math is identical; only the backing changed).
+- [x] T018 [US4] Run the full test suite `go test -race ./...` — all existing tests pass with the rewritten FTS. Fix any breakage in tests that assumed the old in-memory FTS (e.g., tests that checked `fts.postings` directly, or assumed sync keyword visibility without `waitEmbedded`).
 
 **Checkpoint**: US1–US4 — the pivoted FTS is transparent, backward-compatible, and quality-neutral.
 

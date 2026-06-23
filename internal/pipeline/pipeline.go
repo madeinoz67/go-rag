@@ -283,22 +283,13 @@ func (p *Pipeline) storeDocument(doc model.Document, chunks []model.Chunk, conte
 			return err
 		}
 	}
-	// H01/spec 011: index the just-stored chunks into the shared FTS synchronously,
-	// so the cached index reflects durable-stored chunks immediately — a keyword
-	// query right after the ACK must see them, exactly as the old per-query disk
-	// rebuild did. Vectors still land asynchronously via processJob. FTS is
-	// goroutine-safe, so this is safe alongside the background workers. (processJob
-	// also calls fts.Index; the second call is an idempotent replace, kept to avoid
-	// touching the H07 prefix logic there.)
-	for _, c := range chunks {
-		if p.fts != nil {
-			p.fts.Index(c.ID, map[string]string{"body": c.Content})
-		}
-	}
-	// H06/spec 016: the synchronous FTS add just mutated the searchable corpus
-	// (keyword hits land immediately, before the ACK returns) — advance the
-	// result-cache epoch so a query after the ACK never serves a stale entry.
-	p.indexChanged()
+	// H16/spec 018 (pivoted): BM25 indexing is now ASYNC — moved off the ACK path
+	// into processJob (which already embeds vectors + bumps the H06 epoch). This
+	// brings go-rag into compliance with Principle IV ("BM25 indexing MUST occur
+	// asynchronously on background workers AFTER the acknowledgement"). Keyword
+	// search becomes eventually consistent, symmetric with vector search. The H01
+	// "keyword query right after ACK" guarantee becomes "keyword query after the
+	// async worker drains" — the same window vectors have (waitEmbedded covers it).
 	return nil
 }
 
