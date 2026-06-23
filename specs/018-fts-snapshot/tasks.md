@@ -51,7 +51,7 @@
 
 - [x] T008 [US1] Simplify `LoadIndex` in `internal/pipeline/load.go`: replace the `PrefixScan(PrefixChunk)` FTS rebuild with `fts := index.NewFTS(db)` (O(1) adapter). Keep the vector reload from `PrefixEmbedding` (unchanged). Return `(fts, vec, err)`.
 - [x] T009 [US1] Add the one-time migration backfill in `internal/pipeline/load.go`: if the `0x08|"stats"` key is absent (pre-pivot vault), scan `PrefixChunk`, tokenize each, write postings + DF + stats (the same logic as the old LoadIndex, now writing to Pebble). Gated by the stats-key check so it runs exactly once.
-- [ ] T010 [US1] Test in `internal/pipeline/load_test.go`: cold start with a Pebble-backed FTS (stats key present) does NOT scan PrefixChunk for FTS (only vectors); cold start with a pre-pivot vault (no stats key) triggers the migration backfill (writes postings, subsequent starts skip it).
+- [x] T010 [US1] Test in `internal/pipeline/load_test.go`: cold start with a Pebble-backed FTS (stats key present) does NOT scan PrefixChunk for FTS (only vectors); cold start with a pre-pivot vault (no stats key) triggers the migration backfill (writes postings, subsequent starts skip it).
 
 **Checkpoint**: US1 — cold start has no FTS rebuild; the FTS is durable in Pebble.
 
@@ -67,7 +67,7 @@
 
 - [x] T011 [US2] Remove the sync `fts.Index` call from `storeDocument` in `internal/pipeline/pipeline.go` (the FTS is now async in `processJob`). Leave the durable Pebble writes (doc/chunks/path/contenthash) — the ACK path is now only durable writes.
 - [x] T012 [US2] Verify `processJob` in `internal/pipeline/workers.go` still calls `fts.Index(c.ID, fields)` — the call site is unchanged, but the backing is now Pebble (the FTS.Index from T004 writes posting keys). Confirm the field map `{"body": c.Content}` matches what Search expects.
-- [ ] T013 [US2] Test in `internal/pipeline/workers_test.go`: ingest a chunk; immediately query (before async drain) — the chunk is NOT keyword-visible (async pending); `waitEmbedded`; query — now visible. Assert ACK time is unchanged vs pre-pivot.
+- [x] T013 [US2] Test in `internal/pipeline/workers_test.go`: ingest a chunk; immediately query (before async drain) — the chunk is NOT keyword-visible (async pending); `waitEmbedded`; query — now visible. Assert ACK time is unchanged vs pre-pivot.
 
 **Checkpoint**: US1 + US2 — cold start is fast + FTS indexing is async (Principle IV).
 
@@ -82,7 +82,7 @@
 ### Implementation for User Story 3
 
 - [x] T014 [US3] Update `DeleteDoc` in `internal/pipeline/delete.go`: pass the chunk content to `fts.Delete(chunkID, content)` (the new signature from T006). DeleteDoc already reads chunk records (has `c.Content`). Remove the old `fts.Delete(cid)` call (no content) and replace with `fts.Delete(cid, c.Content)`.
-- [ ] T015 [US3] Test in `internal/pipeline/delete_test.go`: ingest doc A + `waitEmbedded`; cold-start + query → A found. Delete A; cold-start + query → A gone. Ingest doc B; cold-start + query → B found, A still gone.
+- [x] T015 [US3] Test in `internal/pipeline/delete_test.go`: ingest doc A + `waitEmbedded`; cold-start + query → A found. Delete A; cold-start + query → A gone. Ingest doc B; cold-start + query → B found, A still gone.
 
 **Checkpoint**: US1–US3 — the Pebble-backed FTS is durable, current, and async.
 
@@ -96,7 +96,7 @@
 
 ### Implementation for User Story 4
 
-- [ ] T016 [US4] Transparency test in `internal/index/fts_test.go` (or a dedicated `fts_transparency_test.go`): build a Pebble-backed FTS and (for comparison) the old in-memory FTS over the same corpus; run identical queries; assert byte-identical hits (chunkIDs + BM25 scores within epsilon). This is the FR-008 gate.
+- [x] T016 [US4] Transparency test in `internal/index/fts_test.go` (or a dedicated `fts_transparency_test.go`): build a Pebble-backed FTS and (for comparison) the old in-memory FTS over the same corpus; run identical queries; assert byte-identical hits (chunkIDs + BM25 scores within epsilon). This is the FR-008 gate.
 - [x] T017 [US4] Run `make test-eval` — recall@10 must be unchanged from the T001 baseline (the BM25 math is identical; only the backing changed).
 - [x] T018 [US4] Run the full test suite `go test -race ./...` — all existing tests pass with the rewritten FTS. Fix any breakage in tests that assumed the old in-memory FTS (e.g., tests that checked `fts.postings` directly, or assumed sync keyword visibility without `waitEmbedded`).
 
@@ -108,10 +108,10 @@
 
 **Purpose**: End-to-end validation, docs, gates, and backlog closure.
 
-- [ ] T019 [P] Update `README.md` if it documents FTS internals (e.g., the architecture section mentions the in-memory BM25 — update to reflect the Pebble-backed design).
-- [ ] T020 Run quickstart.md scenarios 1–7 on an isolated DB; capture results (cold-start time improvement, transparency, currency, migration, eval).
-- [ ] T021 Final gates all green: `CGO_ENABLED=0 go build ./...`, `go vet ./...`, `go test -race -cover ./...`, `make test-eval`. Record coverage.
-- [ ] T022 Mark H16 complete in `RAG_BOOK_AUDIT_BACKLOG.md`: change the H16 line checkbox `[ ] → [x]` and append a `✅ COMPLETE (spec 018, pivoted)` note — following the format of the neighbouring H06/H11 entries — summarising what shipped (Pebble-backed FTS: postings as keys under 0x05, per-term prefix-scan BM25, async indexing in processJob, cold start with no rebuild, one-time migration backfill), the benchmark (0.3ms worst-case query, 6.7MB store), the gates passed, and the design pivot from snapshot to Pebble-backed (grounded in MuninnDB research). This is the explicit "make the backlog item complete when finished" task requested for this spec.
+- [x] T019 [P] Update `README.md` if it documents FTS internals (e.g., the architecture section mentions the in-memory BM25 — update to reflect the Pebble-backed design).
+- [x] T020 Run quickstart.md scenarios 1–7 on an isolated DB; capture results (cold-start time improvement, transparency, currency, migration, eval).
+- [x] T021 Final gates all green: `CGO_ENABLED=0 go build ./...`, `go vet ./...`, `go test -race -cover ./...`, `make test-eval`. Record coverage.
+- [x] T022 Mark H16 complete in `RAG_BOOK_AUDIT_BACKLOG.md`: change the H16 line checkbox `[ ] → [x]` and append a `✅ COMPLETE (spec 018, pivoted)` note — following the format of the neighbouring H06/H11 entries — summarising what shipped (Pebble-backed FTS: postings as keys under 0x05, per-term prefix-scan BM25, async indexing in processJob, cold start with no rebuild, one-time migration backfill), the benchmark (0.3ms worst-case query, 6.7MB store), the gates passed, and the design pivot from snapshot to Pebble-backed (grounded in MuninnDB research). This is the explicit "make the backlog item complete when finished" task requested for this spec.
 
 ---
 
