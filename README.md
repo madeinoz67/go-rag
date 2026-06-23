@@ -227,6 +227,36 @@ ingests slowly (~1000 passages/min — cross-document embed batching is audit H1
 SciFact is CC BY-NC. Benchmark data is fetched at runtime and is **not**
 committed to this repo.
 
+## Embedding drift monitoring & version pinning
+
+An Ollama-server or model update can **silently change** the vectors a given
+model produces (a pooling/quantization change), tanking recall with no error.
+go-rag pins the embedding profile the corpus was built under and checks it at
+boot, so this drift is caught before a query — not noticed after retrieval
+quality collapses.
+
+A **corpus baseline** `{model, dim, convention, ollama-version}` is persisted per
+vault, written on first embed, refreshed on `migrate`, and backfilled on first
+boot for older vaults. At daemon startup (and in `status`) the live config +
+live Ollama version are compared against it:
+
+- **model / dim / convention mismatch** → **hard drift**: the daemon starts
+  **degraded** — `/health` reports `ready:false` (liveness `ok:true`, so the
+  process stays up and `status`/`migrate` still work) and mismatched queries are
+  refused. Run `go-rag migrate` to re-embed under the current model.
+- **Ollama-version change** (same model) → **soft drift**: a warning; queries
+  still serve, but re-indexing is recommended.
+
+```bash
+go-rag status        # shows: baseline: model=… dim=… conv=… ollama=…/live=…, drift: <verdict>
+curl localhost:7879/health   # {"ok":true,"ready":false,"drift_verdict":"hard-drift",…}
+go-rag migrate       # remediate: re-embed under the current model + refresh the baseline
+```
+
+This layers on the existing query-time mismatch guard (which refuses a mismatched
+query) — the boot check makes drift visible *before* the first query and catches
+Ollama-server drift that the model/dim guard cannot.
+
 ## MCP daemon
 
 `start` re-execs a detached daemon that owns the Pebble database and serves MCP

@@ -115,11 +115,11 @@
 
 **Purpose**: Eval-harness safety, end-to-end validation, docs, gates, and backlog closure.
 
-- [ ] T026 [P] Confirm the eval path is safe: in `internal/eval/`, verify the offline deterministic embedder yields `ollamaVersion==""` so the version check is skipped (FR-010) and `make test-eval` recall@10 is unchanged from the T001 baseline (SC-006). Adjust the eval engine construction only if needed.
-- [ ] T027 Run every quickstart.md scenario (1–7) on an isolated DB with non-default transport ports (per CLAUDE.md §Constraints — never bare `go-rag start` against the live vault); capture the observed drift verdicts + that all scenarios pass.
-- [ ] T028 [P] Update `README.md` — add a "Drift monitoring & version pinning" section (corpus baseline, the boot check, hard vs soft drift, the degraded/readiness posture, how to remediate via `migrate`). Match the existing section style.
-- [ ] T029 Final gates all green: `CGO_ENABLED=0 go build ./...`, `go vet ./...`, `go test -race -cover ./...`, and `make test-eval`. Record coverage.
-- [ ] T030 Mark H11 complete in `RAG_BOOK_AUDIT_BACKLOG.md`: change the H11 line checkbox `[ ] → [x]` and append a `✅ COMPLETE (spec 017)` note — following the exact format of the neighbouring H01/H06/H15 completion entries — summarising what shipped (persisted corpus baseline under prefix 0x10, boot drift check, Ollama-version pinning, degraded/readiness posture-A, migrate refresh, backfill, status surface on 4 transports), the gates passed, and any caveat (e.g. `golangci-lint` skipped if the env still lacks a compatible config). This is the explicit "make the backlog item complete when finished" task requested for this spec.
+- [x] T026 [P] Confirm the eval path is safe: in `internal/eval/`, verify the offline deterministic embedder yields `ollamaVersion==""` so the version check is skipped (FR-010) and `make test-eval` recall@10 is unchanged from the T001 baseline (SC-006). Adjust the eval engine construction only if needed.
+- [x] T027 Run every quickstart.md scenario (1–7) on an isolated DB with non-default transport ports (per CLAUDE.md §Constraints — never bare `go-rag start` against the live vault); capture the observed drift verdicts + that all scenarios pass.
+- [x] T028 [P] Update `README.md` — add a "Drift monitoring & version pinning" section (corpus baseline, the boot check, hard vs soft drift, the degraded/readiness posture, how to remediate via `migrate`). Match the existing section style.
+- [x] T029 Final gates all green: `CGO_ENABLED=0 go build ./...`, `go vet ./...`, `go test -race -cover ./...`, and `make test-eval`. Record coverage.
+- [x] T030 Mark H11 complete in `RAG_BOOK_AUDIT_BACKLOG.md`: change the H11 line checkbox `[ ] → [x]` and append a `✅ COMPLETE (spec 017)` note — following the exact format of the neighbouring H01/H06/H15 completion entries — summarising what shipped (persisted corpus baseline under prefix 0x10, boot drift check, Ollama-version pinning, degraded/readiness posture-A, migrate refresh, backfill, status surface on 4 transports), the gates passed, and any caveat (e.g. `golangci-lint` skipped if the env still lacks a compatible config). This is the explicit "make the backlog item complete when finished" task requested for this spec.
 
 ---
 
