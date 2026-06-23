@@ -26,8 +26,8 @@ const protocolVersion = "2024-11-05"
 // (New, opens the DB per call) or as a long-lived daemon (NewWithDB, shared DB).
 type Server struct {
 	dbPath string
-	db     *storage.DB     // nil => open per call (stdio); non-nil => shared DB, fresh engine per call
-	eng    *engine.Engine  // shared engine (daemon mode via NewWithEngine): reused across calls so its query cache (H06) and seeded index (H01) persist
+	db     *storage.DB    // nil => open per call (stdio); non-nil => shared DB, fresh engine per call
+	eng    *engine.Engine // shared engine (daemon mode via NewWithEngine): reused across calls so its query cache (H06) and seeded index (H01) persist
 	cfg    config.Config
 }
 
@@ -169,6 +169,14 @@ func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any
 		return s.renderReprocess(eng, args)
 	case "go_rag_migrate":
 		return s.renderMigrate(eng)
+	case "go_rag_poison_list":
+		return s.renderPoisonList(eng)
+	case "go_rag_poison_release":
+		return s.renderPoisonRelease(eng, args)
+	case "go_rag_poison_reset":
+		return s.renderPoisonReset(eng, args)
+	case "go_rag_poison_rescan":
+		return s.renderPoisonRescan(eng)
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
 }
@@ -254,6 +262,9 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 	if v, ok := args["no_cache"].(bool); ok { // H06/spec 016: bypass the result cache for this query
 		req.NoCache = v
 	}
+	if v, ok := args["include_quarantined"].(bool); ok { // H04/spec 019: return poisoning-flagged chunks
+		req.IncludeQuarantined = v
+	}
 	res, err := eng.Query(context.Background(), req)
 	if err != nil {
 		return "", err
@@ -266,7 +277,11 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 		b.WriteString("⚠ reranking failed; showing fallback-ordered results (reranker may be down or mismatched)\n\n")
 	}
 	for _, h := range res.Hits {
-		fmt.Fprintf(&b, "- (score %.3f) %s\n", h.Score, h.Preview)
+		mark := ""
+		if h.Poisoning != nil && h.Poisoning.Level.Quarantined() { // H04/spec 019: flagged → untrusted
+			mark = " ⚠ untrusted"
+		}
+		fmt.Fprintf(&b, "- (score %.3f) %s%s\n", h.Score, h.Preview, mark)
 	}
 	return strings.TrimSpace(b.String()), nil
 }
@@ -298,6 +313,11 @@ func (s *Server) renderStatus(eng *engine.Engine) (string, error) {
 	if st.DriftVerdict != "" && st.DriftVerdict != "clean" && st.DriftVerdict != "n/a" {
 		out += fmt.Sprintf(", drift: %s", st.DriftVerdict)
 	}
+	// H04/spec 019: poisoning detection summary (enabled, flagged count, sources,
+	// merged-list size, thresholds).
+	out += fmt.Sprintf(", poison: enabled=%v flagged=%d sources=%d phrases=%d (thr %.2f/%.2f)",
+		st.PoisoningEnabled, st.PoisonFlagged, st.PoisonSources, st.PoisonPhrases,
+		st.PoisonThresholdSus, st.PoisonThresholdQua)
 	return out, nil
 }
 
@@ -352,6 +372,54 @@ func (s *Server) renderMigrate(eng *engine.Engine) (string, error) {
 		return fmt.Sprintf("up to date: all embeddings use %s", eng.Config().EmbeddingModel), nil
 	}
 	return fmt.Sprintf("migrated=%d files re-embedded to %s (%d errors)", res.New, eng.Config().EmbeddingModel, res.Errors), nil
+}
+
+// renderPoisonList lists chunks flagged as injection-poisoning (H04/spec 019).
+func (s *Server) renderPoisonList(eng *engine.Engine) (string, error) {
+	flagged, err := eng.ListPoisoned()
+	if err != nil {
+		return "", err
+	}
+	if len(flagged) == 0 {
+		return "no flagged chunks", nil
+	}
+	var b strings.Builder
+	for _, f := range flagged {
+		fmt.Fprintf(&b, "- %s (level %s, score %.2f) %s\n", f.ChunkID, f.Verdict.Level, f.Verdict.Score, f.Preview)
+	}
+	return strings.TrimSpace(b.String()), nil
+}
+
+func (s *Server) renderPoisonRelease(eng *engine.Engine, args map[string]any) (string, error) {
+	id, _ := args["chunk_id"].(string)
+	if id == "" {
+		return "", fmt.Errorf("chunk_id required")
+	}
+	if err := eng.ReleaseChunk(id); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("released %s — now retrievable by default", id), nil
+}
+
+func (s *Server) renderPoisonReset(eng *engine.Engine, args map[string]any) (string, error) {
+	id, _ := args["chunk_id"].(string)
+	if id == "" {
+		return "", fmt.Errorf("chunk_id required")
+	}
+	if err := eng.ResetChunk(id); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("reset %s — re-evaluated against thresholds", id), nil
+}
+
+// renderPoisonRescan re-scores the whole corpus against the current detector
+// (US3, FR-007, and the US4 T031 manual trigger).
+func (s *Server) renderPoisonRescan(eng *engine.Engine) (string, error) {
+	rescored, flagged, err := eng.RescanPoisoning()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("rescan: %d chunks (re)scored, %d flagged", rescored, flagged), nil
 }
 
 func (s *Server) renderConfig(eng *engine.Engine, args map[string]any) (string, error) {
@@ -552,17 +620,18 @@ func toolDefs() []map[string]any {
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"query":     map[string]any{"type": "string"},
-					"k":         map[string]any{"type": "integer", "default": 5},
-					"mode":      map[string]any{"type": "string", "enum": []string{"hybrid", "semantic", "keyword"}},
-					"no_rerank": map[string]any{"type": "boolean", "default": false},
-					"threshold": map[string]any{"type": "number", "default": 0.0},
-					"rrf_k":     map[string]any{"type": "integer", "default": 60},
-					"source":    map[string]any{"type": "string"},
-					"type":      map[string]any{"type": "string"},
-					"tags":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-					"context_window": map[string]any{"type": "integer", "default": 0},
-					"no_cache":       map[string]any{"type": "boolean", "default": false},
+					"query":               map[string]any{"type": "string"},
+					"k":                   map[string]any{"type": "integer", "default": 5},
+					"mode":                map[string]any{"type": "string", "enum": []string{"hybrid", "semantic", "keyword"}},
+					"no_rerank":           map[string]any{"type": "boolean", "default": false},
+					"threshold":           map[string]any{"type": "number", "default": 0.0},
+					"rrf_k":               map[string]any{"type": "integer", "default": 60},
+					"source":              map[string]any{"type": "string"},
+					"type":                map[string]any{"type": "string"},
+					"tags":                map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"context_window":      map[string]any{"type": "integer", "default": 0},
+					"no_cache":            map[string]any{"type": "boolean", "default": false},
+					"include_quarantined": map[string]any{"type": "boolean", "default": false, "description": "include chunks flagged as injection-poisoning (excluded by default)"},
 				},
 				"required": []string{"query"},
 			},
@@ -635,6 +704,34 @@ func toolDefs() []map[string]any {
 		{
 			"name":        "go_rag_migrate",
 			"description": "Re-embed all documents whose embeddings use a different model than the current one.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "go_rag_poison_list",
+			"description": "List chunks flagged as injection-poisoning (excluded from default results), with the per-signal verdict breakdown.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "go_rag_poison_release",
+			"description": "Release a flagged chunk (false-positive override) — makes it retrievable by default.",
+			"inputSchema": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"chunk_id": map[string]any{"type": "string"}},
+				"required":   []string{"chunk_id"},
+			},
+		},
+		{
+			"name":        "go_rag_poison_reset",
+			"description": "Undo a release — re-quarantines the chunk if its score is flagged.",
+			"inputSchema": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"chunk_id": map[string]any{"type": "string"}},
+				"required":   []string{"chunk_id"},
+			},
+		},
+		{
+			"name":        "go_rag_poison_rescan",
+			"description": "Re-score the whole corpus against the current detector (idempotent; no re-ingest). Scores pre-feature chunks and applies threshold/list changes to the back-catalog.",
 			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
 		},
 		{

@@ -49,6 +49,12 @@ service Gorag {
 
   // Liveness/readiness. → health probe (also REST GET /health)
   rpc Health(HealthRequest) returns (HealthResponse);
+
+  // H04/spec 019: quarantine management (also REST /v1/poison, MCP poison_*).
+  rpc ListPoisoned(ListPoisonedRequest) returns (ListPoisonedResponse);
+  rpc ReleaseChunk(ReleaseChunkRequest) returns (PoisonActionResponse);
+  rpc ResetChunk(ResetChunkRequest) returns (PoisonActionResponse);
+  rpc RescanPoisoning(RescanPoisoningRequest) returns (RescanPoisoningResponse);
 }
 
 // ---- Query ----
@@ -65,6 +71,7 @@ message QueryRequest {
   repeated string tags = 9;     // H14/spec 014: tag conjunction filter (empty = no constraint)
   int32 context_window = 10;    // H15/spec 015: N sibling chunks of context each side; 0 = off
   bool no_cache = 11;            // H06/spec 016: bypass the query result cache for this query (forces a fresh result)
+  bool include_quarantined = 12; // H04/spec 019: return chunks flagged as injection-poisoning (excluded by default)
 }
 message QueryHit {
   string chunk_id = 1;
@@ -73,6 +80,50 @@ message QueryHit {
   string content = 4;           // full chunk text
   string file_path = 5;
   int32 page = 6;               // 0 if not paginated
+  Poisoning poisoning = 7;      // H04/spec 019: per-chunk injection verdict (nil = clean/unscored)
+}
+
+// Poisoning is the per-chunk injection-poisoning verdict (H04/spec 019). The
+// high-precision signal is `instruction` (1.0 if a curated phrase matched);
+// repetition/stuffing are secondary boosters. Mirrors model.PoisonVerdict 1:1.
+message Poisoning {
+  string level = 1;                   // clean|suspicious|quarantine|released
+  double score = 2;                   // combined score in [0,1]
+  PoisoningSignals signals = 3;
+  repeated string matched_phrases = 4; // instruction-phrase hits
+}
+message PoisoningSignals {
+  double repetition = 1;
+  double stuffing = 2;
+  double instruction = 3;
+}
+
+// H04/spec 019: quarantine management (US2, FR-006). Mirrors engine.ListPoisoned /
+// ReleaseChunk / ResetChunk (also REST /v1/poison, MCP poison_*).
+message ListPoisonedRequest {}
+message ListPoisonedResponse {
+  repeated PoisonedChunk flagged = 1;
+}
+message PoisonedChunk {
+  string chunk_id = 1;
+  string document_id = 2;
+  string preview = 3;
+  Poisoning verdict = 4;
+}
+message ReleaseChunkRequest {
+  string chunk_id = 1;
+}
+message ResetChunkRequest {
+  string chunk_id = 1;
+}
+message PoisonActionResponse {
+  string chunk_id = 1;
+  string status = 2; // "released" | "reset"
+}
+message RescanPoisoningRequest {}
+message RescanPoisoningResponse {
+  int32 rescored = 1; // chunks (re)scored
+  int32 flagged = 2;  // now flagged (suspicious/quarantine)
 }
 message QueryResponse {
   repeated QueryHit hits = 1;

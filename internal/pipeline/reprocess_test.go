@@ -42,14 +42,14 @@ func TestIsUnder(t *testing.T) {
 		path, root string
 		want       bool
 	}{
-		{"note.md", ".", true},                       // current dir contains relative paths
-		{"./vault/note.md", ".", true},               // cleaned ./ form
-		{"vault/note.md", "vault", true},             // descendant
-		{"vault", "vault", true},                     // exact
-		{"other/x.md", "vault", false},               // sibling, not under
-		{"/a/b/c.md", "/a/b", true},                  // absolute descendant
-		{"/a/other/c.md", "/a/b", false},             // absolute sibling
-		{"vault2/x.md", "vault", false},              // name prefix, not a dir child
+		{"note.md", ".", true},           // current dir contains relative paths
+		{"./vault/note.md", ".", true},   // cleaned ./ form
+		{"vault/note.md", "vault", true}, // descendant
+		{"vault", "vault", true},         // exact
+		{"other/x.md", "vault", false},   // sibling, not under
+		{"/a/b/c.md", "/a/b", true},      // absolute descendant
+		{"/a/other/c.md", "/a/b", false}, // absolute sibling
+		{"vault2/x.md", "vault", false},  // name prefix, not a dir child
 	} {
 		if got := isUnder(c.path, c.root); got != c.want {
 			t.Errorf("isUnder(%q, %q) = %v, want %v", c.path, c.root, got, c.want)

@@ -59,6 +59,16 @@ func (p *Pipeline) processJob(j job) {
 					_ = p.db.SetWithPrefix(storage.PrefixEmbedding, []byte(c.ID), vj)
 				}
 			}
+			// H04/spec 019: maintain the 0x11 quarantine index for O(flagged)
+			// listing (US2 ListPoisoned). The verdict already rides the chunk
+			// record (sync at ingest); this secondary index is populated ASYNC
+			// (off the ACK path, alongside embed/FTS) so listing is fast. Only
+			// flagged chunks are indexed.
+			if c.Poisoning != nil && c.Poisoning.Level.Quarantined() {
+				if vj, merr := json.Marshal(c.Poisoning); merr == nil {
+					_ = p.db.PutQuarantine(c.ID, vj)
+				}
+			}
 		}
 		// H06/spec 016: vectors just landed asynchronously (post-ACK) — this is
 		// the mutation a write-ACK-only epoch bump would miss. Advance the epoch

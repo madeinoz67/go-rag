@@ -58,26 +58,30 @@ func (e *Engine) Status() (*StatusInfo, error) {
 	if cfgMode == "" {
 		cfgMode = "auto"
 	}
+	// H04/spec 019: poisoning summary — flagged count (0x11 index), sources, merged
+	// phrase-list size, and the effective enabled/threshold state.
+	poisonFlagged := countPrefix(e.db, storage.PrefixPoisonQuar)
+	poisonSrcs, _ := e.ListThreatSources()
 	return &StatusInfo{
-		Documents:               docs,
-		Chunks:                  chunks,
-		Embeddings:              embs,
-		Dimensions:              dims,
-		EmbeddingModel:          model,
-		Reranker:                reranker,
-		OllamaURL:               e.cfg.OllamaURL,
-		EmbeddingsComplete:      complete,
-		EmbeddingDrift:          prof.Total > 0 && !prof.Consistent,
-		ModelCounts:             prof.ModelCounts,
-		DimCounts:               prof.DimCounts,
-		EmbeddingConvention:     prof.MajorityConvention,
+		Documents:                docs,
+		Chunks:                   chunks,
+		Embeddings:               embs,
+		Dimensions:               dims,
+		EmbeddingModel:           model,
+		Reranker:                 reranker,
+		OllamaURL:                e.cfg.OllamaURL,
+		EmbeddingsComplete:       complete,
+		EmbeddingDrift:           prof.Total > 0 && !prof.Consistent,
+		ModelCounts:              prof.ModelCounts,
+		DimCounts:                prof.DimCounts,
+		EmbeddingConvention:      prof.MajorityConvention,
 		EmbeddingConventionDrift: prof.Total > 0 && len(prof.ConventionCounts) > 1,
-		ConventionCounts:        prof.ConventionCounts,
-		ConfiguredPrefix:        cfgMode,
-		QueryPrefix:             pre.ForRole(embed.RoleQuery),
-		DocPrefix:               pre.ForRole(embed.RoleDocument),
-		ResultCache:             e.resultCache.Stats(), // H06/spec 016
-		EmbeddingCache:          e.embedCache.Stats(),  // H06/spec 016
+		ConventionCounts:         prof.ConventionCounts,
+		ConfiguredPrefix:         cfgMode,
+		QueryPrefix:              pre.ForRole(embed.RoleQuery),
+		DocPrefix:                pre.ForRole(embed.RoleDocument),
+		ResultCache:              e.resultCache.Stats(), // H06/spec 016
+		EmbeddingCache:           e.embedCache.Stats(),  // H06/spec 016
 		// H11/spec 017: corpus baseline vs live + drift verdict (live-computed above).
 		CorpusBaselineModel:      dv.BaselineModel,
 		CorpusBaselineDim:        dv.BaselineDim,
@@ -88,6 +92,13 @@ func (e *Engine) Status() (*StatusInfo, error) {
 		DriftVerdict:             dv.Verdict,
 		HardDrift:                dv.Hard,
 		VersionDrift:             dv.Verdict == VerdictVersionWarning,
+		// H04/spec 019
+		PoisoningEnabled:   e.cfg.EffectivePoisoningEnabled(),
+		PoisonThresholdSus: e.cfg.EffectivePoisonThresholdSuspicious(),
+		PoisonThresholdQua: e.cfg.EffectivePoisonThresholdQuarantine(),
+		PoisonFlagged:      poisonFlagged,
+		PoisonSources:      len(poisonSrcs),
+		PoisonPhrases:      len(e.mergedPhrases()),
 	}, nil
 }
 

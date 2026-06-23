@@ -88,13 +88,13 @@ func TestResultCache_KeyComponentsMiss(t *testing.T) {
 	hitsBefore := e.resultCache.Stats().Hits
 
 	variants := []QueryRequest{
-		{Query: "alpha", Mode: "keyword", K: 6},            // different k
-		{Query: "alpha", Mode: "semantic", K: 5},           // different mode
-		{Query: "alpha", Mode: "keyword", K: 5, Threshold: 0.5}, // different threshold
-		{Query: "alpha", Mode: "keyword", K: 5, RRFK: 30},  // different rrf_k
-		{Query: "alpha", Mode: "keyword", K: 5, ContextWindow: 1}, // different context window
+		{Query: "alpha", Mode: "keyword", K: 6},                                      // different k
+		{Query: "alpha", Mode: "semantic", K: 5},                                     // different mode
+		{Query: "alpha", Mode: "keyword", K: 5, Threshold: 0.5},                      // different threshold
+		{Query: "alpha", Mode: "keyword", K: 5, RRFK: 30},                            // different rrf_k
+		{Query: "alpha", Mode: "keyword", K: 5, ContextWindow: 1},                    // different context window
 		{Query: "alpha", Mode: "keyword", K: 5, Filter: &index.Filter{Type: "text"}}, // different filter
-		{Query: "beta", Mode: "keyword", K: 5},             // different query
+		{Query: "beta", Mode: "keyword", K: 5},                                       // different query
 	}
 	for i, v := range variants {
 		if _, err := e.Query(context.Background(), v); err != nil {

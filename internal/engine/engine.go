@@ -175,6 +175,12 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	e.pipe.OnChange = e.markIndexChanged
 	// H11/spec 017: persist the corpus baseline on first embed.
 	e.pipe.OnFirstEmbed = e.handleFirstEmbed
+	// H04/spec 019: bind the poisoning detector (default-on, Q2=A). nil when
+	// poisoning_enabled is false. The detector scores against the MERGED phrase
+	// list (built-in + managed sources, US4 FR-012/013) via poisonDetector().
+	if e.cfg.EffectivePoisoningEnabled() {
+		e.pipe.SetDetector(e.poisonDetector())
+	}
 	return e.pipe, nil
 }
 

@@ -5,26 +5,56 @@ package rest
 // serialization. See specs/003-rest-grpc-api/data-model.md.
 
 type queryRequest struct {
-	Query     string   `json:"query"`
-	K         int      `json:"k"`
-	Mode      string   `json:"mode"`
-	NoRerank  bool     `json:"no_rerank"`
-	Threshold float64  `json:"threshold"`
-	RRFK      int      `json:"rrf_k,omitempty"` // H08/spec 009
-	Source    string   `json:"source,omitempty"`
-	Type      string   `json:"type,omitempty"`
-	Tags          []string `json:"tags,omitempty"`
-	ContextWindow int      `json:"context_window,omitempty"`
-	NoCache       bool     `json:"no_cache,omitempty"` // H06/spec 016: bypass the result cache for this query
+	Query              string   `json:"query"`
+	K                  int      `json:"k"`
+	Mode               string   `json:"mode"`
+	NoRerank           bool     `json:"no_rerank"`
+	Threshold          float64  `json:"threshold"`
+	RRFK               int      `json:"rrf_k,omitempty"` // H08/spec 009
+	Source             string   `json:"source,omitempty"`
+	Type               string   `json:"type,omitempty"`
+	Tags               []string `json:"tags,omitempty"`
+	ContextWindow      int      `json:"context_window,omitempty"`
+	NoCache            bool     `json:"no_cache,omitempty"`            // H06/spec 016: bypass the result cache for this query
+	IncludeQuarantined bool     `json:"include_quarantined,omitempty"` // H04/spec 019: return poisoning-flagged chunks
 }
 
 type queryHit struct {
-	ChunkID    string  `json:"chunk_id"`
-	DocumentID string  `json:"document_id"`
-	Score      float64 `json:"score"`
-	Content    string  `json:"content"`
-	FilePath   string  `json:"file_path"`
-	Page       int     `json:"page"`
+	ChunkID    string         `json:"chunk_id"`
+	DocumentID string         `json:"document_id"`
+	Score      float64        `json:"score"`
+	Content    string         `json:"content"`
+	FilePath   string         `json:"file_path"`
+	Page       int            `json:"page"`
+	Poisoning  *poisonVerdict `json:"poisoning,omitempty"` // H04/spec 019
+}
+
+// poisonVerdict is the REST projection of model.PoisonVerdict (H04/spec 019). Field
+// names mirror the gRPC/proto projection 1:1 (cross-transport parity, spec 003).
+type poisonVerdict struct {
+	Level          string         `json:"level"`
+	Score          float64        `json:"score"`
+	Signals        *poisonSignals `json:"signals,omitempty"`
+	MatchedPhrases []string       `json:"matched_phrases,omitempty"`
+}
+
+type poisonSignals struct {
+	Repetition  float64 `json:"repetition"`
+	Stuffing    float64 `json:"stuffing"`
+	Instruction float64 `json:"instruction"`
+}
+
+// poisonedChunk is one entry in the quarantine listing (H04/spec 019, US2). The
+// verdict carries the per-signal breakdown so a caller can see why it was flagged.
+type poisonedChunk struct {
+	ChunkID    string         `json:"chunk_id"`
+	DocumentID string         `json:"document_id"`
+	Preview    string         `json:"preview"`
+	Verdict    *poisonVerdict `json:"verdict"`
+}
+
+type poisonResponse struct {
+	Flagged []poisonedChunk `json:"flagged"`
 }
 
 type queryResponse struct {

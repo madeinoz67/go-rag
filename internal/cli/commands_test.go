@@ -177,7 +177,7 @@ func TestCLI_AddWithoutInitFails(t *testing.T) {
 	defer func() { dbPath = saved }()
 
 	addCmd := newAddCmd()
-	if err := addCmd.RunE(addCmd, []string{".", }); err == nil {
+	if err := addCmd.RunE(addCmd, []string{"."}); err == nil {
 		t.Fatal("add without init must error (no config)")
 	}
 }

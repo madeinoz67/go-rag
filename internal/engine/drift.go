@@ -21,18 +21,18 @@ const (
 // computeDriftVerdict, cached on the Engine (so /health probes stay O(1)),
 // refreshed at boot (serve.go) and after Migrate.
 type DriftVerdict struct {
-	Verdict            string   // one of the Verdict* constants
-	Hard               bool     // true for hard-drift (convenience for the readiness flag)
-	BaselineModel      string   // from the persisted baseline (display)
-	ConfiguredModel    string   // cfg.EmbeddingModel
-	BaselineDim        int      // baseline dim
-	LiveDim            int      // live embedder dim (0 if unknown)
-	BaselineConvention string   // baseline prefix convention
-	LiveConvention     string   // resolved configured convention
-	BaselineVersion    string   // baseline Ollama version
-	LiveVersion        string   // live Ollama version (""/unknown possible)
+	Verdict            string    // one of the Verdict* constants
+	Hard               bool      // true for hard-drift (convenience for the readiness flag)
+	BaselineModel      string    // from the persisted baseline (display)
+	ConfiguredModel    string    // cfg.EmbeddingModel
+	BaselineDim        int       // baseline dim
+	LiveDim            int       // live embedder dim (0 if unknown)
+	BaselineConvention string    // baseline prefix convention
+	LiveConvention     string    // resolved configured convention
+	BaselineVersion    string    // baseline Ollama version
+	LiveVersion        string    // live Ollama version (""/unknown possible)
 	BaselineRecordedAt time.Time // when the baseline was last written (for status)
-	Reasons            []string // human-readable mismatch list, e.g. "model: nomic vs mxbai"
+	Reasons            []string  // human-readable mismatch list, e.g. "model: nomic vs mxbai"
 }
 
 // driftVerdict is the cached verdict (RWMutex-guarded). /health reads it under

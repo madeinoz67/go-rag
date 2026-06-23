@@ -240,8 +240,8 @@ func TestQuery_ConcurrentSafe_UnderBackgroundIngest(t *testing.T) {
 			}
 		}()
 	}
-	wg.Wait()    // readers done
-	<-addDone    // background Add returned (sync store complete) before teardown closes the DB
+	wg.Wait() // readers done
+	<-addDone // background Add returned (sync store complete) before teardown closes the DB
 	close(errs)
 	for err := range errs {
 		t.Errorf("concurrent query errored: %v", err)

@@ -20,6 +20,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/model"
+	"github.com/madeinoz67/go-rag/internal/poison"
 	"github.com/madeinoz67/go-rag/internal/reader"
 	"github.com/madeinoz67/go-rag/internal/storage"
 )
@@ -50,6 +51,7 @@ type Pipeline struct {
 	prefixer *embed.Prefixer // H07: applies the document-role instruction prefix; nil = no prefixing
 	fts      *index.FTS
 	vec      *index.Vector
+	detector poison.Detector // H04/spec 019: scores chunks at ingest; nil = detection disabled
 
 	queue chan job
 	wg    sync.WaitGroup
@@ -104,6 +106,12 @@ func New(db *storage.DB, sp *chunk.Splitter, em embed.Embedder, fts *index.FTS, 
 	}
 	return p
 }
+
+// SetDetector binds the injection-poisoning detector (audit H04/spec 019). Bound
+// once by the Engine under pipeMu before any job flows; pass nil when
+// poisoning_enabled is false (the default-on resolution lives in the caller).
+// Mirrors the OnChange/OnFirstEmbed bind pattern.
+func (p *Pipeline) SetDetector(d poison.Detector) { p.detector = d }
 
 // Close drains the async queue and stops workers.
 func (p *Pipeline) Close() {
@@ -253,6 +261,19 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 		}
 	}
 	doc.ChunkCount = len(chunks)
+
+	// H04/spec 019: score each chunk for injection poisoning at ingest. Synchronous,
+	// on the ACK path — heuristic text-scoring is validation-class work (cost ≈ the
+	// SHA-256 content hash already computed here; no I/O), so the verdict is known
+	// BEFORE the chunk is retrievable (no eventual-consistency leak window). The
+	// verdict rides the chunk record (storeDocument marshals it) — zero extra fsync.
+	// A nil detector (poisoning disabled) skips scoring; chunks are stored clean.
+	if p.detector != nil {
+		for i := range chunks {
+			v := p.detector.Score(chunks[i].Content)
+			chunks[i].Poisoning = &v
+		}
+	}
 
 	// Synchronous, durable store -> the <10ms ACK (Principle IV).
 	if err := p.storeDocument(doc, chunks, ch); err != nil {

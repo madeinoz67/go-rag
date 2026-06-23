@@ -163,7 +163,10 @@ type cacheKey struct {
 	ContextWindow int
 	RerankEnabled bool
 	RerankModel   string // only populated when RerankEnabled (avoids false key splits)
-	Epoch         uint64
+	// IncludeQuarantined (H04/spec 019): a quarantine-excluded result and an
+	// include-quarantined result differ, so the flag is part of the key.
+	IncludeQuarantined bool
+	Epoch              uint64
 }
 
 // hash returns the FNV-1a digest of the key as a hex string. Deterministic for a
@@ -192,6 +195,7 @@ func (k cacheKey) hash() string {
 		write(t)
 	}
 	write(strconv.Itoa(k.ContextWindow))
+	write(strconv.FormatBool(k.IncludeQuarantined)) // H04/spec 019: different quarantine policy → different key
 	write(strconv.FormatBool(k.RerankEnabled))
 	write(k.RerankModel)
 	write(strconv.FormatUint(k.Epoch, 10))
@@ -205,13 +209,14 @@ func (k cacheKey) hash() string {
 // not-configured query that both skip reranking share a key.
 func (e *Engine) resultKey(req QueryRequest, effRRFK int, epoch uint64) string {
 	k := cacheKey{
-		Query:         req.Query,
-		Mode:          req.Mode,
-		K:             req.K,
-		Threshold:     req.Threshold,
-		RRFK:          effRRFK,
-		ContextWindow: req.ContextWindow,
-		Epoch:         epoch,
+		Query:              req.Query,
+		Mode:               req.Mode,
+		K:                  req.K,
+		Threshold:          req.Threshold,
+		RRFK:               effRRFK,
+		ContextWindow:      req.ContextWindow,
+		IncludeQuarantined: req.IncludeQuarantined,
+		Epoch:              epoch,
 	}
 	if req.Filter != nil {
 		k.FilterSource = req.Filter.Source

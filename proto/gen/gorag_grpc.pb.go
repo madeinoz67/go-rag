@@ -28,18 +28,22 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Gorag_Query_FullMethodName      = "/gorag.Gorag/Query"
-	Gorag_Status_FullMethodName     = "/gorag.Gorag/Status"
-	Gorag_Add_FullMethodName        = "/gorag.Gorag/Add"
-	Gorag_Scan_FullMethodName       = "/gorag.Gorag/Scan"
-	Gorag_Reprocess_FullMethodName  = "/gorag.Gorag/Reprocess"
-	Gorag_Migrate_FullMethodName    = "/gorag.Gorag/Migrate"
-	Gorag_Files_FullMethodName      = "/gorag.Gorag/Files"
-	Gorag_Dirs_FullMethodName       = "/gorag.Gorag/Dirs"
-	Gorag_GetConfig_FullMethodName  = "/gorag.Gorag/GetConfig"
-	Gorag_SetConfig_FullMethodName  = "/gorag.Gorag/SetConfig"
-	Gorag_ListVaults_FullMethodName = "/gorag.Gorag/ListVaults"
-	Gorag_Health_FullMethodName     = "/gorag.Gorag/Health"
+	Gorag_Query_FullMethodName           = "/gorag.Gorag/Query"
+	Gorag_Status_FullMethodName          = "/gorag.Gorag/Status"
+	Gorag_Add_FullMethodName             = "/gorag.Gorag/Add"
+	Gorag_Scan_FullMethodName            = "/gorag.Gorag/Scan"
+	Gorag_Reprocess_FullMethodName       = "/gorag.Gorag/Reprocess"
+	Gorag_Migrate_FullMethodName         = "/gorag.Gorag/Migrate"
+	Gorag_Files_FullMethodName           = "/gorag.Gorag/Files"
+	Gorag_Dirs_FullMethodName            = "/gorag.Gorag/Dirs"
+	Gorag_GetConfig_FullMethodName       = "/gorag.Gorag/GetConfig"
+	Gorag_SetConfig_FullMethodName       = "/gorag.Gorag/SetConfig"
+	Gorag_ListVaults_FullMethodName      = "/gorag.Gorag/ListVaults"
+	Gorag_Health_FullMethodName          = "/gorag.Gorag/Health"
+	Gorag_ListPoisoned_FullMethodName    = "/gorag.Gorag/ListPoisoned"
+	Gorag_ReleaseChunk_FullMethodName    = "/gorag.Gorag/ReleaseChunk"
+	Gorag_ResetChunk_FullMethodName      = "/gorag.Gorag/ResetChunk"
+	Gorag_RescanPoisoning_FullMethodName = "/gorag.Gorag/RescanPoisoning"
 )
 
 // GoragClient is the client API for Gorag service.
@@ -72,6 +76,11 @@ type GoragClient interface {
 	ListVaults(ctx context.Context, in *ListVaultsRequest, opts ...grpc.CallOption) (*ListVaultsResponse, error)
 	// Liveness/readiness. → health probe (also REST GET /health)
 	Health(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
+	// H04/spec 019: quarantine management (also REST /v1/poison, MCP poison_*).
+	ListPoisoned(ctx context.Context, in *ListPoisonedRequest, opts ...grpc.CallOption) (*ListPoisonedResponse, error)
+	ReleaseChunk(ctx context.Context, in *ReleaseChunkRequest, opts ...grpc.CallOption) (*PoisonActionResponse, error)
+	ResetChunk(ctx context.Context, in *ResetChunkRequest, opts ...grpc.CallOption) (*PoisonActionResponse, error)
+	RescanPoisoning(ctx context.Context, in *RescanPoisoningRequest, opts ...grpc.CallOption) (*RescanPoisoningResponse, error)
 }
 
 type goragClient struct {
@@ -202,6 +211,46 @@ func (c *goragClient) Health(ctx context.Context, in *HealthRequest, opts ...grp
 	return out, nil
 }
 
+func (c *goragClient) ListPoisoned(ctx context.Context, in *ListPoisonedRequest, opts ...grpc.CallOption) (*ListPoisonedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPoisonedResponse)
+	err := c.cc.Invoke(ctx, Gorag_ListPoisoned_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *goragClient) ReleaseChunk(ctx context.Context, in *ReleaseChunkRequest, opts ...grpc.CallOption) (*PoisonActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PoisonActionResponse)
+	err := c.cc.Invoke(ctx, Gorag_ReleaseChunk_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *goragClient) ResetChunk(ctx context.Context, in *ResetChunkRequest, opts ...grpc.CallOption) (*PoisonActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PoisonActionResponse)
+	err := c.cc.Invoke(ctx, Gorag_ResetChunk_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *goragClient) RescanPoisoning(ctx context.Context, in *RescanPoisoningRequest, opts ...grpc.CallOption) (*RescanPoisoningResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RescanPoisoningResponse)
+	err := c.cc.Invoke(ctx, Gorag_RescanPoisoning_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GoragServer is the server API for Gorag service.
 // All implementations must embed UnimplementedGoragServer
 // for forward compatibility.
@@ -232,6 +281,11 @@ type GoragServer interface {
 	ListVaults(context.Context, *ListVaultsRequest) (*ListVaultsResponse, error)
 	// Liveness/readiness. → health probe (also REST GET /health)
 	Health(context.Context, *HealthRequest) (*HealthResponse, error)
+	// H04/spec 019: quarantine management (also REST /v1/poison, MCP poison_*).
+	ListPoisoned(context.Context, *ListPoisonedRequest) (*ListPoisonedResponse, error)
+	ReleaseChunk(context.Context, *ReleaseChunkRequest) (*PoisonActionResponse, error)
+	ResetChunk(context.Context, *ResetChunkRequest) (*PoisonActionResponse, error)
+	RescanPoisoning(context.Context, *RescanPoisoningRequest) (*RescanPoisoningResponse, error)
 	mustEmbedUnimplementedGoragServer()
 }
 
@@ -277,6 +331,18 @@ func (UnimplementedGoragServer) ListVaults(context.Context, *ListVaultsRequest) 
 }
 func (UnimplementedGoragServer) Health(context.Context, *HealthRequest) (*HealthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Health not implemented")
+}
+func (UnimplementedGoragServer) ListPoisoned(context.Context, *ListPoisonedRequest) (*ListPoisonedResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListPoisoned not implemented")
+}
+func (UnimplementedGoragServer) ReleaseChunk(context.Context, *ReleaseChunkRequest) (*PoisonActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReleaseChunk not implemented")
+}
+func (UnimplementedGoragServer) ResetChunk(context.Context, *ResetChunkRequest) (*PoisonActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResetChunk not implemented")
+}
+func (UnimplementedGoragServer) RescanPoisoning(context.Context, *RescanPoisoningRequest) (*RescanPoisoningResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RescanPoisoning not implemented")
 }
 func (UnimplementedGoragServer) mustEmbedUnimplementedGoragServer() {}
 func (UnimplementedGoragServer) testEmbeddedByValue()               {}
@@ -515,6 +581,78 @@ func _Gorag_Health_Handler(srv interface{}, ctx context.Context, dec func(interf
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Gorag_ListPoisoned_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPoisonedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoragServer).ListPoisoned(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Gorag_ListPoisoned_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoragServer).ListPoisoned(ctx, req.(*ListPoisonedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Gorag_ReleaseChunk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReleaseChunkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoragServer).ReleaseChunk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Gorag_ReleaseChunk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoragServer).ReleaseChunk(ctx, req.(*ReleaseChunkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Gorag_ResetChunk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetChunkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoragServer).ResetChunk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Gorag_ResetChunk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoragServer).ResetChunk(ctx, req.(*ResetChunkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Gorag_RescanPoisoning_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RescanPoisoningRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoragServer).RescanPoisoning(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Gorag_RescanPoisoning_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoragServer).RescanPoisoning(ctx, req.(*RescanPoisoningRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Gorag_ServiceDesc is the grpc.ServiceDesc for Gorag service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -569,6 +707,22 @@ var Gorag_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Health",
 			Handler:    _Gorag_Health_Handler,
+		},
+		{
+			MethodName: "ListPoisoned",
+			Handler:    _Gorag_ListPoisoned_Handler,
+		},
+		{
+			MethodName: "ReleaseChunk",
+			Handler:    _Gorag_ReleaseChunk_Handler,
+		},
+		{
+			MethodName: "ResetChunk",
+			Handler:    _Gorag_ResetChunk_Handler,
+		},
+		{
+			MethodName: "RescanPoisoning",
+			Handler:    _Gorag_RescanPoisoning_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

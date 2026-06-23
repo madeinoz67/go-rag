@@ -21,8 +21,10 @@ type DB struct {
 // prints so real crashes are visible.
 type quietLogger struct{}
 
-func (quietLogger) Infof(format string, args ...interface{})  {} // suppress
-func (quietLogger) Fatalf(format string, args ...interface{})  { fmt.Fprintf(os.Stderr, "pebble: "+format+"\n", args...) }
+func (quietLogger) Infof(format string, args ...interface{}) {} // suppress
+func (quietLogger) Fatalf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, "pebble: "+format+"\n", args...)
+}
 
 // Open creates or opens the Pebble database at path. A second Open on the same
 // path (even from the same process) fails with a lock error — single-writer.

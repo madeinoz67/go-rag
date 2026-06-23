@@ -272,3 +272,74 @@ paths:
                       properties:
                         name: { type: string }
                         documents: { type: integer }
+  /v1/poison:
+    get:
+      summary: List chunks flagged as injection-poisoning (excluded from default results)
+      responses:
+        '200':
+          description: flagged chunks with per-signal verdict breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flagged:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        chunk_id: { type: string }
+                        document_id: { type: string }
+                        preview: { type: string }
+                        verdict:
+                          type: object
+                          description: level/score/signals/matched_phrases
+  /v1/poison/{id}/release:
+    post:
+      summary: Release a flagged chunk (false-positive override) — retrievable by default
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: released
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chunk_id: { type: string }
+                  level: { type: string }
+  /v1/poison/{id}/reset:
+    post:
+      summary: Undo a release — re-quarantines the chunk if its score is flagged
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chunk_id: { type: string }
+                  status: { type: string }
+  /v1/poison/rescan:
+    post:
+      summary: Re-score the whole corpus against the current detector (idempotent; no re-ingest)
+      responses:
+        '200':
+          description: rescan counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rescored: { type: integer }
+                  flagged: { type: integer }

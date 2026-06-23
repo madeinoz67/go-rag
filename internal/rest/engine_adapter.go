@@ -15,15 +15,16 @@ func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := s.eng.Query(r.Context(), engine.QueryRequest{
-		Query:     req.Query,
-		K:         req.K,
-		Mode:      req.Mode,
-		NoRerank:  req.NoRerank,
-		Threshold: req.Threshold,
-		RRFK:      req.RRFK,
-		Filter:        engine.NewFilter(req.Source, req.Type, req.Tags),
-		ContextWindow: req.ContextWindow,
-		NoCache:       req.NoCache,
+		Query:              req.Query,
+		K:                  req.K,
+		Mode:               req.Mode,
+		NoRerank:           req.NoRerank,
+		Threshold:          req.Threshold,
+		RRFK:               req.RRFK,
+		Filter:             engine.NewFilter(req.Source, req.Type, req.Tags),
+		ContextWindow:      req.ContextWindow,
+		NoCache:            req.NoCache,
+		IncludeQuarantined: req.IncludeQuarantined,
 	})
 	if err != nil {
 		writeEngineErr(w, err)
@@ -37,6 +38,19 @@ func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
 func toQueryHits(hits []engine.QueryHit) []queryHit {
 	out := make([]queryHit, len(hits))
 	for i, h := range hits {
+		var pv *poisonVerdict // H04/spec 019
+		if h.Poisoning != nil {
+			pv = &poisonVerdict{
+				Level:          string(h.Poisoning.Level),
+				Score:          h.Poisoning.Score,
+				MatchedPhrases: h.Poisoning.MatchedPhrases,
+				Signals: &poisonSignals{
+					Repetition:  h.Poisoning.Signals.Repetition,
+					Stuffing:    h.Poisoning.Signals.Stuffing,
+					Instruction: h.Poisoning.Signals.Instruction,
+				},
+			}
+		}
 		out[i] = queryHit{
 			ChunkID:    h.ChunkID,
 			DocumentID: h.DocumentID,
@@ -44,6 +58,7 @@ func toQueryHits(hits []engine.QueryHit) []queryHit {
 			Content:    h.Content,
 			FilePath:   h.FilePath,
 			Page:       h.Page,
+			Poisoning:  pv,
 		}
 	}
 	return out
@@ -199,4 +214,70 @@ func (s *Server) handleVaults(w http.ResponseWriter, _ *http.Request) {
 		out[i] = vaultEntry{Name: v.Name, Documents: v.Documents}
 	}
 	writeJSON(w, http.StatusOK, vaultsResponse{Vaults: out})
+}
+
+// handlePoisonList is the REST projection of engine.ListPoisoned (GET /v1/poison).
+func (s *Server) handlePoisonList(w http.ResponseWriter, _ *http.Request) {
+	flagged, err := s.eng.ListPoisoned()
+	if err != nil {
+		writeEngineErr(w, err)
+		return
+	}
+	out := make([]poisonedChunk, len(flagged))
+	for i, f := range flagged {
+		out[i] = toPoisonedChunkDTO(f)
+	}
+	writeJSON(w, http.StatusOK, poisonResponse{Flagged: out})
+}
+
+// handlePoisonRelease is the REST projection of engine.ReleaseChunk
+// (POST /v1/poison/{id}/release) — a false-positive override.
+func (s *Server) handlePoisonRelease(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.eng.ReleaseChunk(id); err != nil {
+		writeEngineErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"chunk_id": id, "level": "released"})
+}
+
+// handlePoisonReset is the REST projection of engine.ResetChunk
+// (POST /v1/poison/{id}/reset) — undo a release.
+func (s *Server) handlePoisonReset(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.eng.ResetChunk(id); err != nil {
+		writeEngineErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"chunk_id": id, "status": "reset"})
+}
+
+// handlePoisonRescan is the REST projection of engine.RescanPoisoning
+// (POST /v1/poison/rescan) — re-score the whole corpus (idempotent; no re-ingest).
+func (s *Server) handlePoisonRescan(w http.ResponseWriter, _ *http.Request) {
+	rescored, flagged, err := s.eng.RescanPoisoning()
+	if err != nil {
+		writeEngineErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"rescored": rescored, "flagged": flagged})
+}
+
+// toPoisonedChunkDTO maps an engine.PoisonedChunk to the REST DTO.
+func toPoisonedChunkDTO(f engine.PoisonedChunk) poisonedChunk {
+	return poisonedChunk{
+		ChunkID:    f.ChunkID,
+		DocumentID: f.DocumentID,
+		Preview:    f.Preview,
+		Verdict: &poisonVerdict{
+			Level:          string(f.Verdict.Level),
+			Score:          f.Verdict.Score,
+			MatchedPhrases: f.Verdict.MatchedPhrases,
+			Signals: &poisonSignals{
+				Repetition:  f.Verdict.Signals.Repetition,
+				Stuffing:    f.Verdict.Signals.Stuffing,
+				Instruction: f.Verdict.Signals.Instruction,
+			},
+		},
+	}
 }

@@ -14,10 +14,19 @@ import (
 )
 
 type queryResult struct {
-	Source string  `json:"source"`
-	Page   int     `json:"page"`
-	Score  float64 `json:"score"`
-	Chunk  string  `json:"chunk"`
+	Source    string            `json:"source"`
+	Page      int               `json:"page"`
+	Score     float64           `json:"score"`
+	Chunk     string            `json:"chunk"`
+	Poisoning *poisonVerdictDTO `json:"poisoning,omitempty"` // H04/spec 019
+}
+
+// poisonVerdictDTO is the CLI/JSON projection of a hit's poisoning verdict
+// (H04/spec 019). nil/omitted when the chunk is clean or was not scored.
+type poisonVerdictDTO struct {
+	Level          string   `json:"level"`
+	Score          float64  `json:"score"`
+	MatchedPhrases []string `json:"matched_phrases,omitempty"`
 }
 
 func newQueryCmd() *cobra.Command {
@@ -52,6 +61,7 @@ func newQueryCmd() *cobra.Command {
 
 			cw, _ := cmd.Flags().GetInt("context-window")
 			noCache, _ := cmd.Flags().GetBool("no-cache")
+			includeQuar, _ := cmd.Flags().GetBool("include-quarantined") // H04/spec 019
 
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
@@ -64,7 +74,7 @@ func newQueryCmd() *cobra.Command {
 			// which refuses a query whose model/dim doesn't match the corpus.
 			eng := engine.NewWithDB(cfg, db)
 			res, err := eng.Query(context.Background(), engine.QueryRequest{
-				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK, Filter: filt, ContextWindow: cw, NoCache: noCache,
+				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK, Filter: filt, ContextWindow: cw, NoCache: noCache, IncludeQuarantined: includeQuar,
 			})
 			if err != nil {
 				return err
@@ -76,10 +86,11 @@ func newQueryCmd() *cobra.Command {
 			results := make([]queryResult, 0, len(res.Hits))
 			for _, h := range res.Hits {
 				results = append(results, queryResult{
-					Source: filepath.Base(h.FilePath),
-					Page:   h.Page,
-					Score:  h.Score,
-					Chunk:  h.Content,
+					Source:    filepath.Base(h.FilePath),
+					Page:      h.Page,
+					Score:     h.Score,
+					Chunk:     h.Content,
+					Poisoning: toPoisonDTO(h),
 				})
 			}
 			return renderResults(results, format)
@@ -96,6 +107,7 @@ func newQueryCmd() *cobra.Command {
 	cmd.Flags().String("tags", "", "filter by document tags (comma-separated, conjunction)")
 	cmd.Flags().Int("context-window", 0, "include N sibling chunks of context around each hit (0 = off)")
 	cmd.Flags().Bool("no-cache", false, "bypass the query result cache for this query (forces a fresh result)")
+	cmd.Flags().Bool("include-quarantined", false, "include chunks flagged as injection-poisoning (excluded by default)")
 	return cmd
 }
 
@@ -114,8 +126,24 @@ func renderResults(results []queryResult, format string) error {
 		}
 		fmt.Printf("[%d] %s%s (score %.3f)\n", i+1, r.Source, page, r.Score)
 		fmt.Printf("    %s\n", preview(r.Chunk, 200))
+		if r.Poisoning != nil && (r.Poisoning.Level == "suspicious" || r.Poisoning.Level == "quarantine") {
+			fmt.Printf("    ⚠ poisoning: %s (score %.2f) — retrieved text is untrusted\n", r.Poisoning.Level, r.Poisoning.Score)
+		}
 	}
 	return nil
+}
+
+// toPoisonDTO maps a hit's verdict to the CLI projection; nil when the chunk is
+// clean or was not scored (so clean corpora produce identical JSON to pre-019).
+func toPoisonDTO(h engine.QueryHit) *poisonVerdictDTO {
+	if h.Poisoning == nil {
+		return nil
+	}
+	return &poisonVerdictDTO{
+		Level:          string(h.Poisoning.Level),
+		Score:          h.Poisoning.Score,
+		MatchedPhrases: h.Poisoning.MatchedPhrases,
+	}
 }
 
 func preview(s string, n int) string {

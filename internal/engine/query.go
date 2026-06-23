@@ -127,21 +127,36 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 	// per query; this is the single fusion injection point.
 	r.SetRRFK(effRRFK)
 
-	// H14/spec 014: apply the optional metadata filter (source/type/tags) as a
-	// pre-fusion keep predicate. The engine resolves chunk→document→attributes
-	// via the existing lookupChunk/lookupDoc resolvers. nil/empty filter = no-op.
-	if req.Filter != nil && !req.Filter.Empty() {
-		f := *req.Filter // copy to avoid capturing the pointer
+	// H14/spec 014 + H04/spec 019: build the pre-fusion keep predicate, composing
+	// the metadata filter (doc-level) with the poisoning quarantine (chunk-level).
+	// Quarantine is default-on (Q1=A): chunks whose verdict is suspicious/quarantine
+	// are excluded unless req.IncludeQuarantined. Both apply as a conjunction; an
+	// absent Filter and detection-off both collapse to no filter (today's behavior).
+	filterOn := req.Filter != nil && !req.Filter.Empty()
+	poisonOn := e.cfg.EffectivePoisoningEnabled() && !req.IncludeQuarantined
+	if filterOn || poisonOn {
+		var f index.Filter
+		if filterOn {
+			f = *req.Filter // copy to avoid capturing the pointer
+		}
 		r.SetFilter(func(chunkID string) bool {
 			c, ok := lookupChunk(e.db, chunkID)
 			if !ok {
 				return false
 			}
-			d, ok := lookupDoc(e.db, c.DocumentID)
-			if !ok {
+			if poisonOn && c.Poisoning != nil && c.Poisoning.Level.Quarantined() {
 				return false
 			}
-			return f.Matches(d.FilePath, d.FileType, tagsFromMetadata(d.Metadata))
+			if filterOn {
+				d, ok := lookupDoc(e.db, c.DocumentID)
+				if !ok {
+					return false
+				}
+				if !f.Matches(d.FilePath, d.FileType, tagsFromMetadata(d.Metadata)) {
+					return false
+				}
+			}
+			return true
 		})
 	}
 
@@ -182,6 +197,7 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (*QueryResult, err
 			FilePath:   filePath,
 			Page:       c.PageNumber,
 			Preview:    preview(c.Content, 160),
+			Poisoning:  c.Poisoning, // H04/spec 019: verdict surfaced on every hit (FR-005)
 		})
 	}
 	// US3 graceful degradation: a mixed corpus (mid-migration) queried by the

@@ -15,14 +15,14 @@ import (
 // and the status drift view. Derived from stored records — no new storage, no
 // schema change (the convention field is optional/legacy-tolerant).
 type EmbeddingProfile struct {
-	MajorityModel       string         // the model name on the plurality of records ("" if none)
-	MajorityDim         int            // len(Vector) of the plurality (0 if none)
-	MajorityConvention  string         // the prefix convention on the plurality of records ("" if none)
-	ModelCounts         map[string]int // per-model record counts
-	DimCounts           map[int]int    // per-dimensionality record counts
-	ConventionCounts    map[string]int // per-convention record counts (H07)
-	Total               int            // number of embedding records scanned
-	Consistent          bool           // true iff at most one model, one dim, AND one convention
+	MajorityModel      string         // the model name on the plurality of records ("" if none)
+	MajorityDim        int            // len(Vector) of the plurality (0 if none)
+	MajorityConvention string         // the prefix convention on the plurality of records ("" if none)
+	ModelCounts        map[string]int // per-model record counts
+	DimCounts          map[int]int    // per-dimensionality record counts
+	ConventionCounts   map[string]int // per-convention record counts (H07)
+	Total              int            // number of embedding records scanned
+	Consistent         bool           // true iff at most one model, one dim, AND one convention
 }
 
 // storedEmbed mirrors the persisted pipeline embedding shape {model, vector,

@@ -18,7 +18,7 @@ import (
 type Config struct {
 	OllamaURL            string   `json:"ollama_url"`
 	EmbeddingModel       string   `json:"embedding_model,omitempty"`
-	EmbeddingPrefix      string   `json:"embedding_prefix,omitempty"`     // H07: auto|on|off ("" = auto)
+	EmbeddingPrefix      string   `json:"embedding_prefix,omitempty"`       // H07: auto|on|off ("" = auto)
 	EmbeddingQueryPrefix string   `json:"embedding_query_prefix,omitempty"` // H07: explicit query-prefix override
 	EmbeddingDocPrefix   string   `json:"embedding_doc_prefix,omitempty"`   // H07: explicit document-prefix override
 	WatchDirs            []string `json:"watch_dirs"`
@@ -32,29 +32,41 @@ type Config struct {
 	RerankModel          string   `json:"rerank_model,omitempty"`
 	RerankCandidates     int      `json:"rerank_candidates,omitempty"`
 	RerankRetryOnFailure bool     `json:"rerank_retry_on_failure,omitempty"`
-	RRFK                 int      `json:"rrf_k,omitempty"` // H08/spec 009: RRF smoothing constant; 0 = default (60); <0 invalid
+	RRFK                 int      `json:"rrf_k,omitempty"`                  // H08/spec 009: RRF smoothing constant; 0 = default (60); <0 invalid
 	QueryCacheEnabled    bool     `json:"query_cache_enabled,omitempty"`    // H06/spec 016: global cache kill-switch; default true (omitted → true at runtime via EffectiveQueryCache*); false disables both caches
 	QueryCacheResults    int      `json:"query_cache_results,omitempty"`    // H06/spec 016: result-cache capacity (entries); 0 = result cache off; <0 invalid
 	QueryCacheEmbeddings int      `json:"query_cache_embeddings,omitempty"` // H06/spec 016: query-embedding-cache capacity (entries); 0 = embedding cache off; <0 invalid
+
+	// H04/spec 019: retrieval-poisoning (indirect prompt injection) detection.
+	// Detection scores every chunk at ingest and quarantines flagged chunks out
+	// of default query results (Q1=A). Detection is default-on (Q2=A) — the blind
+	// spot is closed out of the box — and configurable off.
+	PoisoningEnabled             bool    `json:"poisoning_enabled,omitempty"`              // default true (Q2=A); false disables detection
+	PoisoningThresholdSuspicious float64 `json:"poisoning_threshold_suspicious,omitempty"` // 0 = default 0.40
+	PoisoningThresholdQuarantine float64 `json:"poisoning_threshold_quarantine,omitempty"` // 0 = default 0.70
+	PoisoningPhraseList          string  `json:"poisoning_phrase_list,omitempty"`          // path to an override instruction-phrase source (D9/D12)
 }
 
 // Default returns the configuration used by `go-rag init` when no overrides apply.
 func Default() Config {
 	return Config{
-		OllamaURL:        "http://localhost:11434",
-		EmbeddingPrefix:  "auto", // H07: derive instruction prefixes from the model by default
-		WatchDirs:        []string{"."},
-		ChunkSize:        512,
-		ChunkOverlap:     50,
-		DBPath:           "./.go-rag",
-		FileGlob:         "*",
-		PollIntervalSec:  60,
-		MCPAddr:          "127.0.0.1:7878", // loopback by default (spec 007, audit H13); never all-interfaces
-		RerankCandidates: 20,
-		RRFK:             60, // H08/spec 009: standard single-k RRF default (retrieval book §6.6)
-		QueryCacheEnabled:    true, // H06/spec 016: caching on by default (transparent; escape hatches exist)
-		QueryCacheResults:    DefaultQueryCacheResults,
-		QueryCacheEmbeddings: DefaultQueryCacheEmbeddings,
+		OllamaURL:                    "http://localhost:11434",
+		EmbeddingPrefix:              "auto", // H07: derive instruction prefixes from the model by default
+		WatchDirs:                    []string{"."},
+		ChunkSize:                    512,
+		ChunkOverlap:                 50,
+		DBPath:                       "./.go-rag",
+		FileGlob:                     "*",
+		PollIntervalSec:              60,
+		MCPAddr:                      "127.0.0.1:7878", // loopback by default (spec 007, audit H13); never all-interfaces
+		RerankCandidates:             20,
+		RRFK:                         60,   // H08/spec 009: standard single-k RRF default (retrieval book §6.6)
+		QueryCacheEnabled:            true, // H06/spec 016: caching on by default (transparent; escape hatches exist)
+		QueryCacheResults:            DefaultQueryCacheResults,
+		QueryCacheEmbeddings:         DefaultQueryCacheEmbeddings,
+		PoisoningEnabled:             true, // Q2=A: detection default-on (closes the P0 blind spot out of the box)
+		PoisoningThresholdSuspicious: DefaultPoisonThresholdSuspicious,
+		PoisoningThresholdQuarantine: DefaultPoisonThresholdQuarantine,
 	}
 }
 
@@ -68,6 +80,14 @@ const (
 	DefaultQueryCacheEmbeddings = 512
 )
 
+// Default poisoning thresholds (spec 019 / audit H04, research D8). Starting
+// points, tuned against a payload fixture via SC-001 (≥95% recall) and SC-002
+// (≤5% false positive on a clean + security-writeup corpus).
+const (
+	DefaultPoisonThresholdSuspicious = 0.40
+	DefaultPoisonThresholdQuarantine = 0.70
+)
+
 // EffectiveRRFK returns the effective RRF smoothing constant: the configured
 // rrf_k when positive, else DefaultRRFK (60). This is the single resolution site
 // for the "absent key = default" rule, so an existing config that omits rrf_k
@@ -77,6 +97,30 @@ func (c Config) EffectiveRRFK() int {
 		return c.RRFK
 	}
 	return DefaultRRFK
+}
+
+// EffectivePoisoningEnabled reports whether detection runs. Defaults to true
+// (Q2=A): an absent poisoning_enabled key is treated as on via the Load()
+// backward-compat path; an explicit false disables detection (chunks are
+// ingested/queried as clean, no verdict computed).
+func (c Config) EffectivePoisoningEnabled() bool { return c.PoisoningEnabled }
+
+// EffectivePoisonThresholdSuspicious returns the configured suspicious threshold
+// when positive, else the default (0.40).
+func (c Config) EffectivePoisonThresholdSuspicious() float64 {
+	if c.PoisoningThresholdSuspicious > 0 {
+		return c.PoisoningThresholdSuspicious
+	}
+	return DefaultPoisonThresholdSuspicious
+}
+
+// EffectivePoisonThresholdQuarantine returns the configured quarantine threshold
+// when positive, else the default (0.70).
+func (c Config) EffectivePoisonThresholdQuarantine() float64 {
+	if c.PoisoningThresholdQuarantine > 0 {
+		return c.PoisoningThresholdQuarantine
+	}
+	return DefaultPoisonThresholdQuarantine
 }
 
 // Validate returns an error if the config has invalid values.
@@ -102,6 +146,16 @@ func (c Config) Validate() error {
 	}
 	if c.QueryCacheEmbeddings < 0 {
 		return fmt.Errorf("query_cache_embeddings must be non-negative (0 = embedding cache disabled)")
+	}
+	if c.PoisoningThresholdSuspicious < 0 || c.PoisoningThresholdSuspicious > 1 {
+		return fmt.Errorf("poisoning_threshold_suspicious must be in [0,1] (0 = default)")
+	}
+	if c.PoisoningThresholdQuarantine < 0 || c.PoisoningThresholdQuarantine > 1 {
+		return fmt.Errorf("poisoning_threshold_quarantine must be in [0,1] (0 = default)")
+	}
+	if c.EffectivePoisonThresholdSuspicious() > c.EffectivePoisonThresholdQuarantine() {
+		return fmt.Errorf("poisoning_threshold_suspicious (%.2f) must be <= poisoning_threshold_quarantine (%.2f)",
+			c.EffectivePoisonThresholdSuspicious(), c.EffectivePoisonThresholdQuarantine())
 	}
 	if c.MCPAddr != "" {
 		if _, _, err := net.SplitHostPort(c.MCPAddr); err != nil {
@@ -145,6 +199,11 @@ func Load(path string) (Config, error) {
 		}
 		if _, ok := raw["query_cache_embeddings"]; !ok {
 			c.QueryCacheEmbeddings = DefaultQueryCacheEmbeddings
+		}
+		// H04/spec 019 backward compat: poisoning_enabled defaults to true (Q2=A).
+		// A pre-019 config omits it; an absent key stays on, an explicit false disables.
+		if _, ok := raw["poisoning_enabled"]; !ok {
+			c.PoisoningEnabled = true
 		}
 	}
 	return c, nil
@@ -208,6 +267,14 @@ func (c Config) Get(key string) (string, bool) {
 		return strconv.Itoa(c.QueryCacheResults), true
 	case "query_cache_embeddings":
 		return strconv.Itoa(c.QueryCacheEmbeddings), true
+	case "poisoning_enabled":
+		return strconv.FormatBool(c.EffectivePoisoningEnabled()), true
+	case "poisoning_threshold_suspicious":
+		return strconv.FormatFloat(c.EffectivePoisonThresholdSuspicious(), 'f', -1, 64), true
+	case "poisoning_threshold_quarantine":
+		return strconv.FormatFloat(c.EffectivePoisonThresholdQuarantine(), 'f', -1, 64), true
+	case "poisoning_phrase_list":
+		return c.PoisoningPhraseList, true
 	}
 	return "", false
 }
@@ -303,6 +370,26 @@ func (c *Config) Set(key, val string) error {
 			return fmt.Errorf("invalid query_cache_embeddings: %q (want a non-negative integer; 0 = disabled)", val)
 		}
 		c.QueryCacheEmbeddings = n
+	case "poisoning_enabled":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("invalid poisoning_enabled: %q", val)
+		}
+		c.PoisoningEnabled = b
+	case "poisoning_threshold_suspicious":
+		f, err := strconv.ParseFloat(val, 64)
+		if err != nil || f < 0 || f > 1 {
+			return fmt.Errorf("invalid poisoning_threshold_suspicious: %q (want a float in [0,1]; 0 = default)", val)
+		}
+		c.PoisoningThresholdSuspicious = f
+	case "poisoning_threshold_quarantine":
+		f, err := strconv.ParseFloat(val, 64)
+		if err != nil || f < 0 || f > 1 {
+			return fmt.Errorf("invalid poisoning_threshold_quarantine: %q (want a float in [0,1]; 0 = default)", val)
+		}
+		c.PoisoningThresholdQuarantine = f
+	case "poisoning_phrase_list":
+		c.PoisoningPhraseList = val
 	default:
 		return fmt.Errorf("unknown config key: %q", key)
 	}

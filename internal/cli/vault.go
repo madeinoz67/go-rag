@@ -65,11 +65,11 @@ func newVaultListCmd() *cobra.Command {
 			vault.EnsureDefault()
 			names := vault.List()
 			type info struct {
-				Name string `json:"name"`
-				Docs int    `json:"docs"`
-				Model string `json:"model"`
-				Daemon string `json:"daemon"`
-				Storage int64 `json:"storage"`
+				Name    string `json:"name"`
+				Docs    int    `json:"docs"`
+				Model   string `json:"model"`
+				Daemon  string `json:"daemon"`
+				Storage int64  `json:"storage"`
 			}
 			var entries []info
 			for _, n := range names {

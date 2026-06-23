@@ -219,7 +219,7 @@ func TestMCP_Eval(t *testing.T) {
 	}
 }
 
-func TestMCP_ToolsListHas13(t *testing.T) {
+func TestMCP_ToolsListHas17(t *testing.T) {
 	in := strings.NewReader(jsonLine(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}))
 	out := new(bytes.Buffer)
 	if err := New(t.TempDir()).Serve(in, out); err != nil {
@@ -228,8 +228,8 @@ func TestMCP_ToolsListHas13(t *testing.T) {
 	var resp map[string]any
 	_ = json.Unmarshal(bytes.TrimSpace(out.Bytes()), &resp)
 	tools := resp["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 13 {
-		t.Fatalf("expected 13 tools, got %d", len(tools))
+	if len(tools) != 17 {
+		t.Fatalf("expected 17 tools, got %d", len(tools))
 	}
 	names := map[string]bool{}
 	for _, tc := range tools {

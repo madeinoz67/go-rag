@@ -49,6 +49,10 @@ var routes = []route{
 	{"GET", "/v1/config", true},
 	{"PUT", "/v1/config", true},
 	{"GET", "/v1/vaults", true},
+	{"GET", "/v1/poison", true},               // H04/spec 019: list flagged chunks
+	{"POST", "/v1/poison/{id}/release", true}, // H04/spec 019: false-positive override
+	{"POST", "/v1/poison/{id}/reset", true},   // H04/spec 019: undo a release
+	{"POST", "/v1/poison/rescan", true},       // H04/spec 019: re-score the corpus
 }
 
 // Handler returns the http.Handler serving the REST API (Go 1.22+ pattern mux),
@@ -97,6 +101,14 @@ func (s *Server) handlerFor(method, path string) http.HandlerFunc {
 		return s.handleConfigSet
 	case "GET /v1/vaults":
 		return s.handleVaults
+	case "GET /v1/poison":
+		return s.handlePoisonList
+	case "POST /v1/poison/{id}/release":
+		return s.handlePoisonRelease
+	case "POST /v1/poison/{id}/reset":
+		return s.handlePoisonReset
+	case "POST /v1/poison/rescan":
+		return s.handlePoisonRescan
 	}
 	return nil
 }
@@ -122,11 +134,11 @@ func (s *Server) guard(h http.HandlerFunc) http.HandlerFunc {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	h := s.eng.Health(r.Context())
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":                  h.OK,
-		"ready":               h.Ready,
-		"storage_open":        h.StorageOpen,
-		"embedder_reachable":  h.EmbedderReachable,
-		"drift_verdict":       h.DriftVerdict,
+		"ok":                 h.OK,
+		"ready":              h.Ready,
+		"storage_open":       h.StorageOpen,
+		"embedder_reachable": h.EmbedderReachable,
+		"drift_verdict":      h.DriftVerdict,
 	})
 }
 

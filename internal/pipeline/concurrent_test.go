@@ -35,6 +35,7 @@ func TestIngest_SkipsGoRagDir(t *testing.T) {
 		t.Fatalf("want 1 document, got %d", n)
 	}
 }
+
 // background workers to index into the shared FTS/Vector concurrently. With -race
 // this catches any unsynchronized map access; without -race it catches the runtime
 // "concurrent map read and map write" fatal that single-file tests miss.

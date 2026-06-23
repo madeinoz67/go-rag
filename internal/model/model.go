@@ -14,20 +14,20 @@ import (
 
 // Source is a watched directory or file collection (PRD §6.2). Pebble prefix 0x01.
 type Source struct {
-	ID        string    `json:"id"`         // SHA-256 of canonical path
-	Path      string    `json:"path"`       // absolute directory path
-	Kind      string    `json:"kind"`       // "directory" | "file"
+	ID        string    `json:"id"`   // SHA-256 of canonical path
+	Path      string    `json:"path"` // absolute directory path
+	Kind      string    `json:"kind"` // "directory" | "file"
 	AddedAt   time.Time `json:"added_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // Document is a single ingested file, content-addressed (PRD §6.3). Pebble prefix 0x02.
 type Document struct {
-	ID          string         `json:"id"`           // GenerateID() — SHA-256(content + metadata)
-	SourceID    string         `json:"source_id"`    // FK -> Source
-	FilePath    string         `json:"file_path"`    // relative path from source root
+	ID          string         `json:"id"`        // GenerateID() — SHA-256(content + metadata)
+	SourceID    string         `json:"source_id"` // FK -> Source
+	FilePath    string         `json:"file_path"` // relative path from source root
 	FileName    string         `json:"file_name"`
-	FileType    string         `json:"file_type"`    // pdf|text|markdown|docx|jpeg|png
+	FileType    string         `json:"file_type"` // pdf|text|markdown|docx|jpeg|png
 	MimeType    string         `json:"mime_type"`
 	ContentHash string         `json:"content_hash"` // ContentHash(raw bytes) — change detection
 	Metadata    map[string]any `json:"metadata"`
@@ -69,18 +69,23 @@ func ContentHash(raw []byte) string {
 
 // Chunk is a text segment split from a Document (PRD §6.4). Pebble prefix 0x03.
 type Chunk struct {
-	ID              string    `json:"id"`               // SHA-256(chunk text + metadata)
-	DocumentID      string    `json:"document_id"`      // FK -> Document
+	ID              string    `json:"id"`          // SHA-256(chunk text + metadata)
+	DocumentID      string    `json:"document_id"` // FK -> Document
 	Content         string    `json:"content"`
-	ChunkIndex      int       `json:"chunk_index"`      // 0-based position
+	ChunkIndex      int       `json:"chunk_index"` // 0-based position
 	TotalChunks     int       `json:"total_chunks"`
 	StartCharIdx    int       `json:"start_char_idx"`
 	EndCharIdx      int       `json:"end_char_idx"`
-	PageNumber      int       `json:"page_number"`      // PDF only, 0 otherwise
+	PageNumber      int       `json:"page_number"`       // PDF only, 0 otherwise
 	PreviousChunkID string    `json:"previous_chunk_id"` // linked list
 	NextChunkID     string    `json:"next_chunk_id"`
 	TokenCount      int       `json:"token_count"`
 	CreatedAt       time.Time `json:"created_at"`
+	// Poisoning is the per-chunk injection-poisoning verdict (spec 019 / H04),
+	// scored at ingest and persisted on this record. nil only on chunks ingested
+	// before this feature or when detection is disabled — treated as clean at
+	// retrieval. Surfaced on QueryHit across all transports.
+	Poisoning *PoisonVerdict `json:"poisoning,omitempty"`
 }
 
 // Embedding is a vector for a Chunk (PRD §6.5). Pebble prefix 0x04 (metadata only;

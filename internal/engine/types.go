@@ -6,19 +6,27 @@
 // (cross-transport parity, spec 003 FR-002/003).
 package engine
 
-import "github.com/madeinoz67/go-rag/internal/index"
+import (
+	"github.com/madeinoz67/go-rag/internal/index"
+	"github.com/madeinoz67/go-rag/internal/model"
+)
 
 // QueryRequest is the input to Engine.Query.
 type QueryRequest struct {
-	Query     string
-	K         int
-	Mode      string // "hybrid" (default) | "semantic" | "keyword"
-	NoRerank  bool
-	Threshold float64 // minimum score; hits below are dropped
-	RRFK      int     // H08/spec 009: per-query RRF constant override; 0 = use config EffectiveRRFK() (default 60)
+	Query         string
+	K             int
+	Mode          string // "hybrid" (default) | "semantic" | "keyword"
+	NoRerank      bool
+	Threshold     float64       // minimum score; hits below are dropped
+	RRFK          int           // H08/spec 009: per-query RRF constant override; 0 = use config EffectiveRRFK() (default 60)
 	Filter        *index.Filter // H14/spec 014: optional metadata filter (source/type/tags); nil = no filter
 	ContextWindow int           // H15/spec 015: N sibling chunks each side of a hit; 0 = off (default)
 	NoCache       bool          // H06/spec 016: bypass serving from the result cache for this call (still stores on success)
+	// IncludeQuarantined (H04/spec 019): when false (default) chunks whose poisoning
+	// verdict is suspicious/quarantine are excluded from results (quarantine-by-
+	// default, Q1=A). When true they are returned, each carrying its verdict so a
+	// downstream LLM consumer can treat the text as untrusted (FR-005).
+	IncludeQuarantined bool
 }
 
 // NewFilter constructs a metadata Filter for a query (H14/spec 014). Returns nil
@@ -47,9 +55,15 @@ type QueryHit struct {
 	Score      float64
 	Content    string // full chunk text
 	FilePath   string
-	Page       int    // Chunk.PageNumber; 0 when not paginated
-	Preview    string // convenience truncated preview for text renders
+	Page       int            // Chunk.PageNumber; 0 when not paginated
+	Preview    string         // convenience truncated preview for text renders
 	Context    []ContextChunk // H15/spec 015: sibling chunks for reading context; nil when ContextWindow=0
+	// Poisoning is the per-chunk injection-poisoning verdict (H04/spec 019),
+	// surfaced on every hit so a downstream LLM consumer can treat retrieved
+	// text as untrusted. nil on chunks ingested before the feature or with
+	// detection disabled (treat as clean). Always populated when the chunk was
+	// scored. Surfaced 1:1 by every transport (FR-005).
+	Poisoning *model.PoisonVerdict
 }
 
 // QueryResult wraps the ranked hits returned by Engine.Query.
@@ -67,25 +81,25 @@ type QueryResult struct {
 
 // StatusInfo is the structured database health/count view.
 type StatusInfo struct {
-	Documents          int
-	Chunks             int
-	Embeddings         int
-	Dimensions         int    // stored majority dimensionality (0 if no embeddings)
-	EmbeddingModel     string // stored majority model (falls back to configured when no embeddings)
-	Reranker           string // "disabled" when unset
-	OllamaURL          string
-	EmbeddingsComplete bool
-	EmbeddingDrift     bool           // true if >1 model, dimensionality, OR convention is stored (audit H03/H07)
-	ModelCounts        map[string]int // per-model record counts (drift detail)
-	DimCounts          map[int]int    // per-dimensionality record counts (drift detail)
-	EmbeddingConvention     string         // stored majority instruction-prefix convention (audit H07)
-	EmbeddingConventionDrift bool         // true if >1 prefix convention is stored (audit H07)
-	ConventionCounts   map[string]int // per-convention record counts (H07 drift detail)
-	ConfiguredPrefix   string         // active prefix mode resolved from config (auto|on|off)
-	QueryPrefix        string         // resolved query-role prefix (empty when none in effect)
-	DocPrefix          string         // resolved document-role prefix (empty when none in effect)
-	ResultCache    CacheStats // H06/spec 016: query result-cache stats (enabled/size/capacity/hits/misses)
-	EmbeddingCache CacheStats // H06/spec 016: query-embedding-cache stats
+	Documents                int
+	Chunks                   int
+	Embeddings               int
+	Dimensions               int    // stored majority dimensionality (0 if no embeddings)
+	EmbeddingModel           string // stored majority model (falls back to configured when no embeddings)
+	Reranker                 string // "disabled" when unset
+	OllamaURL                string
+	EmbeddingsComplete       bool
+	EmbeddingDrift           bool           // true if >1 model, dimensionality, OR convention is stored (audit H03/H07)
+	ModelCounts              map[string]int // per-model record counts (drift detail)
+	DimCounts                map[int]int    // per-dimensionality record counts (drift detail)
+	EmbeddingConvention      string         // stored majority instruction-prefix convention (audit H07)
+	EmbeddingConventionDrift bool           // true if >1 prefix convention is stored (audit H07)
+	ConventionCounts         map[string]int // per-convention record counts (H07 drift detail)
+	ConfiguredPrefix         string         // active prefix mode resolved from config (auto|on|off)
+	QueryPrefix              string         // resolved query-role prefix (empty when none in effect)
+	DocPrefix                string         // resolved document-role prefix (empty when none in effect)
+	ResultCache              CacheStats     // H06/spec 016: query result-cache stats (enabled/size/capacity/hits/misses)
+	EmbeddingCache           CacheStats     // H06/spec 016: query-embedding-cache stats
 
 	// H11/spec 017: embedding-drift monitoring. The corpus baseline (profile the
 	// corpus was built under) vs live, plus the drift verdict. Orthogonal to the
@@ -100,6 +114,16 @@ type StatusInfo struct {
 	DriftVerdict             string // clean|hard-drift|version-warning|unknown|n/a
 	HardDrift                bool   // true on model/dim/convention mismatch
 	VersionDrift             bool   // true on Ollama-version change (soft)
+
+	// H04/spec 019: retrieval-poisoning detection summary. Surfaced on `status`
+	// so an operator sees whether detection is on, the thresholds, how many chunks
+	// are currently flagged, and the threat-source/merged-list state.
+	PoisoningEnabled   bool    // detection on (Q2=A default)
+	PoisonThresholdSus float64 // effective suspicious threshold
+	PoisonThresholdQua float64 // effective quarantine threshold
+	PoisonFlagged      int     // chunks currently flagged (suspicious/quarantine)
+	PoisonSources      int     // managed threat sources (excl. the built-in list)
+	PoisonPhrases      int     // merged phrase-list size (built-in + enabled sources)
 }
 
 // IngestSummary describes one ingest/scan/reprocess/migrate run. Modified and
