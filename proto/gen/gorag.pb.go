@@ -169,8 +169,9 @@ type QueryHit struct {
 	Score         float64                `protobuf:"fixed64,3,opt,name=score,proto3" json:"score,omitempty"`
 	Content       string                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"` // full chunk text
 	FilePath      string                 `protobuf:"bytes,5,opt,name=file_path,json=filePath,proto3" json:"file_path,omitempty"`
-	Page          int32                  `protobuf:"varint,6,opt,name=page,proto3" json:"page,omitempty"`          // 0 if not paginated
-	Poisoning     *Poisoning             `protobuf:"bytes,7,opt,name=poisoning,proto3" json:"poisoning,omitempty"` // H04/spec 019: per-chunk injection verdict (nil = clean/unscored)
+	Page          int32                  `protobuf:"varint,6,opt,name=page,proto3" json:"page,omitempty"`                               // 0 if not paginated
+	Poisoning     *Poisoning             `protobuf:"bytes,7,opt,name=poisoning,proto3" json:"poisoning,omitempty"`                      // H04/spec 019: per-chunk injection verdict (nil = clean/unscored)
+	ChunkIndex    int32                  `protobuf:"varint,8,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"` // H21/spec 023: 0-based ordinal within the source document
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -252,6 +253,13 @@ func (x *QueryHit) GetPoisoning() *Poisoning {
 		return x.Poisoning
 	}
 	return nil
+}
+
+func (x *QueryHit) GetChunkIndex() int32 {
+	if x != nil {
+		return x.ChunkIndex
+	}
+	return 0
 }
 
 // Poisoning is the per-chunk injection-poisoning verdict (H04/spec 019). The
@@ -1929,7 +1937,7 @@ const file_proto_gorag_proto_rawDesc = "" +
 	"\x0econtext_window\x18\n" +
 	" \x01(\x05R\rcontextWindow\x12\x19\n" +
 	"\bno_cache\x18\v \x01(\bR\anoCache\x12/\n" +
-	"\x13include_quarantined\x18\f \x01(\bR\x12includeQuarantined\"\xd7\x01\n" +
+	"\x13include_quarantined\x18\f \x01(\bR\x12includeQuarantined\"\xf8\x01\n" +
 	"\bQueryHit\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x1f\n" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +
@@ -1938,7 +1946,9 @@ const file_proto_gorag_proto_rawDesc = "" +
 	"\acontent\x18\x04 \x01(\tR\acontent\x12\x1b\n" +
 	"\tfile_path\x18\x05 \x01(\tR\bfilePath\x12\x12\n" +
 	"\x04page\x18\x06 \x01(\x05R\x04page\x12.\n" +
-	"\tpoisoning\x18\a \x01(\v2\x10.gorag.PoisoningR\tpoisoning\"\x93\x01\n" +
+	"\tpoisoning\x18\a \x01(\v2\x10.gorag.PoisoningR\tpoisoning\x12\x1f\n" +
+	"\vchunk_index\x18\b \x01(\x05R\n" +
+	"chunkIndex\"\x93\x01\n" +
 	"\tPoisoning\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\tR\x05level\x12\x14\n" +
 	"\x05score\x18\x02 \x01(\x01R\x05score\x121\n" +

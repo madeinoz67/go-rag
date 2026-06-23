@@ -196,9 +196,6 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 
 	out := make([]QueryHit, 0, len(hits))
 	for _, h := range hits {
-		if h.Score < req.Threshold {
-			continue
-		}
 		c, ok := lookupChunk(e.db, h.ChunkID)
 		if !ok {
 			continue
@@ -211,12 +208,35 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 			ChunkID:    h.ChunkID,
 			DocumentID: c.DocumentID,
 			Score:      h.Score,
+			ChunkIndex: c.ChunkIndex, // H21/spec 023: citation ordinal
 			Content:    c.Content,
 			FilePath:   filePath,
 			Page:       c.PageNumber,
 			Preview:    preview(c.Content, 160),
 			Poisoning:  c.Poisoning, // H04/spec 019: verdict surfaced on every hit (FR-005)
 		})
+	}
+	// H21/spec 023: normalize scores to [0,1] within the result set (top = 1.0).
+	// Skip when the reranker succeeded (its scores are already 0..1 from H09).
+	if reranker == nil || rerankFailed {
+		if len(out) > 0 {
+			top := out[0].Score
+			if top > 0 {
+				for i := range out {
+					out[i].Score /= top
+				}
+			}
+		}
+	}
+	// H21/spec 023: threshold on the normalized [0,1] scale (was on raw RRF scores).
+	if req.Threshold > 0 {
+		filtered := out[:0]
+		for _, h := range out {
+			if h.Score >= req.Threshold {
+				filtered = append(filtered, h)
+			}
+		}
+		out = filtered
 	}
 	// US3 graceful degradation: a mixed corpus (mid-migration) queried by the
 	// majority model is scored against the matching vectors only — the minority

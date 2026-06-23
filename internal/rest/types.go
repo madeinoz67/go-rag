@@ -26,6 +26,7 @@ type queryHit struct {
 	Content    string         `json:"content"`
 	FilePath   string         `json:"file_path"`
 	Page       int            `json:"page"`
+	ChunkIndex int            `json:"chunk_index"`         // H21/spec 023
 	Poisoning  *poisonVerdict `json:"poisoning,omitempty"` // H04/spec 019
 }
 

@@ -58,6 +58,7 @@ func toQueryHits(hits []engine.QueryHit) []queryHit {
 			Content:    h.Content,
 			FilePath:   h.FilePath,
 			Page:       h.Page,
+			ChunkIndex: h.ChunkIndex, // H21/spec 023
 			Poisoning:  pv,
 		}
 	}

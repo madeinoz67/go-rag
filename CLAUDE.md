@@ -89,7 +89,7 @@ transport. One Pebble writer; writes ACK on the durable store and embed async
 
 This repo is indexed by **tokensave**. Prefer `tokensave_context` (plain-English
 queries) and `tokensave_search`/`tokensave_callers` over ad-hoc grep for
-understanding structure. Re-run `tokensave init` after large structural changes.
+understanding structure. Re-run `tokensave sync` after large structural changes.
 
 ## Out of scope for v1 (PRD §2.2)
 
@@ -99,5 +99,5 @@ system, embedding providers beyond Ollama. Don't build these without revisiting 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/022-secret-pii-scan/plan.md
+at specs/023-score-cite-contract/plan.md
 <!-- SPECKIT END -->

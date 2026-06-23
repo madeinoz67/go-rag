@@ -14,11 +14,12 @@ import (
 )
 
 type queryResult struct {
-	Source    string            `json:"source"`
-	Page      int               `json:"page"`
-	Score     float64           `json:"score"`
-	Chunk     string            `json:"chunk"`
-	Poisoning *poisonVerdictDTO `json:"poisoning,omitempty"` // H04/spec 019
+	Source     string            `json:"source"`
+	Page       int               `json:"page"`
+	ChunkIndex int               `json:"chunk_index"` // H21/spec 023
+	Score      float64           `json:"score"`
+	Chunk      string            `json:"chunk"`
+	Poisoning  *poisonVerdictDTO `json:"poisoning,omitempty"` // H04/spec 019
 }
 
 // poisonVerdictDTO is the CLI/JSON projection of a hit's poisoning verdict
@@ -86,11 +87,12 @@ func newQueryCmd() *cobra.Command {
 			results := make([]queryResult, 0, len(res.Hits))
 			for _, h := range res.Hits {
 				results = append(results, queryResult{
-					Source:    filepath.Base(h.FilePath),
-					Page:      h.Page,
-					Score:     h.Score,
-					Chunk:     h.Content,
-					Poisoning: toPoisonDTO(h),
+					Source:     filepath.Base(h.FilePath),
+					Page:       h.Page,
+					ChunkIndex: h.ChunkIndex, // H21/spec 023
+					Score:      h.Score,
+					Chunk:      h.Content,
+					Poisoning:  toPoisonDTO(h),
 				})
 			}
 			return renderResults(results, format)

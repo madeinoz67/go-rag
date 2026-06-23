@@ -62,6 +62,7 @@ func (a *Adapter) Query(ctx context.Context, req *goragpb.QueryRequest) (*goragp
 			FilePath:   h.FilePath,
 			Page:       int32(h.Page),
 			Poisoning:  toPoisoningPB(h.Poisoning), // H04/spec 019
+			ChunkIndex: int32(h.ChunkIndex),        // H21/spec 023
 		}
 	}
 	return &goragpb.QueryResponse{Hits: hits, RerankFailed: res.RerankFailed}, nil

@@ -81,6 +81,7 @@ message QueryHit {
   string file_path = 5;
   int32 page = 6;               // 0 if not paginated
   Poisoning poisoning = 7;      // H04/spec 019: per-chunk injection verdict (nil = clean/unscored)
+  int32 chunk_index = 8;        // H21/spec 023: 0-based ordinal within the source document
 }
 
 // Poisoning is the per-chunk injection-poisoning verdict (H04/spec 019). The

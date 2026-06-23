@@ -61,7 +61,7 @@ The whole point of building H02 first: each of these can now be proven to help.
 ## Phase 6 — Polish
 
 - [ ] **H20** · P2 · M · data — **Doc-level dedup only (no near-duplicate).** SimHash/shingle-Jaccard near-dup flagging at ingest (brute-force fine at local <10K scale). *(Audit §1.1)*
-- [ ] **H21** · P2 · S · gen-boundary — **Score not calibrated + citation contract under-documented.** Normalize scores to [0,1] within a result set; document `chunk_id` as the canonical citation anchor; add a `chunk_index` ordinal within a document. *(Audit §1.5)*
+- [x] **H21** · P2 · S · gen-boundary — **Score not calibrated + citation contract under-documented.** Normalize scores to [0,1] within a result set; document `chunk_id` as the canonical citation anchor; add a `chunk_index` ordinal within a document. *(Audit §1.5)* ✅ COMPLETE (spec 023, shipped): min-max score normalization (top=1.0); chunk_index on QueryHit (CLI/REST/gRPC); citation contract documented.
 - [ ] **H22** · P2 · S · retrieval — **No adaptive retrieval depth / pool-size tuning.** Optional `QueryClassifier` returning recommended `k`/`Mode` (cheap rule-based first); configurable reranker pool. *(Audit §1.4)*
 - [ ] **H23** · P2 · M · chunking — **Markdown structure destroyed before chunking; no chunk-metadata.** Thread the current heading into per-chunk `Metadata` during chunking; populate `section_context` from the reader's extracted headings. *(Audit §1.1)*
 - [ ] **H24** · P2 · S · ops — **`migrate` has no dry-run / cost estimate.** `migrate --dry-run` → doc-count + model delta before re-embedding. *(Audit §1.8)*
