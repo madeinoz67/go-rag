@@ -80,10 +80,9 @@ func dialBuf(t *testing.T, srv *grpcc.Server) (goragpb.GoragClient, func()) {
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(lis) }()
 	dialer := func(context.Context, string) (net.Conn, error) { return lis.Dial() }
-	conn, err := grpcc.DialContext(context.Background(), "bufnet",
+	conn, err := grpcc.NewClient("passthrough:///bufnet",
 		grpcc.WithContextDialer(dialer),
 		grpcc.WithTransportCredentials(insecure.NewCredentials()),
-		grpcc.WithBlock(),
 	)
 	if err != nil {
 		t.Fatalf("dial bufnet: %v", err)
