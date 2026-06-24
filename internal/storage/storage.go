@@ -26,4 +26,5 @@ const (
 	PrefixCorpusMeta   byte = 0x10 // H11/spec 017: corpus baseline metadata (embedding drift) — single record
 	PrefixPoisonQuar   byte = 0x11 // H04/spec 019: quarantine index (chunkID → verdict) for O(flagged) listing
 	PrefixThreatSrc    byte = 0x12 // H04/spec 019: threat-source store (FR-012/013, D12)
+	PrefixNearDup      byte = 0x13 // H20/spec 026: near-dup SimHash fingerprint (chunkID → uint64) for sibling scan
 )

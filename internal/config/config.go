@@ -73,6 +73,12 @@ type Config struct {
 	// when enabled, secrets are replaced with placeholders before indexing.
 	PIIRedactEnabled bool   `json:"pii_redact_enabled,omitempty"` // default false (opt-in)
 	PIIPatterns      string `json:"pii_patterns,omitempty"`       // path to a custom patterns file
+
+	// H20/spec 026: near-duplicate chunk detection. near_dup_hamming is the SimHash
+	// Hamming-distance threshold (bits); two chunks within this distance are
+	// near-duplicates. 0 (or absent) ⇒ DefaultNearDupHamming (3). Detection is
+	// always on (pure-Go, ACK-path); collapse is opt-in per query (dedup flag).
+	NearDupHamming int `json:"near_dup_hamming,omitempty"` // H20/spec 026: SimHash Hamming threshold; 0 = default 3; <0 invalid
 }
 
 // Default returns the configuration used by `go-rag init` when no overrides apply.
@@ -100,6 +106,8 @@ func Default() Config {
 		OTelExport:                   DefaultOTelExport,       // H17: local stdout trace exporter by default
 		AuditLogEnabled:              true,                    // H18: audit on by default
 		AuditLogMaxBytes:             DefaultAuditLogMaxBytes, // H18: ~16 MiB rotation cap
+
+		NearDupHamming: DefaultNearDupHamming, // H20/spec 026: SimHash Hamming threshold
 	}
 }
 
@@ -124,6 +132,11 @@ const (
 const (
 	DefaultPoisonThresholdSuspicious = 0.40
 	DefaultPoisonThresholdQuarantine = 0.70
+
+	// DefaultNearDupHamming: SimHash Hamming threshold for near-dup detection
+	// (spec 026 / audit H20); conservative (3 of 64 bits ≈ high similarity) to
+	// protect precision (FR-009).
+	DefaultNearDupHamming = 3
 )
 
 // DefaultOTelExport is the trace exporter used when otel_export is unset (spec 020):
@@ -214,6 +227,16 @@ func (c Config) EffectivePoisonThresholdQuarantine() float64 {
 	return DefaultPoisonThresholdQuarantine
 }
 
+// EffectiveNearDupHamming returns the SimHash Hamming-distance threshold for
+// near-duplicate detection (spec 026 / audit H20): the configured value when
+// positive, else DefaultNearDupHamming (3).
+func (c Config) EffectiveNearDupHamming() int {
+	if c.NearDupHamming > 0 {
+		return c.NearDupHamming
+	}
+	return DefaultNearDupHamming
+}
+
 // Validate returns an error if the config has invalid values.
 func (c Config) Validate() error {
 	u, err := url.Parse(c.OllamaURL)
@@ -247,6 +270,10 @@ func (c Config) Validate() error {
 	if c.PoisoningThresholdQuarantine < 0 || c.PoisoningThresholdQuarantine > 1 {
 		return fmt.Errorf("poisoning_threshold_quarantine must be in [0,1] (0 = default)")
 	}
+	if c.NearDupHamming < 0 {
+		return fmt.Errorf("near_dup_hamming must be non-negative (0 = default %d)", DefaultNearDupHamming)
+	}
+
 	if c.EffectivePoisonThresholdSuspicious() > c.EffectivePoisonThresholdQuarantine() {
 		return fmt.Errorf("poisoning_threshold_suspicious (%.2f) must be <= poisoning_threshold_quarantine (%.2f)",
 			c.EffectivePoisonThresholdSuspicious(), c.EffectivePoisonThresholdQuarantine())

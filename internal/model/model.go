@@ -98,6 +98,25 @@ type Chunk struct {
 	// neither document nor chunk identity changes. Surfaced on QueryHit across
 	// every transport (FR-004).
 	SectionContext []string `json:"section_context,omitempty"`
+	// NearDup describes this chunk's near-duplicate relationships (audit H20 /
+	// spec 026): the chunkIDs within the configured SimHash Hamming distance
+	// (pairwise siblings) and the closest sibling's similarity. nil for chunks
+	// with no near-duplicates and for chunks ingested before the feature —
+	// treated as absent (never an error) at retrieval (FR-008). A non-identity
+	// sidecar (like Poisoning / SectionContext): it does NOT participate in chunk
+	// or document identity. Populated async-after-ACK by the ingest worker's
+	// clustering pass; opt-in query-time collapse reads it.
+	NearDup *NearDupInfo `json:"near_dup,omitempty"`
+}
+
+// NearDupInfo is the per-chunk near-duplicate verdict (audit H20 / spec 026).
+// Siblings are the chunkIDs within the configured Hamming distance (pairwise —
+// no transitivity); Similarity is the closest sibling's normalised similarity in
+// [0,1]. A chunk with no near-duplicates has NearDup == nil (never an empty
+// NearDupInfo), so absent and "none" serialize identically (FR-008).
+type NearDupInfo struct {
+	Siblings   []string `json:"siblings,omitempty"`
+	Similarity float64  `json:"similarity,omitempty"`
 }
 
 // Embedding is a vector for a Chunk (PRD §6.5). Pebble prefix 0x04 (metadata only;
