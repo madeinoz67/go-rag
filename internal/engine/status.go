@@ -39,10 +39,10 @@ func (e *Engine) Status() (*StatusInfo, error) {
 	// H11/spec 017: live drift verdict (re-fetches the Ollama version; this is
 	// the on-demand detailed view — /health reads the cached boot verdict).
 	dv := e.computeDriftVerdict(context.Background())
-	model := e.cfg.EmbeddingModel
+	embModel := e.cfg.EmbeddingModel
 	dims := 0
 	if prof.Total > 0 {
-		model = prof.MajorityModel
+		embModel = prof.MajorityModel
 		dims = prof.MajorityDim
 	}
 	reranker := e.cfg.RerankModel
@@ -61,13 +61,23 @@ func (e *Engine) Status() (*StatusInfo, error) {
 	// H04/spec 019: poisoning summary — flagged count (0x11 index), sources, merged
 	// phrase-list size, and the effective enabled/threshold state.
 	poisonFlagged := countPrefix(e.db, storage.PrefixPoisonQuar)
+
+	// H20/spec 026: near-duplicate chunk count — chunks with NearDup siblings.
+	nearDupChunks := 0
+	_ = e.db.PrefixScanByte(storage.PrefixChunk, func(_, v []byte) bool {
+		var c model.Chunk
+		if json.Unmarshal(v, &c) == nil && c.NearDup != nil {
+			nearDupChunks++
+		}
+		return true
+	})
 	poisonSrcs, _ := e.ListThreatSources()
 	return &StatusInfo{
 		Documents:                docs,
 		Chunks:                   chunks,
 		Embeddings:               embs,
 		Dimensions:               dims,
-		EmbeddingModel:           model,
+		EmbeddingModel:           embModel,
 		Reranker:                 reranker,
 		OllamaURL:                e.cfg.OllamaURL,
 		EmbeddingsComplete:       complete,
@@ -104,6 +114,9 @@ func (e *Engine) Status() (*StatusInfo, error) {
 		PoolSize:             e.cfg.EffectivePoolSize(), // configured candidate-pool ceiling
 		AdaptiveDepthEnabled: e.cfg.EffectiveAdaptiveDepthEnabled(),
 		PoolUtilization:      e.poolUtilization(),
+
+		// H20/spec 026: near-duplicate observability.
+		NearDupChunks: nearDupChunks,
 	}, nil
 }
 

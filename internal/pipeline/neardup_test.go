@@ -81,3 +81,31 @@ func TestIngest_NearDup_DistinctNotFlagged(t *testing.T) {
 		}
 	}
 }
+
+// TestIngest_NearDup_ReprocessBackfill (US3, research R7): Reprocess re-reads the
+// source and re-derives the NearDup sidecar — there is no cheap rescan (the
+// fingerprint is derived at ingest from the chunk text). Verify that after
+// Reprocess, near-dup chunks still carry siblings.
+func TestIngest_NearDup_ReprocessBackfill(t *testing.T) {
+	dir := t.TempDir()
+	words := "the go-rag server performs keyword retrieval over local documents stored on disk with a buffer cache"
+	writeFile(t, filepath.Join(dir, "v1.txt"), words)
+	writeFile(t, filepath.Join(dir, "v2.txt"), "cache buffer a with disk on stored documents local over retrieval keyword performs server go-rag the")
+	p, _ := newTestPipeline(t, 0)
+	if _, err := p.Ingest(context.Background(), dir, "*"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Reprocess(context.Background(), dir, "*"); err != nil {
+		t.Fatalf("reprocess: %v", err)
+	}
+	p.Close()
+	got := 0
+	for _, c := range scanChunks(t, p) {
+		if c.NearDup != nil && len(c.NearDup.Siblings) > 0 {
+			got++
+		}
+	}
+	if got < 1 {
+		t.Errorf("after reprocess: want >=1 chunk with near-dup siblings, got %d", got)
+	}
+}

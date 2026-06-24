@@ -158,6 +158,7 @@ type StatusInfo struct {
 	PoolSize             int             // effective configured candidate-pool ceiling (cfg.EffectivePoolSize())
 	AdaptiveDepthEnabled bool            // rule-based k-classifier posture (default false)
 	PoolUtilization      PoolUtilization // aggregate, process-lifetime (not per-query)
+	NearDupChunks        int             // H20/spec 026: chunks with near-dup siblings (eventually consistent)
 }
 
 // PoolUtilization is the aggregate candidate-pool consumption signal surfaced in
