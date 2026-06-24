@@ -85,12 +85,6 @@ transport. One Pebble writer; writes ACK on the durable store and embed async
   `--mcp-addr`/`--rest-addr`/`--grpc-addr`, or you will collide with and stop a
   live instance.
 
-## Code navigation
-
-This repo is indexed by **tokensave**. Prefer `tokensave_context` (plain-English
-queries) and `tokensave_search`/`tokensave_callers` over ad-hoc grep for
-understanding structure. Re-run `tokensave sync` after large structural changes.
-
 ## Out of scope for v1 (PRD §2.2)
 
 Cloud/hosted service, multi-user auth, LLM inference, audio/video, web UI, plugin
@@ -99,5 +93,5 @@ system, embedding providers beyond Ollama. Don't build these without revisiting 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/023-score-cite-contract/plan.md
+at specs/024-adaptive-retrieval/plan.md
 <!-- SPECKIT END -->
