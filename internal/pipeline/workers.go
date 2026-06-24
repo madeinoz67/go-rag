@@ -3,10 +3,13 @@ package pipeline
 import (
 	"context"
 	"encoding/json"
+	"math/bits"
 	"time"
 
+	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/model"
+	"github.com/madeinoz67/go-rag/internal/near"
 	"github.com/madeinoz67/go-rag/internal/storage"
 )
 
@@ -82,6 +85,14 @@ func (p *Pipeline) processJob(j job) {
 			p.OnFirstEmbed(p.embed.Model(), len(vecs[0]), conv)
 		}
 	}
+	// H20/spec 026 (R4): near-duplicate fingerprint + cluster, async-after-ACK
+	// (near-dup is eventual-consistency-tolerant like BM25 — no ACK urgency,
+	// unlike poisoning). Runs regardless of embed success (independent axis).
+	ndK := p.nearDupK
+	if ndK <= 0 {
+		ndK = config.DefaultNearDupHamming
+	}
+	p.clusterNearDup(j.chunks, ndK)
 	p.markStatus(j.docID, status)
 }
 
@@ -103,4 +114,64 @@ func (p *Pipeline) markStatus(docID, status string) {
 	doc.UpdatedAt = time.Now().UTC()
 	dbj, _ := json.Marshal(doc)
 	_ = p.db.SetWithPrefix(storage.PrefixDocument, []byte(docID), dbj)
+}
+
+// minNearDupTokens is the minimum chunk length (tokens) to fingerprint — below
+// this the SimHash is unreliable (too few features → spurious matches, R10).
+const minNearDupTokens = 8
+
+// clusterNearDup fingerprints each chunk (SimHash), indexes it under 0x13, scans
+// for siblings within Hamming k, and persists a NearDup sidecar on each chunk that
+// has near-duplicates (audit H20 / spec 026). Async-after-ACK. Short chunks are
+// skipped (R10). Siblings are pairwise/asymmetric (this chunk lists its existing
+// siblings); query-time collapse detects pairs bidirectionally.
+func (p *Pipeline) clusterNearDup(chunks []model.Chunk, k int) {
+	// Pass 1: fingerprint + index under 0x13.
+	for _, c := range chunks {
+		if c.TokenCount < minNearDupTokens {
+			continue
+		}
+		_ = p.db.PutNearDup(c.ID, near.SimHash(c.Content))
+	}
+	// Pass 2: scan for siblings; persist the sidecar on chunks that have any.
+	for _, c := range chunks {
+		if c.TokenCount < minNearDupTokens {
+			continue
+		}
+		fp, ok := p.db.GetNearDup(c.ID)
+		if !ok {
+			continue
+		}
+		var siblings []string
+		best := 0.0
+		_ = p.db.ScanNearDup(func(otherID string, otherFP uint64) bool {
+			if otherID == c.ID {
+				return true
+			}
+			if near.HammingNear(fp, otherFP, k) {
+				siblings = append(siblings, otherID)
+				if sim := 1 - float64(bits.OnesCount64(fp^otherFP))/64; sim > best {
+					best = sim
+				}
+			}
+			return true
+		})
+		if len(siblings) == 0 {
+			continue
+		}
+		// Read-modify-write the chunk record to attach the sidecar (mirrors
+		// engine.putChunk / RescanPoisoning).
+		raw, ok, _ := p.db.GetWithPrefix(storage.PrefixChunk, []byte(c.ID))
+		if !ok {
+			continue
+		}
+		var stored model.Chunk
+		if json.Unmarshal(raw, &stored) != nil {
+			continue
+		}
+		stored.NearDup = &model.NearDupInfo{Siblings: siblings, Similarity: best}
+		if cj, merr := json.Marshal(stored); merr == nil {
+			_ = p.db.SetWithPrefix(storage.PrefixChunk, []byte(c.ID), cj)
+		}
+	}
 }
