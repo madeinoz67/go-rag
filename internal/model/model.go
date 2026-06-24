@@ -86,6 +86,18 @@ type Chunk struct {
 	// before this feature or when detection is disabled — treated as clean at
 	// retrieval. Surfaced on QueryHit across all transports.
 	Poisoning *PoisonVerdict `json:"poisoning,omitempty"`
+	// SectionContext is the ordered heading breadcrumb active at the chunk's
+	// start position in the source document (top-level → governing heading),
+	// e.g. ["Operations", "Backups", "Retention"]. Derived positionally from
+	// the reader's heading structure during chunking (audit H23 / spec 025). nil
+	// for chunks whose source has no headings and for chunks written before this
+	// feature — treated as absent (never an error) at retrieval (FR-006). A
+	// non-identity sidecar (like Poisoning): it does NOT participate in the
+	// chunk ID (GenerateID folds text+mime+{doc,idx} only — pipeline.go:252) and
+	// the span data is removed from document metadata before GenerateID, so
+	// neither document nor chunk identity changes. Surfaced on QueryHit across
+	// every transport (FR-004).
+	SectionContext []string `json:"section_context,omitempty"`
 }
 
 // Embedding is a vector for a Chunk (PRD §6.5). Pebble prefix 0x04 (metadata only;

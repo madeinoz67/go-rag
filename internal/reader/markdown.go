@@ -7,6 +7,19 @@ import (
 	"strings"
 )
 
+// HeadingSpan is one in-body Markdown heading with its position in the text the
+// chunker receives. Offset is a byte index into the STRIPPED text returned by
+// the reader; the pipeline translates it into redacted-text space (research R3)
+// before resolving the per-chunk breadcrumb. Produced by stripMarkdownSpans —
+// the unified code-fence-aware scan (research R1/R4). Transient: the pipeline
+// consumes it during chunking and removes it from document metadata before
+// identity/store, so it is never persisted.
+type HeadingSpan struct {
+	Level  int    // 1..6 (#..######)
+	Text   string // heading text, emphasis-stripped and trimmed
+	Offset int    // byte offset into the reader's returned (stripped) text
+}
+
 // MarkdownReader extracts text from Markdown, parsing YAML frontmatter,
 // collecting headings into metadata, and normalizing Obsidian syntax:
 //
@@ -34,23 +47,31 @@ func (r *MarkdownReader) Read(_ context.Context, data []byte, _ string) (string,
 	}
 
 	var headings []string
-	for _, line := range strings.Split(body, "\n") {
-		trim := strings.TrimLeft(line, "#")
-		if trim != line && strings.TrimSpace(trim) != "" {
-			headings = append(headings, strings.TrimSpace(trim))
-		}
-	}
-	if len(headings) > 0 {
-		md["headings"] = headings
-	}
-
 	body, transcludes := normalizeObsidian(body)
 	if len(transcludes) > 0 {
 		md["transcludes"] = transcludes
 	}
 	md["format"] = "markdown"
 
-	return stripMarkdown(body), md, nil
+	// Unified code-fence-aware scan (audit H23 / spec 025, research R1/R4):
+	// produces the plain stripped text (unchanged from legacy stripMarkdown) AND
+	// a positional heading-span table the pipeline threads into per-chunk section
+	// context. Code-fence state is tracked once, so a `# comment` or `#!/bin/sh`
+	// inside a fenced block is neither collected as a heading nor mis-offset
+	// (FR-009) — the legacy flat-heading loop and stripMarkdown disagreed about
+	// code fences; this unifies them. Heading offsets index into the returned
+	// text, so they share the chunker's coordinate space (the pipeline translates
+	// them through redaction — research R3).
+	stripped, spans := stripMarkdownSpans(body)
+	if len(spans) > 0 {
+		headings = make([]string, len(spans))
+		for i, sp := range spans {
+			headings[i] = sp.Text
+		}
+		md["headings"] = headings   // backward-compatible flat list
+		md["heading_spans"] = spans // positional; consumed + dropped by the pipeline
+	}
+	return stripped, md, nil
 }
 
 var (
@@ -139,8 +160,36 @@ func extractFrontmatter(src string) (map[string]any, string, bool) {
 }
 
 // stripMarkdown removes common markdown markers, leaving plain readable text.
+// Preserved as a thin wrapper over the unified scan so any legacy caller still
+// gets byte-identical output.
 func stripMarkdown(s string) string {
+	out, _ := stripMarkdownSpans(s)
+	return out
+}
+
+// stripInlineEmphasis removes inline markdown emphasis/code markers from a line
+// fragment. Order matters: `**`/`__` before the single-char forms, and `_`
+// becomes a space (matching the legacy stripMarkdown behaviour exactly).
+func stripInlineEmphasis(t string) string {
+	t = strings.ReplaceAll(t, "**", "")
+	t = strings.ReplaceAll(t, "__", "")
+	t = strings.ReplaceAll(t, "`", "")
+	t = strings.ReplaceAll(t, "*", "")
+	t = strings.ReplaceAll(t, "_", " ")
+	return t
+}
+
+// stripMarkdownSpans is the unified, code-fence-aware scan (audit H23 / spec
+// 025, research R1/R4). It produces the plain stripped text — byte-identical to
+// legacy stripMarkdown — AND a positional table of in-body Markdown headings,
+// each with its byte Offset into the returned stripped text. Fenced-code state
+// is tracked once so a `# comment` inside a code block is not mistaken for a
+// heading (FR-009) and heading offsets align with the chunker's coordinate
+// space. The span Text is the emphasis-stripped heading text (what the
+// breadcrumb shows); the offset points at where that text is written.
+func stripMarkdownSpans(s string) (string, []HeadingSpan) {
 	var b strings.Builder
+	var spans []HeadingSpan
 	inCode := false
 	for _, line := range strings.Split(s, "\n") {
 		t := strings.TrimSpace(line)
@@ -153,16 +202,31 @@ func stripMarkdown(s string) string {
 			b.WriteByte('\n')
 			continue
 		}
+		// Heading: starts with '#', outside any code fence, with non-empty text.
+		if strings.HasPrefix(t, "#") {
+			level := 0
+			for level < len(t) && t[level] == '#' {
+				level++
+			}
+			if rest := strings.TrimSpace(t[level:]); rest != "" {
+				stripped := stripInlineEmphasis(rest)
+				spans = append(spans, HeadingSpan{
+					Level:  level,
+					Text:   stripped,
+					Offset: b.Len(), // where the heading text lands in the output
+				})
+				b.WriteString(stripped)
+				b.WriteByte('\n')
+				continue
+			}
+		}
+		// Non-heading line (lone '#', blockquote, or body): legacy transform.
 		if strings.HasPrefix(t, "#") || strings.HasPrefix(t, ">") {
 			t = strings.TrimLeft(t, "#> ")
 		}
-		t = strings.ReplaceAll(t, "**", "")
-		t = strings.ReplaceAll(t, "__", "")
-		t = strings.ReplaceAll(t, "`", "")
-		t = strings.ReplaceAll(t, "*", "")
-		t = strings.ReplaceAll(t, "_", " ")
+		t = stripInlineEmphasis(t)
 		b.WriteString(t)
 		b.WriteByte('\n')
 	}
-	return strings.TrimSpace(b.String())
+	return strings.TrimSpace(b.String()), spans
 }

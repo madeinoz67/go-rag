@@ -1,6 +1,10 @@
 package model
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestGenerateID_DeterministicAndOrderIndependent(t *testing.T) {
 	m1 := map[string]any{"a": 1, "b": 2, "page": 3}
@@ -29,5 +33,41 @@ func TestGenerateID_DistinctFromContentHash(t *testing.T) {
 	}
 	if ContentHash([]byte("different")) == ch {
 		t.Fatal("distinct content must produce distinct ContentHash")
+	}
+}
+
+// TestChunk_SectionContext_PreFeatureShape (H23/spec 025, US3-2): a chunk record
+// written before the feature (no section_context key) unmarshals cleanly with a
+// nil SectionContext — no parse error, so old vaults load without migration.
+func TestChunk_SectionContext_PreFeatureShape(t *testing.T) {
+	pre := `{"id":"x","document_id":"d","content":"hi","chunk_index":0,"total_chunks":1,"start_char_idx":0,"end_char_idx":2,"token_count":1,"created_at":"2026-01-01T00:00:00Z"}`
+	var c Chunk
+	if err := json.Unmarshal([]byte(pre), &c); err != nil {
+		t.Fatalf("pre-feature chunk must unmarshal: %v", err)
+	}
+	if c.SectionContext != nil {
+		t.Errorf("pre-feature chunk SectionContext = %v, want nil", c.SectionContext)
+	}
+}
+
+// TestChunk_SectionContext_RoundTrip: a chunk with a breadcrumb round-trips through
+// JSON, and a nil SectionContext is omitted (omitempty) so heading-less chunks
+// serialize identically to the pre-feature shape.
+func TestChunk_SectionContext_RoundTrip(t *testing.T) {
+	c := Chunk{ID: "x", SectionContext: []string{"A", "B"}}
+	b, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back Chunk
+	if err := json.Unmarshal(b, &back); err != nil {
+		t.Fatal(err)
+	}
+	if len(back.SectionContext) != 2 || back.SectionContext[0] != "A" || back.SectionContext[1] != "B" {
+		t.Errorf("round-trip SectionContext = %v, want [A B]", back.SectionContext)
+	}
+	empty, _ := json.Marshal(Chunk{ID: "y"})
+	if strings.Contains(string(empty), "section_context") {
+		t.Errorf("nil SectionContext should be omitted; got %s", empty)
 	}
 }

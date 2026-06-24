@@ -54,14 +54,15 @@ func toQueryHits(hits []engine.QueryHit) []queryHit {
 			}
 		}
 		out[i] = queryHit{
-			ChunkID:    h.ChunkID,
-			DocumentID: h.DocumentID,
-			Score:      h.Score,
-			Content:    h.Content,
-			FilePath:   h.FilePath,
-			Page:       h.Page,
-			ChunkIndex: h.ChunkIndex, // H21/spec 023
-			Poisoning:  pv,
+			ChunkID:        h.ChunkID,
+			DocumentID:     h.DocumentID,
+			Score:          h.Score,
+			Content:        h.Content,
+			FilePath:       h.FilePath,
+			Page:           h.Page,
+			ChunkIndex:     h.ChunkIndex, // H21/spec 023
+			Poisoning:      pv,
+			SectionContext: h.SectionContext, // H23/spec 025 (FR-004)
 		}
 	}
 	return out
@@ -75,14 +76,14 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, statusResponse{
-		Documents:          st.Documents,
-		Chunks:             st.Chunks,
-		Embeddings:         st.Embeddings,
-		Dimensions:         st.Dimensions,
-		EmbeddingModel:     st.EmbeddingModel,
-		Reranker:           st.Reranker,
-		OllamaURL:          st.OllamaURL,
-		EmbeddingsComplete: st.EmbeddingsComplete,
+		Documents:            st.Documents,
+		Chunks:               st.Chunks,
+		Embeddings:           st.Embeddings,
+		Dimensions:           st.Dimensions,
+		EmbeddingModel:       st.EmbeddingModel,
+		Reranker:             st.Reranker,
+		OllamaURL:            st.OllamaURL,
+		EmbeddingsComplete:   st.EmbeddingsComplete,
 		PoolSize:             st.PoolSize,             // H22/spec 024
 		AdaptiveDepthEnabled: st.AdaptiveDepthEnabled, // H22/spec 024
 		PoolUtilization: poolUtilizationDTO{ // H22/spec 024

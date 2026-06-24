@@ -66,6 +66,12 @@ type QueryHit struct {
 	// detection disabled (treat as clean). Always populated when the chunk was
 	// scored. Surfaced 1:1 by every transport (FR-005).
 	Poisoning *model.PoisonVerdict
+	// SectionContext is the ordered heading breadcrumb active at this chunk's
+	// start position (top-level → governing heading), e.g. ["Operations",
+	// "Backups", "Retention"]. nil/absent for chunks with no section context
+	// (heading-less source, or a chunk ingested before H23/spec 025). Surfaced
+	// 1:1 by every transport (FR-004).
+	SectionContext []string
 }
 
 // QueryResult wraps the ranked hits returned by Engine.Query.

@@ -225,11 +225,24 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 		return "ERROR", err
 	}
 
+	// H23/spec 025: pull the reader's positional heading spans out of metadata to
+	// resolve per-chunk section context. Removed BEFORE identity so the transient,
+	// un-persisted span table never enters the document identity hash — docID stays
+	// byte-identical to the pre-feature value (Constitution II, research R2). nil for
+	// non-Markdown readers / heading-less docs → section context absent (FR-006).
+	spans, _ := metadata["heading_spans"].([]reader.HeadingSpan)
+	delete(metadata, "heading_spans")
+
 	docID := model.GenerateID(content, mimeType(ext), metadata)
 	// H19/spec 022: redact secrets/PII AFTER identity (docID over original content —
 	// Constitution II) but BEFORE chunking (so indexed text is redacted, not the original).
+	// H23/spec 025 (R3): use the offset-aware pass so the heading spans — whose offsets
+	// index this pre-redaction text — can be translated into the redacted text the
+	// chunker indexes. With no redactor configured, redEdits stays nil and translation
+	// is the identity (the common case).
+	var redEdits []redact.Edit
 	if p.redactor != nil {
-		content, _ = p.redactor.Apply(content)
+		content, _, redEdits = p.redactor.ApplyWithEdits(content)
 	}
 	now := time.Now().UTC()
 	doc := model.Document{
@@ -260,6 +273,10 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 			EndCharIdx:   s.EndCharIdx,
 			TokenCount:   s.TokenCount,
 			CreatedAt:    now,
+			// H23/spec 025 (FR-001/FR-007): the heading breadcrumb active at the
+			// chunk's start position — non-identity sidecar. nil when the source has
+			// no headings (FR-006). Computed on the ACK path, no I/O (research R8).
+			SectionContext: resolveBreadcrumb(spans, s.StartCharIdx, redEdits),
 		}
 	}
 	// H15/spec 015: populate the per-document linked list so context-window

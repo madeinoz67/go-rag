@@ -284,7 +284,11 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 		if h.Poisoning != nil && h.Poisoning.Level.Quarantined() { // H04/spec 019: flagged → untrusted
 			mark = " ⚠ untrusted"
 		}
-		fmt.Fprintf(&b, "- (score %.3f) %s%s\n", h.Score, h.Preview, mark)
+		section := ""
+		if len(h.SectionContext) > 0 { // H23/spec 025: heading breadcrumb (FR-004)
+			section = "[" + strings.Join(h.SectionContext, " / ") + "] "
+		}
+		fmt.Fprintf(&b, "- (score %.3f) %s%s%s\n", h.Score, section, h.Preview, mark)
 	}
 	fmt.Fprintf(&b, "\n(effective: k=%d, pool=%d, mode=%s)\n", res.EffectiveK, res.EffectivePool, res.EffectiveMode) // H22/spec 024
 	return strings.TrimSpace(b.String()), nil
@@ -637,7 +641,7 @@ func toolDefs() []map[string]any {
 					"no_rerank":           map[string]any{"type": "boolean", "default": false},
 					"threshold":           map[string]any{"type": "number", "default": 0.0},
 					"rrf_k":               map[string]any{"type": "integer", "default": 60},
-				"pool_size":           map[string]any{"type": "integer", "default": 60, "description": "reranker candidate-pool override (0 = configured/default; shrinks with classifier-recommended k when adaptive depth is enabled)"},
+					"pool_size":           map[string]any{"type": "integer", "default": 60, "description": "reranker candidate-pool override (0 = configured/default; shrinks with classifier-recommended k when adaptive depth is enabled)"},
 					"source":              map[string]any{"type": "string"},
 					"type":                map[string]any{"type": "string"},
 					"tags":                map[string]any{"type": "array", "items": map[string]any{"type": "string"}},

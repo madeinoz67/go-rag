@@ -133,7 +133,34 @@ func sharedEngine(t *testing.T, doc string) *engine.Engine {
 	return engine.NewWithDB(cfg, db)
 }
 
-// writeDoc writes a temp file and returns its path (an Add target).
+// sharedMarkdownEngine is sharedEngine for a Markdown document, so the reader
+// emits heading spans and chunks carry section context (H23/spec 025).
+func sharedMarkdownEngine(t *testing.T, name, md string) *engine.Engine {
+	t.Helper()
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		t.Fatalf("mkdir data: %v", err)
+	}
+	cfg := config.Default()
+	cfg.DBPath = dir
+	cfg.EmbeddingModel = "fake"
+	db, err := storage.Open(dataDir)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	p := pipeline.New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
+	defer p.Close()
+	dp := filepath.Join(dir, name)
+	if err := os.WriteFile(dp, []byte(md), 0o644); err != nil {
+		t.Fatalf("write doc: %v", err)
+	}
+	if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	return engine.NewWithDB(cfg, db)
+}
 func writeDoc(t *testing.T, dir, name, content string) string {
 	t.Helper()
 	dp := filepath.Join(dir, name)
@@ -177,22 +204,24 @@ type canonHit struct {
 	Content    string
 	FilePath   string
 	Page       int
+	Section    []string // H23/spec 025: heading breadcrumb
 }
 
 func fromEngine(h engine.QueryHit) canonHit {
-	return canonHit{h.ChunkID, h.DocumentID, h.Score, h.Content, h.FilePath, h.Page}
+	return canonHit{h.ChunkID, h.DocumentID, h.Score, h.Content, h.FilePath, h.Page, h.SectionContext}
 }
 
 // restQueryHit mirrors internal/rest's JSON DTO without importing its unexported
 // type. Field tags match rest/types.go exactly.
 type restQueryHit struct {
-	ChunkID    string      `json:"chunk_id"`
-	DocumentID string      `json:"document_id"`
-	Score      float64     `json:"score"`
-	Content    string      `json:"content"`
-	FilePath   string      `json:"file_path"`
-	Page       int         `json:"page"`
-	Poisoning  *restPoison `json:"poisoning,omitempty"` // H04/spec 019
+	ChunkID        string      `json:"chunk_id"`
+	DocumentID     string      `json:"document_id"`
+	Score          float64     `json:"score"`
+	Content        string      `json:"content"`
+	FilePath       string      `json:"file_path"`
+	Page           int         `json:"page"`
+	Poisoning      *restPoison `json:"poisoning,omitempty"`       // H04/spec 019
+	SectionContext []string    `json:"section_context,omitempty"` // H23/spec 025
 }
 
 // restPoison mirrors internal/rest's poisonVerdict DTO (tags match exactly).
@@ -208,18 +237,32 @@ type restPoisonSig struct {
 	Instruction float64 `json:"instruction"`
 }
 type restQueryResponse struct {
-	Hits         []restQueryHit `json:"hits"`
-	RerankFailed bool           `json:"rerank_failed"`
-	EffectiveK    int           `json:"effective_k"`    // H22/spec 024
-	EffectivePool int           `json:"effective_pool"` // H22/spec 024
-	EffectiveMode string        `json:"effective_mode"` // H22/spec 024
+	Hits          []restQueryHit `json:"hits"`
+	RerankFailed  bool           `json:"rerank_failed"`
+	EffectiveK    int            `json:"effective_k"`    // H22/spec 024
+	EffectivePool int            `json:"effective_pool"` // H22/spec 024
+	EffectiveMode string         `json:"effective_mode"` // H22/spec 024
 }
 
 func fromREST(h restQueryHit) canonHit {
-	return canonHit{h.ChunkID, h.DocumentID, h.Score, h.Content, h.FilePath, h.Page}
+	return canonHit{h.ChunkID, h.DocumentID, h.Score, h.Content, h.FilePath, h.Page, h.SectionContext}
 }
 func fromGRPC(h *goragpb.QueryHit) canonHit {
-	return canonHit{h.GetChunkId(), h.GetDocumentId(), h.GetScore(), h.GetContent(), h.GetFilePath(), int(h.GetPage())}
+	return canonHit{h.GetChunkId(), h.GetDocumentId(), h.GetScore(), h.GetContent(), h.GetFilePath(), int(h.GetPage()), h.GetSectionContext()}
+}
+
+// sliceEq reports whether two string slices are identical (nil == empty for this
+// purpose — both mean "absent").
+func sliceEq(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func assertHitsEqual(t *testing.T, label string, got, want []canonHit) {
@@ -235,6 +278,9 @@ func assertHitsEqual(t *testing.T, label string, got, want []canonHit) {
 		}
 		if math.Abs(g.Score-w.Score) > 1e-9 {
 			t.Errorf("%s hit[%d] score %.12g != engine %.12g", label, i, g.Score, w.Score)
+		}
+		if !sliceEq(g.Section, w.Section) { // H23/spec 025 (FR-004)
+			t.Errorf("%s hit[%d] section %v != engine %v", label, i, g.Section, w.Section)
 		}
 	}
 }
@@ -330,6 +376,59 @@ func TestCrossTransport_QueryParity(t *testing.T) {
 		grpcCanon = append(grpcCanon, fromGRPC(h))
 	}
 	assertHitsEqual(t, "gRPC", grpcCanon, want)
+}
+
+// TestCrossTransport_SectionContextParity (H23/spec 025, FR-004 / SC-002): a
+// heading-bearing Markdown chunk's section_context is byte-identical across the
+// facade, REST, and gRPC. (Heading-less chunks omit it identically — covered by
+// every other parity test's .txt corpus now that canonHit carries Section.)
+func TestCrossTransport_SectionContextParity(t *testing.T) {
+	md := "# Operations\n## Backups\nRetention keeps thirty days of incremental backups nightly.\n"
+	eng := sharedMarkdownEngine(t, "ops.md", md)
+
+	const q = "backups"
+	ref, err := eng.Query(context.Background(), engine.QueryRequest{Query: q, Mode: "keyword", K: 5})
+	if err != nil {
+		t.Fatalf("engine.Query: %v", err)
+	}
+	if len(ref.Hits) == 0 {
+		t.Fatal("need >=1 hit for a meaningful parity test — corpus did not match query")
+	}
+	for i, h := range ref.Hits {
+		if len(h.SectionContext) == 0 {
+			t.Fatalf("hit[%d] has no section_context; heading-bearing doc expected", i)
+		}
+	}
+	want := make([]canonHit, len(ref.Hits))
+	for i, h := range ref.Hits {
+		want[i] = fromEngine(h)
+	}
+
+	// REST.
+	restSrv := httptest.NewServer(rest.New(eng, "").Handler())
+	defer restSrv.Close()
+	restCanon := make([]canonHit, 0, len(ref.Hits))
+	for _, h := range queryOverREST(t, restSrv.URL, q, "keyword", 5) {
+		restCanon = append(restCanon, fromREST(h))
+	}
+	assertHitsEqual(t, "REST", restCanon, want)
+
+	// gRPC (in-process bufconn).
+	client := dialGRPC(t, eng)
+	resp, err := client.Query(context.Background(), &goragpb.QueryRequest{Query: q, Mode: "keyword", K: 5})
+	if err != nil {
+		t.Fatalf("gRPC Query: %v", err)
+	}
+	grpcCanon := make([]canonHit, 0, len(resp.GetHits()))
+	for _, h := range resp.GetHits() {
+		grpcCanon = append(grpcCanon, fromGRPC(h))
+	}
+	assertHitsEqual(t, "gRPC", grpcCanon, want)
+
+	// Spot-check: the breadcrumb is the ordered path, top-level heading first.
+	if got := want[0].Section; len(got) == 0 || got[0] != "Operations" {
+		t.Errorf("breadcrumb = %v, want first element \"Operations\"", got)
+	}
 }
 
 // TestCrossTransport_ReadAfterWrite_Idempotent verifies the US2 write contract:

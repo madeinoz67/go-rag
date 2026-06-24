@@ -241,15 +241,16 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 			filePath = d.FilePath
 		}
 		out = append(out, QueryHit{
-			ChunkID:    h.ChunkID,
-			DocumentID: c.DocumentID,
-			Score:      h.Score,
-			ChunkIndex: c.ChunkIndex, // H21/spec 023: citation ordinal
-			Content:    c.Content,
-			FilePath:   filePath,
-			Page:       c.PageNumber,
-			Preview:    preview(c.Content, 160),
-			Poisoning:  c.Poisoning, // H04/spec 019: verdict surfaced on every hit (FR-005)
+			ChunkID:        h.ChunkID,
+			DocumentID:     c.DocumentID,
+			Score:          h.Score,
+			ChunkIndex:     c.ChunkIndex, // H21/spec 023: citation ordinal
+			Content:        c.Content,
+			FilePath:       filePath,
+			Page:           c.PageNumber,
+			Preview:        preview(c.Content, 160),
+			Poisoning:      c.Poisoning,      // H04/spec 019: verdict surfaced on every hit (FR-005)
+			SectionContext: c.SectionContext, // H23/spec 025: breadcrumb surfaced on every hit (FR-004)
 		})
 	}
 	// H21/spec 023: normalize scores to [0,1] within the result set (top = 1.0).

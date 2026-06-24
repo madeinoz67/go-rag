@@ -56,14 +56,15 @@ func (a *Adapter) Query(ctx context.Context, req *goragpb.QueryRequest) (*goragp
 	hits := make([]*goragpb.QueryHit, len(res.Hits))
 	for i, h := range res.Hits {
 		hits[i] = &goragpb.QueryHit{
-			ChunkId:    h.ChunkID,
-			DocumentId: h.DocumentID,
-			Score:      h.Score,
-			Content:    h.Content,
-			FilePath:   h.FilePath,
-			Page:       int32(h.Page),
-			Poisoning:  toPoisoningPB(h.Poisoning), // H04/spec 019
-			ChunkIndex: int32(h.ChunkIndex),        // H21/spec 023
+			ChunkId:        h.ChunkID,
+			DocumentId:     h.DocumentID,
+			Score:          h.Score,
+			Content:        h.Content,
+			FilePath:       h.FilePath,
+			Page:           int32(h.Page),
+			Poisoning:      toPoisoningPB(h.Poisoning), // H04/spec 019
+			ChunkIndex:     int32(h.ChunkIndex),        // H21/spec 023
+			SectionContext: h.SectionContext,           // H23/spec 025 (FR-004)
 		}
 	}
 	return &goragpb.QueryResponse{Hits: hits, RerankFailed: res.RerankFailed,
@@ -95,16 +96,16 @@ func (a *Adapter) Status(_ context.Context, _ *goragpb.StatusRequest) (*goragpb.
 		return nil, toStatusErr(err)
 	}
 	return &goragpb.StatusResponse{
-		Documents:          int32(st.Documents),
-		Chunks:             int32(st.Chunks),
-		Embeddings:         int32(st.Embeddings),
-		Dimensions:         int32(st.Dimensions),
-		EmbeddingModel:     st.EmbeddingModel,
-		Reranker:           st.Reranker,
-		OllamaUrl:          st.OllamaURL,
-		EmbeddingsComplete: st.EmbeddingsComplete,
-		PoolSize:             int32(st.PoolSize),             // H22/spec 024
-		AdaptiveDepthEnabled: st.AdaptiveDepthEnabled,        // H22/spec 024
+		Documents:            int32(st.Documents),
+		Chunks:               int32(st.Chunks),
+		Embeddings:           int32(st.Embeddings),
+		Dimensions:           int32(st.Dimensions),
+		EmbeddingModel:       st.EmbeddingModel,
+		Reranker:             st.Reranker,
+		OllamaUrl:            st.OllamaURL,
+		EmbeddingsComplete:   st.EmbeddingsComplete,
+		PoolSize:             int32(st.PoolSize),                      // H22/spec 024
+		AdaptiveDepthEnabled: st.AdaptiveDepthEnabled,                 // H22/spec 024
 		PoolUtilization:      toPoolUtilizationPB(st.PoolUtilization), // H22/spec 024
 	}, nil
 }

@@ -10,8 +10,8 @@ type queryRequest struct {
 	Mode               string   `json:"mode"`
 	NoRerank           bool     `json:"no_rerank"`
 	Threshold          float64  `json:"threshold"`
-	RRFK               int      `json:"rrf_k,omitempty"`               // H08/spec 009
-	PoolSize           int      `json:"pool_size,omitempty"`           // H22/spec 024: candidate-pool override; 0 = config/default (60)
+	RRFK               int      `json:"rrf_k,omitempty"`     // H08/spec 009
+	PoolSize           int      `json:"pool_size,omitempty"` // H22/spec 024: candidate-pool override; 0 = config/default (60)
 	Source             string   `json:"source,omitempty"`
 	Type               string   `json:"type,omitempty"`
 	Tags               []string `json:"tags,omitempty"`
@@ -21,14 +21,15 @@ type queryRequest struct {
 }
 
 type queryHit struct {
-	ChunkID    string         `json:"chunk_id"`
-	DocumentID string         `json:"document_id"`
-	Score      float64        `json:"score"`
-	Content    string         `json:"content"`
-	FilePath   string         `json:"file_path"`
-	Page       int            `json:"page"`
-	ChunkIndex int            `json:"chunk_index"`         // H21/spec 023
-	Poisoning  *poisonVerdict `json:"poisoning,omitempty"` // H04/spec 019
+	ChunkID        string         `json:"chunk_id"`
+	DocumentID     string         `json:"document_id"`
+	Score          float64        `json:"score"`
+	Content        string         `json:"content"`
+	FilePath       string         `json:"file_path"`
+	Page           int            `json:"page"`
+	ChunkIndex     int            `json:"chunk_index"`               // H21/spec 023
+	Poisoning      *poisonVerdict `json:"poisoning,omitempty"`       // H04/spec 019
+	SectionContext []string       `json:"section_context,omitempty"` // H23/spec 025: heading breadcrumb (absent when nil)
 }
 
 // poisonVerdict is the REST projection of model.PoisonVerdict (H04/spec 019). Field
@@ -60,23 +61,23 @@ type poisonResponse struct {
 }
 
 type queryResponse struct {
-	Hits         []queryHit `json:"hits"`
-	RerankFailed bool       `json:"rerank_failed"`
-	EffectiveK    int    `json:"effective_k"`    // H22/spec 024
-	EffectivePool int    `json:"effective_pool"` // H22/spec 024
-	EffectiveMode string `json:"effective_mode"` // H22/spec 024
+	Hits          []queryHit `json:"hits"`
+	RerankFailed  bool       `json:"rerank_failed"`
+	EffectiveK    int        `json:"effective_k"`    // H22/spec 024
+	EffectivePool int        `json:"effective_pool"` // H22/spec 024
+	EffectiveMode string     `json:"effective_mode"` // H22/spec 024
 }
 
 // statusResponse mirrors engine.StatusInfo / proto StatusResponse (parity).
 type statusResponse struct {
-	Documents          int    `json:"documents"`
-	Chunks             int    `json:"chunks"`
-	Embeddings         int    `json:"embeddings"`
-	Dimensions         int    `json:"dimensions"`
-	EmbeddingModel     string `json:"embedding_model"`
-	Reranker           string `json:"reranker"`
-	OllamaURL          string `json:"ollama_url"`
-	EmbeddingsComplete bool   `json:"embeddings_complete"`
+	Documents            int                `json:"documents"`
+	Chunks               int                `json:"chunks"`
+	Embeddings           int                `json:"embeddings"`
+	Dimensions           int                `json:"dimensions"`
+	EmbeddingModel       string             `json:"embedding_model"`
+	Reranker             string             `json:"reranker"`
+	OllamaURL            string             `json:"ollama_url"`
+	EmbeddingsComplete   bool               `json:"embeddings_complete"`
 	PoolSize             int                `json:"pool_size"`              // H22/spec 024
 	AdaptiveDepthEnabled bool               `json:"adaptive_depth_enabled"` // H22/spec 024
 	PoolUtilization      poolUtilizationDTO `json:"pool_utilization"`       // H22/spec 024

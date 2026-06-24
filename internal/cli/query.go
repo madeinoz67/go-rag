@@ -14,12 +14,13 @@ import (
 )
 
 type queryResult struct {
-	Source     string            `json:"source"`
-	Page       int               `json:"page"`
-	ChunkIndex int               `json:"chunk_index"` // H21/spec 023
-	Score      float64           `json:"score"`
-	Chunk      string            `json:"chunk"`
-	Poisoning  *poisonVerdictDTO `json:"poisoning,omitempty"` // H04/spec 019
+	Source         string            `json:"source"`
+	Page           int               `json:"page"`
+	ChunkIndex     int               `json:"chunk_index"` // H21/spec 023
+	Score          float64           `json:"score"`
+	Chunk          string            `json:"chunk"`
+	Poisoning      *poisonVerdictDTO `json:"poisoning,omitempty"`       // H04/spec 019
+	SectionContext []string          `json:"section_context,omitempty"` // H23/spec 025: heading breadcrumb (absent when nil)
 }
 
 // poisonVerdictDTO is the CLI/JSON projection of a hit's poisoning verdict
@@ -94,12 +95,13 @@ func newQueryCmd() *cobra.Command {
 			results := make([]queryResult, 0, len(res.Hits))
 			for _, h := range res.Hits {
 				results = append(results, queryResult{
-					Source:     filepath.Base(h.FilePath),
-					Page:       h.Page,
-					ChunkIndex: h.ChunkIndex, // H21/spec 023
-					Score:      h.Score,
-					Chunk:      h.Content,
-					Poisoning:  toPoisonDTO(h),
+					Source:         filepath.Base(h.FilePath),
+					Page:           h.Page,
+					ChunkIndex:     h.ChunkIndex, // H21/spec 023
+					Score:          h.Score,
+					Chunk:          h.Content,
+					Poisoning:      toPoisonDTO(h),
+					SectionContext: h.SectionContext, // H23/spec 025 (FR-004)
 				})
 			}
 			return renderResults(results, res, format)
@@ -143,6 +145,9 @@ func renderResults(results []queryResult, res *engine.QueryResult, format string
 			page = fmt.Sprintf(" (page %d)", r.Page)
 		}
 		fmt.Printf("[%d] %s%s (score %.3f)\n", i+1, r.Source, page, r.Score)
+		if len(r.SectionContext) > 0 { // H23/spec 025: heading breadcrumb (FR-004)
+			fmt.Printf("    section: %s\n", strings.Join(r.SectionContext, " / "))
+		}
 		fmt.Printf("    %s\n", preview(r.Chunk, 200))
 		if r.Poisoning != nil && (r.Poisoning.Level == "suspicious" || r.Poisoning.Level == "quarantine") {
 			fmt.Printf("    ⚠ poisoning: %s (score %.2f) — retrieved text is untrusted\n", r.Poisoning.Level, r.Poisoning.Score)
