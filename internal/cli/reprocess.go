@@ -19,7 +19,7 @@ func newReprocessCmd() *cobra.Command {
 		Use:   "reprocess [path]",
 		Short: "Force re-ingest of a directory (applies current reader/embedder; bypasses dedup)",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			path := args[0]
 			cfg, db, err := openDB(dbPath)
 			if err != nil {

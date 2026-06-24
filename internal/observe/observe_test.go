@@ -93,7 +93,7 @@ func TestObserve_SpanEmitted(t *testing.T) {
 // endpoint). Mirrors H04's TestThreat_Import_URL_AirGap.
 func TestObserve_AirGap_OTLPOptIn(t *testing.T) {
 	var hits atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		hits.Add(1)
 	}))
 	defer srv.Close()

@@ -269,7 +269,7 @@ func readCorpus(zr *zip.Reader, name string, ds *Dataset, keep func(Doc) bool) e
 		if json.Unmarshal(line, &r) != nil || r.ID == "" {
 			return nil
 		}
-		d := Doc{ID: r.ID, Title: r.Title, Text: r.Text}
+		d := Doc(r)
 		if keep != nil && !keep(d) {
 			return nil
 		}

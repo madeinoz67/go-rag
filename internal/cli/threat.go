@@ -27,7 +27,7 @@ func newThreatImportCmd() *cobra.Command {
 		Use:   "import <path|url>",
 		Short: "Import an instruction-phrase source from a file or URL (URL fetch is the only network egress)",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
 				return err
@@ -48,7 +48,7 @@ func newThreatListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List managed instruction-phrase sources (the built-in list is always active)",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			format, _ := cmd.Flags().GetString("format")
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
@@ -81,7 +81,7 @@ func newThreatAddCmd() *cobra.Command {
 		Use:   "add <phrase>",
 		Short: "Add an instruction phrase to the manual (user) source (triggers a rescan)",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
 				return err
@@ -103,7 +103,7 @@ func newThreatRemoveCmd() *cobra.Command {
 		Use:   "remove <id>",
 		Short: "Remove a managed phrase source by id (triggers a rescan)",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
 				return err

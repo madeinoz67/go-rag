@@ -552,7 +552,7 @@ func (s *Server) guide() (string, error) {
 		b.WriteString("**No documents ingested.** Call `go_rag_add` with a directory path to index documents.\n\n")
 	}
 	if pct < 100 && st.Documents > 0 {
-		b.WriteString(fmt.Sprintf("**Embeddings incomplete (%d%%).** Background embedding may still be running, or errors occurred. Query results will be partial.\n\n", pct))
+		fmt.Fprintf(&b, "**Embeddings incomplete (%d%%).** Background embedding may still be running, or errors occurred. Query results will be partial.\n\n", pct)
 	}
 	if reranker == "disabled" {
 		b.WriteString("**Reranker disabled.** Set `rerank_model` via `go_rag_config` to enable cross-encoder reranking for better query precision.\n\n")

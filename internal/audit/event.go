@@ -71,8 +71,8 @@ func QueryEvent(query, mode string, k, hits int, err error) Event {
 }
 
 // IngestEvent builds an ingest audit event (counts only — no content).
-func IngestEvent(op, path string, new, skipped, errors int, err error) Event {
-	return Event{TS: time.Now().UTC(), Type: TypeIngest, Op: op, Path: path, New: new, Skipped: skipped, Errors: errors, Status: statusOf(err)}
+func IngestEvent(op, path string, added, skipped, errors int, err error) Event {
+	return Event{TS: time.Now().UTC(), Type: TypeIngest, Op: op, Path: path, New: added, Skipped: skipped, Errors: errors, Status: statusOf(err)}
 }
 
 // AuthFailEvent builds an auth-fail audit event. detail is a short reason (never the

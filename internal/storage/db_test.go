@@ -39,7 +39,7 @@ func TestPrefixScan(t *testing.T) {
 	db.SetWithPrefix(PrefixChunk, []byte("c"), []byte("3")) // different prefix — excluded
 
 	var seen []string
-	db.PrefixScanByte(PrefixDocument, func(k, v []byte) bool {
+	db.PrefixScanByte(PrefixDocument, func(k, _ []byte) bool {
 		seen = append(seen, string(k[1:])) // strip prefix byte
 		return true
 	})

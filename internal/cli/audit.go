@@ -22,7 +22,7 @@ func newAuditCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "audit",
 		Short: "Read the structured audit log (query/ingest/auth-fail events)",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
 				return err

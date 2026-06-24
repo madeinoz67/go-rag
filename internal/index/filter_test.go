@@ -1,6 +1,7 @@
 package index
 
 import (
+	"context"
 	"testing"
 )
 
@@ -67,7 +68,7 @@ func TestRetrieval_SetFilter_PreFusion(t *testing.T) {
 
 	// Without filter: both chunks appear.
 	r := NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
-	hits, err := r.Search(nil, "alpha", 5, ModeHybrid, nil)
+	hits, err := r.Search(context.TODO(), "alpha", 5, ModeHybrid, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +79,7 @@ func TestRetrieval_SetFilter_PreFusion(t *testing.T) {
 	// With filter: drop1 is excluded; keep1 remains.
 	r2 := NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
 	r2.SetFilter(func(chunkID string) bool { return chunkID != "drop1" })
-	hits2, err := r2.Search(nil, "alpha", 5, ModeHybrid, nil)
+	hits2, err := r2.Search(context.TODO(), "alpha", 5, ModeHybrid, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

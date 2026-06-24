@@ -37,7 +37,7 @@ func NewServer(eng *engine.Engine, token string) *grpcc.Server {
 // bearerInterceptor rejects requests lacking the expected bearer token. When
 // token is empty, auth is disabled (local development / trusted loopback).
 func bearerInterceptor(token string) grpcc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpcc.UnaryServerInfo, handler grpcc.UnaryHandler) (any, error) {
+	return func(ctx context.Context, req any, _ *grpcc.UnaryServerInfo, handler grpcc.UnaryHandler) (any, error) {
 		if token != "" && !hasBearer(ctx, token) {
 			audit.Log(audit.AuthFailEvent("grpc", "missing or invalid bearer token")) // H18 audit
 			return nil, status.Error(codes.Unauthenticated, "missing or invalid bearer token")

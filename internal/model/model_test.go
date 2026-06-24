@@ -28,7 +28,8 @@ func TestGenerateID_DistinctFromContentHash(t *testing.T) {
 	if id == ch {
 		t.Fatal("identity hash must differ from raw-bytes content hash")
 	}
-	if ContentHash(raw) != ContentHash(raw) {
+	c1, c2 := ContentHash(raw), ContentHash(raw)
+	if c1 != c2 {
 		t.Fatal("ContentHash must be deterministic")
 	}
 	if ContentHash([]byte("different")) == ch {

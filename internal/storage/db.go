@@ -21,7 +21,7 @@ type DB struct {
 // prints so real crashes are visible.
 type quietLogger struct{}
 
-func (quietLogger) Infof(format string, args ...interface{}) {} // suppress
+func (quietLogger) Infof(_ string, _ ...interface{}) {} // suppress
 func (quietLogger) Fatalf(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, "pebble: "+format+"\n", args...)
 }

@@ -31,7 +31,7 @@ func newPoisonRescanCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "rescan",
 		Short: "Re-score the whole corpus against the current detector (idempotent; no re-ingest)",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
 				return err
@@ -51,7 +51,7 @@ func newPoisonListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List chunks flagged as injection-poisoning (excluded from default results)",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			format, _ := cmd.Flags().GetString("format")
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
@@ -88,7 +88,7 @@ func newPoisonReleaseCmd() *cobra.Command {
 		Use:   "release <chunk_id>",
 		Short: "Release a flagged chunk (false-positive override) — makes it retrievable by default",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
 				return err
@@ -108,7 +108,7 @@ func newPoisonResetCmd() *cobra.Command {
 		Use:   "reset <chunk_id>",
 		Short: "Undo a release — re-quarantines the chunk if its score is flagged",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
 				return err

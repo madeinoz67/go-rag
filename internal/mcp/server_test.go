@@ -33,32 +33,6 @@ func (f *fakeEmbed) Embed(_ context.Context, texts []string) ([][]float32, error
 func (f *fakeEmbed) Dimensions() int { return 2 }
 func (f *fakeEmbed) Model() string   { return "fake" }
 
-// fakeOllama backs the MCP server's embedder during the query tool test.
-func fakeOllama(t *testing.T) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := readBody(r)
-		var req struct {
-			Input []string `json:"input"`
-		}
-		_ = json.Unmarshal(body, &req)
-		out := struct {
-			Embeddings [][]float32 `json:"embeddings"`
-		}{}
-		for range req.Input {
-			out.Embeddings = append(out.Embeddings, []float32{1.0, 0.0})
-		}
-		_ = json.NewEncoder(w).Encode(out)
-	}))
-}
-
-func readBody(r *http.Request) ([]byte, error) {
-	defer r.Body.Close()
-	buf := new(bytes.Buffer)
-	_, err := buf.ReadFrom(r.Body)
-	return buf.Bytes(), err
-}
-
 // populateDB creates a database + config and ingests one document via the pipeline.
 func populateDB(t *testing.T, dbPath, ollamaURL, doc string) {
 	t.Helper()
@@ -121,7 +95,7 @@ func TestMCP_ToolsList(t *testing.T) {
 }
 
 func TestMCP_QueryReturnsResult(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"embeddings": [][]float32{{1.0, 0.0}}})
 	}))
 	defer srv.Close()
