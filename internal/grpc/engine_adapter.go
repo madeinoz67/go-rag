@@ -49,6 +49,7 @@ func (a *Adapter) Query(ctx context.Context, req *goragpb.QueryRequest) (*goragp
 		ContextWindow:      int(req.GetContextWindow()),
 		NoCache:            req.GetNoCache(),
 		IncludeQuarantined: req.GetIncludeQuarantined(),
+		Dedup:              req.GetDedup(),
 	})
 	if err != nil {
 		return nil, toStatusErr(err)
@@ -65,6 +66,7 @@ func (a *Adapter) Query(ctx context.Context, req *goragpb.QueryRequest) (*goragp
 			Poisoning:      toPoisoningPB(h.Poisoning), // H04/spec 019
 			ChunkIndex:     int32(h.ChunkIndex),        // H21/spec 023
 			SectionContext: h.SectionContext,           // H23/spec 025 (FR-004)
+			NearDup:        toNearDupPB(h.NearDup),     // H20/spec 026 (FR-004)
 		}
 	}
 	return &goragpb.QueryResponse{Hits: hits, RerankFailed: res.RerankFailed,
@@ -73,6 +75,16 @@ func (a *Adapter) Query(ctx context.Context, req *goragpb.QueryRequest) (*goragp
 
 // toPoisoningPB maps the engine verdict to the proto projection (H04/spec 019).
 // nil verdict → nil (clean/unscored), so clean corpora serialize identically to pre-019.
+func toNearDupPB(nd *model.NearDupInfo) *goragpb.NearDup {
+	if nd == nil {
+		return nil
+	}
+	return &goragpb.NearDup{
+		Siblings:   nd.Siblings,
+		Similarity: nd.Similarity,
+	}
+}
+
 func toPoisoningPB(v *model.PoisonVerdict) *goragpb.Poisoning {
 	if v == nil {
 		return nil

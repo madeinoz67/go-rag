@@ -73,6 +73,7 @@ message QueryRequest {
   bool no_cache = 11;            // H06/spec 016: bypass the query result cache for this query (forces a fresh result)
   bool include_quarantined = 12; // H04/spec 019: return chunks flagged as injection-poisoning (excluded by default)
   int32 pool_size = 13;          // H22/spec 024: reranker candidate-pool override; 0 = config/default (60); shrinks with classifier-recommended k
+  bool dedup = 14;               // H20/spec 026: collapse near-duplicate hits (default false)
 }
 message QueryHit {
   string chunk_id = 1;
@@ -84,6 +85,15 @@ message QueryHit {
   Poisoning poisoning = 7;      // H04/spec 019: per-chunk injection verdict (nil = clean/unscored)
   int32 chunk_index = 8;        // H21/spec 023: 0-based ordinal within the source document
   repeated string section_context = 9; // H23/spec 025: heading breadcrumb at the chunk's start (empty = none)
+  NearDup near_dup = 10; // H20/spec 026: near-duplicate context (nil = none/pre-feature)
+}
+
+// NearDup is the per-chunk near-duplicate context (H20/spec 026). Mirrors
+// model.NearDupInfo 1:1. Siblings are chunkIDs within the configured Hamming
+// threshold; similarity is the closest sibling in [0,1].
+message NearDup {
+  repeated string siblings = 1;
+  double similarity = 2;
 }
 
 // Poisoning is the per-chunk injection-poisoning verdict (H04/spec 019). The

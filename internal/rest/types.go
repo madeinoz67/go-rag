@@ -18,6 +18,7 @@ type queryRequest struct {
 	ContextWindow      int      `json:"context_window,omitempty"`
 	NoCache            bool     `json:"no_cache,omitempty"`            // H06/spec 016: bypass the result cache for this query
 	IncludeQuarantined bool     `json:"include_quarantined,omitempty"` // H04/spec 019: return poisoning-flagged chunks
+	Dedup              bool     `json:"dedup,omitempty"`               // H20/spec 026: collapse near-dup hits
 }
 
 type queryHit struct {
@@ -30,6 +31,13 @@ type queryHit struct {
 	ChunkIndex     int            `json:"chunk_index"`               // H21/spec 023
 	Poisoning      *poisonVerdict `json:"poisoning,omitempty"`       // H04/spec 019
 	SectionContext []string       `json:"section_context,omitempty"` // H23/spec 025: heading breadcrumb (absent when nil)
+	NearDup        *nearDupInfo   `json:"near_dup,omitempty"`        // H20/spec 026: near-dup context (absent when nil)
+}
+
+// nearDupInfo is the REST projection of model.NearDupInfo (H20/spec 026).
+type nearDupInfo struct {
+	Siblings   []string `json:"siblings,omitempty"`
+	Similarity float64  `json:"similarity,omitempty"`
 }
 
 // poisonVerdict is the REST projection of model.PoisonVerdict (H04/spec 019). Field

@@ -26,6 +26,7 @@ func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
 		ContextWindow:      req.ContextWindow,
 		NoCache:            req.NoCache,
 		IncludeQuarantined: req.IncludeQuarantined,
+		Dedup:              req.Dedup,
 	})
 	if err != nil {
 		writeEngineErr(w, err)
@@ -53,6 +54,10 @@ func toQueryHits(hits []engine.QueryHit) []queryHit {
 				},
 			}
 		}
+		var nd *nearDupInfo
+		if h.NearDup != nil {
+			nd = &nearDupInfo{Siblings: h.NearDup.Siblings, Similarity: h.NearDup.Similarity}
+		}
 		out[i] = queryHit{
 			ChunkID:        h.ChunkID,
 			DocumentID:     h.DocumentID,
@@ -63,6 +68,7 @@ func toQueryHits(hits []engine.QueryHit) []queryHit {
 			ChunkIndex:     h.ChunkIndex, // H21/spec 023
 			Poisoning:      pv,
 			SectionContext: h.SectionContext, // H23/spec 025 (FR-004)
+			NearDup:        nd,               // H20/spec 026 (FR-004)
 		}
 	}
 	return out

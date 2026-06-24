@@ -251,6 +251,7 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 			Preview:        preview(c.Content, 160),
 			Poisoning:      c.Poisoning,      // H04/spec 019: verdict surfaced on every hit (FR-005)
 			SectionContext: c.SectionContext, // H23/spec 025: breadcrumb surfaced on every hit (FR-004)
+			NearDup:        c.NearDup,        // H20/spec 026: near-dup context surfaced on every hit (FR-004)
 		})
 	}
 	// H21/spec 023: normalize scores to [0,1] within the result set (top = 1.0).
@@ -275,6 +276,27 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 		}
 		out = filtered
 	}
+	// H20/spec 026 (R7): opt-in near-duplicate collapse — drop a hit if a
+	// higher-ranked kept hit is its near-dup sibling (bidirectional: either
+	// lists the other in NearDup.Siblings — handles asymmetric sidecars from
+	// per-job clustering). Purely subtractive; scores/ranking untouched (FR-007).
+	if req.Dedup {
+		kept := out[:0]
+		for _, h := range out {
+			drop := false
+			for _, k := range kept {
+				if listsSibling(h.NearDup, k.ChunkID) || listsSibling(k.NearDup, h.ChunkID) {
+					drop = true
+					break
+				}
+			}
+			if !drop {
+				kept = append(kept, h)
+			}
+		}
+		out = kept
+	}
+
 	// US3 graceful degradation: a mixed corpus (mid-migration) queried by the
 	// majority model is scored against the matching vectors only — the minority
 	// is skipped by Vector.Query's length guard. Log it so the operator sees that

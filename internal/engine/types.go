@@ -28,6 +28,9 @@ type QueryRequest struct {
 	// default, Q1=A). When true they are returned, each carrying its verdict so a
 	// downstream LLM consumer can treat the text as untrusted (FR-005).
 	IncludeQuarantined bool
+	// Dedup (H20/spec 026): when true, collapse near-duplicate hits to one
+	// representative per group (highest-scored). Default false (flag-only).
+	Dedup bool
 }
 
 // NewFilter constructs a metadata Filter for a query (H14/spec 014). Returns nil
@@ -72,6 +75,11 @@ type QueryHit struct {
 	// (heading-less source, or a chunk ingested before H23/spec 025). Surfaced
 	// 1:1 by every transport (FR-004).
 	SectionContext []string
+	// NearDup is this hit's near-duplicate context (audit H20 / spec 026):
+	// sibling chunkIDs (pairwise) and closest similarity. nil/absent for chunks
+	// with no near-dups or pre-feature. Surfaced 1:1 by every transport (FR-004);
+	// consumed by opt-in collapse (FR-005).
+	NearDup *model.NearDupInfo
 }
 
 // QueryResult wraps the ranked hits returned by Engine.Query.

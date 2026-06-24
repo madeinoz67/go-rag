@@ -21,6 +21,7 @@ type queryResult struct {
 	Chunk          string            `json:"chunk"`
 	Poisoning      *poisonVerdictDTO `json:"poisoning,omitempty"`       // H04/spec 019
 	SectionContext []string          `json:"section_context,omitempty"` // H23/spec 025: heading breadcrumb (absent when nil)
+	NearDup        *nearDupDTO       `json:"near_dup,omitempty"`        // H20/spec 026: near-dup context (absent when nil)
 }
 
 // poisonVerdictDTO is the CLI/JSON projection of a hit's poisoning verdict
@@ -29,6 +30,12 @@ type poisonVerdictDTO struct {
 	Level          string   `json:"level"`
 	Score          float64  `json:"score"`
 	MatchedPhrases []string `json:"matched_phrases,omitempty"`
+}
+
+// nearDupDTO is the CLI/JSON projection of a hit's near-dup context (H20/spec 026).
+type nearDupDTO struct {
+	Siblings   []string `json:"siblings,omitempty"`
+	Similarity float64  `json:"similarity,omitempty"`
 }
 
 func newQueryCmd() *cobra.Command {
@@ -71,6 +78,7 @@ func newQueryCmd() *cobra.Command {
 			cw, _ := cmd.Flags().GetInt("context-window")
 			noCache, _ := cmd.Flags().GetBool("no-cache")
 			includeQuar, _ := cmd.Flags().GetBool("include-quarantined") // H04/spec 019
+			dedup, _ := cmd.Flags().GetBool("dedup")                     // H20/spec 026
 
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
@@ -83,7 +91,7 @@ func newQueryCmd() *cobra.Command {
 			// which refuses a query whose model/dim doesn't match the corpus.
 			eng := engine.NewWithDB(cfg, db)
 			res, err := eng.Query(context.Background(), engine.QueryRequest{
-				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK, PoolSize: poolSize, Filter: filt, ContextWindow: cw, NoCache: noCache, IncludeQuarantined: includeQuar,
+				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK, PoolSize: poolSize, Filter: filt, ContextWindow: cw, NoCache: noCache, IncludeQuarantined: includeQuar, Dedup: dedup,
 			})
 			if err != nil {
 				return err
@@ -102,6 +110,12 @@ func newQueryCmd() *cobra.Command {
 					Chunk:          h.Content,
 					Poisoning:      toPoisonDTO(h),
 					SectionContext: h.SectionContext, // H23/spec 025 (FR-004)
+					NearDup: func() *nearDupDTO {
+						if h.NearDup == nil {
+							return nil
+						}
+						return &nearDupDTO{Siblings: h.NearDup.Siblings, Similarity: h.NearDup.Similarity}
+					}(),
 				})
 			}
 			return renderResults(results, res, format)
@@ -120,6 +134,7 @@ func newQueryCmd() *cobra.Command {
 	cmd.Flags().Int("context-window", 0, "include N sibling chunks of context around each hit (0 = off)")
 	cmd.Flags().Bool("no-cache", false, "bypass the query result cache for this query (forces a fresh result)")
 	cmd.Flags().Bool("include-quarantined", false, "include chunks flagged as injection-poisoning (excluded by default)")
+	cmd.Flags().Bool("dedup", false, "collapse near-duplicate hits to one per group (H20/spec 026)")
 	return cmd
 }
 

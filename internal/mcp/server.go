@@ -288,7 +288,11 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 		if len(h.SectionContext) > 0 { // H23/spec 025: heading breadcrumb (FR-004)
 			section = "[" + strings.Join(h.SectionContext, " / ") + "] "
 		}
-		fmt.Fprintf(&b, "- (score %.3f) %s%s%s\n", h.Score, section, h.Preview, mark)
+		nearDup := ""
+		if h.NearDup != nil && len(h.NearDup.Siblings) > 0 { // H20/spec 026: near-dup count
+			nearDup = fmt.Sprintf(" ≈%d near-dup", len(h.NearDup.Siblings))
+		}
+		fmt.Fprintf(&b, "- (score %.3f) %s%s%s%s\n", h.Score, section, h.Preview, nearDup, mark)
 	}
 	fmt.Fprintf(&b, "\n(effective: k=%d, pool=%d, mode=%s)\n", res.EffectiveK, res.EffectivePool, res.EffectiveMode) // H22/spec 024
 	return strings.TrimSpace(b.String()), nil
