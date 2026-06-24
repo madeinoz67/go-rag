@@ -26,14 +26,13 @@ make lint         # golangci-lint run
 make tidy         # go mod tidy
 ```
 
-Keep `go build ./...`, `go vet ./...`, and `go test ./...` green at all times.
 
 ## Architecture map (directory → PRD section)
 
 | Directory | Responsibility | PRD |
 |-----------|---------------|-----|
 | `cmd/go-rag` | binary entrypoint | §1, §5 |
-| `internal/cli` | cobra commands (6) | §5 |
+| `internal/cli` | cobra commands | §5 |
 | `internal/model` | Source/Document/Chunk/Embedding | §6.2–6.5 |
 | `internal/reader` | `FileReader` interface + registry | §8 |
 | `internal/embed` | `Embedder` interface (Ollama) | §4 |
