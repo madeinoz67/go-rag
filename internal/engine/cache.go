@@ -173,9 +173,9 @@ type cacheKey struct {
 	// queries differing only in pool collide. Folding EFFECTIVE (not requested) k
 	// means an explicit-k and a classifier-recommended-k that resolve equal share
 	// a key (same results) while different effective depths diverge.
-	EffK   int
+	EffK    int
 	EffPool int
-	Epoch  uint64
+	Epoch   uint64
 }
 
 // hash returns the FNV-1a digest of the key as a hex string. Deterministic for a
@@ -207,7 +207,7 @@ func (k cacheKey) hash() string {
 	write(strconv.FormatBool(k.IncludeQuarantined)) // H04/spec 019: different quarantine policy → different key
 	write(strconv.FormatBool(k.RerankEnabled))
 	write(k.RerankModel)
-	write(strconv.Itoa(k.EffK))   // H22/spec 024: effective depth (explicit|recommended|default)
+	write(strconv.Itoa(k.EffK))    // H22/spec 024: effective depth (explicit|recommended|default)
 	write(strconv.Itoa(k.EffPool)) // H22/spec 024: effective candidate pool (per-query|classifier|config)
 	write(strconv.FormatUint(k.Epoch, 10))
 	return strconv.FormatUint(h.Sum64(), 16)

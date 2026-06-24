@@ -39,9 +39,9 @@ func (r *PDFReader) Read(_ context.Context, data []byte, _ string) (string, map[
 }
 
 var (
-	reShow   = regexp.MustCompile(`\(([^)]*)\)\s*Tj`)
+	reShow    = regexp.MustCompile(`\(([^)]*)\)\s*Tj`)
 	reShowArr = regexp.MustCompile(`\[(.*?)\]\s*TJ`)
-	reStr    = regexp.MustCompile(`\(([^)]*)\)`)
+	reStr     = regexp.MustCompile(`\(([^)]*)\)`)
 )
 
 // extractShowText pulls literal strings out of Tj and TJ show operators.

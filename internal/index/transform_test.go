@@ -10,15 +10,15 @@ import (
 func TestNormalizeQuery(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"Some Term", "some term"},
-		{"  some   term ", "some term"},          // leading/trailing/internal whitespace
-		{"SOME TERM", "some term"},                // case-fold
-		{"already clean", "already clean"},        // no-op on clean input
+		{"  some   term ", "some term"},                                // leading/trailing/internal whitespace
+		{"SOME TERM", "some term"},                                     // case-fold
+		{"already clean", "already clean"},                             // no-op on clean input
 		{"multiple\t\tspaces\n\nnewlines", "multiple spaces newlines"}, // tab/newline collapse
-		{"Café Naïve", "café naïve"},              // accented letters lowercased, preserved
-		{"数据 检索", "数据 检索"},                   // CJK preserved, single space kept
-		{"数据  检索", "数据 检索"},                  // CJK double-space collapsed
-		{"", ""},                                  // empty
-		{"   ", ""},                               // whitespace-only → empty (FR-006)
+		{"Café Naïve", "café naïve"},                                   // accented letters lowercased, preserved
+		{"数据 检索", "数据 检索"},                                             // CJK preserved, single space kept
+		{"数据  检索", "数据 检索"},                                            // CJK double-space collapsed
+		{"", ""},                                                       // empty
+		{"   ", ""},                                                    // whitespace-only → empty (FR-006)
 	}
 	for _, c := range cases {
 		if got := normalizeQuery(c.in); got != c.want {

@@ -16,7 +16,9 @@ type DocxReader struct{}
 
 func (r *DocxReader) Name() string                  { return "Word" }
 func (r *DocxReader) SupportedExtensions() []string { return []string{".docx"} }
-func (r *DocxReader) SupportedMimeTypes() []string  { return []string{"application/vnd.openxmlformats-officedocument.wordprocessingml.document"} }
+func (r *DocxReader) SupportedMimeTypes() []string {
+	return []string{"application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+}
 
 func (r *DocxReader) Read(_ context.Context, data []byte, _ string) (string, map[string]any, error) {
 	zr, err := zipReader(data)

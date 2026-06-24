@@ -60,7 +60,6 @@ func TestRetrieval_SetPoolSize_DrivesFetchSize(t *testing.T) {
 	}
 }
 
-
 func TestRetrieval_Hybrid_BothListsRankAboveOneList(t *testing.T) {
 	fts := newTestFTS(t)
 	vec := NewVector()

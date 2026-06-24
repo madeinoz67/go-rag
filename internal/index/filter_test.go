@@ -8,12 +8,12 @@ import (
 // source glob/prefix, type exact, tag conjunction, empty dimensions.
 func TestFilter_Matches(t *testing.T) {
 	cases := []struct {
-		name     string
-		f        Filter
-		path     string
-		ftype    string
-		tags     []string
-		want     bool
+		name  string
+		f     Filter
+		path  string
+		ftype string
+		tags  []string
+		want  bool
 	}{
 		{"empty filter = match", Filter{}, "any/path.md", "markdown", nil, true},
 		{"source prefix match", Filter{Source: "docs/"}, "docs/notes.md", "markdown", nil, true},

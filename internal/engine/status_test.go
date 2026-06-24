@@ -37,7 +37,6 @@ func TestEngine_Status_AdaptiveKnobs_ReflectConfig(t *testing.T) {
 	}
 }
 
-
 // pool-utilization signal is tracked across non-cached queries and surfaced in
 // Status: Queries counts observed queries, AvgFetched is the mean effective pool,
 // AvgKept the mean results returned, and Saturated counts queries that could not

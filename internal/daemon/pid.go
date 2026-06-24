@@ -34,10 +34,10 @@ const (
 	tokenFileName = "mcp.token"
 )
 
-func PIDPath(dbPath string) string    { return filepath.Join(dbPath, pidFileName) }
-func AddrsPath(dbPath string) string  { return filepath.Join(dbPath, addrsFileName) }
-func LogPath(dbPath string) string    { return filepath.Join(dbPath, logFileName) }
-func TokenPath(dbPath string) string  { return filepath.Join(dbPath, tokenFileName) }
+func PIDPath(dbPath string) string   { return filepath.Join(dbPath, pidFileName) }
+func AddrsPath(dbPath string) string { return filepath.Join(dbPath, addrsFileName) }
+func LogPath(dbPath string) string   { return filepath.Join(dbPath, logFileName) }
+func TokenPath(dbPath string) string { return filepath.Join(dbPath, tokenFileName) }
 
 // WritePID records pid to the daemon.pid file.
 func WritePID(dbPath string, pid int) error {

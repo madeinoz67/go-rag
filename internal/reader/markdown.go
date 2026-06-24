@@ -159,14 +159,6 @@ func extractFrontmatter(src string) (map[string]any, string, bool) {
 	return fm, rest, true
 }
 
-// stripMarkdown removes common markdown markers, leaving plain readable text.
-// Preserved as a thin wrapper over the unified scan so any legacy caller still
-// gets byte-identical output.
-func stripMarkdown(s string) string {
-	out, _ := stripMarkdownSpans(s)
-	return out
-}
-
 // stripInlineEmphasis removes inline markdown emphasis/code markers from a line
 // fragment. Order matters: `**`/`__` before the single-char forms, and `_`
 // becomes a space (matching the legacy stripMarkdown behaviour exactly).

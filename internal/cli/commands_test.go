@@ -98,7 +98,7 @@ func TestCLI_InitAddQuery(t *testing.T) {
 		}
 	})
 	var resp struct {
-		Hits         []queryResult `json:"hits"`
+		Hits          []queryResult `json:"hits"`
 		EffectiveK    int           `json:"effective_k"`    // H22/spec 024
 		EffectivePool int           `json:"effective_pool"` // H22/spec 024
 		EffectiveMode string        `json:"effective_mode"` // H22/spec 024

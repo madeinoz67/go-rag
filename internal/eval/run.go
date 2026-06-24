@@ -41,9 +41,9 @@ type PerQueryResult struct {
 
 // EvaluationRun is the result of one pass over the golden dataset.
 type EvaluationRun struct {
-	Mode           string           `json:"mode"`           // offline | ollama
-	Embedder       string           `json:"embedder"`       // model/embedder name
-	RetrievalMode  string           `json:"retrieval_mode"` // hybrid | semantic | keyword
+	Mode           string           `json:"mode"`              // offline | ollama
+	Embedder       string           `json:"embedder"`          // model/embedder name
+	RetrievalMode  string           `json:"retrieval_mode"`    // hybrid | semantic | keyword
 	Dataset        string           `json:"dataset,omitempty"` // benchmark dataset name (BEIR), empty for the golden fixture
 	K              int              `json:"k"`
 	QueriesRun     int              `json:"queries_run"`

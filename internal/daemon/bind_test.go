@@ -25,7 +25,7 @@ func TestIsLoopbackBind(t *testing.T) {
 		{"localhost:7878", true},
 		{"LOCALHOST:7878", true},
 		// all-interfaces wildcards → external
-		{":7878", false},       // bare port (empty host)
+		{":7878", false}, // bare port (empty host)
 		{"0.0.0.0:7878", false},
 		{"[::]:7878", false},
 		// LAN / public IPs → external

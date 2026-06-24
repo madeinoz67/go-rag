@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/reader"
 	"github.com/madeinoz67/go-rag/internal/storage"
-	"github.com/fsnotify/fsnotify"
 )
 
 // Change is one detected filesystem change (Kind: NEW/MODIFIED/SKIPPED/DELETED).

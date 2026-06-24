@@ -88,9 +88,9 @@ func Default() Config {
 		PollIntervalSec:              60,
 		MCPAddr:                      "127.0.0.1:7878", // loopback by default (spec 007, audit H13); never all-interfaces
 		RerankCandidates:             20,
-		RRFK:                         60,             // H08/spec 009: standard single-k RRF default (retrieval book §6.6)
+		RRFK:                         60,              // H08/spec 009: standard single-k RRF default (retrieval book §6.6)
 		PoolSize:                     DefaultPoolSize, // H22/spec 024: today's hardcoded candidate pool (60) as the configured ceiling
-		QueryCacheEnabled:            true,           // H06/spec 016: caching on by default (transparent; escape hatches exist)
+		QueryCacheEnabled:            true,            // H06/spec 016: caching on by default (transparent; escape hatches exist)
 		QueryCacheResults:            DefaultQueryCacheResults,
 		QueryCacheEmbeddings:         DefaultQueryCacheEmbeddings,
 		PoisoningEnabled:             true, // Q2=A: detection default-on (closes the P0 blind spot out of the box)

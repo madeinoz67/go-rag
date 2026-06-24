@@ -28,9 +28,9 @@ type Segment struct {
 
 // Splitter splits text into overlapping token-bounded segments.
 type Splitter struct {
-	Size       int // target chunk size in tokens
-	Overlap    int // overlap between adjacent chunks in tokens
-	MinTokens  int // minimum chunk size (tiny tails merge into the previous chunk)
+	Size      int // target chunk size in tokens
+	Overlap   int // overlap between adjacent chunks in tokens
+	MinTokens int // minimum chunk size (tiny tails merge into the previous chunk)
 }
 
 // NewSplitter returns a splitter with the given size and overlap, defaulting to the
