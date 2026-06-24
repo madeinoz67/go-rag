@@ -38,6 +38,9 @@ func newQueryCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			q := strings.Join(args, " ")
 			k, _ := cmd.Flags().GetInt("k")
+			if !cmd.Flags().Changed("k") {
+				k = 0 // H22/spec 024: "no explicit k" sentinel → engine resolves (default 5, or classifier-recommended when adaptive depth is on)
+			}
 			modeStr, _ := cmd.Flags().GetString("mode")
 			format, _ := cmd.Flags().GetString("format")
 			threshold, _ := cmd.Flags().GetFloat64("threshold")

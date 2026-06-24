@@ -222,7 +222,7 @@ func (s *Server) renderEval(_ *engine.Engine, args map[string]any) (string, erro
 }
 
 func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, error) {
-	req := engine.QueryRequest{Mode: "hybrid", K: 5}
+	req := engine.QueryRequest{Mode: "hybrid"} // H22/spec 024: K omitted → engine resolves (default 5, or classifier-recommended when adaptive depth is on)
 	req.Query, _ = args["query"].(string)
 	if v, ok := args["k"].(float64); ok {
 		req.K = int(v)
