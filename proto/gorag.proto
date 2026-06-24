@@ -130,6 +130,9 @@ message RescanPoisoningResponse {
 message QueryResponse {
   repeated QueryHit hits = 1;
   bool rerank_failed = 2;          // H09: true iff reranking was attempted and failed; hits are then fallback-ordered
+  int32 effective_k = 3;           // H22/spec 024: depth actually used (explicit|recommended|default)
+  int32 effective_pool = 4;        // H22/spec 024: candidate pool actually used (per-query|classifier|config)
+  string effective_mode = 5;       // H22/spec 024: mode used (echo; mode is never auto-changed)
 }
 
 // ---- Status ----
@@ -144,6 +147,18 @@ message StatusResponse {
   string reranker = 6;          // "disabled" if unset
   string ollama_url = 7;
   bool embeddings_complete = 8;
+  int32 pool_size = 9;          // H22/spec 024: configured candidate-pool ceiling
+  bool adaptive_depth_enabled = 10; // H22/spec 024: rule-based k-classifier posture
+  PoolUtilization pool_utilization = 11; // H22/spec 024: aggregate pool-utilization signal
+}
+
+// PoolUtilization (H22/spec 024) — aggregate candidate-pool consumption over the
+// process lifetime, surfaced in Status (NOT per-query). Mirrors engine.PoolUtilization.
+message PoolUtilization {
+  uint64 queries = 1;       // observed (non-cached) queries since start
+  double avg_fetched = 2;   // mean effective pool fetched
+  double avg_kept = 3;      // mean results returned (avg_fetched/avg_kept = expansion)
+  uint64 saturated = 4;     // queries that couldn't fill the requested depth
 }
 
 // ---- Ingest family ----

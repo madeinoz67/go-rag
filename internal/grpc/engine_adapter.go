@@ -66,7 +66,8 @@ func (a *Adapter) Query(ctx context.Context, req *goragpb.QueryRequest) (*goragp
 			ChunkIndex: int32(h.ChunkIndex),        // H21/spec 023
 		}
 	}
-	return &goragpb.QueryResponse{Hits: hits, RerankFailed: res.RerankFailed}, nil
+	return &goragpb.QueryResponse{Hits: hits, RerankFailed: res.RerankFailed,
+		EffectiveK: int32(res.EffectiveK), EffectivePool: int32(res.EffectivePool), EffectiveMode: res.EffectiveMode}, nil // H22/spec 024
 }
 
 // toPoisoningPB maps the engine verdict to the proto projection (H04/spec 019).
@@ -102,7 +103,20 @@ func (a *Adapter) Status(_ context.Context, _ *goragpb.StatusRequest) (*goragpb.
 		Reranker:           st.Reranker,
 		OllamaUrl:          st.OllamaURL,
 		EmbeddingsComplete: st.EmbeddingsComplete,
+		PoolSize:             int32(st.PoolSize),             // H22/spec 024
+		AdaptiveDepthEnabled: st.AdaptiveDepthEnabled,        // H22/spec 024
+		PoolUtilization:      toPoolUtilizationPB(st.PoolUtilization), // H22/spec 024
 	}, nil
+}
+
+// toPoolUtilizationPB maps the engine aggregate to the proto projection (H22/spec 024).
+func toPoolUtilizationPB(u engine.PoolUtilization) *goragpb.PoolUtilization {
+	return &goragpb.PoolUtilization{
+		Queries:    u.Queries,
+		AvgFetched: u.AvgFetched,
+		AvgKept:    u.AvgKept,
+		Saturated:  u.Saturated,
+	}
 }
 
 // Add is the gRPC projection of engine.Add. It ACKs fast (async-after-ACK);

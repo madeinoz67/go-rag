@@ -2,9 +2,42 @@ package engine
 
 import (
 	"testing"
+
+	"github.com/madeinoz67/go-rag/internal/config"
 )
 
-// TestEngine_Status_PoolUtilization (H22/spec 024, US1/US3) proves the aggregate
+// TestEngine_Status_AdaptiveKnobs_ReflectConfig (H22/spec 024, US3) proves the
+// status surface echoes the configured pool ceiling and classifier posture, so
+// an operator can read them (SC-004): AdaptiveDepthEnabled tracks the config,
+// and PoolSize tracks the effective ceiling.
+func TestEngine_Status_AdaptiveKnobs_ReflectConfig(t *testing.T) {
+	eng, _ := newTestEngineCfg(t, func(c *config.Config) {
+		c.AdaptiveDepthEnabled = true
+		c.PoolSize = 90
+	})
+	st, err := eng.Status()
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if !st.AdaptiveDepthEnabled {
+		t.Errorf("AdaptiveDepthEnabled=false want true")
+	}
+	if st.PoolSize != 90 {
+		t.Errorf("PoolSize=%d want 90", st.PoolSize)
+	}
+
+	// Default posture: classifier off, pool 60.
+	eng2, _ := newTestEngineCfg(t, nil)
+	st2, _ := eng2.Status()
+	if st2.AdaptiveDepthEnabled {
+		t.Errorf("default AdaptiveDepthEnabled=true want false")
+	}
+	if st2.PoolSize != 60 {
+		t.Errorf("default PoolSize=%d want 60", st2.PoolSize)
+	}
+}
+
+
 // pool-utilization signal is tracked across non-cached queries and surfaced in
 // Status: Queries counts observed queries, AvgFetched is the mean effective pool,
 // AvgKept the mean results returned, and Saturated counts queries that could not

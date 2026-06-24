@@ -62,6 +62,9 @@ type poisonResponse struct {
 type queryResponse struct {
 	Hits         []queryHit `json:"hits"`
 	RerankFailed bool       `json:"rerank_failed"`
+	EffectiveK    int    `json:"effective_k"`    // H22/spec 024
+	EffectivePool int    `json:"effective_pool"` // H22/spec 024
+	EffectiveMode string `json:"effective_mode"` // H22/spec 024
 }
 
 // statusResponse mirrors engine.StatusInfo / proto StatusResponse (parity).
@@ -74,6 +77,17 @@ type statusResponse struct {
 	Reranker           string `json:"reranker"`
 	OllamaURL          string `json:"ollama_url"`
 	EmbeddingsComplete bool   `json:"embeddings_complete"`
+	PoolSize             int                `json:"pool_size"`              // H22/spec 024
+	AdaptiveDepthEnabled bool               `json:"adaptive_depth_enabled"` // H22/spec 024
+	PoolUtilization      poolUtilizationDTO `json:"pool_utilization"`       // H22/spec 024
+}
+
+// poolUtilizationDTO mirrors engine.PoolUtilization / proto PoolUtilization (parity).
+type poolUtilizationDTO struct {
+	Queries    uint64  `json:"queries"`
+	AvgFetched float64 `json:"avg_fetched"`
+	AvgKept    float64 `json:"avg_kept"`
+	Saturated  uint64  `json:"saturated"`
 }
 
 // ingestSummary mirrors engine.IngestSummary / proto IngestSummary (parity).

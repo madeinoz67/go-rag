@@ -99,7 +99,7 @@ func newQueryCmd() *cobra.Command {
 					Poisoning:  toPoisonDTO(h),
 				})
 			}
-			return renderResults(results, format)
+			return renderResults(results, res, format)
 		},
 	}
 	cmd.Flags().Int("k", 5, "number of results")
@@ -118,13 +118,21 @@ func newQueryCmd() *cobra.Command {
 	return cmd
 }
 
-func renderResults(results []queryResult, format string) error {
+func renderResults(results []queryResult, res *engine.QueryResult, format string) error {
 	if len(results) == 0 {
 		fmt.Println("No results.")
 		return nil
 	}
 	if format == "json" {
-		return json.NewEncoder(os.Stdout).Encode(results)
+		// H22/spec 024: wrapper object (parity with REST/gRPC) carrying the
+		// effective depth/pool/mode + rerank_failed alongside the hits.
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"hits":           results,
+			"rerank_failed":  res.RerankFailed,
+			"effective_k":    res.EffectiveK,
+			"effective_pool": res.EffectivePool,
+			"effective_mode": res.EffectiveMode,
+		})
 	}
 	for i, r := range results {
 		page := ""

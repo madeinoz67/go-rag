@@ -286,6 +286,7 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 		}
 		fmt.Fprintf(&b, "- (score %.3f) %s%s\n", h.Score, h.Preview, mark)
 	}
+	fmt.Fprintf(&b, "\n(effective: k=%d, pool=%d, mode=%s)\n", res.EffectiveK, res.EffectivePool, res.EffectiveMode) // H22/spec 024
 	return strings.TrimSpace(b.String()), nil
 }
 
@@ -304,6 +305,9 @@ func (s *Server) renderStatus(eng *engine.Engine) (string, error) {
 	if st.ResultCache.Enabled || st.EmbeddingCache.Enabled {
 		out += fmt.Sprintf(", cache: result %s, embedding %s", cacheSummary(st.ResultCache), cacheSummary(st.EmbeddingCache))
 	}
+	// H22/spec 024: adaptive-retrieval knobs + aggregate pool utilization.
+	out += fmt.Sprintf(", pool: size=%d, adaptive_depth=%t, utilization: queries=%d avg_fetched=%.1f avg_kept=%.1f saturated=%d",
+		st.PoolSize, st.AdaptiveDepthEnabled, st.PoolUtilization.Queries, st.PoolUtilization.AvgFetched, st.PoolUtilization.AvgKept, st.PoolUtilization.Saturated)
 	// H11/spec 017: corpus baseline (the profile the corpus was built under) +
 	// the drift verdict, so drift is visible without a query.
 	if st.CorpusBaselineModel != "" {

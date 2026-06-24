@@ -36,9 +36,11 @@ type statusInfo struct {
 	EmbeddingConvention      string         `json:"embedding_convention,omitempty"`
 	EmbeddingConventionDrift bool           `json:"embedding_convention_drift,omitempty"`
 	ConventionCounts         map[string]int `json:"convention_counts,omitempty"`
-	ConfiguredPrefix         string         `json:"configured_prefix,omitempty"`
-	QueryPrefix              string         `json:"query_prefix,omitempty"`
-	DocPrefix                string         `json:"doc_prefix,omitempty"`
+	ConfiguredPrefix      string `json:"configured_prefix,omitempty"`
+	QueryPrefix           string `json:"query_prefix,omitempty"`
+	DocPrefix             string `json:"doc_prefix,omitempty"`
+	PoolSize              int    `json:"pool_size"`              // H22/spec 024
+	AdaptiveDepthEnabled  bool   `json:"adaptive_depth_enabled"` // H22/spec 024
 }
 
 func newStatusCmd() *cobra.Command {
@@ -150,6 +152,8 @@ func gatherStats(db *storage.DB, cfg config.Config) statusInfo {
 	info.ConfiguredPrefix = mode
 	info.QueryPrefix = pre.ForRole(embed.RoleQuery)
 	info.DocPrefix = pre.ForRole(embed.RoleDocument)
+	info.PoolSize = cfg.EffectivePoolSize()             // H22/spec 024
+	info.AdaptiveDepthEnabled = cfg.EffectiveAdaptiveDepthEnabled() // H22/spec 024
 
 	if !last.IsZero() {
 		info.LastActivity = last.Format(time.RFC3339)
@@ -208,6 +212,7 @@ func printStatus(s statusInfo) {
 	if s.EmbeddingModel != "" {
 		fmt.Printf("  Prefix:     %s (query=%q doc=%q)\n", s.ConfiguredPrefix, s.QueryPrefix, s.DocPrefix)
 	}
+	fmt.Printf("  Pool:       %d (adaptive_depth=%t)\n", s.PoolSize, s.AdaptiveDepthEnabled) // H22/spec 024
 	if s.EmbeddingConvention != "" || s.ConfiguredPrefix == "off" {
 		fmt.Printf("  Conv:       corpus=%q\n", s.EmbeddingConvention)
 	}

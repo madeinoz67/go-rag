@@ -210,6 +210,9 @@ type restPoisonSig struct {
 type restQueryResponse struct {
 	Hits         []restQueryHit `json:"hits"`
 	RerankFailed bool           `json:"rerank_failed"`
+	EffectiveK    int           `json:"effective_k"`    // H22/spec 024
+	EffectivePool int           `json:"effective_pool"` // H22/spec 024
+	EffectiveMode string        `json:"effective_mode"` // H22/spec 024
 }
 
 func fromREST(h restQueryHit) canonHit {
@@ -966,5 +969,67 @@ func TestCrossTransport_PoisoningParity(t *testing.T) {
 	}
 	if len(gresp.GetHits()) == 0 || grpcLvl != wantLevel {
 		t.Errorf("gRPC include: verdict level %q != engine %q (FR-005 parity)", grpcLvl, wantLevel)
+	}
+}
+
+// TestCrossTransport_EffectiveDepthPoolMode_Parity (H22/spec 024, US3): the
+// effective depth/pool/mode actually used are echoed IDENTICALLY by the facade,
+// REST, and gRPC (FR-009 parity), and a per-query pool override reaches all
+// three (effective_pool == the override), proving the values surface 1:1.
+func TestCrossTransport_EffectiveDepthPoolMode_Parity(t *testing.T) {
+	ollama := fastFakeOllama(t)
+	eng := openEngine(t, ollama.URL)
+
+	dir := t.TempDir()
+	doc := writeDoc(t, dir, "eff.txt", "effective depth pool mode parity corpus for adaptive retrieval tuning")
+	if _, err := eng.Add(context.Background(), doc); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	waitEmbeddings(t, eng)
+
+	const (
+		q  = "effective"
+		md = "keyword"
+		k  = 5
+	)
+	// Reference: facade with a per-query pool override (25).
+	ref, err := eng.Query(context.Background(), engine.QueryRequest{Query: q, Mode: md, K: k, PoolSize: 25})
+	if err != nil {
+		t.Fatalf("engine.Query: %v", err)
+	}
+
+	// REST → same effective triple.
+	restSrv := httptest.NewServer(rest.New(eng, "").Handler())
+	defer restSrv.Close()
+	body, _ := json.Marshal(map[string]any{"query": q, "mode": md, "k": k, "pool_size": 25})
+	resp, err := http.Post(restSrv.URL+"/v1/query", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("REST query: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("REST status = %d", resp.StatusCode)
+	}
+	var rr restQueryResponse
+	if err := json.NewDecoder(resp.Body).Decode(&rr); err != nil {
+		t.Fatalf("decode REST: %v", err)
+	}
+	if rr.EffectiveK != ref.EffectiveK || rr.EffectivePool != ref.EffectivePool || rr.EffectiveMode != ref.EffectiveMode {
+		t.Errorf("REST effective triple = (k=%d pool=%d mode=%q), engine = (k=%d pool=%d mode=%q)",
+			rr.EffectiveK, rr.EffectivePool, rr.EffectiveMode, ref.EffectiveK, ref.EffectivePool, ref.EffectiveMode)
+	}
+	if rr.EffectivePool != 25 {
+		t.Errorf("REST effective_pool = %d, want the 25 override", rr.EffectivePool)
+	}
+
+	// gRPC → same effective triple.
+	client := dialGRPC(t, eng)
+	gresp, err := client.Query(context.Background(), &goragpb.QueryRequest{Query: q, Mode: md, K: int32(k), PoolSize: 25})
+	if err != nil {
+		t.Fatalf("gRPC Query: %v", err)
+	}
+	if int(gresp.GetEffectiveK()) != ref.EffectiveK || int(gresp.GetEffectivePool()) != ref.EffectivePool || gresp.GetEffectiveMode() != ref.EffectiveMode {
+		t.Errorf("gRPC effective triple = (k=%d pool=%d mode=%q), engine = (k=%d pool=%d mode=%q)",
+			gresp.GetEffectiveK(), gresp.GetEffectivePool(), gresp.GetEffectiveMode(), ref.EffectiveK, ref.EffectivePool, ref.EffectiveMode)
 	}
 }

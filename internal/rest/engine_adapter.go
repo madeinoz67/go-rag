@@ -31,7 +31,8 @@ func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
 		writeEngineErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, queryResponse{Hits: toQueryHits(res.Hits), RerankFailed: res.RerankFailed})
+	writeJSON(w, http.StatusOK, queryResponse{Hits: toQueryHits(res.Hits), RerankFailed: res.RerankFailed,
+		EffectiveK: res.EffectiveK, EffectivePool: res.EffectivePool, EffectiveMode: res.EffectiveMode}) // H22/spec 024
 }
 
 // toQueryHits maps engine.QueryHit → the REST DTO, dropping engine-only fields
@@ -82,6 +83,14 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		Reranker:           st.Reranker,
 		OllamaURL:          st.OllamaURL,
 		EmbeddingsComplete: st.EmbeddingsComplete,
+		PoolSize:             st.PoolSize,             // H22/spec 024
+		AdaptiveDepthEnabled: st.AdaptiveDepthEnabled, // H22/spec 024
+		PoolUtilization: poolUtilizationDTO{ // H22/spec 024
+			Queries:    st.PoolUtilization.Queries,
+			AvgFetched: st.PoolUtilization.AvgFetched,
+			AvgKept:    st.PoolUtilization.AvgKept,
+			Saturated:  st.PoolUtilization.Saturated,
+		},
 	})
 }
 

@@ -97,15 +97,24 @@ func TestCLI_InitAddQuery(t *testing.T) {
 			t.Errorf("query: %v", err)
 		}
 	})
-	var results []queryResult
-	if err := json.Unmarshal([]byte(queryOut), &results); err != nil {
+	var resp struct {
+		Hits         []queryResult `json:"hits"`
+		EffectiveK    int           `json:"effective_k"`    // H22/spec 024
+		EffectivePool int           `json:"effective_pool"` // H22/spec 024
+		EffectiveMode string        `json:"effective_mode"` // H22/spec 024
+		RerankFailed  bool          `json:"rerank_failed"`
+	}
+	if err := json.Unmarshal([]byte(queryOut), &resp); err != nil {
 		t.Fatalf("query --format json must produce valid JSON: %v\nraw: %s", err, queryOut)
 	}
-	if len(results) == 0 {
+	if len(resp.Hits) == 0 {
 		t.Fatalf("query must return at least one result; raw: %s", queryOut)
 	}
-	if results[0].Source != "note.txt" {
-		t.Errorf("result source should be note.txt, got %q", results[0].Source)
+	if resp.Hits[0].Source != "note.txt" {
+		t.Errorf("result source should be note.txt, got %q", resp.Hits[0].Source)
+	}
+	if resp.EffectivePool != 60 || resp.EffectiveMode != "hybrid" { // H22/spec 024
+		t.Errorf("effective triple wrong: k=%d pool=%d mode=%q", resp.EffectiveK, resp.EffectivePool, resp.EffectiveMode)
 	}
 }
 
