@@ -31,7 +31,7 @@ func ValidateName(name string) error {
 		return fmt.Errorf("vault name must be 1–64 characters")
 	}
 	for _, c := range name {
-		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') { //nolint:staticcheck // QF1001: the negated-disjunction form reads clearer than the De Morgan expansion; kept deliberately.
 			return fmt.Errorf("vault name must be lowercase alphanumeric + hyphens only")
 		}
 	}
