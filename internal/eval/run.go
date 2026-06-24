@@ -52,25 +52,25 @@ type EvaluationRun struct {
 	Metrics        MetricSet        `json:"metrics"`
 }
 
-// EvalRunner scores a golden dataset against a vault using a chosen embedder,
+// Runner scores a golden dataset against a vault using a chosen embedder,
 // driving the canonical engine.Query path (FR-007).
-type EvalRunner struct {
+type Runner struct {
 	cfg config.Config
 	db  *storage.DB
 	em  embed.Embedder
 }
 
-// NewEvalRunner returns a runner over an open vault using embedder em (the
+// NewRunner returns a runner over an open vault using embedder em (the
 // deterministic offline embedder for CI, or a real Ollama embedder for a
 // baseline). The caller owns db's lifetime.
-func NewEvalRunner(cfg config.Config, db *storage.DB, em embed.Embedder) *EvalRunner {
-	return &EvalRunner{cfg: cfg, db: db, em: em}
+func NewRunner(cfg config.Config, db *storage.DB, em embed.Embedder) *Runner {
+	return &Runner{cfg: cfg, db: db, em: em}
 }
 
 // Run scores every golden query. Zero-relevant queries and queries whose labeled
 // relevant chunk_ids are all absent from the vault (stale labels) are skipped and
 // reported, never scored as 0 (FR-008). Metrics are averaged over scored queries.
-func (r *EvalRunner) Run(ctx context.Context, golden []GoldenQuery, mode string, k int, noRerank bool) (*EvaluationRun, error) {
+func (r *Runner) Run(ctx context.Context, golden []GoldenQuery, mode string, k int, noRerank bool) (*EvaluationRun, error) {
 	if k <= 0 {
 		k = 10
 	}

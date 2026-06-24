@@ -122,14 +122,14 @@ func LoadSubsampled(name, cacheDir string, numQueries, distractors int) (*Datase
 	}
 	sort.Strings(qIDs)
 	sample := map[string]bool{}
-	if step := len(qIDs) / numQueries; step < 1 {
+	step := len(qIDs) / numQueries
+	if step < 1 {
 		step = 1
-	} else {
-		for i := 0; i < len(qIDs); i += step {
-			sample[qIDs[i]] = true
-			if len(sample) >= numQueries {
-				break
-			}
+	}
+	for i := 0; i < len(qIDs); i += step {
+		sample[qIDs[i]] = true
+		if len(sample) >= numQueries {
+			break
 		}
 	}
 

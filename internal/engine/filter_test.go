@@ -8,6 +8,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/madeinoz67/go-rag/internal/index"
@@ -53,7 +54,7 @@ func TestQuery_Filter_SourceScopes(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, h := range filt.Hits {
-		if !filepath.HasPrefix(h.FilePath, dir1) {
+		if !strings.HasPrefix(h.FilePath, dir1) {
 			t.Errorf("filtered hit from wrong dir: %s (want prefix %s)", h.FilePath, dir1)
 		}
 	}

@@ -180,7 +180,7 @@ func printVaultDetail() {
 	if running {
 		counts, _ := daemon.CallTool(addrs.MCPAddr, daemon.ReadToken(dbPath), "go_rag_status", nil)
 		var docs, chunks, embs int
-		fmt.Sscanf(counts, "documents: %d, chunks: %d, embeddings: %d", &docs, &chunks, &embs)
+		_, _ = fmt.Sscanf(counts, "documents: %d, chunks: %d, embeddings: %d", &docs, &chunks, &embs)
 		if docs > 0 {
 			pct := embs * 100 / docs
 			dashRow("database", fmt.Sprintf("%d docs", docs), green)

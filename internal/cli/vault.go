@@ -119,7 +119,7 @@ func newVaultDeleteCmd() *cobra.Command {
 			if !force {
 				fmt.Printf("Delete vault %q and ALL its data? (y/N) ", name)
 				var resp string
-				fmt.Scanln(&resp)
+				_, _ = fmt.Scanln(&resp)
 				if resp != "y" && resp != "yes" {
 					fmt.Println("Cancelled.")
 					return nil

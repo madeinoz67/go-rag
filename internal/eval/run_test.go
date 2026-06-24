@@ -21,7 +21,7 @@ func repoGolden(t *testing.T, rel string) string {
 	return filepath.Join(root, "testdata", "golden", rel)
 }
 
-func TestEvalRunner_EndToEnd_CommittedGolden(t *testing.T) {
+func TestRunner_EndToEnd_CommittedGolden(t *testing.T) {
 	ctx := context.Background()
 	em := NewDeterministicEmbedder()
 	cfg, db, cleanup, err := ProvisionCorpus(ctx, repoGolden(t, "corpus"), em, "")
@@ -34,7 +34,7 @@ func TestEvalRunner_EndToEnd_CommittedGolden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadGolden: %v", err)
 	}
-	r := NewEvalRunner(cfg, db, em)
+	r := NewRunner(cfg, db, em)
 	run1, err := r.Run(ctx, golden, "hybrid", 10, true)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -56,7 +56,7 @@ func TestEvalRunner_EndToEnd_CommittedGolden(t *testing.T) {
 	}
 }
 
-func TestEvalRunner_ReadOnly(t *testing.T) {
+func TestRunner_ReadOnly(t *testing.T) {
 	// FR-006: an Evaluation Run MUST NOT mutate the vault. Snapshot the chunk
 	// count before and after; it must be identical.
 	ctx := context.Background()
@@ -70,7 +70,7 @@ func TestEvalRunner_ReadOnly(t *testing.T) {
 	golden, _ := LoadGolden(repoGolden(t, "v1.jsonl"))
 	before := countChunks(t, db)
 
-	if _, err := NewEvalRunner(cfg, db, em).Run(ctx, golden, "hybrid", 10, true); err != nil {
+	if _, err := NewRunner(cfg, db, em).Run(ctx, golden, "hybrid", 10, true); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	after := countChunks(t, db)
@@ -79,7 +79,7 @@ func TestEvalRunner_ReadOnly(t *testing.T) {
 	}
 }
 
-func TestEvalRunner_SkipsZeroRelevant(t *testing.T) {
+func TestRunner_SkipsZeroRelevant(t *testing.T) {
 	// FR-008: a golden query with no labeled relevant chunks is skipped, not
 	// scored (and does not crash a divide-by-zero average).
 	ctx := context.Background()
@@ -94,7 +94,7 @@ func TestEvalRunner_SkipsZeroRelevant(t *testing.T) {
 		{ID: "z1", Query: "anything", Relevant: nil},
 		{ID: "z2", Query: "how does chunking work", Relevant: firstRelevant(t)},
 	}
-	r, err := NewEvalRunner(cfg, db, em).Run(ctx, golden, "hybrid", 10, true)
+	r, err := NewRunner(cfg, db, em).Run(ctx, golden, "hybrid", 10, true)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestEvalRunner_SkipsZeroRelevant(t *testing.T) {
 	}
 }
 
-func TestEvalRunner_SkipsStaleLabels(t *testing.T) {
+func TestRunner_SkipsStaleLabels(t *testing.T) {
 	// FR-008: a query whose labeled relevant chunk_id does not exist in the vault
 	// (stale label) is skipped with a reason.
 	ctx := context.Background()
@@ -117,7 +117,7 @@ func TestEvalRunner_SkipsStaleLabels(t *testing.T) {
 	golden := []GoldenQuery{
 		{ID: "s1", Query: "stale query", Relevant: []string{"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}},
 	}
-	r, err := NewEvalRunner(cfg, db, em).Run(ctx, golden, "hybrid", 10, true)
+	r, err := NewRunner(cfg, db, em).Run(ctx, golden, "hybrid", 10, true)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}

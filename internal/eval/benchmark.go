@@ -70,7 +70,7 @@ func RunBenchmark(ctx context.Context, ds *beir.Dataset, em embed.Embedder, mode
 
 	// 5. Score with the same runner the golden eval uses (no rerank for a clean
 	//    retrieval signal; rerank is a separate axis).
-	runner := NewEvalRunner(cfg, db, em)
+	runner := NewRunner(cfg, db, em)
 	return runner.Run(ctx, golden, mode, k, true)
 }
 

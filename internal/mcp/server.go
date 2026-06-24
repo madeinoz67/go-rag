@@ -214,7 +214,7 @@ func (s *Server) renderEval(_ *engine.Engine, args map[string]any) (string, erro
 		return "", err
 	}
 	defer cleanup()
-	run, err := eval.NewEvalRunner(cfg, db, em).Run(context.Background(), golden, mode, k, true)
+	run, err := eval.NewRunner(cfg, db, em).Run(context.Background(), golden, mode, k, true)
 	if err != nil {
 		return "", err
 	}

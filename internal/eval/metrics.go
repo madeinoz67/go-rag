@@ -10,7 +10,7 @@ import "math"
 //
 // The retrieved list is taken in the order the engine returns it (rank order,
 // ties already resolved by score). Callers MUST skip queries with an empty
-// relevant set rather than scoring them 0 (see EvalRunner, FR-008).
+// relevant set rather than scoring them 0 (see Runner, FR-008).
 
 // RecallAt returns the fraction of relevant items found within the top-k of the
 // retrieved ranking. A relevant item absent from the top-k counts as a miss in

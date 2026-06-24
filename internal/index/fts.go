@@ -137,7 +137,7 @@ func (f *FTS) readStats() globalStats {
 
 // writeStats writes the global BM25 stats (NoSync — called from a batch commit).
 func (f *FTS) writeStats(b *pebble.Batch, s globalStats) {
-	b.Set(statsKey(), encodeStats(s), nil)
+	_ = b.Set(statsKey(), encodeStats(s), nil)
 }
 
 // Index adds a chunk's fields to the Pebble-backed index. fields maps field names
@@ -174,9 +174,9 @@ func (f *FTS) Index(chunkID string, fields map[string]string) {
 	// Build one atomic batch: postings + indexed-set + stats.
 	batch := f.db.NewBatch()
 	for term, tf := range termCounts {
-		batch.Set(postingKey(term, chunkID), encodePosting(float32(tf), docLen), nil)
+		_ = batch.Set(postingKey(term, chunkID), encodePosting(float32(tf), docLen), nil)
 	}
-	batch.Set(idxKey, encodePosting(0, docLen)[4:6], nil) // store docLen (2 bytes) for delete
+	_ = batch.Set(idxKey, encodePosting(0, docLen)[4:6], nil) // store docLen (2 bytes) for delete
 
 	// Update global stats.
 	s := f.readStats()
@@ -222,10 +222,10 @@ func (f *FTS) Delete(chunkID, content string) {
 
 	batch := f.db.NewBatch()
 	for term := range termSet {
-		batch.Delete(postingKey(term, chunkID), nil)
+		_ = batch.Delete(postingKey(term, chunkID), nil)
 		delete(f.idfCache, term)
 	}
-	batch.Delete(idxKey, nil)
+	_ = batch.Delete(idxKey, nil)
 
 	// Update global stats.
 	s := f.readStats()
@@ -430,10 +430,10 @@ func MigrateFromChunks(db *pebble.DB, chunks func(yield func(chunkID, content st
 		}
 		docLen := len(terms)
 		for term, tf := range termCounts {
-			batch.Set(postingKey(term, chunkID), encodePosting(float32(tf), docLen), nil)
+			_ = batch.Set(postingKey(term, chunkID), encodePosting(float32(tf), docLen), nil)
 		}
 		idxKey := append([]byte{storage.PrefixFTSIndexed}, []byte(chunkID)...)
-		batch.Set(idxKey, encodePosting(0, docLen)[4:6], nil)
+		_ = batch.Set(idxKey, encodePosting(0, docLen)[4:6], nil)
 		n++
 		totalLen += uint64(docLen)
 		count++
@@ -442,7 +442,7 @@ func MigrateFromChunks(db *pebble.DB, chunks func(yield func(chunkID, content st
 		}
 		return true // continue
 	})
-	batch.Set(statsKey(), encodeStats(globalStats{N: n, TotalLen: totalLen}), nil)
+	_ = batch.Set(statsKey(), encodeStats(globalStats{N: n, TotalLen: totalLen}), nil)
 	_ = batch.Commit(pebble.NoSync)
 	return nil
 }

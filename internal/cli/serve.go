@@ -69,7 +69,7 @@ func newServeCmd() *cobra.Command {
 			if err := observe.Init(cfg); err != nil {
 				return err
 			}
-			defer observe.Shutdown(context.Background())
+			defer func() { _ = observe.Shutdown(context.Background()) }()
 
 			// H18/spec 021: structured audit log (local, append-only JSONL). Init +
 			// set the global appender; Close drains on shutdown.

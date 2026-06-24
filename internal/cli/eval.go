@@ -118,7 +118,7 @@ func runEval(cmd *cobra.Command, _ []string) error {
 	}
 
 	// 4. Score.
-	runner := eval.NewEvalRunner(cfg, db, em)
+	runner := eval.NewRunner(cfg, db, em)
 	run, err := runner.Run(ctx, golden, mode, k, noRerank)
 	if err != nil {
 		return err
