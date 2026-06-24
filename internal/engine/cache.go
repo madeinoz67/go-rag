@@ -166,7 +166,16 @@ type cacheKey struct {
 	// IncludeQuarantined (H04/spec 019): a quarantine-excluded result and an
 	// include-quarantined result differ, so the flag is part of the key.
 	IncludeQuarantined bool
-	Epoch              uint64
+	// EffK / EffPool (H22/spec 024): the EFFECTIVE depth and candidate pool used
+	// for the query (explicit | recommended | default for K; per-query |
+	// classifier-derived | config for Pool). Pool was previously constant (60) so
+	// it was not a differentiator; once it varies it MUST be in the key or two
+	// queries differing only in pool collide. Folding EFFECTIVE (not requested) k
+	// means an explicit-k and a classifier-recommended-k that resolve equal share
+	// a key (same results) while different effective depths diverge.
+	EffK   int
+	EffPool int
+	Epoch  uint64
 }
 
 // hash returns the FNV-1a digest of the key as a hex string. Deterministic for a
@@ -198,16 +207,20 @@ func (k cacheKey) hash() string {
 	write(strconv.FormatBool(k.IncludeQuarantined)) // H04/spec 019: different quarantine policy → different key
 	write(strconv.FormatBool(k.RerankEnabled))
 	write(k.RerankModel)
+	write(strconv.Itoa(k.EffK))   // H22/spec 024: effective depth (explicit|recommended|default)
+	write(strconv.Itoa(k.EffPool)) // H22/spec 024: effective candidate pool (per-query|classifier|config)
 	write(strconv.FormatUint(k.Epoch, 10))
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
 // resultKey builds the result-cache key for a query against the engine's config
 // and current index epoch. effRRFK is the already-resolved effective RRF k
-// (caller resolves req.RRFK>0 vs config). Rerank model is folded in only when
-// reranking is enabled for this request, so a no-rerank query and a reranker-
-// not-configured query that both skip reranking share a key.
-func (e *Engine) resultKey(req QueryRequest, effRRFK int, epoch uint64) string {
+// (caller resolves req.RRFK>0 vs config). effK/effPool (H22/spec 024) are the
+// already-resolved effective depth and candidate pool, folded in so two queries
+// differing only in effective depth/pool get distinct keys. Rerank model is
+// folded in only when reranking is enabled for this request, so a no-rerank
+// query and a reranker-not-configured query that both skip reranking share a key.
+func (e *Engine) resultKey(req QueryRequest, effRRFK, effK, effPool int, epoch uint64) string {
 	k := cacheKey{
 		Query:              req.Query,
 		Mode:               req.Mode,
@@ -216,6 +229,8 @@ func (e *Engine) resultKey(req QueryRequest, effRRFK int, epoch uint64) string {
 		RRFK:               effRRFK,
 		ContextWindow:      req.ContextWindow,
 		IncludeQuarantined: req.IncludeQuarantined,
+		EffK:               effK,
+		EffPool:            effPool,
 		Epoch:              epoch,
 	}
 	if req.Filter != nil {

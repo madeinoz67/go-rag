@@ -17,6 +17,7 @@ var knownConfigKeys = []string{
 	"chunk_size", "chunk_overlap",
 	"db_path", "poll_interval_secs",
 	"query_cache_enabled", "query_cache_results", "query_cache_embeddings", // H06/spec 016
+	"pool_size", "adaptive_depth_enabled", // H22/spec 024
 }
 
 // GetConfig returns config values as strings. If key is non-empty, only that

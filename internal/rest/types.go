@@ -10,7 +10,8 @@ type queryRequest struct {
 	Mode               string   `json:"mode"`
 	NoRerank           bool     `json:"no_rerank"`
 	Threshold          float64  `json:"threshold"`
-	RRFK               int      `json:"rrf_k,omitempty"` // H08/spec 009
+	RRFK               int      `json:"rrf_k,omitempty"`               // H08/spec 009
+	PoolSize           int      `json:"pool_size,omitempty"`           // H22/spec 024: candidate-pool override; 0 = config/default (60)
 	Source             string   `json:"source,omitempty"`
 	Type               string   `json:"type,omitempty"`
 	Tags               []string `json:"tags,omitempty"`

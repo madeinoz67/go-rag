@@ -58,6 +58,15 @@ type Engine struct {
 	// HyDE/multi-query in an adapter) — internal/index stays Ollama-free.
 	qTransformer index.QueryTransformer
 
+	// classifier is the query-classification seam (audit H22/spec 024): it
+	// recommends a retrieval depth k for a query when the caller has not set one
+	// (explicit > recommended > default). nil when adaptive_depth_enabled is false
+	// (the default posture) — no classification occurs and behavior is byte-
+	// identical to pre-H22. The default RuleBasedClassifier is pure Go and lives
+	// in internal/index; a future model-based classifier implements the same
+	// interface in an adapter (internal/index stays embedder-free, FR-008).
+	classifier index.QueryClassifier
+
 	// Query caches (audit H06/spec 016): an exact-match result cache and a
 	// query-embedding cache, both in-process, bounded, and empty on restart.
 	// resultCache maps the full query shape + index epoch → *QueryResult;
@@ -73,6 +82,15 @@ type Engine struct {
 	// Ollama version computed at boot / after migrate. /health reads it (fast);
 	// Status recomputes live.
 	drift driftCache
+
+	// poolUtil* (H22/spec 024) are the aggregate pool-utilization counters
+	// (atomic, process-lifetime). Recorded once per freshly-computed query (a
+	// cache hit reuses an already-counted result and is not double-counted) and
+	// reduced to the PoolUtilization aggregate in Status. In-memory only.
+	poolQueries    atomic.Uint64
+	poolFetchedSum atomic.Uint64 // sum of effective pools observed
+	poolKeptSum    atomic.Uint64 // sum of results returned
+	poolSaturated  atomic.Uint64 // queries that couldn't fill the requested depth
 }
 
 // newQueryCaches builds the result/embedding caches and epoch from config. When

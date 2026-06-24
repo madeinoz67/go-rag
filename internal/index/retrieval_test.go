@@ -18,6 +18,49 @@ func staticEmbed(vec []float32) EmbedFunc {
 	}
 }
 
+// TestRetrieval_SetPoolSize_DrivesFetchSize (H22/spec 024, US1) proves the
+// candidate pool is honored through Search: in keyword mode FTS fetches up to
+// poolSize candidates before collapse-to-k truncates. With 5 indexed matches and
+// k=10 (above any pool tested), the hit count equals the pool — default (60)
+// returns all 5, SetPoolSize(2) returns 2, and SetPoolSize(0/-1) are no-ops that
+// leave the default (all 5) in effect. Mirrors the SetRRFK score test.
+func TestRetrieval_SetPoolSize_DrivesFetchSize(t *testing.T) {
+	mk := func() *Retrieval {
+		fts := newTestFTS(t)
+		vec := NewVector()
+		for _, id := range []string{"c0", "c1", "c2", "c3", "c4"} {
+			fts.Index(id, map[string]string{"body": "alpha"})
+		}
+		return NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+	}
+	count := func(r *Retrieval) int {
+		hits, err := r.Search(context.Background(), "alpha", 10, ModeKeyword, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(hits)
+	}
+	if c := count(mk()); c != 5 {
+		t.Errorf("default pool=60: got %d hits, want 5", c)
+	}
+	r2 := mk()
+	r2.SetPoolSize(2)
+	if c := count(r2); c != 2 {
+		t.Errorf("SetPoolSize(2): got %d hits, want 2", c)
+	}
+	r0 := mk()
+	r0.SetPoolSize(0)
+	if c := count(r0); c != 5 {
+		t.Errorf("SetPoolSize(0) no-op: got %d hits, want 5", c)
+	}
+	rneg := mk()
+	rneg.SetPoolSize(-1)
+	if c := count(rneg); c != 5 {
+		t.Errorf("SetPoolSize(-1) no-op: got %d hits, want 5", c)
+	}
+}
+
+
 func TestRetrieval_Hybrid_BothListsRankAboveOneList(t *testing.T) {
 	fts := newTestFTS(t)
 	vec := NewVector()

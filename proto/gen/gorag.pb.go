@@ -44,6 +44,7 @@ type QueryRequest struct {
 	ContextWindow      int32                  `protobuf:"varint,10,opt,name=context_window,json=contextWindow,proto3" json:"context_window,omitempty"`                // H15/spec 015: N sibling chunks of context each side; 0 = off
 	NoCache            bool                   `protobuf:"varint,11,opt,name=no_cache,json=noCache,proto3" json:"no_cache,omitempty"`                                  // H06/spec 016: bypass the query result cache for this query (forces a fresh result)
 	IncludeQuarantined bool                   `protobuf:"varint,12,opt,name=include_quarantined,json=includeQuarantined,proto3" json:"include_quarantined,omitempty"` // H04/spec 019: return chunks flagged as injection-poisoning (excluded by default)
+	PoolSize           int32                  `protobuf:"varint,13,opt,name=pool_size,json=poolSize,proto3" json:"pool_size,omitempty"`                               // H22/spec 024: reranker candidate-pool override; 0 = config/default (60); shrinks with classifier-recommended k
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -160,6 +161,13 @@ func (x *QueryRequest) GetIncludeQuarantined() bool {
 		return x.IncludeQuarantined
 	}
 	return false
+}
+
+func (x *QueryRequest) GetPoolSize() int32 {
+	if x != nil {
+		return x.PoolSize
+	}
+	return 0
 }
 
 type QueryHit struct {
@@ -1923,7 +1931,7 @@ var File_proto_gorag_proto protoreflect.FileDescriptor
 
 const file_proto_gorag_proto_rawDesc = "" +
 	"\n" +
-	"\x11proto/gorag.proto\x12\x05gorag\"\xc9\x02\n" +
+	"\x11proto/gorag.proto\x12\x05gorag\"\xe6\x02\n" +
 	"\fQueryRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\f\n" +
 	"\x01k\x18\x02 \x01(\x05R\x01k\x12\x12\n" +
@@ -1937,7 +1945,8 @@ const file_proto_gorag_proto_rawDesc = "" +
 	"\x0econtext_window\x18\n" +
 	" \x01(\x05R\rcontextWindow\x12\x19\n" +
 	"\bno_cache\x18\v \x01(\bR\anoCache\x12/\n" +
-	"\x13include_quarantined\x18\f \x01(\bR\x12includeQuarantined\"\xf8\x01\n" +
+	"\x13include_quarantined\x18\f \x01(\bR\x12includeQuarantined\x12\x1b\n" +
+	"\tpool_size\x18\r \x01(\x05R\bpoolSize\"\xf8\x01\n" +
 	"\bQueryHit\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x1f\n" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +

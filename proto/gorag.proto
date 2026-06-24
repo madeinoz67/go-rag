@@ -72,6 +72,7 @@ message QueryRequest {
   int32 context_window = 10;    // H15/spec 015: N sibling chunks of context each side; 0 = off
   bool no_cache = 11;            // H06/spec 016: bypass the query result cache for this query (forces a fresh result)
   bool include_quarantined = 12; // H04/spec 019: return chunks flagged as injection-poisoning (excluded by default)
+  int32 pool_size = 13;          // H22/spec 024: reranker candidate-pool override; 0 = config/default (60); shrinks with classifier-recommended k
 }
 message QueryHit {
   string chunk_id = 1;

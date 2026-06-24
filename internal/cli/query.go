@@ -46,6 +46,10 @@ func newQueryCmd() *cobra.Command {
 			if cmd.Flags().Changed("rrf-k") && rrfK <= 0 {
 				return fmt.Errorf("--rrf-k must be a positive integer (0 = use configured/default; got %d)", rrfK)
 			}
+			poolSize, _ := cmd.Flags().GetInt("pool-size")
+			if cmd.Flags().Changed("pool-size") && poolSize < 0 {
+				return fmt.Errorf("--pool-size must be a non-negative integer (0 = use configured pool_size / default 60; got %d)", poolSize)
+			}
 
 			// H14/spec 014: optional metadata filter (source/type/tags).
 			source, _ := cmd.Flags().GetString("source")
@@ -75,7 +79,7 @@ func newQueryCmd() *cobra.Command {
 			// which refuses a query whose model/dim doesn't match the corpus.
 			eng := engine.NewWithDB(cfg, db)
 			res, err := eng.Query(context.Background(), engine.QueryRequest{
-				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK, Filter: filt, ContextWindow: cw, NoCache: noCache, IncludeQuarantined: includeQuar,
+				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK, PoolSize: poolSize, Filter: filt, ContextWindow: cw, NoCache: noCache, IncludeQuarantined: includeQuar,
 			})
 			if err != nil {
 				return err
@@ -105,6 +109,7 @@ func newQueryCmd() *cobra.Command {
 	cmd.Flags().Float64("threshold", 0.0, "minimum relevance score")
 	cmd.Flags().Bool("no-rerank", false, "disable cross-encoder reranking for this query")
 	cmd.Flags().Int("rrf-k", 0, "RRF smoothing constant override (0 = use configured rrf_k / default 60)")
+	cmd.Flags().Int("pool-size", 0, "reranker candidate-pool override (0 = use configured pool_size / default 60; shrinks with classifier-recommended k when adaptive depth is enabled)")
 	cmd.Flags().String("type", "", "filter by file type (e.g. markdown, pdf)")
 	cmd.Flags().String("tags", "", "filter by document tags (comma-separated, conjunction)")
 	cmd.Flags().Int("context-window", 0, "include N sibling chunks of context around each hit (0 = off)")

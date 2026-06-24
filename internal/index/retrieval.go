@@ -75,6 +75,18 @@ func (r *Retrieval) SetRRFK(k int) {
 	}
 }
 
+// SetPoolSize sets the candidate-pool size for this Retrieval (spec 024 / audit
+// H22): the number of candidates fetched from FTS/vector and presented to
+// reranking. A non-positive value is ignored so the constructor default (60)
+// stays in effect — the engine resolves the effective value (per-query override
+// > classifier-derived > config > 60) before calling, mirroring SetRRFK. This is
+// the single injection point; Search/semantic/SearchWithRerank all read r.poolSize.
+func (r *Retrieval) SetPoolSize(n int) {
+	if n > 0 {
+		r.poolSize = n
+	}
+}
+
 // EnableRerankRetry enables the H09 US3 behaviour: a failed rerank is retried
 // once against a larger candidate pool (capped at maxRetryPool) before the
 // retrieval degrades to fallback-ordered hits. Off by default.

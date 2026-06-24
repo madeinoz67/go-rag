@@ -44,6 +44,7 @@ func (a *Adapter) Query(ctx context.Context, req *goragpb.QueryRequest) (*goragp
 		NoRerank:           req.GetNoRerank(),
 		Threshold:          req.GetThreshold(),
 		RRFK:               int(req.GetRrfK()),
+		PoolSize:           int(req.GetPoolSize()), // H22/spec 024
 		Filter:             engine.NewFilter(req.GetSource(), req.GetType(), req.GetTags()),
 		ContextWindow:      int(req.GetContextWindow()),
 		NoCache:            req.GetNoCache(),

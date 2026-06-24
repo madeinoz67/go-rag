@@ -64,6 +64,23 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 		effRRFK = e.cfg.EffectiveRRFK()
 	}
 
+	// H22/spec 024: resolve the effective depth and candidate pool once, before
+	// the cache check and retrieval, so the cache key and the actual retrieval
+	// agree. req.K is already clamped to [1,100] with a default of 5 above; with
+	// no classifier (default posture) that IS the effective depth. The pool is the
+	// per-query override, else the configured ceiling (default 60) — byte-identical
+	// to pre-H22. (The classifier-driven k recommendation and FR-011 pool-shrinking
+	// layer on in US2/T026–T027; here e.classifier is nil so this path is inert.)
+	effK := req.K
+	effPool := req.PoolSize
+	if effPool <= 0 {
+		effPool = e.cfg.EffectivePoolSize()
+	}
+	effMode := req.Mode
+	if effMode == "" {
+		effMode = "hybrid"
+	}
+
 	// H06/spec 016: result cache. Check before any embed/retrieve work — a hit
 	// skips the Ollama round-trip and the whole retrieve/fuse/rerank pipeline.
 	// The key folds in the normalized query, every retrieval-affecting input
@@ -72,7 +89,7 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 	// stored below so the next non-override caller can hit.
 	keyEpoch := e.indexEpoch()
 	if !req.NoCache && e.resultCache.Enabled() {
-		if cached, ok := e.resultCache.Get(e.resultKey(req, effRRFK, keyEpoch)); ok {
+		if cached, ok := e.resultCache.Get(e.resultKey(req, effRRFK, effK, effPool, keyEpoch)); ok {
 			observe.CacheHit(ctx, "result") // H17 tie-in
 			return cached, nil
 		}
@@ -144,6 +161,10 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 	// result-cache key and the actual fusion agree). The Retrieval is built fresh
 	// per query; this is the single fusion injection point.
 	r.SetRRFK(effRRFK)
+	// H22/spec 024: apply the resolved candidate pool (per-query override |
+	// config ceiling | classifier-derived in US2). The Retrieval is built fresh
+	// per query; this is the single pool injection point, mirroring SetRRFK.
+	r.SetPoolSize(effPool)
 
 	// H14/spec 014 + H04/spec 019: build the pre-fusion keep predicate, composing
 	// the metadata filter (doc-level) with the poisoning quarantine (chunk-level).
@@ -254,14 +275,27 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 			out[i].Context = e.expandContext(out[i].ChunkID, req.ContextWindow)
 		}
 	}
-	res = &QueryResult{Hits: out, RerankFailed: rerankFailed}
+	// H22/spec 024: record aggregate pool utilization. This point is reached only
+	// on a freshly-computed (cache-miss) query — the cache-hit path returned
+	// earlier — so each distinct computation is counted exactly once and a later
+	// cache hit never double-counts. effPool is the candidate budget fetched;
+	// len(out) the results kept; a short result set (couldn't fill effK) is
+	// "saturated" (small corpus / under-covered topic — the actionable signal).
+	e.poolQueries.Add(1)
+	e.poolFetchedSum.Add(uint64(effPool))
+	e.poolKeptSum.Add(uint64(len(out)))
+	if len(out) < effK {
+		e.poolSaturated.Add(1)
+	}
+	res = &QueryResult{Hits: out, RerankFailed: rerankFailed,
+		EffectiveK: effK, EffectivePool: effPool, EffectiveMode: effMode} // H22/spec 024 (US3): echo what was actually used
 	// H06/spec 016: store the fresh result. NoCache only bypasses SERVING (D5):
 	// the freshly-computed result is still stored so the next normal caller can
 	// hit. Skip only when disabled, when the reranker failed (degraded — a retry
 	// may succeed; FR-009), or when a concurrent corpus mutation advanced the
 	// epoch mid-query (this result may be stale relative to the new epoch).
 	if e.resultCache.Enabled() && !rerankFailed && e.indexEpoch() == keyEpoch {
-		e.resultCache.Put(e.resultKey(req, effRRFK, keyEpoch), res)
+		e.resultCache.Put(e.resultKey(req, effRRFK, effK, effPool, keyEpoch), res)
 	}
 	return res, nil
 }

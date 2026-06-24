@@ -99,7 +99,29 @@ func (e *Engine) Status() (*StatusInfo, error) {
 		PoisonFlagged:      poisonFlagged,
 		PoisonSources:      len(poisonSrcs),
 		PoisonPhrases:      len(e.mergedPhrases()),
+
+		// H22/spec 024: adaptive-retrieval observability.
+		PoolSize:             e.cfg.EffectivePoolSize(), // configured candidate-pool ceiling
+		AdaptiveDepthEnabled: e.cfg.EffectiveAdaptiveDepthEnabled(),
+		PoolUtilization:      e.poolUtilization(),
 	}, nil
+}
+
+// poolUtilization reduces the atomic pool-tracking counters (H22/spec 024) to the
+// aggregate PoolUtilization signal for Status. Means are computed at read time
+// (running sums ÷ query count); a fresh process (Queries==0) reports zero
+// averages with no division by zero.
+func (e *Engine) poolUtilization() PoolUtilization {
+	q := e.poolQueries.Load()
+	u := PoolUtilization{
+		Queries:   q,
+		Saturated: e.poolSaturated.Load(),
+	}
+	if q > 0 {
+		u.AvgFetched = float64(e.poolFetchedSum.Load()) / float64(q)
+		u.AvgKept = float64(e.poolKeptSum.Load()) / float64(q)
+	}
+	return u
 }
 
 // Files lists every ingested document, sorted by file path.

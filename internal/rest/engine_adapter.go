@@ -21,6 +21,7 @@ func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
 		NoRerank:           req.NoRerank,
 		Threshold:          req.Threshold,
 		RRFK:               req.RRFK,
+		PoolSize:           req.PoolSize,
 		Filter:             engine.NewFilter(req.Source, req.Type, req.Tags),
 		ContextWindow:      req.ContextWindow,
 		NoCache:            req.NoCache,

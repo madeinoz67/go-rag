@@ -37,6 +37,16 @@ type Config struct {
 	QueryCacheResults    int      `json:"query_cache_results,omitempty"`    // H06/spec 016: result-cache capacity (entries); 0 = result cache off; <0 invalid
 	QueryCacheEmbeddings int      `json:"query_cache_embeddings,omitempty"` // H06/spec 016: query-embedding-cache capacity (entries); 0 = embedding cache off; <0 invalid
 
+	// H22/spec 024: adaptive retrieval. pool_size is the configured candidate-pool
+	// ceiling (FTS/vector fetch + rerank candidate budget) — promoted from the
+	// previously-hardcoded 60. 0 (or absent) ⇒ DefaultPoolSize (60) via
+	// EffectivePoolSize(); per-query overrides + classifier-driven shrinking clamp
+	// against it. adaptive_depth_enabled (default false) gates the rule-based query
+	// classifier that recommends retrieval depth k when the caller has not set it
+	// (mode is never recommended). Default-off ⇒ byte-identical pre-H22 behavior.
+	PoolSize             int  `json:"pool_size,omitempty"`              // H22/spec 024: candidate-pool ceiling; 0 = default 60; <0 invalid
+	AdaptiveDepthEnabled bool `json:"adaptive_depth_enabled,omitempty"` // H22/spec 024: rule-based k-classifier on/off (default off)
+
 	// H04/spec 019: retrieval-poisoning (indirect prompt injection) detection.
 	// Detection scores every chunk at ingest and quarantines flagged chunks out
 	// of default query results (Q1=A). Detection is default-on (Q2=A) — the blind
@@ -78,8 +88,9 @@ func Default() Config {
 		PollIntervalSec:              60,
 		MCPAddr:                      "127.0.0.1:7878", // loopback by default (spec 007, audit H13); never all-interfaces
 		RerankCandidates:             20,
-		RRFK:                         60,   // H08/spec 009: standard single-k RRF default (retrieval book §6.6)
-		QueryCacheEnabled:            true, // H06/spec 016: caching on by default (transparent; escape hatches exist)
+		RRFK:                         60,             // H08/spec 009: standard single-k RRF default (retrieval book §6.6)
+		PoolSize:                     DefaultPoolSize, // H22/spec 024: today's hardcoded candidate pool (60) as the configured ceiling
+		QueryCacheEnabled:            true,           // H06/spec 016: caching on by default (transparent; escape hatches exist)
 		QueryCacheResults:            DefaultQueryCacheResults,
 		QueryCacheEmbeddings:         DefaultQueryCacheEmbeddings,
 		PoisoningEnabled:             true, // Q2=A: detection default-on (closes the P0 blind spot out of the box)
@@ -94,6 +105,11 @@ func Default() Config {
 
 // DefaultRRFK is the RRF smoothing constant used when rrf_k is unset (spec 009).
 const DefaultRRFK = 60
+
+// DefaultPoolSize is the reranker candidate-pool ceiling used when pool_size is
+// unset (spec 024 / audit H22). It is today's hardcoded value (60) so the
+// default-off posture is byte-identical to pre-H22.
+const DefaultPoolSize = 60
 
 // Default query-cache capacities (spec 016 / audit H06). Kept modest so the
 // combined worst-case footprint stays well inside the memory budget (≈3–4 MB).
@@ -157,6 +173,23 @@ func (c Config) EffectiveRRFK() int {
 	return DefaultRRFK
 }
 
+// EffectivePoolSize returns the configured candidate-pool ceiling: the configured
+// pool_size when positive, else DefaultPoolSize (60). This is the single
+// resolution site for the "absent/zero key = default 60" rule, so an existing
+// config that omits pool_size (which unmarshals to 0) keeps today's behavior.
+func (c Config) EffectivePoolSize() int {
+	if c.PoolSize > 0 {
+		return c.PoolSize
+	}
+	return DefaultPoolSize
+}
+
+// EffectiveAdaptiveDepthEnabled reports whether the rule-based query classifier
+// recommends retrieval depth (spec 024 / audit H22). Default false (off): an
+// absent adaptive_depth_enabled key is treated as off via the bool zero value, so
+// existing configs keep pre-H22 behavior.
+func (c Config) EffectiveAdaptiveDepthEnabled() bool { return c.AdaptiveDepthEnabled }
+
 // EffectivePoisoningEnabled reports whether detection runs. Defaults to true
 // (Q2=A): an absent poisoning_enabled key is treated as on via the Load()
 // backward-compat path; an explicit false disables detection (chunks are
@@ -198,6 +231,9 @@ func (c Config) Validate() error {
 	}
 	if c.RRFK < 0 {
 		return fmt.Errorf("rrf_k must be non-negative (0 = default %d)", DefaultRRFK)
+	}
+	if c.PoolSize < 0 {
+		return fmt.Errorf("pool_size must be non-negative (0 = default %d)", DefaultPoolSize)
 	}
 	if c.QueryCacheResults < 0 {
 		return fmt.Errorf("query_cache_results must be non-negative (0 = result cache disabled)")
@@ -339,6 +375,10 @@ func (c Config) Get(key string) (string, bool) {
 		return strconv.FormatBool(c.RerankRetryOnFailure), true
 	case "rrf_k":
 		return strconv.Itoa(c.EffectiveRRFK()), true
+	case "pool_size":
+		return strconv.Itoa(c.EffectivePoolSize()), true
+	case "adaptive_depth_enabled":
+		return strconv.FormatBool(c.EffectiveAdaptiveDepthEnabled()), true
 	case "query_cache_enabled":
 		return strconv.FormatBool(c.QueryCacheEnabled), true
 	case "query_cache_results":
@@ -446,6 +486,18 @@ func (c *Config) Set(key, val string) error {
 			return fmt.Errorf("invalid rrf_k: %q (want a non-negative integer; 0 = default %d)", val, DefaultRRFK)
 		}
 		c.RRFK = n
+	case "pool_size":
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 0 {
+			return fmt.Errorf("invalid pool_size: %q (want a non-negative integer; 0 = default %d)", val, DefaultPoolSize)
+		}
+		c.PoolSize = n
+	case "adaptive_depth_enabled":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("invalid adaptive_depth_enabled: %q", val)
+		}
+		c.AdaptiveDepthEnabled = b
 	case "query_cache_enabled":
 		b, err := strconv.ParseBool(val)
 		if err != nil {
