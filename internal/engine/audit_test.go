@@ -37,6 +37,14 @@ func TestAudit_QueryIngestEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Drain the async audit writer before reading. Log is non-blocking (buffered
+	// channel drained by a writer goroutine), so the query event may still be
+	// pending when we read the file — reading first races and can miss it. Close
+	// drains + flushes (idempotent; the deferred Close below is then a no-op),
+	// making the read deterministic. os.ReadFile reopens the path independently of
+	// the appender's (now-closed) handle.
+	_ = aud.Close(context.Background())
+
 	data, err := os.ReadFile(ap)
 	if err != nil {
 		t.Fatal(err)
