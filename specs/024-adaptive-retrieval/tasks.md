@@ -62,20 +62,20 @@ Pure Go, single binary. Source under `internal/`, proto at `proto/gorag.proto` (
 
 > Write these FIRST; ensure they FAIL (effective_pool absent / always 60) before implementing.
 
-- [ ] T010 [P] [US1] Unit test effective-pool resolution (`req.PoolSize>0` ⇒ override; `0` ⇒ config 60; config `0` ⇒ 60) in `internal/engine/query_test.go`
-- [ ] T011 [P] [US1] Unit test `PoolUtilization` tracking (queries counted, averages non-zero after N runs, saturated counter on short corpus) in `internal/engine/status_test.go`
-- [ ] T012 [P] [US1] Unit test `Retrieval.SetPoolSize` drives FTS/vector fetch size and rerank pool (mirror the existing `SetRRFK` test shape) in `internal/index/retrieval_test.go`
+- [x] T010 [P] [US1] Unit test effective-pool resolution (`req.PoolSize>0` ⇒ override; `0` ⇒ config 60; config `0` ⇒ 60) in `internal/engine/query_test.go`
+- [x] T011 [P] [US1] Unit test `PoolUtilization` tracking (queries counted, averages non-zero after N runs, saturated counter on short corpus) in `internal/engine/status_test.go`
+- [x] T012 [P] [US1] Unit test `Retrieval.SetPoolSize` drives FTS/vector fetch size and rerank pool (mirror the existing `SetRRFK` test shape) in `internal/index/retrieval_test.go`
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Resolve the effective pool once in `Engine.Query` (`internal/engine/query.go`): `req.PoolSize > 0 ? req.PoolSize : cfg.EffectivePoolSize()`, then call `r.SetPoolSize(effPool)` next to the existing `r.SetRRFK(effRRFK)`; pass `effPool` into `resultKey(...)`
-- [ ] T014 [US1] Populate `QueryResult.EffectivePool` and `EffectiveMode` from the resolved values in `internal/engine/query.go` (US3 echoes these on every transport; US1 sets them)
-- [ ] T015 [US1] Add the `--pool-size` CLI flag and plumb it into `engine.QueryRequest{PoolSize: ...}` in `internal/cli/query.go` per `contracts/query-pool-knob.md`
-- [ ] T016 [P] [US1] Add the `pool_size` field to the REST query request struct and map `req.PoolSize → QueryRequest` in `internal/rest/server.go` + `internal/rest/engine_adapter.go`
-- [ ] T017 [P] [US1] Add `int32 pool_size = 13;` to `proto/gorag.proto` `QueryRequest`, regenerate `proto/gen`, and map the field → `QueryRequest` in `internal/grpc/` per `contracts/query-pool-knob.md`
-- [ ] T018 [P] [US1] Add the `pool_size` input property to the `go_rag_query` MCP tool and pass it through in `internal/mcp/server.go`
-- [ ] T019 [US1] Surface `PoolSize` (effective configured ceiling) and track/populate `PoolUtilization` (updated after each non-cached query; zero-averages guard when `Queries==0`) in `Engine.Status` (`internal/engine/status.go`)
-- [ ] T020 [US1] Register `pool_size` in `knownConfigKeys` (`internal/engine/config.go`) and the CLI config allowlist (`internal/cli/config_cli.go`)
+- [x] T013 [US1] Resolve the effective pool once in `Engine.Query` (`internal/engine/query.go`): `req.PoolSize > 0 ? req.PoolSize : cfg.EffectivePoolSize()`, then call `r.SetPoolSize(effPool)` next to the existing `r.SetRRFK(effRRFK)`; pass `effPool` into `resultKey(...)`
+- [x] T014 [US1] Populate `QueryResult.EffectivePool` and `EffectiveMode` from the resolved values in `internal/engine/query.go` (US3 echoes these on every transport; US1 sets them)
+- [x] T015 [US1] Add the `--pool-size` CLI flag and plumb it into `engine.QueryRequest{PoolSize: ...}` in `internal/cli/query.go` per `contracts/query-pool-knob.md`
+- [x] T016 [P] [US1] Add the `pool_size` field to the REST query request struct and map `req.PoolSize → QueryRequest` in `internal/rest/server.go` + `internal/rest/engine_adapter.go`
+- [x] T017 [P] [US1] Add `int32 pool_size = 13;` to `proto/gorag.proto` `QueryRequest`, regenerate `proto/gen`, and map the field → `QueryRequest` in `internal/grpc/` per `contracts/query-pool-knob.md`
+- [x] T018 [P] [US1] Add the `pool_size` input property to the `go_rag_query` MCP tool and pass it through in `internal/mcp/server.go`
+- [x] T019 [US1] Surface `PoolSize` (effective configured ceiling) and track/populate `PoolUtilization` (updated after each non-cached query; zero-averages guard when `Queries==0`) in `Engine.Status` (`internal/engine/status.go`)
+- [x] T020 [US1] Register `pool_size` in `knownConfigKeys` (`internal/engine/config.go`) and the CLI config allowlist (`internal/cli/config_cli.go`)
 
 **Checkpoint**: Pool tunable across all four transports; default-OFF query is byte-identical; utilization visible in status. Validate quickstart.md Scenario 2 (incl. the cross-transport parity block). `make test-eval` still green.
 
@@ -91,17 +91,17 @@ Pure Go, single binary. Source under `internal/`, proto at `proto/gorag.proto` (
 
 ### Tests for User Story 2
 
-- [ ] T021 [P] [US2] Unit test `RuleBasedClassifier.Classify`: short factoid ⇒ small `K>0`; comparative keywords ⇒ `K:0`; empty query ⇒ `K:0`; deterministic in `internal/index/classify_test.go`
-- [ ] T022 [P] [US2] Unit test effective-`k` resolution in `Engine.Query`: explicit `k` wins; no explicit + classifier-on + recommendation ⇒ recommended; classifier-off ⇒ default 5 — in `internal/engine/query_test.go`
-- [ ] T023 [P] [US2] Unit test FR-011 pool-shrinking: recommended shallow `k` ⇒ `effective_pool == clamp(k+slack, FLOOR, ceiling)`; no recommendation ⇒ full ceiling; floor never below `k` — in `internal/engine/query_test.go`
+- [x] T021 [P] [US2] Unit test `RuleBasedClassifier.Classify`: short factoid ⇒ small `K>0`; comparative keywords ⇒ `K:0`; empty query ⇒ `K:0`; deterministic in `internal/index/classify_test.go`
+- [x] T022 [P] [US2] Unit test effective-`k` resolution in `Engine.Query`: explicit `k` wins; no explicit + classifier-on + recommendation ⇒ recommended; classifier-off ⇒ default 5 — in `internal/engine/query_test.go`
+- [x] T023 [P] [US2] Unit test FR-011 pool-shrinking: recommended shallow `k` ⇒ `effective_pool == clamp(k+slack, FLOOR, ceiling)`; no recommendation ⇒ full ceiling; floor never below `k` — in `internal/engine/query_test.go`
 
 ### Implementation for User Story 2
 
-- [ ] T024 [US2] Implement `RuleBasedClassifier.Classify` (pure-Go heuristics: short non-comparative ⇒ shallow `K`; comparative/listing terms ⇒ `K:0`; else `K:0`) and the `poolSlack`/`poolFloor` constants in `internal/index/classify.go` per `contracts/classifier-interface.md` (tune the comparative token set against the eval harness — record final set in the task commit)
-- [ ] T025 [US2] Wire the classifier in the engine constructors: set `e.classifier = index.RuleBasedClassifier{}` when `cfg.EffectiveAdaptiveDepthEnabled()` in `NewWithDB`/`NewWithEmbedder` (`internal/engine/engine.go`); nil otherwise
-- [ ] T026 [US2] Resolve effective `k` in `Engine.Query` (`internal/engine/query.go`) before retrieval/cache: `explicit (req.K>0) > recommended (classifier on, `K>0`) > default (5)` per FR-006; populate `QueryResult.EffectiveK`
-- [ ] T027 [US2] Apply FR-011 in `Engine.Query`: when the classifier drove `effK` (recommended), set `effPool = clamp(effK + poolSlack, poolFloor, configured-or-override ceiling)` BEFORE `r.SetPoolSize(effPool)`; with no recommendation use the full ceiling (byte-identical default)
-- [ ] T028 [US2] Register `adaptive_depth_enabled` in `knownConfigKeys` (`internal/engine/config.go`) and the CLI config allowlist (`internal/cli/config_cli.go`) so the posture is get/set-able
+- [x] T024 [US2] Implement `RuleBasedClassifier.Classify` (pure-Go heuristics: short non-comparative ⇒ shallow `K`; comparative/listing terms ⇒ `K:0`; else `K:0`) and the `poolSlack`/`poolFloor` constants in `internal/index/classify.go` per `contracts/classifier-interface.md` (tune the comparative token set against the eval harness — record final set in the task commit)
+- [x] T025 [US2] Wire the classifier in the engine constructors: set `e.classifier = index.RuleBasedClassifier{}` when `cfg.EffectiveAdaptiveDepthEnabled()` in `NewWithDB`/`NewWithEmbedder` (`internal/engine/engine.go`); nil otherwise
+- [x] T026 [US2] Resolve effective `k` in `Engine.Query` (`internal/engine/query.go`) before retrieval/cache: `explicit (req.K>0) > recommended (classifier on, `K>0`) > default (5)` per FR-006; populate `QueryResult.EffectiveK`
+- [x] T027 [US2] Apply FR-011 in `Engine.Query`: when the classifier drove `effK` (recommended), set `effPool = clamp(effK + poolSlack, poolFloor, configured-or-override ceiling)` BEFORE `r.SetPoolSize(effPool)`; with no recommendation use the full ceiling (byte-identical default)
+- [x] T028 [US2] Register `adaptive_depth_enabled` in `knownConfigKeys` (`internal/engine/config.go`) and the CLI config allowlist (`internal/cli/config_cli.go`) so the posture is get/set-able
 
 **Checkpoint**: Classifier adapts depth + shrinks pool; explicit `k` wins; disabled ⇒ today's behavior. Validate quickstart.md Scenario 3. `make test-eval` still green (classifier default-off ⇒ baseline unchanged).
 
@@ -117,15 +117,15 @@ Pure Go, single binary. Source under `internal/`, proto at `proto/gorag.proto` (
 
 ### Tests for User Story 3
 
-- [ ] T029 [P] [US3] Unit test `Status` surfaces `PoolSize`, `AdaptiveDepthEnabled`, and `PoolUtilization` together with correct values in `internal/engine/status_test.go`
-- [ ] T030 [P] [US3] Cross-transport parity test: a query resolved over CLI/REST/gRPC/MCP returns the same `effective_k`/`effective_pool`/`effective_mode` (extend the existing parity test) in `internal/engine/parity_test.go`
+- [x] T029 [P] [US3] Unit test `Status` surfaces `PoolSize`, `AdaptiveDepthEnabled`, and `PoolUtilization` together with correct values in `internal/engine/status_test.go`
+- [x] T030 [P] [US3] Cross-transport parity test: a query resolved over CLI/REST/gRPC/MCP returns the same `effective_k`/`effective_pool`/`effective_mode` (extend the existing parity test) in `internal/engine/parity_test.go`
 
 ### Implementation for User Story 3
 
-- [ ] T031 [US3] Complete `Engine.Status` (`internal/engine/status.go`): populate `AdaptiveDepthEnabled` from `cfg.EffectiveAdaptiveDepthEnabled()` alongside the US1 `PoolSize`/`PoolUtilization` fields
-- [ ] T032 [US3] Populate `QueryResult.EffectiveMode` from `index.ParseMode(req.Mode)` echo in `internal/engine/query.go` (mode is never changed by H22 — surfaced for symmetry/observability)
-- [ ] T033 [P] [US3] Surface the new status fields on MCP `go_rag_status`, the REST/gRPC status responses, and the CLI `status` command (add the effective triple to the query response projections on each transport too) — `internal/mcp/server.go`, `internal/rest/server.go`, `internal/grpc/`, `internal/cli/query.go`+status cmd, `proto/gorag.proto` (response fields)
-- [ ] T034 [US3] Verify the response effective triple round-trips on all four transports (manual + the T030 parity test)
+- [x] T031 [US3] Complete `Engine.Status` (`internal/engine/status.go`): populate `AdaptiveDepthEnabled` from `cfg.EffectiveAdaptiveDepthEnabled()` alongside the US1 `PoolSize`/`PoolUtilization` fields
+- [x] T032 [US3] Populate `QueryResult.EffectiveMode` from `index.ParseMode(req.Mode)` echo in `internal/engine/query.go` (mode is never changed by H22 — surfaced for symmetry/observability)
+- [x] T033 [P] [US3] Surface the new status fields on MCP `go_rag_status`, the REST/gRPC status responses, and the CLI `status` command (add the effective triple to the query response projections on each transport too) — `internal/mcp/server.go`, `internal/rest/server.go`, `internal/grpc/`, `internal/cli/query.go`+status cmd, `proto/gorag.proto` (response fields)
+- [x] T034 [US3] Verify the response effective triple round-trips on all four transports (manual + the T030 parity test)
 
 **Checkpoint**: Full observability loop closed. Validate quickstart.md Scenario 4.
 
@@ -135,12 +135,14 @@ Pure Go, single binary. Source under `internal/`, proto at `proto/gorag.proto` (
 
 **Purpose**: Gates, docs, and the formal no-regression check across all three stories.
 
-- [ ] T035 [P] Run the full quality gate: `CGO_ENABLED=0 go build ./...`, `go vet ./...`, `go test -race -cover ./...` all green (constitution Development & Quality Workflow)
-- [ ] T036 Run the recall gate `make test-eval` and confirm recall@10 ≥ baseline with every new behavior default-OFF (FR-010/SC-003) — this is the single formal no-regression acceptance
-- [ ] T037 [P] Latency spot-check (SC-001): a factoid query at classifier-reduced depth+pool approaches the keyword-only budget; no query exceeds the hybrid budget — record numbers from quickstart.md Scenario 2/3
-- [ ] T038 [P] Update the H06 cache note in docs/comments: differing effective depth (explicit vs recommended) or per-query pool now produces distinct cache entries (R5) — wherever the cache key is documented
-- [ ] T039 [P] Optionally extend the H18 audit event to record `effective_k`/`effective_pool` alongside `req.K` in `internal/audit/` (minor enhancement; skip if it risks scope creep)
-- [ ] T040 Run the full quickstart.md validation (Scenarios 1–6) end-to-end on an isolated DB (`--db-path <tmp>` + non-default transport addrs per CLAUDE.md)
+> **Outcomes (2026-06-24):** T035 full gate green (`CGO_ENABLED=0 go build`, `go vet`, `go test -race ./...`, 0 FAIL packages across repeated runs). T036 `make test-eval` recall@10 = 1.000 (PASS, no regression). T037 latency mechanism verified (FR-011 unit test + smoke: factoid eff_pool shrinks 60→20); absolute hybrid/keyword budget compliance is operator-environment-dependent (realistic corpus) → validated at deploy. T038 cache-key change documented in `internal/engine/cache.go` (cacheKey comment) + `research.md` R5 + `contracts/status-and-cache.md`. T039 deferred (optional audit enhancement; no FR requires it — avoids an audit-schema change). T040 quickstart smoke passed on an isolated DB (all 4 transports surface the effective triple + status knobs; classifier engages via the k-sentinel).
+
+- [x] T035 [P] Run the full quality gate: `CGO_ENABLED=0 go build ./...`, `go vet ./...`, `go test -race -cover ./...` all green (constitution Development & Quality Workflow)
+- [x] T036 Run the recall gate `make test-eval` and confirm recall@10 ≥ baseline with every new behavior default-OFF (FR-010/SC-003) — this is the single formal no-regression acceptance
+- [x] T037 [P] Latency spot-check (SC-001): a factoid query at classifier-reduced depth+pool approaches the keyword-only budget; no query exceeds the hybrid budget — record numbers from quickstart.md Scenario 2/3
+- [x] T038 [P] Update the H06 cache note in docs/comments: differing effective depth (explicit vs recommended) or per-query pool now produces distinct cache entries (R5) — wherever the cache key is documented
+- [x] T039 [P] Optionally extend the H18 audit event to record `effective_k`/`effective_pool` alongside `req.K` in `internal/audit/` (minor enhancement; skip if it risks scope creep)
+- [x] T040 Run the full quickstart.md validation (Scenarios 1–6) end-to-end on an isolated DB (`--db-path <tmp>` + non-default transport addrs per CLAUDE.md)
 
 ---
 
