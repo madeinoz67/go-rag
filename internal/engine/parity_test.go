@@ -204,23 +204,34 @@ type canonHit struct {
 	FilePath   string
 	Page       int
 	Section    []string // H23/spec 025: heading breadcrumb
+	NearDup    []string // H20/spec 026: near-dup sibling chunkIDs
 }
 
 func fromEngine(h engine.QueryHit) canonHit {
-	return canonHit{h.ChunkID, h.DocumentID, h.Score, h.Content, h.FilePath, h.Page, h.SectionContext}
+	nd := []string(nil)
+	if h.NearDup != nil {
+		nd = h.NearDup.Siblings
+	}
+	return canonHit{h.ChunkID, h.DocumentID, h.Score, h.Content, h.FilePath, h.Page, h.SectionContext, nd}
 }
 
 // restQueryHit mirrors internal/rest's JSON DTO without importing its unexported
 // type. Field tags match rest/types.go exactly.
 type restQueryHit struct {
-	ChunkID        string      `json:"chunk_id"`
-	DocumentID     string      `json:"document_id"`
-	Score          float64     `json:"score"`
-	Content        string      `json:"content"`
-	FilePath       string      `json:"file_path"`
-	Page           int         `json:"page"`
-	Poisoning      *restPoison `json:"poisoning,omitempty"`       // H04/spec 019
-	SectionContext []string    `json:"section_context,omitempty"` // H23/spec 025
+	ChunkID        string       `json:"chunk_id"`
+	DocumentID     string       `json:"document_id"`
+	Score          float64      `json:"score"`
+	Content        string       `json:"content"`
+	FilePath       string       `json:"file_path"`
+	Page           int          `json:"page"`
+	Poisoning      *restPoison  `json:"poisoning,omitempty"`       // H04/spec 019
+	SectionContext []string     `json:"section_context,omitempty"` // H23/spec 025
+	NearDup        *restNearDup `json:"near_dup,omitempty"`        // H20/spec 026
+}
+
+type restNearDup struct {
+	Siblings   []string `json:"siblings,omitempty"`
+	Similarity float64  `json:"similarity,omitempty"`
 }
 
 // restPoison mirrors internal/rest's poisonVerdict DTO (tags match exactly).
@@ -244,10 +255,18 @@ type restQueryResponse struct {
 }
 
 func fromREST(h restQueryHit) canonHit {
-	return canonHit{h.ChunkID, h.DocumentID, h.Score, h.Content, h.FilePath, h.Page, h.SectionContext}
+	nd := []string(nil)
+	if h.NearDup != nil {
+		nd = h.NearDup.Siblings
+	}
+	return canonHit{h.ChunkID, h.DocumentID, h.Score, h.Content, h.FilePath, h.Page, h.SectionContext, nd}
 }
 func fromGRPC(h *goragpb.QueryHit) canonHit {
-	return canonHit{h.GetChunkId(), h.GetDocumentId(), h.GetScore(), h.GetContent(), h.GetFilePath(), int(h.GetPage()), h.GetSectionContext()}
+	nd := []string(nil)
+	if h.GetNearDup() != nil {
+		nd = h.GetNearDup().GetSiblings()
+	}
+	return canonHit{h.GetChunkId(), h.GetDocumentId(), h.GetScore(), h.GetContent(), h.GetFilePath(), int(h.GetPage()), h.GetSectionContext(), nd}
 }
 
 // sliceEq reports whether two string slices are identical (nil == empty for this
@@ -279,6 +298,9 @@ func assertHitsEqual(t *testing.T, label string, got, want []canonHit) {
 			t.Errorf("%s hit[%d] score %.12g != engine %.12g", label, i, g.Score, w.Score)
 		}
 		if !sliceEq(g.Section, w.Section) { // H23/spec 025 (FR-004)
+			t.Errorf("%s hit[%d] section %v != engine %v", label, i, g.Section, w.Section)
+		}
+		if !sliceEq(g.NearDup, w.NearDup) { // H20/spec 026 (FR-004)
 			t.Errorf("%s hit[%d] section %v != engine %v", label, i, g.Section, w.Section)
 		}
 	}
