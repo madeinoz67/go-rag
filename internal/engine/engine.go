@@ -112,7 +112,17 @@ func newQueryCaches(cfg config.Config) (*LRU[string, *QueryResult], *LRU[string,
 // status, files) never start background workers.
 func NewWithDB(cfg config.Config, db *storage.DB) *Engine {
 	rc, ec, ep := newQueryCaches(cfg)
-	return &Engine{cfg: cfg, db: db, qTransformer: index.NormalizingTransformer{}, resultCache: rc, embedCache: ec, epoch: ep}
+	return &Engine{cfg: cfg, db: db, qTransformer: index.NormalizingTransformer{}, classifier: newClassifier(cfg), resultCache: rc, embedCache: ec, epoch: ep}
+}
+
+// newClassifier returns the default rule-based classifier when adaptive depth is
+// enabled (audit H22/spec 024), else nil — the default posture, in which no
+// classification occurs and behavior is byte-identical to pre-H22.
+func newClassifier(cfg config.Config) index.QueryClassifier {
+	if cfg.EffectiveAdaptiveDepthEnabled() {
+		return index.RuleBasedClassifier{}
+	}
+	return nil
 }
 
 // NewWithEmbedder returns an Engine that uses em as its embedder for both ingest
@@ -122,7 +132,7 @@ func NewWithDB(cfg config.Config, db *storage.DB) *Engine {
 // the embedder nil and falls back to Ollama — so this changes nothing for them.
 func NewWithEmbedder(cfg config.Config, db *storage.DB, em embed.Embedder) *Engine {
 	rc, ec, ep := newQueryCaches(cfg)
-	return &Engine{cfg: cfg, db: db, embedder: em, qTransformer: index.NormalizingTransformer{}, resultCache: rc, embedCache: ec, epoch: ep}
+	return &Engine{cfg: cfg, db: db, embedder: em, qTransformer: index.NormalizingTransformer{}, classifier: newClassifier(cfg), resultCache: rc, embedCache: ec, epoch: ep}
 }
 
 // embedderOrOllama returns the injected embedder when one is present, otherwise

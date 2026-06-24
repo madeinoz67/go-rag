@@ -49,12 +49,27 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 	if req.Query == "" {
 		return nil, fmt.Errorf("query is required: %w", ErrInvalid)
 	}
+	// H22/spec 024 (US2): resolve effective depth — explicit > recommended >
+	// default (FR-006). The classifier recommends k only when the caller has not
+	// set it; `classified` records whether it did, so FR-011 pool-shrinking can
+	// apply only to a classifier-driven depth. With the classifier off (the
+	// default posture) this collapses to today's clamp (default 5).
+	classified := false
 	if req.K <= 0 {
-		req.K = 5
+		if e.classifier != nil {
+			if rec := e.classifier.Classify(ctx, req.Query); rec.K > 0 {
+				req.K = rec.K
+				classified = true
+			}
+		}
+		if req.K <= 0 {
+			req.K = 5
+		}
 	}
 	if req.K > 100 {
 		req.K = 100
 	}
+	effK := req.K
 
 	// H08/spec 009: resolve the effective RRF k once (per-query override > config
 	// > default). Used both for the result-cache key below and for the retrieval
@@ -64,17 +79,17 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 		effRRFK = e.cfg.EffectiveRRFK()
 	}
 
-	// H22/spec 024: resolve the effective depth and candidate pool once, before
-	// the cache check and retrieval, so the cache key and the actual retrieval
-	// agree. req.K is already clamped to [1,100] with a default of 5 above; with
-	// no classifier (default posture) that IS the effective depth. The pool is the
-	// per-query override, else the configured ceiling (default 60) — byte-identical
-	// to pre-H22. (The classifier-driven k recommendation and FR-011 pool-shrinking
-	// layer on in US2/T026–T027; here e.classifier is nil so this path is inert.)
-	effK := req.K
+	// H22/spec 024: resolve the effective candidate pool — per-query override >
+	// classifier-derived (FR-011) > config ceiling. When the classifier drove the
+	// depth this query, the pool shrinks with that k (k+slack, floored/capped);
+	// otherwise the full configured ceiling is used (byte-identical default).
 	effPool := req.PoolSize
 	if effPool <= 0 {
-		effPool = e.cfg.EffectivePoolSize()
+		if classified { // FR-011: reduced depth must actually reduce search cost.
+			effPool = index.EffectivePoolFor(effK, index.PoolSlack, index.PoolFloor, e.cfg.EffectivePoolSize())
+		} else {
+			effPool = e.cfg.EffectivePoolSize()
+		}
 	}
 	effMode := req.Mode
 	if effMode == "" {
