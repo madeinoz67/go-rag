@@ -64,7 +64,7 @@
 | N1 | Cloud/hosted service | Local-only. A separate product could add sync later. |
 | N2 | Multi-user / auth | Single-user local tool. No login, no RBAC. |
 | N3 | Real-time collaboration | Single-process. Concurrency is for background workers, not multiple users. |
-| N4 | LLM inference | go-rag stores and retrieves documents. It calls Ollama for embeddings; it does not run models itself. |
+| N4 | LLM inference (except background local enrichment) | go-rag stores and retrieves documents and does **not** run models at query time (no answer synthesis / generation on the retrieval path) and does **not** call cloud LLMs. Narrow exception: a background, opt-in, local-only **document enrichment** step (spec 029) may call the bundled Ollama for per-document auto-tagging + summary, strictly after the durable ingest ACK and off the query path. Query-time generation and cloud providers remain out of scope. |
 | N5 | Audio/video ingestion | Out of scope for v1. Extension interface supports future addition. |
 | N6 | Distributed clustering | Single-node. MuninnDB's Cortex/Lobe model is reference for future. |
 | N7 | Web UI | CLI only for v1. TUI (bubbletea) can be added later. |
