@@ -84,8 +84,8 @@ guarantee**, so verification is part of the deliverable:
 
 ### Implementation for User Story 2
 
-- [ ] T012 [P] [US2] Surface `summary` + `enrichment_status` (and the effective tag set) on the document/status view across all four transports: `internal/engine/status.go`, `internal/rest/`, `internal/grpc/engine_adapter.go`, `internal/mcp/server.go`, `internal/cli/`, and `proto/gorag.proto` (+ regen). Omitted when `Enrichment == nil` (contracts/enrichment.md §2). Depends T003.
-- [ ] T013 [US2] Add a status/parity test (`internal/engine/parity_test.go` or status_test): the summary + status appear identically across CLI/REST/gRPC/MCP and are omitted for unenriched docs (FR-010 / SC-002). Depends T012.
+- [x] T012 [P] [US2] Surface `summary` + `enrichment_status` (and the effective tag set) on the document/status view across all four transports: `internal/engine/status.go`, `internal/rest/`, `internal/grpc/engine_adapter.go`, `internal/mcp/server.go`, `internal/cli/`, and `proto/gorag.proto` (+ regen). Omitted when `Enrichment == nil` (contracts/enrichment.md §2). Depends T003.
+- [x] T013 [US2] Add a status/parity test (`internal/engine/parity_test.go` or status_test): the summary + status appear identically across CLI/REST/gRPC/MCP and are omitted for unenriched docs (FR-010 / SC-002). Depends T012.
 
 **Checkpoint**: Summary is visible everywhere, uniformly, gracefully absent when N/A.
 
@@ -101,8 +101,8 @@ guarantee**, so verification is part of the deliverable:
 
 - [x] T014 [US3] Add a circuit breaker to `internal/enrich` (opens after consecutive failures — MuninnDB-verified 5 fails / 30 s defaults, half-open probe) wrapping the provider call, so a down/misbehaving model fast-fails instead of stalling the worker (research R5).
 - [x] T015 [US3] Implement graceful-fail + status in the pipeline enrich step: set `EnrichInfo.Status` (`enriched`/`failed`/`nothing-to-enrich`); permanent failures (bad output) are marked `failed` and not retried indefinitely; transient failures (model unreachable, circuit open, ctx cancelled) leave the sidecar nil for a later retry (research R5, data-model §4). Depends T008, T014.
-- [ ] T016 [US3] Add a back-fill re-enrich pass in `internal/engine` (mirrors `Reprocess`/`RescanPoisoning`) over docs with `Enrichment == nil` or `Status=="failed"`, plus an aggregate enriched-count in status (research R6). Depends T008.
-- [ ] T017 [US3] Add resilience + back-fill tests (`internal/pipeline`, `internal/engine`): model unreachable → doc still ingests/queries untagged, `Status` reflects failure, no infinite retry (SC-004); a pre-feature doc (nil sidecar) loads/queries and gains `Enrichment` after back-fill (SC-005). Depends T015, T016.
+- [x] T016 [US3] Add a back-fill re-enrich pass in `internal/engine` (mirrors `Reprocess`/`RescanPoisoning`) over docs with `Enrichment == nil` or `Status=="failed"`, plus an aggregate enriched-count in status (research R6). Depends T008.
+- [x] T017 [US3] Add resilience + back-fill tests (`internal/pipeline`, `internal/engine`): model unreachable → doc still ingests/queries untagged, `Status` reflects failure, no infinite retry (SC-004); a pre-feature doc (nil sidecar) loads/queries and gains `Enrichment` after back-fill (SC-005). Depends T015, T016.
 
 **Checkpoint**: Enrichment is safe to ship alongside an existing corpus and a flaky model.
 
@@ -112,8 +112,8 @@ guarantee**, so verification is part of the deliverable:
 
 **Purpose**: Eval gate + final gate + ship.
 
-- [ ] T018 [P] Run `make test-eval` (spec 004 harness): with enrichment **off**, assert no regression vs the T001 baseline; document the tag-filter improvement available when **on** (SC-001 measured). No code unless a regression surfaces.
-- [ ] T019 [P] Run the full gate: `make build vet lint test` green; `CGO_ENABLED=0 go build ./...` succeeds (Constitution III); `go mod tidy` clean (no new dependency expected — the Ollama generation provider reuses the existing HTTP client).
+- [x] T018 [P] Run `make test-eval` (spec 004 harness): with enrichment **off**, assert no regression vs the T001 baseline; document the tag-filter improvement available when **on** (SC-001 measured). No code unless a regression surfaces.
+- [x] T019 [P] Run the full gate: `make build vet lint test` green; `CGO_ENABLED=0 go build ./...` succeeds (Constitution III); `go mod tidy` clean (no new dependency expected — the Ollama generation provider reuses the existing HTTP client).
 - [ ] T020 Final gate: commit to `main` with Conventional Commits (e.g. `feat(enrich): document auto-tag & summary enrichment (spec 029)`) and push (single-author repo — straight to `main`, per `CLAUDE.md`).
 
 ---
