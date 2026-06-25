@@ -20,11 +20,12 @@ type Ollama struct {
 	baseURL string
 	model   string
 	client  *http.Client
+	br      *breaker // spec 029, R5: circuit breaker around the model call
 }
 
 // NewOllama returns an Ollama enricher pointing at baseURL using model.
 func NewOllama(baseURL, model string) *Ollama {
-	return &Ollama{baseURL: baseURL, model: model, client: &http.Client{Timeout: 120 * time.Second}}
+	return &Ollama{baseURL: baseURL, model: model, client: &http.Client{Timeout: 120 * time.Second}, br: newBreaker()}
 }
 
 // Model returns the generation model identifier (provenance on the sidecar).
@@ -58,10 +59,28 @@ Rules: tags are single words or short hyphenated phrases, lowercase, no punctuat
 // maxDocChars bounds the text sent to the model (context safety + latency).
 const maxDocChars = 4000
 
-// Enrich asks the local model for tags + summary. Empty/trivial text →
+// Enrich asks the local model for tags + summary, guarded by a circuit breaker
+// (spec 029, R5). An open breaker fast-fails with ErrCircuitOpen (transient — the
+// document's sidecar is left nil for a later retry). Every call records
+// success/failure so a down model stops stalling the worker under a flood of
+// failing calls.
+func (o *Ollama) Enrich(ctx context.Context, docText string) ([]string, string, error) {
+	if err := o.br.allow(); err != nil {
+		return nil, "", err
+	}
+	tags, summary, err := o.generate(ctx, docText)
+	if err != nil {
+		o.br.fail()
+	} else {
+		o.br.ok()
+	}
+	return tags, summary, err
+}
+
+// generate performs one unguarded enrichment call. Empty/trivial text →
 // ErrNothingToEnrich; a 4xx / unparseable response → a permanent failure
 // (WrapPermanent); a network/5xx error → a transient error (retried later).
-func (o *Ollama) Enrich(ctx context.Context, docText string) ([]string, string, error) {
+func (o *Ollama) generate(ctx context.Context, docText string) ([]string, string, error) {
 	docText = strings.TrimSpace(docText)
 	if docText == "" {
 		return nil, "", ErrNothingToEnrich
