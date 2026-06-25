@@ -4,11 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/madeinoz67/go-rag/internal/chunk"
-	"github.com/madeinoz67/go-rag/internal/embed"
-	"github.com/madeinoz67/go-rag/internal/index"
-	"github.com/madeinoz67/go-rag/internal/pipeline"
-	"github.com/madeinoz67/go-rag/internal/redact"
+	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/spf13/cobra"
 )
 
@@ -23,29 +19,31 @@ func newAddCmd() *cobra.Command {
 			if glob == "" {
 				glob = "*"
 			}
-			dryRun, _ := cmd.Flags().GetBool("dry-run")
-			_ = dryRun // MVP: always ingest (dry-run listed in contracts; full impl in polish)
 
 			cfg, db, err := openDB(dbPath)
 			if err != nil {
 				return err
 			}
 			defer db.Close()
-
-			em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
-			p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(db.Pebble()), index.NewVector(), cfg.Prefixer())
-			p.OnProgress = progressBar
+			// --redact opts into the engine's PII redaction (bound when
+			// PIIRedactEnabled), so the CLI matches the daemon's redaction behaviour.
 			if redactOn, _ := cmd.Flags().GetBool("redact"); redactOn {
-				custom, _ := redact.LoadCustom(cfg.PIIPatterns)
-				p.SetRedactor(redact.NewScanner(redact.DefaultPatterns(custom)))
+				cfg.PIIRedactEnabled = true
 			}
-			res, err := p.Ingest(context.Background(), path, glob)
-			p.Close() // drain async embedding+indexing
+
+			// Route through the engine so the cfg-driven pipeline features fire
+			// consistently with the daemon: poisoning detection, redaction,
+			// near-dup clustering, AND document enrichment (spec 029) when
+			// enrichment_enabled. (The raw-pipeline path the CLI used before bound
+			// none of these, so `go-rag add` never enriched.)
+			eng := engine.NewWithDB(cfg, db)
+			res, err := eng.Add(context.Background(), path, glob)
+			eng.Close() // drain async embed + enrich + index
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("Processed: %d new, %d skipped, %d unsupported, %d errors\n", res.New, res.Skipped, res.Unsupported, res.Errors)
+			fmt.Printf("Processed: %d new, %d skipped, %d errors\n", res.New, res.Skipped, res.Errors)
 			if res.New > 0 {
 				fmt.Println("Embedding/indexing completed.")
 			}

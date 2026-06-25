@@ -63,7 +63,7 @@ func TestSmoke_EnrichRealDoc(t *testing.T) {
 	}
 
 	eng := NewWithDB(cfg, db)
-	if _, err := eng.Add(context.Background(), docPath); err != nil {
+	if _, err := eng.Add(context.Background(), docPath, "*"); err != nil {
 		t.Fatalf("engine.Add: %v", err)
 	}
 	eng.Close() // drain async embed + enrich

@@ -25,7 +25,7 @@ func TestQuery_ContextWindow_Expansion(t *testing.T) {
 	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.Add(context.Background(), path); err != nil {
+	if _, err := e.Add(context.Background(), path, "*"); err != nil {
 		t.Fatal(err)
 	}
 	waitEmbedded(t, e)
@@ -65,7 +65,7 @@ func TestQuery_ContextWindow_Zero_NoContext(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "doc.txt")
 	os.WriteFile(path, []byte("alpha beta gamma delta epsilon zeta eta theta."), 0o644)
-	e.Add(context.Background(), path)
+	e.Add(context.Background(), path, "*")
 	waitEmbedded(t, e)
 
 	res, _ := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
@@ -82,7 +82,7 @@ func TestQuery_ContextWindow_TopK_Unchanged(t *testing.T) {
 	path := filepath.Join(dir, "doc.txt")
 	text := strings.Repeat("alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu. ", 30)
 	os.WriteFile(path, []byte(text), 0o644)
-	e.Add(context.Background(), path)
+	e.Add(context.Background(), path, "*")
 	waitEmbedded(t, e)
 
 	without, _ := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5})

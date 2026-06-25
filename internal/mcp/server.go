@@ -365,7 +365,7 @@ func cacheSummary(c engine.CacheStats) string {
 
 func (s *Server) renderAdd(eng *engine.Engine, args map[string]any) (string, error) {
 	path, _ := args["path"].(string)
-	res, err := eng.Add(context.Background(), path)
+	res, err := eng.Add(context.Background(), path, "")
 	if err != nil {
 		return "", err
 	}

@@ -181,7 +181,10 @@ message PoolUtilization {
 
 // ---- Ingest family ----
 
-message AddRequest { string path = 1; }
+message AddRequest {
+  string path = 1;
+  string glob = 2; // optional file-pattern filter (e.g. "*.pdf"); empty = "*"
+}
 message ScanRequest {}
 message ReprocessRequest { string path = 1; }
 message MigrateRequest {}

@@ -1199,6 +1199,7 @@ func (x *PoolUtilization) GetSaturated() uint64 {
 type AddRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Glob          string                 `protobuf:"bytes,2,opt,name=glob,proto3" json:"glob,omitempty"` // optional file-pattern filter (e.g. "*.pdf"); empty = "*"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1236,6 +1237,13 @@ func (*AddRequest) Descriptor() ([]byte, []int) {
 func (x *AddRequest) GetPath() string {
 	if x != nil {
 		return x.Path
+	}
+	return ""
+}
+
+func (x *AddRequest) GetGlob() string {
+	if x != nil {
+		return x.Glob
 	}
 	return ""
 }
@@ -2574,10 +2582,11 @@ const file_proto_gorag_proto_rawDesc = "" +
 	"\vavg_fetched\x18\x02 \x01(\x01R\n" +
 	"avgFetched\x12\x19\n" +
 	"\bavg_kept\x18\x03 \x01(\x01R\aavgKept\x12\x1c\n" +
-	"\tsaturated\x18\x04 \x01(\x04R\tsaturated\" \n" +
+	"\tsaturated\x18\x04 \x01(\x04R\tsaturated\"4\n" +
 	"\n" +
 	"AddRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"\r\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
+	"\x04glob\x18\x02 \x01(\tR\x04glob\"\r\n" +
 	"\vScanRequest\"&\n" +
 	"\x10ReprocessRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\"\x10\n" +

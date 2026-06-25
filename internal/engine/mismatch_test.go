@@ -71,7 +71,7 @@ func ingestUnder(t *testing.T, em testEmbedder) (*storage.DB, config.Config, fun
 	cfg.ChunkSize = 8 // small → multiple chunks so the majority is unambiguous
 	cfg.ChunkOverlap = 2
 	eng := NewWithEmbedder(cfg, db, em)
-	if _, err := eng.Add(context.Background(), corpusDir); err != nil {
+	if _, err := eng.Add(context.Background(), corpusDir, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
 	eng.Close() // drain async-after-ACK embeddings

@@ -65,7 +65,7 @@ func addDoc(t *testing.T, e *Engine, content string) string {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)
 	}
-	if _, err := e.Add(context.Background(), path); err != nil {
+	if _, err := e.Add(context.Background(), path, "*"); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	waitEmbedded(t, e)
@@ -225,7 +225,7 @@ func TestQuery_ConcurrentSafe_UnderBackgroundIngest(t *testing.T) {
 	addDone := make(chan struct{})
 	go func() {
 		defer close(addDone)
-		_, _ = e.Add(context.Background(), bgPath) // returns after sync store + enqueue
+		_, _ = e.Add(context.Background(), bgPath, "*") // returns after sync store + enqueue
 	}()
 
 	const q = 32

@@ -47,7 +47,7 @@ func TestCache_ConcurrentSafe(t *testing.T) {
 		wg.Add(1)
 		go func(path string) {
 			defer wg.Done()
-			_, _ = e.Add(context.Background(), path)
+			_, _ = e.Add(context.Background(), path, "*")
 		}(p)
 	}
 	wg.Wait()

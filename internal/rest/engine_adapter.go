@@ -109,7 +109,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 // (async-after-ACK); the response carries the durable-store counts while
 // embeddings continue on background workers.
 func (s *Server) handleAdd(w http.ResponseWriter, r *http.Request) {
-	res, err := s.eng.Add(r.Context(), decodePath(w, r))
+	res, err := s.eng.Add(r.Context(), decodePath(w, r), "")
 	if err != nil {
 		writeEngineErr(w, err)
 		return

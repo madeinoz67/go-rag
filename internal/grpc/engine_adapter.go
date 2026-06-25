@@ -139,7 +139,7 @@ func toPoolUtilizationPB(u engine.PoolUtilization) *goragpb.PoolUtilization {
 // Add is the gRPC projection of engine.Add. It ACKs fast (async-after-ACK);
 // embeddings finish on the engine's background workers after the response.
 func (a *Adapter) Add(ctx context.Context, req *goragpb.AddRequest) (*goragpb.IngestSummary, error) {
-	res, err := a.eng.Add(ctx, req.GetPath())
+	res, err := a.eng.Add(ctx, req.GetPath(), req.GetGlob())
 	if err != nil {
 		return nil, toStatusErr(err)
 	}

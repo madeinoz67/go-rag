@@ -274,7 +274,7 @@ func ProvisionCorpus(ctx context.Context, corpusDir string, em embed.Embedder, p
 	}
 	// Ingest the corpus with the same embedder eval will query with.
 	eng := engine.NewWithEmbedder(cfg, db, em)
-	if _, err := eng.Add(ctx, corpusDir); err != nil {
+	if _, err := eng.Add(ctx, corpusDir, "*"); err != nil {
 		eng.Close()
 		db.Close()
 		os.RemoveAll(tmp)

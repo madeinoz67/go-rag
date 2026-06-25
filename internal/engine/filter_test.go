@@ -26,10 +26,10 @@ func TestQuery_Filter_SourceScopes(t *testing.T) {
 	}
 	p1 := writeDoc2(dir1, "a.txt", "alpha retrieval document about searching")
 	p2 := writeDoc2(dir2, "b.txt", "alpha storage document about persistence")
-	if _, err := e.Add(context.Background(), p1); err != nil {
+	if _, err := e.Add(context.Background(), p1, "*"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.Add(context.Background(), p2); err != nil {
+	if _, err := e.Add(context.Background(), p2, "*"); err != nil {
 		t.Fatal(err)
 	}
 	waitEmbedded(t, e)

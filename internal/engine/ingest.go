@@ -25,7 +25,10 @@ func fromResult(r pipeline.Result) IngestSummary {
 // commit completes (async-after-ACK, Principle IV); embedding and indexing
 // continue on the engine's background workers after this call returns. Call
 // Close to wait for that background work to finish.
-func (e *Engine) Add(ctx context.Context, path string) (sum *IngestSummary, err error) {
+func (e *Engine) Add(ctx context.Context, path, glob string) (sum *IngestSummary, err error) {
+	if glob == "" {
+		glob = "*"
+	}
 	ctx, span := observe.StartSpan(ctx, observe.SpanIngest, observe.OpAttr("add"))
 	start := time.Now()
 	defer func() {
@@ -43,7 +46,7 @@ func (e *Engine) Add(ctx context.Context, path string) (sum *IngestSummary, err 
 	if err != nil {
 		return nil, err
 	}
-	res, err := p.Ingest(ctx, path, "*")
+	res, err := p.Ingest(ctx, path, glob)
 	if err != nil {
 		return nil, err
 	}
