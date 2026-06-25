@@ -92,5 +92,5 @@ system, embedding providers beyond Ollama. Don't build these without revisiting 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/030-crash-safe-embedding/plan.md
+at specs/031-pdf-structured-ingestion/plan.md
 <!-- SPECKIT END -->
