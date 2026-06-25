@@ -36,6 +36,16 @@ type Document struct {
 	IngestedAt  time.Time      `json:"ingested_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	Status      string         `json:"status"` // pending|embedded|error
+
+	// Enrichment is the per-document auto-tag + summary sidecar (spec 029),
+	// produced async-after-ACK by the local model. nil for unenriched /
+	// pre-feature / enrichment-off docs — treated as absent (never an error) at
+	// retrieval. A non-identity sidecar (like the Chunk sidecars Poisoning /
+	// SectionContext / NearDup): it is a SEPARATE struct field, NOT a Metadata
+	// key, so it never enters GenerateID — document identity, content hash, and
+	// idempotent re-add are unchanged. Tags feed the existing tag filter via a
+	// bridge; the summary is surfaced on status/hits.
+	Enrichment *EnrichInfo `json:"enrichment,omitempty"`
 }
 
 // GenerateID returns the SHA-256 over content + mime type + canonicalized (sorted)
@@ -118,6 +128,25 @@ type NearDupInfo struct {
 	Siblings   []string `json:"siblings,omitempty"`
 	Similarity float64  `json:"similarity,omitempty"`
 }
+
+// EnrichInfo is the per-document enrichment sidecar (spec 029): auto-generated
+// tags + summary from the local model, with provenance and a status that drives
+// retry/visibility. Non-identity; stored on Document.Enrichment. Absent (nil)
+// for unenriched / pre-feature / enrichment-off documents.
+type EnrichInfo struct {
+	Tags        []string  `json:"tags,omitempty"`
+	Summary     string    `json:"summary,omitempty"`
+	Model       string    `json:"model,omitempty"`
+	GeneratedAt time.Time `json:"generated_at,omitempty"`
+	Status      string    `json:"status,omitempty"` // enriched | failed | nothing-to-enrich
+}
+
+// Enrichment sidecar statuses (spec 029).
+const (
+	EnrichStatusDone    = "enriched"
+	EnrichStatusFailed  = "failed"
+	EnrichStatusNothing = "nothing-to-enrich"
+)
 
 // Embedding is a vector for a Chunk (PRD §6.5). Pebble prefix 0x04 (metadata only;
 // the vector itself lives in chromem-go).

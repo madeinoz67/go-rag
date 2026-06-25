@@ -18,6 +18,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/embed"
+	"github.com/madeinoz67/go-rag/internal/enrich"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/observe"
@@ -56,6 +57,7 @@ type Pipeline struct {
 	detector poison.Detector // H04/spec 019: scores chunks at ingest; nil = detection disabled
 	redactor *redact.Scanner // H19/spec 022: redacts secrets/PII pre-chunk; nil = disabled
 	nearDupK int             // H20/spec 026: SimHash Hamming threshold for near-dup clustering (0 = default 3)
+	enricher enrich.Enricher // spec 029: background document enrichment (tags+summary); nil = off
 
 	queue chan job
 	wg    sync.WaitGroup
@@ -125,6 +127,11 @@ func (p *Pipeline) SetRedactor(s *redact.Scanner) { p.redactor = s }
 // clustering (audit H20 / spec 026). Bound once by the Engine from
 // cfg.EffectiveNearDupHamming(); 0/unset ⇒ config.DefaultNearDupHamming (3).
 func (p *Pipeline) SetNearDupK(k int) { p.nearDupK = k }
+
+// SetEnricher binds the document enricher (spec 029). Bound once by the Engine
+// when cfg.EffectiveEnrichmentEnabled(); nil (the default) leaves enrichment off
+// and the system byte-identical to today.
+func (p *Pipeline) SetEnricher(e enrich.Enricher) { p.enricher = e }
 
 // Close drains the async queue and stops workers.
 func (p *Pipeline) Close() {

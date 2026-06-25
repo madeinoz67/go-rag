@@ -47,6 +47,10 @@ type Config struct {
 	PoolSize             int  `json:"pool_size,omitempty"`              // H22/spec 024: candidate-pool ceiling; 0 = default 60; <0 invalid
 	AdaptiveDepthEnabled bool `json:"adaptive_depth_enabled,omitempty"` // H22/spec 024: rule-based k-classifier on/off (default off)
 
+	// spec 029: background document enrichment (local model; opt-in, default off).
+	EnrichmentEnabled bool   `json:"enrichment_enabled,omitempty"` // default false; true enables background doc tag+summary
+	EnrichmentModel  string `json:"enrichment_model,omitempty"`   // the local generation model for tags+summary
+
 	// H04/spec 019: retrieval-poisoning (indirect prompt injection) detection.
 	// Detection scores every chunk at ingest and quarantines flagged chunks out
 	// of default query results (Q1=A). Detection is default-on (Q2=A) — the blind
@@ -208,6 +212,13 @@ func (c Config) EffectiveAdaptiveDepthEnabled() bool { return c.AdaptiveDepthEna
 // backward-compat path; an explicit false disables detection (chunks are
 // ingested/queried as clean, no verdict computed).
 func (c Config) EffectivePoisoningEnabled() bool { return c.PoisoningEnabled }
+
+// EffectiveEnrichmentEnabled reports whether background document enrichment
+// (spec 029) runs. Defaults to false (opt-in): enrichment consumes local model
+// resources and needs a tagging model pulled, so it is off until an operator
+// enables it. When false the system makes zero enrichment model calls and is
+// byte-identical to today.
+func (c Config) EffectiveEnrichmentEnabled() bool { return c.EnrichmentEnabled }
 
 // EffectivePoisonThresholdSuspicious returns the configured suspicious threshold
 // when positive, else the default (0.40).

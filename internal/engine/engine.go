@@ -8,6 +8,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/embed"
+	"github.com/madeinoz67/go-rag/internal/enrich"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/redact"
@@ -214,6 +215,11 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	if e.cfg.PIIRedactEnabled {
 		custom, _ := redact.LoadCustom(e.cfg.PIIPatterns)
 		e.pipe.SetRedactor(redact.NewScanner(redact.DefaultPatterns(custom)))
+	}
+	// spec 029: bind the document enricher (opt-in, default off). nil when
+	// enrichment_enabled is false. Produces tags + summary async-after-ACK.
+	if e.cfg.EffectiveEnrichmentEnabled() {
+		e.pipe.SetEnricher(enrich.NewOllama(e.cfg.OllamaURL, e.cfg.EnrichmentModel))
 	}
 	return e.pipe, nil
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/audit"
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/index"
+	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/observe"
 	"github.com/madeinoz67/go-rag/internal/rerank"
 )
@@ -206,7 +207,7 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 				if !ok {
 					return false
 				}
-				if !f.Matches(d.FilePath, d.FileType, tagsFromMetadata(d.Metadata)) {
+				if !f.Matches(d.FilePath, d.FileType, tagsForDoc(d.Metadata, d.Enrichment)) { // spec 029: merge auto-tags
 					return false
 				}
 			}
@@ -435,6 +436,18 @@ func sortedKeys(m map[string]int) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// tagsForDoc returns the effective document tags for filtering: manual
+// Metadata["tags"] (frontmatter) ∪ auto-generated Enrichment.Tags (spec 029
+// bridge). Both sources are optional and independently absent — the auto-tags
+// reach the existing --tags filter with no new query field.
+func tagsForDoc(meta map[string]any, enrichment *model.EnrichInfo) []string {
+	tags := tagsFromMetadata(meta)
+	if enrichment != nil {
+		tags = append(tags, enrichment.Tags...)
+	}
+	return tags
 }
 
 // tagsFromMetadata extracts document tags from Metadata["tags"] (H14/spec 014).

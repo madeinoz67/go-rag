@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"math/bits"
+	"strings"
 	"time"
 
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/embed"
+	"github.com/madeinoz67/go-rag/internal/enrich"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/near"
 	"github.com/madeinoz67/go-rag/internal/storage"
@@ -93,7 +95,61 @@ func (p *Pipeline) processJob(j job) {
 		ndK = config.DefaultNearDupHamming
 	}
 	p.clusterNearDup(j.chunks, ndK)
+	p.enrichDocument(j.docID, j.chunks) // spec 029: background doc tag+summary (async-after-ACK)
 	p.markStatus(j.docID, status)
+}
+
+// enrichDocument runs background document enrichment (spec 029): asks the bound
+// enricher for tags + summary and writes the EnrichInfo sidecar onto the document
+// (read-modify-write, like markStatus). Async-after-ACK; a no-op when no enricher
+// is bound. Failures are terminal-statused (failed / nothing-to-enrich) so the
+// worker never loops; transient errors (model unreachable, circuit open, ctx
+// cancelled) leave the sidecar nil for a later back-fill retry.
+func (p *Pipeline) enrichDocument(docID string, chunks []model.Chunk) {
+	if p.enricher == nil {
+		return
+	}
+	var b strings.Builder
+	for _, c := range chunks {
+		b.WriteString(c.Content)
+		b.WriteByte('\n')
+		if b.Len() > 8000 {
+			break
+		}
+	}
+	info := &model.EnrichInfo{Model: p.enricher.Model(), GeneratedAt: time.Now().UTC()}
+	tags, summary, err := p.enricher.Enrich(context.Background(), b.String())
+	switch {
+	case err == nil:
+		info.Tags, info.Summary = tags, summary
+		info.Status = model.EnrichStatusDone
+	case enrich.IsNothing(err):
+		info.Status = model.EnrichStatusNothing
+	case enrich.IsPermanent(err):
+		info.Status = model.EnrichStatusFailed
+	default: // transient: leave Enrichment nil this pass (retried on back-fill)
+		return
+	}
+	p.setEnrichment(docID, info)
+}
+
+// setEnrichment reads a Document, attaches the EnrichInfo sidecar, and writes it
+// back (read-modify-write under the pipeline mutex, mirroring markStatus). The
+// sidecar is a separate field from Metadata, so document identity is untouched.
+func (p *Pipeline) setEnrichment(docID string, info *model.EnrichInfo) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	raw, ok, _ := p.db.GetWithPrefix(storage.PrefixDocument, []byte(docID))
+	if !ok {
+		return
+	}
+	var doc model.Document
+	if json.Unmarshal(raw, &doc) != nil {
+		return
+	}
+	doc.Enrichment = info
+	dbj, _ := json.Marshal(doc)
+	_ = p.db.SetWithPrefix(storage.PrefixDocument, []byte(docID), dbj)
 }
 
 // markStatus reads a Document, updates its status, and writes it back. The pipeline
