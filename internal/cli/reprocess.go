@@ -4,10 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/madeinoz67/go-rag/internal/chunk"
-	"github.com/madeinoz67/go-rag/internal/embed"
-	"github.com/madeinoz67/go-rag/internal/index"
-	"github.com/madeinoz67/go-rag/internal/pipeline"
+	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/spf13/cobra"
 )
 
@@ -26,16 +23,16 @@ func newReprocessCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-
-			em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
-			p := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(db.Pebble()), index.NewVector(), cfg.Prefixer())
-			p.OnProgress = progressBar
-			res, err := p.Reprocess(context.Background(), path, "*")
-			p.Close() // drain async embedding/indexing
+			// Route through the engine so the cfg-driven pipeline features fire
+			// consistently with the daemon: poisoning detection, redaction,
+			// near-dup clustering, AND document enrichment (spec 029) when enabled.
+			eng := engine.NewWithDB(cfg, db)
+			res, err := eng.Reprocess(context.Background(), path)
+			eng.Close() // drain async embed + enrich + index
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Reprocessed: %d files (%d unsupported, %d errors)\n", res.New, res.Unsupported, res.Errors)
+			fmt.Printf("Reprocessed: %d new, %d skipped, %d errors\n", res.New, res.Skipped, res.Errors)
 			return nil
 		},
 	}

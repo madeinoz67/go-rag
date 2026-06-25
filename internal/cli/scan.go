@@ -7,6 +7,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/embed"
+	"github.com/madeinoz67/go-rag/internal/enrich"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/watcher"
@@ -34,6 +35,9 @@ func newScanCmd() *cobra.Command {
 
 			em := embed.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
 			pl := pipeline.New(db, chunk.NewSplitter(cfg.ChunkSize, cfg.ChunkOverlap), em, index.NewFTS(db.Pebble()), index.NewVector(), cfg.Prefixer())
+			if cfg.EffectiveEnrichmentEnabled() { // spec 029: bind the enricher so scan/watch enriches new files
+				pl.SetEnricher(enrich.NewOllama(cfg.OllamaURL, cfg.EnrichmentModel))
+			}
 			defer pl.Close()
 			cd := watcher.New(db, pl)
 
