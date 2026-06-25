@@ -38,7 +38,7 @@ guarantee**, so verification is part of the deliverable:
 
 **Purpose**: Record the pre-feature green baseline (the "nothing changed with enrichment off" claim is measured against it).
 
-- [ ] T001 Run `make build vet test` (and `make test-eval`) on `main` with enrichment off (the default); confirm green and record as the pre-feature baseline. No code changes.
+- [x] T001 Run `make build vet test` (and `make test-eval`) on `main` with enrichment off (the default); confirm green and record as the pre-feature baseline. No code changes.
 
 ---
 
@@ -48,11 +48,11 @@ guarantee**, so verification is part of the deliverable:
 
 **⚠️ CRITICAL**: Blocks US1, US2, US3.
 
-- [ ] T002 Revise the PRD non-goal **N4** ("no LLM inference") narrowly to "no LLM inference **except background, local-only document enrichment**" in `PRD_RAG_Database.md`, with a one-line rationale. This is the scope prerequisite the plan flagged (research R7) — record it before the code lands.
-- [ ] T003 [P] Add the `EnrichInfo` type (`Tags []string`, `Summary string`, `Model string`, `GeneratedAt time.Time`, `Status string`) and the `Document.Enrichment *EnrichInfo` field (`json:"enrichment,omitempty"`) to `internal/model/model.go`. A **non-identity sidecar** — it MUST NOT enter `GenerateID` (the field is separate from `Metadata`; research R1, data-model §1).
-- [ ] T004 [P] Create `internal/enrich/enricher.go`: the `Enricher` interface (`Enrich(ctx, doc) (*EnrichInfo, error)`) — the document-level generation sibling of `embed.Embedder` — plus typed sentinels (`ErrNothingToEnrich`, a permanent-fail wrapper) so callers distinguish transient vs permanent failures (research R3, data-model §2).
-- [ ] T005 [P] Add the config gate to `internal/config/config.go`: `EnrichmentEnabled bool` (default false), `EnrichmentModel string`, and `EffectiveEnrichmentEnabled()` — mirroring `EffectivePoisoningEnabled()` (research R4).
-- [ ] T006 Add an identity-preservation test (`internal/model/model_test.go` or engine): assert `GenerateID`, document ID, chunk IDs, and content hash are byte-identical whether `Enrichment` is nil or populated — proving the sidecar never enters identity (FR-002 / SC-005). Depends T003.
+- [x] T002 Revise the PRD non-goal **N4** ("no LLM inference") narrowly to "no LLM inference **except background, local-only document enrichment**" in `PRD_RAG_Database.md`, with a one-line rationale. This is the scope prerequisite the plan flagged (research R7) — record it before the code lands.
+- [x] T003 [P] Add the `EnrichInfo` type (`Tags []string`, `Summary string`, `Model string`, `GeneratedAt time.Time`, `Status string`) and the `Document.Enrichment *EnrichInfo` field (`json:"enrichment,omitempty"`) to `internal/model/model.go`. A **non-identity sidecar** — it MUST NOT enter `GenerateID` (the field is separate from `Metadata`; research R1, data-model §1).
+- [x] T004 [P] Create `internal/enrich/enricher.go`: the `Enricher` interface (`Enrich(ctx, doc) (*EnrichInfo, error)`) — the document-level generation sibling of `embed.Embedder` — plus typed sentinels (`ErrNothingToEnrich`, a permanent-fail wrapper) so callers distinguish transient vs permanent failures (research R3, data-model §2).
+- [x] T005 [P] Add the config gate to `internal/config/config.go`: `EnrichmentEnabled bool` (default false), `EnrichmentModel string`, and `EffectiveEnrichmentEnabled()` — mirroring `EffectivePoisoningEnabled()` (research R4).
+- [x] T006 Add an identity-preservation test (`internal/model/model_test.go` or engine): assert `GenerateID`, document ID, chunk IDs, and content hash are byte-identical whether `Enrichment` is nil or populated — proving the sidecar never enters identity (FR-002 / SC-005). Depends T003.
 
 **Checkpoint**: Sidecar + interface + config exist; identity is provably preserved; scope decision recorded.
 
@@ -66,11 +66,11 @@ guarantee**, so verification is part of the deliverable:
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Create the local provider `internal/enrich/ollama.go`: implements `Enricher` via the local model's generation endpoint (reusing the existing loopback HTTP base, different endpoint from embeddings), producing tags + summary, returning `*EnrichInfo` or a typed error (research R3).
-- [ ] T008 [US1] Add `SetEnricher(e Enricher)` to `internal/pipeline/pipeline.go` (mirroring `SetDetector`/`SetRedactor`) and an async enrich step in `internal/pipeline/workers.go` `processJob` (after store/embed, per document) that calls the enricher and writes the `EnrichInfo` sidecar. Strictly post-ACK (research R2, data-model §4).
-- [ ] T009 [US1] Wire the enricher in `internal/engine/engine.go`: bind it to the pipeline only when `cfg.EffectiveEnrichmentEnabled()` (off → zero enrichment, byte-identical to today). Depends T005, T008.
-- [ ] T010 [US1] Add the tag-filter bridge: extend the tag resolver (the `tagsFromMetadata`/filter path in `internal/index/filter.go` or `internal/engine`) to read `Document.Enrichment.Tags` ∪ `Document.Metadata["tags"]`, so `--tags` consumes auto-tags with no new query field (research R1, data-model §3). Depends T003.
-- [ ] T011 [US1] Add pipeline + bridge tests (`internal/pipeline/*_test.go`, `internal/engine/*_test.go`): with a fake enricher, an ingested doc gains `Enrichment.Tags` and is returned by `--tags`; the <10 ms write ACK is unchanged with enrichment on (SC-001/SC-003). Depends T008, T010.
+- [x] T007 [US1] Create the local provider `internal/enrich/ollama.go`: implements `Enricher` via the local model's generation endpoint (reusing the existing loopback HTTP base, different endpoint from embeddings), producing tags + summary, returning `*EnrichInfo` or a typed error (research R3).
+- [x] T008 [US1] Add `SetEnricher(e Enricher)` to `internal/pipeline/pipeline.go` (mirroring `SetDetector`/`SetRedactor`) and an async enrich step in `internal/pipeline/workers.go` `processJob` (after store/embed, per document) that calls the enricher and writes the `EnrichInfo` sidecar. Strictly post-ACK (research R2, data-model §4).
+- [x] T009 [US1] Wire the enricher in `internal/engine/engine.go`: bind it to the pipeline only when `cfg.EffectiveEnrichmentEnabled()` (off → zero enrichment, byte-identical to today). Depends T005, T008.
+- [x] T010 [US1] Add the tag-filter bridge: extend the tag resolver (the `tagsFromMetadata`/filter path in `internal/index/filter.go` or `internal/engine`) to read `Document.Enrichment.Tags` ∪ `Document.Metadata["tags"]`, so `--tags` consumes auto-tags with no new query field (research R1, data-model §3). Depends T003.
+- [x] T011 [US1] Add pipeline + bridge tests (`internal/pipeline/*_test.go`, `internal/engine/*_test.go`): with a fake enricher, an ingested doc gains `Enrichment.Tags` and is returned by `--tags`; the <10 ms write ACK is unchanged with enrichment on (SC-001/SC-003). Depends T008, T010.
 
 **Checkpoint**: Auto-tags reach the existing filter; ingest is non-blocking.
 
@@ -99,8 +99,8 @@ guarantee**, so verification is part of the deliverable:
 
 ### Implementation for User Story 3
 
-- [ ] T014 [US3] Add a circuit breaker to `internal/enrich` (opens after consecutive failures — MuninnDB-verified 5 fails / 30 s defaults, half-open probe) wrapping the provider call, so a down/misbehaving model fast-fails instead of stalling the worker (research R5).
-- [ ] T015 [US3] Implement graceful-fail + status in the pipeline enrich step: set `EnrichInfo.Status` (`enriched`/`failed`/`nothing-to-enrich`); permanent failures (bad output) are marked `failed` and not retried indefinitely; transient failures (model unreachable, circuit open, ctx cancelled) leave the sidecar nil for a later retry (research R5, data-model §4). Depends T008, T014.
+- [x] T014 [US3] Add a circuit breaker to `internal/enrich` (opens after consecutive failures — MuninnDB-verified 5 fails / 30 s defaults, half-open probe) wrapping the provider call, so a down/misbehaving model fast-fails instead of stalling the worker (research R5).
+- [x] T015 [US3] Implement graceful-fail + status in the pipeline enrich step: set `EnrichInfo.Status` (`enriched`/`failed`/`nothing-to-enrich`); permanent failures (bad output) are marked `failed` and not retried indefinitely; transient failures (model unreachable, circuit open, ctx cancelled) leave the sidecar nil for a later retry (research R5, data-model §4). Depends T008, T014.
 - [ ] T016 [US3] Add a back-fill re-enrich pass in `internal/engine` (mirrors `Reprocess`/`RescanPoisoning`) over docs with `Enrichment == nil` or `Status=="failed"`, plus an aggregate enriched-count in status (research R6). Depends T008.
 - [ ] T017 [US3] Add resilience + back-fill tests (`internal/pipeline`, `internal/engine`): model unreachable → doc still ingests/queries untagged, `Status` reflects failure, no infinite retry (SC-004); a pre-feature doc (nil sidecar) loads/queries and gains `Enrichment` after back-fill (SC-005). Depends T015, T016.
 
