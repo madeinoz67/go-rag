@@ -137,3 +137,124 @@ decision.
 model is required. Ollama supports vision models; the operator pulls one. The
 captioner interface mirrors the `Enricher` (spec 029) — a generation call per image,
 background, circuit-breaker-guarded, bounded.
+
+
+---
+
+## T002 — pdfcpu API verification (spike, 2026-06-25)
+
+**Resolves R1, R2, R5, R6 against the actual library.** pdfcpu version in use:
+`v0.13.0`. All four extraction capabilities R1 assumed are present; two carry
+design implications the plan must absorb. Verified from source
+(`$GOMODCACHE/github.com/pdfcpu/pdfcpu@v0.13.0/pkg/api/extract.go`,
+`.../pkg/pdfcpu/model/image.go`, `go doc` signatures).
+
+### R1-verify — Metadata ✅ (cleaner than assumed)
+
+`api.Properties(rs io.ReadSeeker, conf *model.Configuration) (map[string]string, error)`
+returns the Info dictionary as a flat `map[string]string` — keys are the Info-dict
+entries (`Title`, `Author`, `Subject`, `Keywords`, `Creator`, `Producer`,
+`CreationDate`, `ModDate`, …). `conf == nil` → `model.NewDefaultConfiguration()`.
+
+- `api.Keywords(rs, conf) ([]string, error)` — the Keywords field split into a list.
+- `api.ExtractMetadata(rs, digestMetadata func(pdfcpu.Metadata) error, ...)` — raw
+  metadata-dict readers (XML/XMP streams); not needed for US1 — `Properties` covers it.
+
+**Implication for T006 (US1):** map the known Info-dict keys → `Document.Metadata`
+(`title`, `author`, `subject`, `keywords`, plus dates). Absent keys are simply not in
+the map → graceful omission for free (FR-001/FR-007, SC-005). No new types.
+
+### R1-verify — Bookmarks / outline ✅ (with one caveat)
+
+`api.Bookmarks(rs io.ReadSeeker, conf *model.Configuration) ([]pdfcpu.Bookmark, error)`
+returns the outline tree. `pdfcpu.Bookmark`:
+
+```go
+type Bookmark struct {
+    Title    string
+    PageFrom int             // 1-based page number where this heading lives
+    PageThru int             // reaches until before PageFrom of the next sibling
+    Bold, Italic bool
+    Kids     []Bookmark      // nesting = heading depth/level
+    Parent   *Bookmark
+}
+```
+
+**Caveat for T014 (US2-PDF):** bookmarks map to **page numbers, not byte offsets**.
+`HeadingSpan.Offset` is a byte offset into the extracted `content` string. To produce
+spans we must track per-page byte boundaries during extraction and walk the bookmark
+tree (depth = `Level`). Two viable approaches for T014 to choose at implement time:
+1. Track cumulative content length per page; place each bookmark title as a marker at
+   its page's offset, then synthesize `HeadingSpan`s from the markers.
+2. Prefer the **font-size heuristic** (from the T004 positioned-text helper) as the
+   primary PDF heading signal — it yields offsets directly — and use bookmarks only as
+   a tie-breaker/confirmation when present.
+
+**Recommendation:** bookmarks are a free, high-precision signal when the PDF has an
+outline; the font-size heuristic is the general fallback. T014 should try bookmarks
+first (if `len(bms) > 0`) and fall back to font-size clustering.
+
+### R2-verify — Tables & positioned text ⚠️ (the real risk, confirmed)
+
+pdfcpu exposes **no positioned-text API**. `api.ExtractContent` →
+`pdfcpu.ExtractPageContent(ctx, pageNr)` returns the **raw content stream** as
+`bytes.NewReader(bb)` (the PDF text/graphics operators, not parsed text). The current
+reader (`internal/reader/pdf.go`) already consumes this stream and regex-extracts
+`(...)Tj` / `[...]TJ` show-text operators via `extractShowText`.
+
+**Implication for T004 / T017 / T014:** the positioning data **is in the stream** —
+`Tm` (text matrix: a b c d e f, where e=x, f=y), `Tf` (font name + size), `TD`/`Td`
+(line/character offsets), `Tj`/`TJ` (text). pdfcpu does not interpret them; the T004
+helper must parse the content stream itself (a small operator sequencer — extend the
+existing regex approach to also capture the preceding `Tm`/`Tf`). This is feasible and
+pure-Go, but it is the genuinely hard part of the feature:
+
+- **US3 tables (T017):** cluster show-text fragments by `Tm`-derived (x, y) into rows
+  (shared y-band) and columns (shared x-cluster), render as a Markdown table.
+  Best-effort by construction (PDFs don't encode table structure). Complex tables
+  (merged cells, rotated text) may fail — MUST fail gracefully (emit text as-is).
+- **US2-PDF font-size heuristic:** bucket text by `Tf` size; the largest size(s) on a
+  page → headings. Yields `HeadingSpan.Offset` directly.
+
+No alternative pure-Go positioned-text library is license-compatible (Constitution
+III). Confirmed: self-parsing the content stream is the only path.
+
+### R5/R6-verify — Image extraction ✅ (ideal for captioning)
+
+`api.ExtractImagesRaw(rs io.ReadSeeker, selectedPages []string, conf *model.Configuration) ([]map[int]model.Image, error)`
+returns images **in-memory** (no disk write). `model.Image` (defined in
+`pkg/pdfcpu/model/image.go:45`):
+
+```go
+type Image struct {
+    io.Reader          // ← io.ReadAll(img) yields the image bytes (JPEG/PNG)
+    Name      string
+    FileType  string
+    PageNr    int       // ← page position for caption splicing
+    Width, Height int
+    Size      int64
+    Filter, DecodeParms string
+    // ... (color space, mask, etc.)
+}
+```
+
+**Implication for T024/T026 (US4):** `io.ReadAll(img)` gives the bytes to send to the
+local vision model; `img.PageNr` gives the splice position; discard bytes after
+captioning (data-model.md §3). No temp files, no disk I/O — `ExtractImagesRaw` (not
+`ExtractImages`/`ExtractImagesFile`, which write to disk).
+
+### Summary — downstream task adjustments
+
+| Task | T002 verdict | Adjustment |
+|------|--------------|------------|
+| T006 (US1 metadata) | ✅ `api.Properties` map | None — cleanest story. |
+| T014 (US2-PDF headings) | ✅ bookmarks + ⚠️ font-size | Try `api.Bookmarks` first (page→offset mapping), fall back to T004 font-size clustering. |
+| T004 (positioned-text helper) | ⚠️ self-parse content stream | Extend `extractShowText`'s regex to also sequence `Tm`/`Tf`/`Td` operators. Pure-Go, no new dep. |
+| T017 (US3 tables) | ⚠️ best-effort grid | Cluster by `Tm` (x,y); graceful fallback to flat text. Hardest task. |
+| T024 (US4 image extract) | ✅ `api.ExtractImagesRaw` | `io.ReadAll(model.Image)` → caption bytes + `PageNr`. |
+
+**No new dependency introduced.** Constitution III (pure-Go) holds — everything runs
+through the existing `pdfcpu` + Ollama HTTP client. R1's "verify at implement time" is
+now closed for metadata/bookmarks/images; the only open risk is table-detection
+quality (R2), which is best-effort by design.
+
