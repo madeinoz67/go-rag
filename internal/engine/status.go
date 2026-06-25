@@ -80,6 +80,16 @@ func (e *Engine) Status() (*StatusInfo, error) {
 		}
 		return true
 	})
+	// spec 030: embedder backlog — pending + failed counts from the 0x14 queue.
+	embedPending, embedFailed := 0, 0
+	_ = e.db.ScanEmbedQueue(func(_ string, item storage.EmbedQueueItem) bool {
+		if item.Status == storage.EmbedQueueFailed {
+			embedFailed++
+		} else {
+			embedPending++
+		}
+		return true
+	})
 	poisonSrcs, _ := e.ListThreatSources()
 	return &StatusInfo{
 		Documents:                docs,
@@ -130,6 +140,10 @@ func (e *Engine) Status() (*StatusInfo, error) {
 		// spec 029: document enrichment observability.
 		EnrichmentEnabled: e.cfg.EffectiveEnrichmentEnabled(),
 		EnrichedDocs:      enrichedDocs,
+
+		// spec 030: crash-safe embedder backlog.
+		EmbedPending: embedPending,
+		EmbedFailed:  embedFailed,
 	}, nil
 }
 

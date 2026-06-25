@@ -71,7 +71,7 @@ the per-ingest `processJob` to a decoupled background processor. The risk is rea
 - [x] T006 [US1] Implement the embedder's embed loop in `internal/embedproc/processor.go`: drain 0x14 → for each pending chunkID, read chunk text from 0x03, apply the document-role prefix (H07 prefixer), call `Embedder.Embed`, write 0x04 `{model, convention, vector}`, `vec.Add`, bump the index epoch (`OnChange`), remove the 0x14 record. Absorb ALL embed responsibilities verbatim from the current `processJob` (prefixing, 0x04 shape, epoch bump, H03 guard). research R3/R5, data-model §2. Depends T002, T003.
 - [x] T007 [US1] Remove the embed role from `processJob` in `internal/pipeline/workers.go`: processJob no longer calls Embed or writes 0x04 — it keeps FTS indexing, near-dup clustering, enrichment (spec 029), and status. The embedder (T006) is now the sole writer of 0x04. **High-risk: ensure every embed responsibility moved to T006.** research R2. Depends T006.
 - [x] T008 [US1] Wire the embedder: the daemon (`internal/daemon`) constructs + `Start(ctx)`s it over the shared DB + index handles, for the daemon's lifetime, draining on shutdown; the CLI one-shot commands (`add`/`reprocess`/`scan`) get a short-lived embedder that runs + drains before the process exits (so `go-rag add` still embeds before returning). research R3. Depends T006.
-- [ ] T009 [US1] Add crash-recovery + hand-off tests (`internal/embedproc/processor_test.go`): (a) write a chunk + 0x14 (no embedding), run `Start` (initial scan), assert 0x04 written + vec.Add + 0x14 removed (SC-001 recovery); (b) the kill-restart scenario simulated without the daemon (seed 0x14, start embedder, verify recovery); (c) idempotency — re-running on already-embedded is a no-op (FR-006). SC-001. Depends T006, T008.
+- [x] T009 [US1] Add crash-recovery + hand-off tests (`internal/embedproc/processor_test.go`): (a) write a chunk + 0x14 (no embedding), run `Start` (initial scan), assert 0x04 written + vec.Add + 0x14 removed (SC-001 recovery); (b) the kill-restart scenario simulated without the daemon (seed 0x14, start embedder, verify recovery); (c) idempotency — re-running on already-embedded is a no-op (FR-006). SC-001. Depends T006, T008.
 
 **Checkpoint**: Embedding is crash-safe — a crash between ACK and embed recovers on restart.
 
@@ -87,7 +87,7 @@ the per-ingest `processJob` to a decoupled background processor. The risk is rea
 
 - [x] T010 [US2] Add cross-document micro-batching to the embedder loop: accumulate pending chunk texts up to MaxBatchSize (H12's 32), issue ONE `Embedder.Embed` call per micro-batch, scatter the vectors back to their chunkIDs (write 0x04 + vec.Add + remove 0x14 per chunk). research R4. Depends T006.
 - [x] T011 [US2] Integrate the circuit breaker into the embedder: `Allow()` before the Embed call; `ok()` on success, `fail()` on error; an open breaker fast-fails (the chunk's 0x14 stays pending for retry); a permanent failure (bad model/config) marks the 0x14 record `status=failed` (terminal — not retried indefinitely). research R4, data-model §2. Depends T004, T010.
-- [ ] T012 [US2] Add batch + circuit tests (`internal/embedproc/processor_test.go`): (a) N=100 pending chunks → assert ⌈100/32⌉ = 4 Embed calls (cross-doc batching, SC-004); (b) embedder that always errors → circuit opens after 5 fails; pending chunks stay pending (not failed); no infinite retry (SC-003). Depends T010, T011.
+- [x] T012 [US2] Add batch + circuit tests (`internal/embedproc/processor_test.go`): (a) N=100 pending chunks → assert ⌈100/32⌉ = 4 Embed calls (cross-doc batching, SC-004); (b) embedder that always errors → circuit opens after 5 fails; pending chunks stay pending (not failed); no infinite retry (SC-003). Depends T010, T011.
 
 **Checkpoint**: The embedder is throughput-optimized and resilient.
 
@@ -102,8 +102,8 @@ the per-ingest `processJob` to a decoupled background processor. The risk is rea
 ### Implementation for User Story 3
 
 - [x] T013 [US3] Run `make test-eval` (spec 004 harness) and assert recall@10 is **identical** to the T001 baseline — the refactor is structural (the 0x04 shape + vec.Add + epoch are unchanged). If recall regresses, the embedder's output diverged from processJob (a bug in T006/T007 — fix before proceeding). SC-005. Depends T007.
-- [ ] T014 [P] [US3] Add `EmbedPending int` + `EmbedFailed int` to `engine.StatusInfo` (`internal/engine/types.go`), compute in `internal/engine/status.go` (count 0x14 records with status=pending / status=failed), and project on the 4 transports (REST/gRPC/MCP/CLI status). research R6, contracts/embedder.md. Depends T002.
-- [ ] T015 [US3] Add status-surfacing tests (`internal/engine/status_test.go` or parity_test): with pending 0x14 records, `status` reports `embed_pending > 0`; with a failed record, `embed_failed > 0`; both surface identically across transports. SC-002. Depends T014.
+- [x] T014 [P] [US3] Add `EmbedPending int` + `EmbedFailed int` to `engine.StatusInfo` (`internal/engine/types.go`), compute in `internal/engine/status.go` (count 0x14 records with status=pending / status=failed), and project on the 4 transports (REST/gRPC/MCP/CLI status). research R6, contracts/embedder.md. Depends T002.
+- [x] T015 [US3] Add status-surfacing tests (`internal/engine/status_test.go` or parity_test): with pending 0x14 records, `status` reports `embed_pending > 0`; with a failed record, `embed_failed > 0`; both surface identically across transports. SC-002. Depends T014.
 
 **Checkpoint**: Output-identical + the backlog is visible.
 
@@ -113,8 +113,8 @@ the per-ingest `processJob` to a decoupled background processor. The risk is rea
 
 **Purpose**: Final gate + ship.
 
-- [ ] T016 [P] Run the full gate: `make build vet lint test` green; `CGO_ENABLED=0 go build ./...` succeeds (Constitution III); `go mod tidy` clean (no new dependency — the circuit breaker is extracted internally).
-- [ ] T017 Final gate: commit to `main` with Conventional Commits (e.g. `refactor(embed): crash-safe background embedder — MuninnDB approach (spec 030)`) and push.
+- [x] T016 [P] Run the full gate: `make build vet lint test` green; `CGO_ENABLED=0 go build ./...` succeeds (Constitution III); `go mod tidy` clean (no new dependency — the circuit breaker is extracted internally).
+- [x] T017 Final gate: commit to `main` with Conventional Commits (e.g. `refactor(embed): crash-safe background embedder — MuninnDB approach (spec 030)`) and push.
 
 ---
 

@@ -171,6 +171,10 @@ type StatusInfo struct {
 	// spec 029: document enrichment observability (background tags + summary).
 	EnrichmentEnabled bool // background enrichment on (opt-in, default false)
 	EnrichedDocs      int  // documents with a non-nil Enrichment sidecar (eventually consistent)
+
+	// spec 030: crash-safe background embedder backlog.
+	EmbedPending int // chunks awaiting embedding (0x14 status=pending)
+	EmbedFailed  int // chunks whose embedding permanently failed (0x14 status=failed)
 }
 
 // PoolUtilization is the aggregate candidate-pool consumption signal surfaced in
