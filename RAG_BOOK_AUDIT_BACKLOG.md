@@ -70,7 +70,7 @@ The whole point of building H02 first: each of these can now be proven to help.
 ## Phase 7 — Minor / future / scope-adjacent
 
 - [ ] **H26** · P3 · S · chunking — **Token estimate breaks on CJK.** Rune-based token estimate (CJK has no spaces → 0 "words") OR document the failure. *(Audit §1.1)*
-- [ ] **H27** · P3 · M · storage — **Brute-force `*Vector` has no `Index` interface (no HNSW escape hatch).** Extract an `Index` interface (`Add/Delete/Query`) before scaling pressure hits. *(Audit §1.3)*
+- [x] **H27** · P3 · M · storage — **Brute-force `*Vector` has no `Index` interface (no HNSW escape hatch).** Extract an `Index` interface (`Add/Delete/Query`) before scaling pressure hits. *(Audit §1.3)* — **DONE (spec 027):** `VectorIndex` interface (`Add`/`Delete`/`Query`) extracted in `internal/index`; `Retrieval.vec` now depends on the contract and `*Vector` remains the reference implementation. The three correctness invariants — H03 dimensionality-skip, deterministic chunk-ID tie-break, mutex concurrency — promoted from implementation detail to documented contract and pinned by a conformance test (`vector_contract_test.go`): the bar any future ANN backend must pass, or be wrapped/rejected. Interface-only: no second backend shipped; vestigial `Save`/`Load` (no production caller; store seeded from Pebble `0x04`) kept off the contract. Zero behaviour change — full suite + offline retrieval-eval recall@10 1.000 unchanged; transport/proto/config untouched.
 - [ ] **H28** · P3 · S · gen-boundary — **No explicit retrieval-only contract marker in API.** One-line doc comment on the `Query` RPC; optional `context_window_hint` field. *(Audit §1.5)*
 
 ---

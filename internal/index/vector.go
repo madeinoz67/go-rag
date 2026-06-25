@@ -8,10 +8,16 @@ import (
 	"sync"
 )
 
-// Vector is a pure-Go in-memory vector store with cosine-similarity nearest-
-// neighbour search and optional JSON persistence. Goroutine-safe (mutated by the
-// pipeline's concurrent background workers). The interface mirrors a chromem-go
-// (HNSW) backend that can be swapped in later (Principle V; research Q4).
+// Vector is the reference implementation of the VectorIndex contract (audit
+// H27 / spec 027): a pure-Go in-memory vector store with cosine-similarity
+// nearest-neighbour search. Goroutine-safe (mutated by the pipeline's concurrent
+// background workers). It honours the three VectorIndex invariants —
+// dimensionality-skip in Query (the H03 anti-silent-corruption guard),
+// deterministic ranking with a stable chunk-ID tie-break, and mutex-guarded
+// concurrency — and is the bar any future approximate-neighbour backend must
+// meet (see vector_contract_test.go). Save/Load is legacy JSON persistence,
+// retained for the persistence test only; the store is seeded from the durable
+// embeddings (Pebble prefix 0x04) by pipeline.LoadIndex, not by Load.
 type Vector struct {
 	mu     sync.Mutex
 	chunks map[string][]float32

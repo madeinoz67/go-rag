@@ -39,7 +39,7 @@ priority and dependency are unusually tightly coupled:
 
 **Purpose**: Record the pre-feature green baseline so US3's "identical before/after" claims are grounded.
 
-- [ ] T001 Run `make build vet test` (or `CGO_ENABLED=0 go build ./... && go vet ./... && go test ./...`) on `main`; confirm green and record as the pre-feature baseline. No code changes.
+- [x] T001 Run `make build vet test` (or `CGO_ENABLED=0 go build ./... && go vet ./... && go test ./...`) on `main`; confirm green and record as the pre-feature baseline. No code changes.
 
 ---
 
@@ -49,8 +49,8 @@ priority and dependency are unusually tightly coupled:
 
 **⚠️ CRITICAL**: Blocks US1 and US2.
 
-- [ ] T002 [P] Define the `VectorIndex` interface in `internal/index/index.go` — `Add(id string, vec []float32)`, `Delete(id string)`, `Query(vec []float32, k int) []Hit` over the existing `Hit`/`[]float32` types — with a doc comment stating it is the implementation-neutral vector-store contract and listing the three invariants as obligations (dimensionality-skip, determinism + stable chunkID tie-break, concurrency-safety). Mirror the existing `Reranker`/`EmbedFunc` interface style in the package. Research R1; contract: contracts/vector-index.md.
-- [ ] T003 [P] Confirm `Vector.Save`/`Vector.Load` (`internal/index/vector.go`) are vestigial — verify no production caller remains (only `LoadIndex` seeds the store, from Pebble `0x04`). Record the finding; this empirically grounds FR-007 (persistence stays off the contract). No code change unless a live caller is found (then surface it before proceeding). Research R3.
+- [x] T002 [P] Define the `VectorIndex` interface in `internal/index/index.go` — `Add(id string, vec []float32)`, `Delete(id string)`, `Query(vec []float32, k int) []Hit` over the existing `Hit`/`[]float32` types — with a doc comment stating it is the implementation-neutral vector-store contract and listing the three invariants as obligations (dimensionality-skip, determinism + stable chunkID tie-break, concurrency-safety). Mirror the existing `Reranker`/`EmbedFunc` interface style in the package. Research R1; contract: contracts/vector-index.md.
+- [x] T003 [P] Confirm `Vector.Save`/`Vector.Load` (`internal/index/vector.go`) are vestigial — verify no production caller remains (only `LoadIndex` seeds the store, from Pebble `0x04`). Record the finding; this empirically grounds FR-007 (persistence stays off the contract). No code change unless a live caller is found (then surface it before proceeding). Research R3.
 
 **Checkpoint**: Interface defined and the persistence decision empirically confirmed — story work can begin.
 
@@ -64,9 +64,9 @@ priority and dependency are unusually tightly coupled:
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] Change `Retrieval.vec` from `*index.Vector` to `VectorIndex` in `internal/index/retrieval.go`, and update the `NewRetrieval(fts, vec, embed)` parameter type to `VectorIndex`. This is the single consumer switch (R2); `*Vector` satisfies the interface structurally. Depends T002.
-- [ ] T005 [US1] Verify the engine holder needs no change: confirm `engine.indexes()` (`internal/engine/engine.go`) still returns concrete `*index.Vector` and that `query.go`'s `NewRetrieval(fts, vec, …)` call compiles unchanged (`*Vector` satisfies `VectorIndex`). Build the package; only edit if a call site does not satisfy structurally (none expected — R2). Depends T004.
-- [ ] T006 [US1] Add the seam test in `internal/index/retrieval_test.go`: build a real `*Vector` and a fake `VectorIndex` seeded with the same `(id→vec)` pairs; run the same query through `Retrieval` wired to each and assert byte-identical `[]Hit` (order + scores). Proves Retrieval depends on the contract, not the implementation (SC-001). Depends T004.
+- [x] T004 [US1] Change `Retrieval.vec` from `*index.Vector` to `VectorIndex` in `internal/index/retrieval.go`, and update the `NewRetrieval(fts, vec, embed)` parameter type to `VectorIndex`. This is the single consumer switch (R2); `*Vector` satisfies the interface structurally. Depends T002.
+- [x] T005 [US1] Verify the engine holder needs no change: confirm `engine.indexes()` (`internal/engine/engine.go`) still returns concrete `*index.Vector` and that `query.go`'s `NewRetrieval(fts, vec, …)` call compiles unchanged (`*Vector` satisfies `VectorIndex`). Build the package; only edit if a call site does not satisfy structurally (none expected — R2). Depends T004.
+- [x] T006 [US1] Add the seam test in `internal/index/retrieval_test.go`: build a real `*Vector` and a fake `VectorIndex` seeded with the same `(id→vec)` pairs; run the same query through `Retrieval` wired to each and assert byte-identical `[]Hit` (order + scores). Proves Retrieval depends on the contract, not the implementation (SC-001). Depends T004.
 
 **Checkpoint**: The seam exists and is proven — Retrieval no longer names the concrete store.
 
@@ -80,8 +80,8 @@ priority and dependency are unusually tightly coupled:
 
 ### Implementation for User Story 2
 
-- [ ] T007 [US2] Create the conformance test `internal/index/vector_contract_test.go` asserting the reference `*Vector` honours all three invariants: (1) a mixed-dimensionality corpus queried with one dimensionality returns only same-dimensionality hits — mismatched vectors skipped, never garbage-scored (FR-002 / Invariant 1); (2) repeated identical queries return byte-identical order, and a crafted equal-score pair resolves by ascending chunkID (FR-003 / Invariant 2); (3) concurrent `Add`+`Query` under `go test -race` reports no race (FR-004 / Invariant 3). This test is the bar any future backend must pass (FR-009). Research R4; contract: contracts/vector-index.md §Conformance. Depends T002.
-- [ ] T008 [US2] Update the `Vector` doc comment in `internal/index/vector.go` to state it is the **reference implementation** of `VectorIndex` and cite the three invariants (replacing the stale "mirrors a chromem-go backend… swapped in later" note). Retire the deferred-"task T027" TODO in `internal/index/index.go` (the interface now exists). Research R6. Depends T002.
+- [x] T007 [US2] Create the conformance test `internal/index/vector_contract_test.go` asserting the reference `*Vector` honours all three invariants: (1) a mixed-dimensionality corpus queried with one dimensionality returns only same-dimensionality hits — mismatched vectors skipped, never garbage-scored (FR-002 / Invariant 1); (2) repeated identical queries return byte-identical order, and a crafted equal-score pair resolves by ascending chunkID (FR-003 / Invariant 2); (3) concurrent `Add`+`Query` under `go test -race` reports no race (FR-004 / Invariant 3). This test is the bar any future backend must pass (FR-009). Research R4; contract: contracts/vector-index.md §Conformance. Depends T002.
+- [x] T008 [US2] Update the `Vector` doc comment in `internal/index/vector.go` to state it is the **reference implementation** of `VectorIndex` and cite the three invariants (replacing the stale "mirrors a chromem-go backend… swapped in later" note). Retire the deferred-"task T027" TODO in `internal/index/index.go` (the interface now exists). Research R6. Depends T002.
 
 **Checkpoint**: The contract is executable — the invariants survive any backend swap.
 
@@ -95,9 +95,9 @@ priority and dependency are unusually tightly coupled:
 
 ### Implementation for User Story 3
 
-- [ ] T009 [US3] Run `make test-eval` (spec 004 retrieval-eval harness) and assert recall is **identical** to the T001 pre-feature baseline — the structural change is quality-neutral (SC-002). No code.
-- [ ] T010 [US3] Run `go test -race ./internal/engine/` (incl. `parity_test.go`) and assert cross-transport parity (CLI/REST/gRPC/MCP) is unchanged (SC-003). No code.
-- [ ] T011 [US3] Confirm the blast radius: `git diff --stat main -- internal/rest internal/grpc internal/mcp internal/cli proto/ internal/config` is empty, and `git grep 'VectorIndex' -- '*.go'` shows only the interface definition + the `Retrieval.vec` field (SC-005). No code. Depends T004, T007, T008.
+- [x] T009 [US3] Run `make test-eval` (spec 004 retrieval-eval harness) and assert recall is **identical** to the T001 pre-feature baseline — the structural change is quality-neutral (SC-002). No code.
+- [x] T010 [US3] Run `go test -race ./internal/engine/` (incl. `parity_test.go`) and assert cross-transport parity (CLI/REST/gRPC/MCP) is unchanged (SC-003). No code.
+- [x] T011 [US3] Confirm the blast radius: `git diff --stat main -- internal/rest internal/grpc internal/mcp internal/cli proto/ internal/config` is empty, and `git grep 'VectorIndex' -- '*.go'` shows only the interface definition + the `Retrieval.vec` field (SC-005). No code. Depends T004, T007, T008.
 
 **Checkpoint**: The refactor is proven invisible. The feature ships only if all three pass.
 
@@ -107,9 +107,9 @@ priority and dependency are unusually tightly coupled:
 
 **Purpose**: Final gate and audit-bookkeeping.
 
-- [ ] T012 [P] Run the full gate: `make build vet lint test` green; `CGO_ENABLED=0 go build ./...` succeeds (Constitution III); `go mod tidy` clean (no new dependency expected).
-- [ ] T013 Update audit tracking: mark finding **H27** done in `RAG_BOOK_AUDIT_BACKLOG.md` (Phase 7 §1.3) with a one-line completion note (spec 027 — interface-only, brute-force remains reference impl).
-- [ ] T014 Final gate: commit to `main` with Conventional Commits (e.g. `refactor(index): swappable vector index interface (H27)`) and push (single-author repo — straight to `main`, per `CLAUDE.md`).
+- [x] T012 [P] Run the full gate: `make build vet lint test` green; `CGO_ENABLED=0 go build ./...` succeeds (Constitution III); `go mod tidy` clean (no new dependency expected).
+- [x] T013 Update audit tracking: mark finding **H27** done in `RAG_BOOK_AUDIT_BACKLOG.md` (Phase 7 §1.3) with a one-line completion note (spec 027 — interface-only, brute-force remains reference impl).
+- [x] T014 Final gate: commit to `main` with Conventional Commits (e.g. `refactor(index): swappable vector index interface (H27)`) and push (single-author repo — straight to `main`, per `CLAUDE.md`).
 
 ---
 

@@ -38,7 +38,7 @@ type EmbedFunc func(ctx context.Context, texts []string) ([][]float32, error)
 // > 60) before each query.
 type Retrieval struct {
 	fts   *FTS
-	vec   *Vector
+	vec   VectorIndex
 	embed EmbedFunc
 
 	rrfK     int
@@ -57,7 +57,7 @@ type Retrieval struct {
 }
 
 // NewRetrieval wires an FTS index, a Vector index, and a query embedder.
-func NewRetrieval(fts *FTS, vec *Vector, embed EmbedFunc) *Retrieval {
+func NewRetrieval(fts *FTS, vec VectorIndex, embed EmbedFunc) *Retrieval {
 	return &Retrieval{
 		fts: fts, vec: vec, embed: embed,
 		rrfK: 60, poolSize: 60,
