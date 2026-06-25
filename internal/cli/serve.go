@@ -59,6 +59,11 @@ func newServeCmd() *cobra.Command {
 
 			token := daemon.ReadToken(dbPath)
 			eng := engine.NewWithDB(cfg, db)
+			// spec 030: start the embedder eagerly so the startup scan recovers any
+			// pending 0x14 embeddings from a previous crash.
+			if err := eng.EnsureEmbedder(); err != nil {
+				return err
+			}
 			// Drain the engine's background ingest workers (async-after-ACK writes)
 			// before the database closes on shutdown. Runs before the deferred
 			// db.Close() above (LIFO defer order).

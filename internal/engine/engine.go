@@ -177,14 +177,6 @@ func (e *Engine) indexes() (*index.FTS, *index.Vector, error) {
 		}
 		e.idxFts, e.idxVec = fts, vec
 	}
-	// spec 030: start the crash-safe background embedder here (shared by read +
-	// write paths) so the crash-recovery scan runs on the first query OR first
-	// ingest — not only on writes (pipeline()). This ensures a daemon that
-	// restarts after a crash and serves queries recovers pending 0x14 embeddings.
-	if e.embedProc == nil {
-		e.embedProc = embedproc.New(e.db, e.embedderOrOllama(), e.cfg.Prefixer(), e.idxVec, e.markIndexChanged)
-		e.embedProc.Start(context.Background())
-	}
 	return e.idxFts, e.idxVec, nil
 }
 
@@ -236,9 +228,12 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	if e.cfg.EffectiveEnrichmentEnabled() {
 		e.pipe.SetEnricher(enrich.NewOllama(e.cfg.OllamaURL, e.cfg.EnrichmentModel))
 	}
-	// spec 030: the embedder is started in indexes() (shared read+write path, so
-	// the crash-recovery scan fires on query OR ingest). Here we just wire the
-	// pipeline's Notify to wake it on ACK for near-immediate embed start.
+	// spec 030: construct + start the crash-safe background embedder. It drains
+	// the durable 0x14 pending-embed queue, micro-batches across documents, and
+	// is circuit-breaker-guarded. On Start it runs an initial scan (crash recovery).
+	em := e.embedderOrOllama()
+	e.embedProc = embedproc.New(e.db, em, e.cfg.Prefixer(), vec, e.pipe.OnChange)
+	e.embedProc.Start(context.Background())
 	e.pipe.OnNotifyEmbed = e.embedProc.Notify
 	return e.pipe, nil
 }
@@ -248,6 +243,22 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 // Long-lived daemons must call this before closing the underlying database so
 // in-flight async writes complete; short-lived (per-request) engines call it to
 // avoid leaking worker goroutines.
+// EnsureEmbedder seeds the shared index and starts the background embedder if not
+// already running (spec 030). Called by the daemon (serve) on startup so the
+// crash-recovery scan runs before serving — a restart after a crash recovers
+// pending 0x14 embeddings even if no write triggers pipeline(). Tests don't call
+// this (no goroutine leak); the daemon and CLI one-shots do.
+func (e *Engine) EnsureEmbedder() error {
+	if _, _, err := e.indexes(); err != nil {
+		return err
+	}
+	if e.embedProc == nil {
+		e.embedProc = embedproc.New(e.db, e.embedderOrOllama(), e.cfg.Prefixer(), e.idxVec, e.markIndexChanged)
+		e.embedProc.Start(context.Background())
+	}
+	return nil
+}
+
 func (e *Engine) Close() {
 	e.pipeMu.Lock()
 	defer e.pipeMu.Unlock()
