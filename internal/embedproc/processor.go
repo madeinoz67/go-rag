@@ -42,12 +42,12 @@ type Processor struct {
 	vec      *index.Vector
 	onChange func() // epoch bump (H06 cache invalidation)
 
-	br        *breaker
-	notifyCh  chan struct{}
-	cancelFn  context.CancelFunc
-	wg        sync.WaitGroup
-	mu        sync.Mutex
-	running   bool
+	br       *breaker
+	notifyCh chan struct{}
+	cancelFn context.CancelFunc
+	wg       sync.WaitGroup
+	mu       sync.Mutex
+	running  bool
 }
 
 // New returns a Processor over the given handles. vec is the shared in-memory vector
@@ -55,13 +55,13 @@ type Processor struct {
 // engine's epoch-bumper (nil in tests = no cache invalidation).
 func New(db *storage.DB, em embed.Embedder, pre *embed.Prefixer, vec *index.Vector, onChange func()) *Processor {
 	return &Processor{
-		db:        db,
-		embedder:  em,
-		prefixer:  pre,
-		vec:       vec,
-		onChange:  onChange,
-		br:        newBreaker(),
-		notifyCh:  make(chan struct{}, 1),
+		db:       db,
+		embedder: em,
+		prefixer: pre,
+		vec:      vec,
+		onChange: onChange,
+		br:       newBreaker(),
+		notifyCh: make(chan struct{}, 1),
 	}
 }
 
@@ -110,21 +110,22 @@ func (p *Processor) run(ctx context.Context) {
 	defer p.wg.Done()
 
 	// Initial scan: crash recovery (US1 / SC-001). Re-embeds anything left pending.
-	p.processBatch(ctx)
+	p.processBatch(context.Background())
 
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			// Final drain so a one-shot CLI command embeds before exit.
-			p.processBatch(ctx)
+			// Final drain so a one-shot CLI command embeds before exit. Use a
+			// fresh context (ctx is canceled) so the embed call completes.
+			p.processBatch(context.Background())
 			return
 		case <-p.notifyCh:
-			p.processBatch(ctx)
+			p.processBatch(context.Background())
 			ticker.Reset(3 * time.Second) // reset poll after explicit notify
 		case <-ticker.C:
-			p.processBatch(ctx)
+			p.processBatch(context.Background())
 		}
 	}
 }
@@ -141,7 +142,7 @@ func (p *Processor) processBatch(ctx context.Context) {
 	}
 	var batch []pending
 
-	p.db.ScanEmbedQueue(func(chunkID string, item storage.EmbedQueueItem) bool {
+	_ = p.db.ScanEmbedQueue(func(chunkID string, item storage.EmbedQueueItem) bool {
 		if len(batch) >= maxBatch {
 			return false // cap per pass; remaining picked up next tick
 		}

@@ -80,6 +80,11 @@ type Pipeline struct {
 	// once a baseline exists. Keeps internal/pipeline free of the engine + the
 	// baseline store (Principle V).
 	OnFirstEmbed func(model string, dim int, convention string)
+
+	// OnNotifyEmbed, if non-nil, is called after a document's chunks + pending-embed
+	// records are durably stored (0x03 + 0x14), to wake the background embedder
+	// (spec 030). nil in tests (the embedder polls as a fallback).
+	OnNotifyEmbed func()
 }
 
 // indexChanged fires the OnChange callback when set. Centralizing the nil guard
@@ -324,8 +329,13 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	if err := p.storeDocument(doc, chunks, ch); err != nil {
 		return "ERROR", err
 	}
+	// spec 030: notify the background embedder that work is queued (near-immediate
+	// embed start, vs waiting for the 3s poll).
+	if p.OnNotifyEmbed != nil {
+		p.OnNotifyEmbed()
+	}
 
-	// Async embed + index after the ACK.
+	// Async FTS index + near-dup + enrich after the ACK (embed is now the embedder's job).
 	p.queue <- job{docID: docID, chunks: chunks}
 	return "NEW", nil
 }
@@ -346,6 +356,12 @@ func (p *Pipeline) storeDocument(doc model.Document, chunks []model.Chunk, conte
 	for _, c := range chunks {
 		cj, _ := json.Marshal(c)
 		if err := p.db.SetWithPrefix(storage.PrefixChunk, []byte(c.ID), cj); err != nil {
+			return err
+		}
+		// spec 030: enqueue the chunk for the background embedder (durable 0x14 queue,
+		// written BEFORE ACK so a post-ACK crash is recoverable). Removed when the
+		// embedding lands.
+		if err := p.db.PutEmbedQueueItem(c.ID, p.embed.Model()); err != nil {
 			return err
 		}
 	}

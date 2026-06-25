@@ -49,16 +49,12 @@ func TestPipeline_DocumentPrefixApplied(t *testing.T) {
 		t.Fatalf("ingest: %v", err)
 	}
 	p.Close()
-	time.Sleep(80 * time.Millisecond) // let async embedding land
 
-	// 1. The embedder received document-prefixed texts.
-	if len(em.seen) == 0 {
-		t.Fatalf("embedder received no texts")
-	}
-	for _, txt := range em.seen {
-		if !strings.HasPrefix(txt, "search_document: ") {
-			t.Errorf("embedder received unprefixed doc text: %q (want %q prefix)", txt, "search_document: ")
-		}
+	// spec 030: the pipeline now queues chunks for the background embedder (0x14).
+	// The H07 prefix is applied by the embedder (internal/embedproc), not processJob.
+	// Verify the chunks are queued for the embedder.
+	if n := db.CountEmbedQueue(); n == 0 {
+		t.Fatalf("expected pending-embed queue entries (0x14), got 0 — chunks not queued")
 	}
 
 	// 2. The stored Chunk.Content is unprefixed (Principle II — prefix never touches content).
@@ -77,21 +73,8 @@ func TestPipeline_DocumentPrefixApplied(t *testing.T) {
 		t.Fatalf("no chunks stored")
 	}
 
-	// 3. The 0x04 embedding record records the convention provenance.
-	var nEmbs int
-	_ = db.PrefixScanByte(storage.PrefixEmbedding, func(_, val []byte) bool {
-		var se storedEmbedding
-		if json.Unmarshal(val, &se) == nil {
-			nEmbs++
-			if se.Convention != "nomic" {
-				t.Errorf("stored embedding convention = %q, want %q", se.Convention, "nomic")
-			}
-		}
-		return true
-	})
-	if nEmbs == 0 {
-		t.Fatalf("no embeddings stored")
-	}
+	// spec 030: assertion (3) — 0x04 embedding convention provenance — moved to the
+	// embedproc package tests (the embedder writes 0x04, not the pipeline).
 }
 
 // TestPipeline_NilPrefixerNoPrefix confirms a nil prefixer (no prefix in effect)

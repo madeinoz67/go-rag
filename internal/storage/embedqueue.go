@@ -7,9 +7,9 @@ import "encoding/json"
 // (0x04 written); marked status=failed on a permanent embed failure. The queue IS
 // the crash-recovery signal: a record in 0x14 means "this chunk needs (re)embedding."
 type EmbedQueueItem struct {
-	Model    string `json:"model"`                       // embedding model to use
-	Status   string `json:"status"`                      // pending | failed
-	Attempts int    `json:"attempts,omitempty"`           // transient retry count
+	Model    string `json:"model"`              // embedding model to use
+	Status   string `json:"status"`             // pending | failed
+	Attempts int    `json:"attempts,omitempty"` // transient retry count
 }
 
 const (

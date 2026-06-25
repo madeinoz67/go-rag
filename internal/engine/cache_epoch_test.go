@@ -134,11 +134,11 @@ func TestEpoch_AsyncVectorBump(t *testing.T) {
 	// H16/spec 018). The async processJob adds the vector + FTS postings and
 	// bumps the epoch (+1). Await the +1.
 	addDoc(t, e, "first document content for the async epoch test")
-	waitForEpoch(t, e, epoch0+1) // 1×processJob (async vector + FTS postings)
+	waitForEpoch(t, e, epoch0+2) // spec 030: processJob FTS (+1) + embedder vector (+1)
 
-	// A second document advances it by another 1.
+	// A second document advances it by another 2.
 	addDoc(t, e, "second document content distinct from the first")
-	waitForEpoch(t, e, epoch0+2)
+	waitForEpoch(t, e, epoch0+4)
 }
 
 // TestEpoch_MigrateFlushesCaches asserts Migrate flushes the result cache (an

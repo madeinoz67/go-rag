@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -8,6 +9,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/embed"
+	"github.com/madeinoz67/go-rag/internal/embedproc"
 	"github.com/madeinoz67/go-rag/internal/enrich"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
@@ -37,6 +39,11 @@ type Engine struct {
 	// (spec 004 / FR-007). Every existing caller leaves it nil and gets the
 	// unchanged Ollama behavior via embedderOrOllama().
 	embedder embed.Embedder
+
+	// embedProc is the crash-safe background embedder (spec 030). Started in
+	// pipeline() alongside the pipeline; stopped in Close() before the pipeline
+	// drains. nil until pipeline() is first called.
+	embedProc *embedproc.Processor
 
 	pipeMu sync.Mutex
 	pipe   *pipeline.Pipeline
@@ -221,6 +228,15 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	if e.cfg.EffectiveEnrichmentEnabled() {
 		e.pipe.SetEnricher(enrich.NewOllama(e.cfg.OllamaURL, e.cfg.EnrichmentModel))
 	}
+	// spec 030: construct + start the crash-safe background embedder. It drains
+	// the durable 0x14 pending-embed queue (written atomically with each chunk by
+	// storeDocument), micro-batches across documents, and is circuit-breaker-
+	// guarded. On Start it runs an initial scan (crash recovery). The pipeline's
+	// OnNotifyEmbed wakes it on ACK for near-immediate embed start.
+	em := e.embedderOrOllama()
+	e.embedProc = embedproc.New(e.db, em, e.cfg.Prefixer(), vec, e.pipe.OnChange)
+	e.embedProc.Start(context.Background())
+	e.pipe.OnNotifyEmbed = e.embedProc.Notify
 	return e.pipe, nil
 }
 
@@ -232,6 +248,10 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 func (e *Engine) Close() {
 	e.pipeMu.Lock()
 	defer e.pipeMu.Unlock()
+	if e.embedProc != nil {
+		e.embedProc.Stop() // spec 030: drain pending embeddings before the pipeline
+		e.embedProc = nil
+	}
 	if e.pipe != nil {
 		e.pipe.Close()
 		e.pipe = nil

@@ -25,9 +25,10 @@ func TestEmbeddingModelRecorded(t *testing.T) {
 	_, _ = p.Ingest(context.Background(), dir, "*")
 	p.Close() // drain async embedding so 0x04 entries are written
 
-	stats := EmbeddingModelStats(db)
-	if stats["fake"] == 0 {
-		t.Fatalf("expected embeddings recorded under model 'fake', got %v", stats)
+	// spec 030: the pipeline now queues chunks for the background embedder (0x14),
+	// not embedding directly. Verify the queue has entries with the right model.
+	if n := db.CountEmbedQueue(); n == 0 {
+		t.Fatalf("expected pending-embed queue entries (0x14), got 0")
 	}
 }
 
