@@ -25,7 +25,15 @@ A user ingests a PDF (a report, a paper, a spec). Today only the file format and
 
 ---
 
-### User Story 2 - Document hierarchy is extracted (Priority: P1)
+### User Story 2 - Document hierarchy is extracted for ALL formats (Priority: P1)
+
+**Extended to every supported format**, not just PDFs. The hierarchy mechanism
+(spec 025's `HeadingSpan` → breadcrumb threading) is format-agnostic — any reader
+that identifies headings gets breadcrumbs for free:
+- **DOCX**: Word heading styles (Heading 1–6) — the richest, most reliable signal.
+- **PDF**: bookmark outline or font-size/position heuristics.
+- **Text** (`.txt`): heuristic patterns (ALL CAPS, `===`/`---` underlines, lines ending `:`).
+- **Markdown**: already shipped (spec 025) — unchanged.
 
 A user ingests a structured PDF (a manual, a research paper, a contract). Today the heading structure is lost — the PDF is flattened to text, so `section_context` breadcrumbs (spec 025) are absent for PDF chunks, unlike Markdown where headings thread into every chunk. After this feature, the PDF's heading outline (from bookmarks/outline or font-size heuristics) is extracted and threaded into each chunk's `section_context` breadcrumb — so every PDF chunk carries its heading path, enabling section-aware retrieval and display.
 
@@ -93,7 +101,7 @@ search for, and a good chart caption describes the data, not just "a chart." Tod
 ### Functional Requirements
 
 - **FR-001**: The PDF reader MUST extract document properties (title, author, subject, keywords, creation/modification dates) from the PDF and populate the document's metadata. Absent properties are gracefully omitted (not an error).
-- **FR-002**: The PDF reader MUST extract the document's heading hierarchy (from the PDF outline/bookmarks, or via font-size/position heuristics as a fallback) and thread it into each chunk's section breadcrumb (spec 025 parity). PDFs without detectable headings carry absent breadcrumbs (graceful).
+- **FR-002**: EVERY supported document reader MUST extract heading hierarchy and thread it into each chunk's section breadcrumb (spec 025 parity): DOCX (Word heading styles — richest signal), PDF (bookmarks/outline or font-size heuristics), text (pattern heuristics). Markdown is unchanged (spec 025). Documents without detectable headings carry absent breadcrumbs (graceful).
 - **FR-003**: The PDF reader MUST extract tables as structured text (preserving row/column structure in a readable format) and include them in the chunk content. Tables spanning pages are handled as one logical unit or clearly split.
 - **FR-004**: The system MUST extract embedded images and charts from PDFs and generate text captions for them (via the local model), including the caption in the chunk text so the image's/chart's content is searchable. Chart captions SHOULD describe the data (trend, key values, comparisons), not just the chart type.
 - **FR-005**: Image captioning MUST be opt-in and background (the same background-local-generation pattern as spec 029 enrichment). When captioning is disabled or the model is unavailable, images are skipped gracefully — text/tables/hierarchy/metadata still extract.
