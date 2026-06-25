@@ -69,6 +69,7 @@ func Execute(version string) error {
 		newServeCmd(),
 		newReprocessCmd(),
 		newMigrateCmd(),
+		newEnrichCmd(),
 		newPoisonCmd(),
 		newThreatCmd(),
 		newAuditCmd(),
