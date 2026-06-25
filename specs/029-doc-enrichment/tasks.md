@@ -114,7 +114,7 @@ guarantee**, so verification is part of the deliverable:
 
 - [x] T018 [P] Run `make test-eval` (spec 004 harness): with enrichment **off**, assert no regression vs the T001 baseline; document the tag-filter improvement available when **on** (SC-001 measured). No code unless a regression surfaces.
 - [x] T019 [P] Run the full gate: `make build vet lint test` green; `CGO_ENABLED=0 go build ./...` succeeds (Constitution III); `go mod tidy` clean (no new dependency expected — the Ollama generation provider reuses the existing HTTP client).
-- [ ] T020 Final gate: commit to `main` with Conventional Commits (e.g. `feat(enrich): document auto-tag & summary enrichment (spec 029)`) and push (single-author repo — straight to `main`, per `CLAUDE.md`).
+- [x] T020 Final gate: commit to `main` with Conventional Commits (e.g. `feat(enrich): document auto-tag & summary enrichment (spec 029)`) and push (single-author repo — straight to `main`, per `CLAUDE.md`).
 
 ---
 
