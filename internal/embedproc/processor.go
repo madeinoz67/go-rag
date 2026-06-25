@@ -136,78 +136,80 @@ func (p *Processor) run(ctx context.Context) {
 // index epoch. On transient failure the queue records stay pending (retried next
 // pass); on permanent failure they are marked status=failed (terminal).
 func (p *Processor) processBatch(ctx context.Context) {
-	type pending struct {
-		id   string
-		text string
-	}
-	var batch []pending
+	for { // drain: process batches of maxBatch until the queue is empty
+		type pending struct {
+			id   string
+			text string
+		}
+		var batch []pending
 
-	_ = p.db.ScanEmbedQueue(func(chunkID string, item storage.EmbedQueueItem) bool {
-		if len(batch) >= maxBatch {
-			return false // cap per pass; remaining picked up next tick
-		}
-		if item.Status == storage.EmbedQueueFailed {
-			return true // skip permanently failed
-		}
-		// Read the chunk text from 0x03.
-		raw, ok, _ := p.db.GetWithPrefix(storage.PrefixChunk, []byte(chunkID))
-		if !ok {
-			// Chunk was deleted (orphan queue record) — clean up.
-			_ = p.db.DeleteEmbedQueue(chunkID)
+		_ = p.db.ScanEmbedQueue(func(chunkID string, item storage.EmbedQueueItem) bool {
+			if len(batch) >= maxBatch {
+				return false // cap per pass; remaining picked up next tick
+			}
+			if item.Status == storage.EmbedQueueFailed {
+				return true // skip permanently failed
+			}
+			// Read the chunk text from 0x03.
+			raw, ok, _ := p.db.GetWithPrefix(storage.PrefixChunk, []byte(chunkID))
+			if !ok {
+				// Chunk was deleted (orphan queue record) — clean up.
+				_ = p.db.DeleteEmbedQueue(chunkID)
+				return true
+			}
+			var c model.Chunk
+			if json.Unmarshal(raw, &c) != nil {
+				return true
+			}
+			batch = append(batch, pending{chunkID, c.Content})
 			return true
+		})
+		if len(batch) == 0 {
+			return
 		}
-		var c model.Chunk
-		if json.Unmarshal(raw, &c) != nil {
-			return true
+
+		// Apply the document-role prefix (H07).
+		texts := make([]string, len(batch))
+		for i, it := range batch {
+			texts[i] = it.text
 		}
-		batch = append(batch, pending{chunkID, c.Content})
-		return true
-	})
-	if len(batch) == 0 {
-		return
-	}
-
-	// Apply the document-role prefix (H07).
-	texts := make([]string, len(batch))
-	for i, it := range batch {
-		texts[i] = it.text
-	}
-	conv := ""
-	if p.prefixer != nil {
-		conv = p.prefixer.Convention()
-		texts = p.prefixer.ApplyAll(embed.RoleDocument, texts)
-	}
-
-	// Circuit breaker guard (FR-004).
-	if err := p.br.allow(); err != nil {
-		return // open: try next tick
-	}
-
-	// Embed the whole batch in one call (FR-005 cross-doc batching).
-	vecs, err := p.embedder.Embed(ctx, texts)
-	if err != nil {
-		p.br.fail()
-		slog.Warn("embedproc: embed batch failed", "batch_size", len(batch), "error", err)
-		return // transient: queue records stay pending (retried next pass)
-	}
-	p.br.ok()
-
-	// Scatter vectors: write 0x04 + vec.Add + remove 0x14 per chunk.
-	for i, it := range batch {
-		if i < len(vecs) {
-			rec, _ := json.Marshal(embedRecord{
-				Model:      p.embedder.Model(),
-				Convention: conv,
-				Vector:     vecs[i],
-			})
-			_ = p.db.SetWithPrefix(storage.PrefixEmbedding, []byte(it.id), rec)
-			p.vec.Add(it.id, vecs[i])
+		conv := ""
+		if p.prefixer != nil {
+			conv = p.prefixer.Convention()
+			texts = p.prefixer.ApplyAll(embed.RoleDocument, texts)
 		}
-		_ = p.db.DeleteEmbedQueue(it.id) // embedding landed — remove from queue
-	}
 
-	// Bump the index epoch so the query result cache invalidates (H06).
-	if p.onChange != nil {
-		p.onChange()
-	}
+		// Circuit breaker guard (FR-004).
+		if err := p.br.allow(); err != nil {
+			return // open: try next tick
+		}
+
+		// Embed the whole batch in one call (FR-005 cross-doc batching).
+		vecs, err := p.embedder.Embed(ctx, texts)
+		if err != nil {
+			p.br.fail()
+			slog.Warn("embedproc: embed batch failed", "batch_size", len(batch), "error", err)
+			return // transient: queue records stay pending (retried next pass)
+		}
+		p.br.ok()
+
+		// Scatter vectors: write 0x04 + vec.Add + remove 0x14 per chunk.
+		for i, it := range batch {
+			if i < len(vecs) {
+				rec, _ := json.Marshal(embedRecord{
+					Model:      p.embedder.Model(),
+					Convention: conv,
+					Vector:     vecs[i],
+				})
+				_ = p.db.SetWithPrefix(storage.PrefixEmbedding, []byte(it.id), rec)
+				p.vec.Add(it.id, vecs[i])
+			}
+			_ = p.db.DeleteEmbedQueue(it.id) // embedding landed — remove from queue
+		}
+
+		// Bump the index epoch so the query result cache invalidates (H06).
+		if p.onChange != nil {
+			p.onChange()
+		}
+	} // drain loop: process next batch until queue empty
 }
