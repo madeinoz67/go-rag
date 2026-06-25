@@ -41,7 +41,7 @@ the per-ingest `processJob` to a decoupled background processor. The risk is rea
 
 **Purpose**: Record the pre-feature green baseline (the "outputs unchanged" claim SC-005 is measured against it).
 
-- [ ] T001 Run `make build vet test` and `make test-eval` on `main`; confirm green and record recall@10 as the pre-feature baseline. No code changes.
+- [x] T001 Run `make build vet test` and `make test-eval` on `main`; confirm green and record recall@10 as the pre-feature baseline. No code changes.
 
 ---
 
@@ -51,9 +51,9 @@ the per-ingest `processJob` to a decoupled background processor. The risk is rea
 
 **⚠️ CRITICAL**: Blocks US1, US2, US3.
 
-- [ ] T002 [P] Add `PrefixEmbedQueue byte = 0x14` to `internal/storage/storage.go` (next free prefix after `PrefixNearDup 0x13`) and `Put/Get/ScanEmbedQueue` helpers mirroring the quarantine helpers in `internal/storage/poison.go`. The queue record value is `{Model, Status, Attempts}` (JSON). research R1, data-model §1.
-- [ ] T003 [P] Create `internal/embedproc/processor.go`: the `Processor` struct (holds the shared `*index.FTS`, `*index.Vector`, embedder, prefixer, OnChange epoch hook) + `Start(ctx)` (initial scan + loop on Notify chan + 3s poll) + `Stop()` (drain) + `Notify()` (buffered(1), non-blocking). research R3, data-model §2.
-- [ ] T004 [P] Extract the circuit breaker from `internal/enrich/circuit.go` to a shared `internal/circuit` package (or copy into `internal/embedproc`), so both the enricher (spec 029) and the embedder reuse the same primitive (5 fails / 30s defaults). research R4.
+- [x] T002 [P] Add `PrefixEmbedQueue byte = 0x14` to `internal/storage/storage.go` (next free prefix after `PrefixNearDup 0x13`) and `Put/Get/ScanEmbedQueue` helpers mirroring the quarantine helpers in `internal/storage/poison.go`. The queue record value is `{Model, Status, Attempts}` (JSON). research R1, data-model §1.
+- [x] T003 [P] Create `internal/embedproc/processor.go`: the `Processor` struct (holds the shared `*index.FTS`, `*index.Vector`, embedder, prefixer, OnChange epoch hook) + `Start(ctx)` (initial scan + loop on Notify chan + 3s poll) + `Stop()` (drain) + `Notify()` (buffered(1), non-blocking). research R3, data-model §2.
+- [x] T004 [P] Extract the circuit breaker from `internal/enrich/circuit.go` to a shared `internal/circuit` package (or copy into `internal/embedproc`), so both the enricher (spec 029) and the embedder reuse the same primitive (5 fails / 30s defaults). research R4.
 
 **Checkpoint**: Queue prefix + processor skeleton + circuit breaker exist; ready for the US1 hand-off.
 
@@ -67,10 +67,10 @@ the per-ingest `processJob` to a decoupled background processor. The risk is rea
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Modify `processFile` in `internal/pipeline/pipeline.go`: write the chunk (0x03) + the pending-embed record (0x14) in **one atomic Pebble batch**, then ACK. Notify the embedder on ACK (if bound). The <10ms ACK budget is preserved (the 0x14 write is a small durable KV write alongside the chunk). research R1, data-model §3. Depends T002.
-- [ ] T006 [US1] Implement the embedder's embed loop in `internal/embedproc/processor.go`: drain 0x14 → for each pending chunkID, read chunk text from 0x03, apply the document-role prefix (H07 prefixer), call `Embedder.Embed`, write 0x04 `{model, convention, vector}`, `vec.Add`, bump the index epoch (`OnChange`), remove the 0x14 record. Absorb ALL embed responsibilities verbatim from the current `processJob` (prefixing, 0x04 shape, epoch bump, H03 guard). research R3/R5, data-model §2. Depends T002, T003.
-- [ ] T007 [US1] Remove the embed role from `processJob` in `internal/pipeline/workers.go`: processJob no longer calls Embed or writes 0x04 — it keeps FTS indexing, near-dup clustering, enrichment (spec 029), and status. The embedder (T006) is now the sole writer of 0x04. **High-risk: ensure every embed responsibility moved to T006.** research R2. Depends T006.
-- [ ] T008 [US1] Wire the embedder: the daemon (`internal/daemon`) constructs + `Start(ctx)`s it over the shared DB + index handles, for the daemon's lifetime, draining on shutdown; the CLI one-shot commands (`add`/`reprocess`/`scan`) get a short-lived embedder that runs + drains before the process exits (so `go-rag add` still embeds before returning). research R3. Depends T006.
+- [x] T005 [US1] Modify `processFile` in `internal/pipeline/pipeline.go`: write the chunk (0x03) + the pending-embed record (0x14) in **one atomic Pebble batch**, then ACK. Notify the embedder on ACK (if bound). The <10ms ACK budget is preserved (the 0x14 write is a small durable KV write alongside the chunk). research R1, data-model §3. Depends T002.
+- [x] T006 [US1] Implement the embedder's embed loop in `internal/embedproc/processor.go`: drain 0x14 → for each pending chunkID, read chunk text from 0x03, apply the document-role prefix (H07 prefixer), call `Embedder.Embed`, write 0x04 `{model, convention, vector}`, `vec.Add`, bump the index epoch (`OnChange`), remove the 0x14 record. Absorb ALL embed responsibilities verbatim from the current `processJob` (prefixing, 0x04 shape, epoch bump, H03 guard). research R3/R5, data-model §2. Depends T002, T003.
+- [x] T007 [US1] Remove the embed role from `processJob` in `internal/pipeline/workers.go`: processJob no longer calls Embed or writes 0x04 — it keeps FTS indexing, near-dup clustering, enrichment (spec 029), and status. The embedder (T006) is now the sole writer of 0x04. **High-risk: ensure every embed responsibility moved to T006.** research R2. Depends T006.
+- [x] T008 [US1] Wire the embedder: the daemon (`internal/daemon`) constructs + `Start(ctx)`s it over the shared DB + index handles, for the daemon's lifetime, draining on shutdown; the CLI one-shot commands (`add`/`reprocess`/`scan`) get a short-lived embedder that runs + drains before the process exits (so `go-rag add` still embeds before returning). research R3. Depends T006.
 - [ ] T009 [US1] Add crash-recovery + hand-off tests (`internal/embedproc/processor_test.go`): (a) write a chunk + 0x14 (no embedding), run `Start` (initial scan), assert 0x04 written + vec.Add + 0x14 removed (SC-001 recovery); (b) the kill-restart scenario simulated without the daemon (seed 0x14, start embedder, verify recovery); (c) idempotency — re-running on already-embedded is a no-op (FR-006). SC-001. Depends T006, T008.
 
 **Checkpoint**: Embedding is crash-safe — a crash between ACK and embed recovers on restart.
@@ -85,8 +85,8 @@ the per-ingest `processJob` to a decoupled background processor. The risk is rea
 
 ### Implementation for User Story 2
 
-- [ ] T010 [US2] Add cross-document micro-batching to the embedder loop: accumulate pending chunk texts up to MaxBatchSize (H12's 32), issue ONE `Embedder.Embed` call per micro-batch, scatter the vectors back to their chunkIDs (write 0x04 + vec.Add + remove 0x14 per chunk). research R4. Depends T006.
-- [ ] T011 [US2] Integrate the circuit breaker into the embedder: `Allow()` before the Embed call; `ok()` on success, `fail()` on error; an open breaker fast-fails (the chunk's 0x14 stays pending for retry); a permanent failure (bad model/config) marks the 0x14 record `status=failed` (terminal — not retried indefinitely). research R4, data-model §2. Depends T004, T010.
+- [x] T010 [US2] Add cross-document micro-batching to the embedder loop: accumulate pending chunk texts up to MaxBatchSize (H12's 32), issue ONE `Embedder.Embed` call per micro-batch, scatter the vectors back to their chunkIDs (write 0x04 + vec.Add + remove 0x14 per chunk). research R4. Depends T006.
+- [x] T011 [US2] Integrate the circuit breaker into the embedder: `Allow()` before the Embed call; `ok()` on success, `fail()` on error; an open breaker fast-fails (the chunk's 0x14 stays pending for retry); a permanent failure (bad model/config) marks the 0x14 record `status=failed` (terminal — not retried indefinitely). research R4, data-model §2. Depends T004, T010.
 - [ ] T012 [US2] Add batch + circuit tests (`internal/embedproc/processor_test.go`): (a) N=100 pending chunks → assert ⌈100/32⌉ = 4 Embed calls (cross-doc batching, SC-004); (b) embedder that always errors → circuit opens after 5 fails; pending chunks stay pending (not failed); no infinite retry (SC-003). Depends T010, T011.
 
 **Checkpoint**: The embedder is throughput-optimized and resilient.
@@ -101,7 +101,7 @@ the per-ingest `processJob` to a decoupled background processor. The risk is rea
 
 ### Implementation for User Story 3
 
-- [ ] T013 [US3] Run `make test-eval` (spec 004 harness) and assert recall@10 is **identical** to the T001 baseline — the refactor is structural (the 0x04 shape + vec.Add + epoch are unchanged). If recall regresses, the embedder's output diverged from processJob (a bug in T006/T007 — fix before proceeding). SC-005. Depends T007.
+- [x] T013 [US3] Run `make test-eval` (spec 004 harness) and assert recall@10 is **identical** to the T001 baseline — the refactor is structural (the 0x04 shape + vec.Add + epoch are unchanged). If recall regresses, the embedder's output diverged from processJob (a bug in T006/T007 — fix before proceeding). SC-005. Depends T007.
 - [ ] T014 [P] [US3] Add `EmbedPending int` + `EmbedFailed int` to `engine.StatusInfo` (`internal/engine/types.go`), compute in `internal/engine/status.go` (count 0x14 records with status=pending / status=failed), and project on the 4 transports (REST/gRPC/MCP/CLI status). research R6, contracts/embedder.md. Depends T002.
 - [ ] T015 [US3] Add status-surfacing tests (`internal/engine/status_test.go` or parity_test): with pending 0x14 records, `status` reports `embed_pending > 0`; with a failed record, `embed_failed > 0`; both surface identically across transports. SC-002. Depends T014.
 
