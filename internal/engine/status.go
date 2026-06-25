@@ -71,6 +71,15 @@ func (e *Engine) Status() (*StatusInfo, error) {
 		}
 		return true
 	})
+	// spec 029: documents carrying a non-nil Enrichment sidecar.
+	enrichedDocs := 0
+	_ = e.db.PrefixScanByte(storage.PrefixDocument, func(_, v []byte) bool {
+		var d model.Document
+		if json.Unmarshal(v, &d) == nil && d.Enrichment != nil {
+			enrichedDocs++
+		}
+		return true
+	})
 	poisonSrcs, _ := e.ListThreatSources()
 	return &StatusInfo{
 		Documents:                docs,
@@ -117,6 +126,10 @@ func (e *Engine) Status() (*StatusInfo, error) {
 
 		// H20/spec 026: near-duplicate observability.
 		NearDupChunks: nearDupChunks,
+
+		// spec 029: document enrichment observability.
+		EnrichmentEnabled: e.cfg.EffectiveEnrichmentEnabled(),
+		EnrichedDocs:      enrichedDocs,
 	}, nil
 }
 

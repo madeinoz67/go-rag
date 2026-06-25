@@ -80,6 +80,14 @@ type QueryHit struct {
 	// with no near-dups or pre-feature. Surfaced 1:1 by every transport (FR-004);
 	// consumed by opt-in collapse (FR-005).
 	NearDup *model.NearDupInfo
+	// Summary is the document's auto-generated one-line summary (spec 029),
+	// surfaced on the hit. Empty when the doc is unenriched / off / pre-feature —
+	// omitted, never an error. Surfaced 1:1 by every transport (FR-010).
+	Summary string
+	// EnrichmentStatus is the document's enrichment status (spec 029):
+	// enriched|failed|nothing-to-enrich. Empty when unenriched. Surfaced 1:1 by
+	// every transport (FR-010).
+	EnrichmentStatus string
 }
 
 // QueryResult wraps the ranked hits returned by Engine.Query.
@@ -159,6 +167,10 @@ type StatusInfo struct {
 	AdaptiveDepthEnabled bool            // rule-based k-classifier posture (default false)
 	PoolUtilization      PoolUtilization // aggregate, process-lifetime (not per-query)
 	NearDupChunks        int             // H20/spec 026: chunks with near-dup siblings (eventually consistent)
+
+	// spec 029: document enrichment observability (background tags + summary).
+	EnrichmentEnabled bool // background enrichment on (opt-in, default false)
+	EnrichedDocs      int  // documents with a non-nil Enrichment sidecar (eventually consistent)
 }
 
 // PoolUtilization is the aggregate candidate-pool consumption signal surfaced in

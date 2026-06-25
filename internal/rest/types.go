@@ -22,16 +22,18 @@ type queryRequest struct {
 }
 
 type queryHit struct {
-	ChunkID        string         `json:"chunk_id"`
-	DocumentID     string         `json:"document_id"`
-	Score          float64        `json:"score"`
-	Content        string         `json:"content"`
-	FilePath       string         `json:"file_path"`
-	Page           int            `json:"page"`
-	ChunkIndex     int            `json:"chunk_index"`               // H21/spec 023
-	Poisoning      *poisonVerdict `json:"poisoning,omitempty"`       // H04/spec 019
-	SectionContext []string       `json:"section_context,omitempty"` // H23/spec 025: heading breadcrumb (absent when nil)
-	NearDup        *nearDupInfo   `json:"near_dup,omitempty"`        // H20/spec 026: near-dup context (absent when nil)
+	ChunkID          string         `json:"chunk_id"`
+	DocumentID       string         `json:"document_id"`
+	Score            float64        `json:"score"`
+	Content          string         `json:"content"`
+	FilePath         string         `json:"file_path"`
+	Page             int            `json:"page"`
+	ChunkIndex       int            `json:"chunk_index"`                 // H21/spec 023
+	Poisoning        *poisonVerdict `json:"poisoning,omitempty"`         // H04/spec 019
+	SectionContext   []string       `json:"section_context,omitempty"`   // H23/spec 025: heading breadcrumb (absent when nil)
+	NearDup          *nearDupInfo   `json:"near_dup,omitempty"`          // H20/spec 026: near-dup context (absent when nil)
+	Summary          string         `json:"summary,omitempty"`           // spec 029: document summary (absent when unenriched)
+	EnrichmentStatus string         `json:"enrichment_status,omitempty"` // spec 029: enriched|failed|nothing-to-enrich
 }
 
 // nearDupInfo is the REST projection of model.NearDupInfo (H20/spec 026).
@@ -89,6 +91,8 @@ type statusResponse struct {
 	PoolSize             int                `json:"pool_size"`              // H22/spec 024
 	AdaptiveDepthEnabled bool               `json:"adaptive_depth_enabled"` // H22/spec 024
 	PoolUtilization      poolUtilizationDTO `json:"pool_utilization"`       // H22/spec 024
+	EnrichmentEnabled    bool               `json:"enrichment_enabled"`     // spec 029: enrichment on
+	EnrichedDocs         int                `json:"enriched_docs"`          // spec 029: docs with a sidecar
 }
 
 // poolUtilizationDTO mirrors engine.PoolUtilization / proto PoolUtilization (parity).

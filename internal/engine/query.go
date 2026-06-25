@@ -237,22 +237,28 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 		if !ok {
 			continue
 		}
-		filePath := ""
+		filePath, summary, enrichStatus := "", "", ""
 		if d, ok := lookupDoc(e.db, c.DocumentID); ok {
 			filePath = d.FilePath
+			if d.Enrichment != nil { // spec 029: surface the doc's summary + status on the hit
+				summary = d.Enrichment.Summary
+				enrichStatus = d.Enrichment.Status
+			}
 		}
 		out = append(out, QueryHit{
-			ChunkID:        h.ChunkID,
-			DocumentID:     c.DocumentID,
-			Score:          h.Score,
-			ChunkIndex:     c.ChunkIndex, // H21/spec 023: citation ordinal
-			Content:        c.Content,
-			FilePath:       filePath,
-			Page:           c.PageNumber,
-			Preview:        preview(c.Content, 160),
-			Poisoning:      c.Poisoning,      // H04/spec 019: verdict surfaced on every hit (FR-005)
-			SectionContext: c.SectionContext, // H23/spec 025: breadcrumb surfaced on every hit (FR-004)
-			NearDup:        c.NearDup,        // H20/spec 026: near-dup context surfaced on every hit (FR-004)
+			ChunkID:          h.ChunkID,
+			DocumentID:       c.DocumentID,
+			Score:            h.Score,
+			ChunkIndex:       c.ChunkIndex, // H21/spec 023: citation ordinal
+			Content:          c.Content,
+			FilePath:         filePath,
+			Page:             c.PageNumber,
+			Preview:          preview(c.Content, 160),
+			Poisoning:        c.Poisoning,      // H04/spec 019: verdict surfaced on every hit (FR-005)
+			SectionContext:   c.SectionContext, // H23/spec 025: breadcrumb surfaced on every hit (FR-004)
+			NearDup:          c.NearDup,        // H20/spec 026: near-dup context surfaced on every hit (FR-004)
+			Summary:          summary,          // spec 029: doc summary surfaced on every hit (FR-010)
+			EnrichmentStatus: enrichStatus,     // spec 029: doc enrichment status (FR-010)
 		})
 	}
 	// H21/spec 023: normalize scores to [0,1] within the result set (top = 1.0).

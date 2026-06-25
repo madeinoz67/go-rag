@@ -22,6 +22,7 @@ type queryResult struct {
 	Poisoning      *poisonVerdictDTO `json:"poisoning,omitempty"`       // H04/spec 019
 	SectionContext []string          `json:"section_context,omitempty"` // H23/spec 025: heading breadcrumb (absent when nil)
 	NearDup        *nearDupDTO       `json:"near_dup,omitempty"`        // H20/spec 026: near-dup context (absent when nil)
+	Summary        string            `json:"summary,omitempty"`         // spec 029: document summary (absent when unenriched)
 }
 
 // poisonVerdictDTO is the CLI/JSON projection of a hit's poisoning verdict
@@ -110,6 +111,7 @@ func newQueryCmd() *cobra.Command {
 					Chunk:          h.Content,
 					Poisoning:      toPoisonDTO(h),
 					SectionContext: h.SectionContext, // H23/spec 025 (FR-004)
+					Summary:        h.Summary,        // spec 029 (FR-010)
 					NearDup: func() *nearDupDTO {
 						if h.NearDup == nil {
 							return nil
@@ -162,6 +164,9 @@ func renderResults(results []queryResult, res *engine.QueryResult, format string
 		fmt.Printf("[%d] %s%s (score %.3f)\n", i+1, r.Source, page, r.Score)
 		if len(r.SectionContext) > 0 { // H23/spec 025: heading breadcrumb (FR-004)
 			fmt.Printf("    section: %s\n", strings.Join(r.SectionContext, " / "))
+		}
+		if r.Summary != "" { // spec 029: document summary
+			fmt.Printf("    summary: %s\n", r.Summary)
 		}
 		fmt.Printf("    %s\n", preview(r.Chunk, 200))
 		if r.Poisoning != nil && (r.Poisoning.Level == "suspicious" || r.Poisoning.Level == "quarantine") {

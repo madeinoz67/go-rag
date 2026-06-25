@@ -179,19 +179,21 @@ func (x *QueryRequest) GetDedup() bool {
 }
 
 type QueryHit struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	ChunkId        string                 `protobuf:"bytes,1,opt,name=chunk_id,json=chunkId,proto3" json:"chunk_id,omitempty"`
-	DocumentId     string                 `protobuf:"bytes,2,opt,name=document_id,json=documentId,proto3" json:"document_id,omitempty"`
-	Score          float64                `protobuf:"fixed64,3,opt,name=score,proto3" json:"score,omitempty"`
-	Content        string                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"` // full chunk text
-	FilePath       string                 `protobuf:"bytes,5,opt,name=file_path,json=filePath,proto3" json:"file_path,omitempty"`
-	Page           int32                  `protobuf:"varint,6,opt,name=page,proto3" json:"page,omitempty"`                                          // 0 if not paginated
-	Poisoning      *Poisoning             `protobuf:"bytes,7,opt,name=poisoning,proto3" json:"poisoning,omitempty"`                                 // H04/spec 019: per-chunk injection verdict (nil = clean/unscored)
-	ChunkIndex     int32                  `protobuf:"varint,8,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`            // H21/spec 023: 0-based ordinal within the source document
-	SectionContext []string               `protobuf:"bytes,9,rep,name=section_context,json=sectionContext,proto3" json:"section_context,omitempty"` // H23/spec 025: heading breadcrumb at the chunk's start (empty = none)
-	NearDup        *NearDup               `protobuf:"bytes,10,opt,name=near_dup,json=nearDup,proto3" json:"near_dup,omitempty"`                     // H20/spec 026: near-duplicate context (nil = none/pre-feature)
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ChunkId          string                 `protobuf:"bytes,1,opt,name=chunk_id,json=chunkId,proto3" json:"chunk_id,omitempty"`
+	DocumentId       string                 `protobuf:"bytes,2,opt,name=document_id,json=documentId,proto3" json:"document_id,omitempty"`
+	Score            float64                `protobuf:"fixed64,3,opt,name=score,proto3" json:"score,omitempty"`
+	Content          string                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"` // full chunk text
+	FilePath         string                 `protobuf:"bytes,5,opt,name=file_path,json=filePath,proto3" json:"file_path,omitempty"`
+	Page             int32                  `protobuf:"varint,6,opt,name=page,proto3" json:"page,omitempty"`                                                 // 0 if not paginated
+	Poisoning        *Poisoning             `protobuf:"bytes,7,opt,name=poisoning,proto3" json:"poisoning,omitempty"`                                        // H04/spec 019: per-chunk injection verdict (nil = clean/unscored)
+	ChunkIndex       int32                  `protobuf:"varint,8,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`                   // H21/spec 023: 0-based ordinal within the source document
+	SectionContext   []string               `protobuf:"bytes,9,rep,name=section_context,json=sectionContext,proto3" json:"section_context,omitempty"`        // H23/spec 025: heading breadcrumb at the chunk's start (empty = none)
+	NearDup          *NearDup               `protobuf:"bytes,10,opt,name=near_dup,json=nearDup,proto3" json:"near_dup,omitempty"`                            // H20/spec 026: near-duplicate context (nil = none/pre-feature)
+	Summary          string                 `protobuf:"bytes,11,opt,name=summary,proto3" json:"summary,omitempty"`                                           // spec 029: document summary (empty = unenriched)
+	EnrichmentStatus string                 `protobuf:"bytes,12,opt,name=enrichment_status,json=enrichmentStatus,proto3" json:"enrichment_status,omitempty"` // spec 029: enriched|failed|nothing-to-enrich (empty = unenriched)
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *QueryHit) Reset() {
@@ -292,6 +294,20 @@ func (x *QueryHit) GetNearDup() *NearDup {
 		return x.NearDup
 	}
 	return nil
+}
+
+func (x *QueryHit) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *QueryHit) GetEnrichmentStatus() string {
+	if x != nil {
+		return x.EnrichmentStatus
+	}
+	return ""
 }
 
 // NearDup is the per-chunk near-duplicate context (H20/spec 026). Mirrors
@@ -983,6 +999,8 @@ type StatusResponse struct {
 	PoolSize             int32                  `protobuf:"varint,9,opt,name=pool_size,json=poolSize,proto3" json:"pool_size,omitempty"`                                        // H22/spec 024: configured candidate-pool ceiling
 	AdaptiveDepthEnabled bool                   `protobuf:"varint,10,opt,name=adaptive_depth_enabled,json=adaptiveDepthEnabled,proto3" json:"adaptive_depth_enabled,omitempty"` // H22/spec 024: rule-based k-classifier posture
 	PoolUtilization      *PoolUtilization       `protobuf:"bytes,11,opt,name=pool_utilization,json=poolUtilization,proto3" json:"pool_utilization,omitempty"`                   // H22/spec 024: aggregate pool-utilization signal
+	EnrichmentEnabled    bool                   `protobuf:"varint,12,opt,name=enrichment_enabled,json=enrichmentEnabled,proto3" json:"enrichment_enabled,omitempty"`            // spec 029: background enrichment on
+	EnrichedDocs         int32                  `protobuf:"varint,13,opt,name=enriched_docs,json=enrichedDocs,proto3" json:"enriched_docs,omitempty"`                           // spec 029: documents with a non-nil Enrichment sidecar
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1092,6 +1110,20 @@ func (x *StatusResponse) GetPoolUtilization() *PoolUtilization {
 		return x.PoolUtilization
 	}
 	return nil
+}
+
+func (x *StatusResponse) GetEnrichmentEnabled() bool {
+	if x != nil {
+		return x.EnrichmentEnabled
+	}
+	return false
+}
+
+func (x *StatusResponse) GetEnrichedDocs() int32 {
+	if x != nil {
+		return x.EnrichedDocs
+	}
+	return 0
 }
 
 // PoolUtilization (H22/spec 024) — aggregate candidate-pool consumption over the
@@ -2456,7 +2488,7 @@ const file_proto_gorag_proto_rawDesc = "" +
 	"\bno_cache\x18\v \x01(\bR\anoCache\x12/\n" +
 	"\x13include_quarantined\x18\f \x01(\bR\x12includeQuarantined\x12\x1b\n" +
 	"\tpool_size\x18\r \x01(\x05R\bpoolSize\x12\x14\n" +
-	"\x05dedup\x18\x0e \x01(\bR\x05dedup\"\xcc\x02\n" +
+	"\x05dedup\x18\x0e \x01(\bR\x05dedup\"\x93\x03\n" +
 	"\bQueryHit\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x1f\n" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +
@@ -2470,7 +2502,9 @@ const file_proto_gorag_proto_rawDesc = "" +
 	"chunkIndex\x12'\n" +
 	"\x0fsection_context\x18\t \x03(\tR\x0esectionContext\x12)\n" +
 	"\bnear_dup\x18\n" +
-	" \x01(\v2\x0e.gorag.NearDupR\anearDup\"E\n" +
+	" \x01(\v2\x0e.gorag.NearDupR\anearDup\x12\x18\n" +
+	"\asummary\x18\v \x01(\tR\asummary\x12+\n" +
+	"\x11enrichment_status\x18\f \x01(\tR\x10enrichmentStatus\"E\n" +
 	"\aNearDup\x12\x1a\n" +
 	"\bsiblings\x18\x01 \x03(\tR\bsiblings\x12\x1e\n" +
 	"\n" +
@@ -2514,7 +2548,7 @@ const file_proto_gorag_proto_rawDesc = "" +
 	"effectiveK\x12%\n" +
 	"\x0eeffective_pool\x18\x04 \x01(\x05R\reffectivePool\x12%\n" +
 	"\x0eeffective_mode\x18\x05 \x01(\tR\reffectiveMode\"\x0f\n" +
-	"\rStatusRequest\"\xb1\x03\n" +
+	"\rStatusRequest\"\x85\x04\n" +
 	"\x0eStatusResponse\x12\x1c\n" +
 	"\tdocuments\x18\x01 \x01(\x05R\tdocuments\x12\x16\n" +
 	"\x06chunks\x18\x02 \x01(\x05R\x06chunks\x12\x1e\n" +
@@ -2532,7 +2566,9 @@ const file_proto_gorag_proto_rawDesc = "" +
 	"\tpool_size\x18\t \x01(\x05R\bpoolSize\x124\n" +
 	"\x16adaptive_depth_enabled\x18\n" +
 	" \x01(\bR\x14adaptiveDepthEnabled\x12A\n" +
-	"\x10pool_utilization\x18\v \x01(\v2\x16.gorag.PoolUtilizationR\x0fpoolUtilization\"\x85\x01\n" +
+	"\x10pool_utilization\x18\v \x01(\v2\x16.gorag.PoolUtilizationR\x0fpoolUtilization\x12-\n" +
+	"\x12enrichment_enabled\x18\f \x01(\bR\x11enrichmentEnabled\x12#\n" +
+	"\renriched_docs\x18\r \x01(\x05R\fenrichedDocs\"\x85\x01\n" +
 	"\x0fPoolUtilization\x12\x18\n" +
 	"\aqueries\x18\x01 \x01(\x04R\aqueries\x12\x1f\n" +
 	"\vavg_fetched\x18\x02 \x01(\x01R\n" +

@@ -59,16 +59,18 @@ func toQueryHits(hits []engine.QueryHit) []queryHit {
 			nd = &nearDupInfo{Siblings: h.NearDup.Siblings, Similarity: h.NearDup.Similarity}
 		}
 		out[i] = queryHit{
-			ChunkID:        h.ChunkID,
-			DocumentID:     h.DocumentID,
-			Score:          h.Score,
-			Content:        h.Content,
-			FilePath:       h.FilePath,
-			Page:           h.Page,
-			ChunkIndex:     h.ChunkIndex, // H21/spec 023
-			Poisoning:      pv,
-			SectionContext: h.SectionContext, // H23/spec 025 (FR-004)
-			NearDup:        nd,               // H20/spec 026 (FR-004)
+			ChunkID:          h.ChunkID,
+			DocumentID:       h.DocumentID,
+			Score:            h.Score,
+			Content:          h.Content,
+			FilePath:         h.FilePath,
+			Page:             h.Page,
+			ChunkIndex:       h.ChunkIndex, // H21/spec 023
+			Poisoning:        pv,
+			SectionContext:   h.SectionContext,   // H23/spec 025 (FR-004)
+			NearDup:          nd,                 // H20/spec 026 (FR-004)
+			Summary:          h.Summary,          // spec 029 (FR-010)
+			EnrichmentStatus: h.EnrichmentStatus, // spec 029 (FR-010)
 		}
 	}
 	return out
@@ -98,6 +100,8 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 			AvgKept:    st.PoolUtilization.AvgKept,
 			Saturated:  st.PoolUtilization.Saturated,
 		},
+		EnrichmentEnabled: st.EnrichmentEnabled, // spec 029
+		EnrichedDocs:      st.EnrichedDocs,      // spec 029
 	})
 }
 

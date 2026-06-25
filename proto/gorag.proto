@@ -89,6 +89,8 @@ message QueryHit {
   int32 chunk_index = 8;        // H21/spec 023: 0-based ordinal within the source document
   repeated string section_context = 9; // H23/spec 025: heading breadcrumb at the chunk's start (empty = none)
   NearDup near_dup = 10; // H20/spec 026: near-duplicate context (nil = none/pre-feature)
+  string summary = 11;           // spec 029: document summary (empty = unenriched)
+  string enrichment_status = 12; // spec 029: enriched|failed|nothing-to-enrich (empty = unenriched)
 }
 
 // NearDup is the per-chunk near-duplicate context (H20/spec 026). Mirrors
@@ -164,6 +166,8 @@ message StatusResponse {
   int32 pool_size = 9;          // H22/spec 024: configured candidate-pool ceiling
   bool adaptive_depth_enabled = 10; // H22/spec 024: rule-based k-classifier posture
   PoolUtilization pool_utilization = 11; // H22/spec 024: aggregate pool-utilization signal
+  bool enrichment_enabled = 12; // spec 029: background enrichment on
+  int32 enriched_docs = 13;     // spec 029: documents with a non-nil Enrichment sidecar
 }
 
 // PoolUtilization (H22/spec 024) — aggregate candidate-pool consumption over the

@@ -57,16 +57,18 @@ func (a *Adapter) Query(ctx context.Context, req *goragpb.QueryRequest) (*goragp
 	hits := make([]*goragpb.QueryHit, len(res.Hits))
 	for i, h := range res.Hits {
 		hits[i] = &goragpb.QueryHit{
-			ChunkId:        h.ChunkID,
-			DocumentId:     h.DocumentID,
-			Score:          h.Score,
-			Content:        h.Content,
-			FilePath:       h.FilePath,
-			Page:           int32(h.Page),
-			Poisoning:      toPoisoningPB(h.Poisoning), // H04/spec 019
-			ChunkIndex:     int32(h.ChunkIndex),        // H21/spec 023
-			SectionContext: h.SectionContext,           // H23/spec 025 (FR-004)
-			NearDup:        toNearDupPB(h.NearDup),     // H20/spec 026 (FR-004)
+			ChunkId:          h.ChunkID,
+			DocumentId:       h.DocumentID,
+			Score:            h.Score,
+			Content:          h.Content,
+			FilePath:         h.FilePath,
+			Page:             int32(h.Page),
+			Poisoning:        toPoisoningPB(h.Poisoning), // H04/spec 019
+			ChunkIndex:       int32(h.ChunkIndex),        // H21/spec 023
+			SectionContext:   h.SectionContext,           // H23/spec 025 (FR-004)
+			NearDup:          toNearDupPB(h.NearDup),     // H20/spec 026 (FR-004)
+			Summary:          h.Summary,                  // spec 029 (FR-010)
+			EnrichmentStatus: h.EnrichmentStatus,         // spec 029 (FR-010)
 		}
 	}
 	return &goragpb.QueryResponse{Hits: hits, RerankFailed: res.RerankFailed,
@@ -119,6 +121,8 @@ func (a *Adapter) Status(_ context.Context, _ *goragpb.StatusRequest) (*goragpb.
 		PoolSize:             int32(st.PoolSize),                      // H22/spec 024
 		AdaptiveDepthEnabled: st.AdaptiveDepthEnabled,                 // H22/spec 024
 		PoolUtilization:      toPoolUtilizationPB(st.PoolUtilization), // H22/spec 024
+		EnrichmentEnabled:    st.EnrichmentEnabled,                    // spec 029
+		EnrichedDocs:         int32(st.EnrichedDocs),                  // spec 029
 	}, nil
 }
 

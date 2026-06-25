@@ -295,6 +295,9 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 			nearDup = fmt.Sprintf(" ≈%d near-dup", len(h.NearDup.Siblings))
 		}
 		fmt.Fprintf(&b, "- (score %.3f) %s%s%s%s\n", h.Score, section, h.Preview, nearDup, mark)
+		if h.Summary != "" { // spec 029: document summary
+			fmt.Fprintf(&b, "    summary: %s\n", h.Summary)
+		}
 	}
 	fmt.Fprintf(&b, "\n(effective: k=%d, pool=%d, mode=%s)\n", res.EffectiveK, res.EffectivePool, res.EffectiveMode) // H22/spec 024
 	return strings.TrimSpace(b.String()), nil
@@ -335,6 +338,8 @@ func (s *Server) renderStatus(eng *engine.Engine) (string, error) {
 	out += fmt.Sprintf(", poison: enabled=%v flagged=%d sources=%d phrases=%d (thr %.2f/%.2f)",
 		st.PoisoningEnabled, st.PoisonFlagged, st.PoisonSources, st.PoisonPhrases,
 		st.PoisonThresholdSus, st.PoisonThresholdQua)
+	// spec 029: document enrichment state.
+	out += fmt.Sprintf(", enrich: enabled=%v enriched=%d", st.EnrichmentEnabled, st.EnrichedDocs)
 	// H17/spec 020: observability state — metrics endpoint + trace exporter mode
 	// (so an operator/agent sees whether telemetry is on and where to scrape).
 	c := eng.Config()
