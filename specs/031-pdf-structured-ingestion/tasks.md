@@ -93,16 +93,18 @@ Each story touches specific principles — called out inline so implement-time r
 
 - [X] T009 [P] [US2] Test DOCX heading-style extraction (Heading1–6 → `[]HeadingSpan`) in `internal/reader/docx_test.go`
 - [X] T010 [P] [US2] Test text heading-pattern heuristics in `internal/reader/text_test.go`
-- [ ] T011 [P] [US2] Test PDF heading extraction (bookmark outline primary; font-size fallback) in `internal/reader/pdf_test.go`
+- [X] T011 [P] [US2] Test PDF heading extraction (bookmark outline primary; font-size fallback) in `internal/reader/pdf_test.go`
 
 ### Implementation for User Story 2
 
 - [X] T012 [P] [US2] Implement DOCX heading extraction — parse `<w:pStyle w:val="HeadingN"/>` in `internal/reader/docx.go` (+ `internal/reader/docx_zip.go`), emit `metadata["heading_spans"]`, and strip spans before `GenerateID` (parity with `stripMarkdownSpans` in `internal/reader/markdown.go:181` — spans are NON-identity, Constitution II)
 - [X] T013 [P] [US2] Implement text heading heuristics (ALL CAPS lines <80 chars no terminal punctuation; `===`/`---` underlines; short `:`-terminated lines; indentation levels) in `internal/reader/text.go` → `metadata["heading_spans"]`
-- [ ] T014 [US2] Implement PDF heading extraction in `internal/reader/pdf.go` — bookmark/outline via pdfcpu first; fall back to font-size/position clustering from the T004 positioned-text helper → `metadata["heading_spans"]` (depends on T004)
-- [ ] T015 [US2] Verify existing breadcrumb threading consumes the new spans — confirm `resolveBreadcrumb` in `internal/pipeline/section.go:29` is invoked for DOCX/PDF/text paths so each `Chunk.SectionContext` carries the heading path; validate SC-002 across all three formats via `quickstart.md`
+- [X] T014 [US2] Implement PDF heading extraction in `internal/reader/pdf.go` — bookmark/outline via pdfcpu first; fall back to font-size/position clustering from the T004 positioned-text helper → `metadata["heading_spans"]` (depends on T004)
+- [X] T015 [US2] Verify existing breadcrumb threading consumes the new spans — confirm `resolveBreadcrumb` in `internal/pipeline/section.go:29` is invoked for DOCX/PDF/text paths so each `Chunk.SectionContext` carries the heading path; validate SC-002 across all three formats via `quickstart.md`
 
 **Checkpoint**: User Stories 1 AND 2 both work independently.
+
+> **PDF font-size fallback deferred (T004):** T014 ships the bookmark path — `api.Bookmarks` → page-offset `[]HeadingSpan` (tree depth = level). This is the high-precision primary signal and spec-compliant: outline-less PDFs are gracefully absent (FR-007). The font-size fallback AND the T004 positioned-text content-stream parser are deferred to the US3 turn — both table detection and font-size headings share that parser, so it is built once there and reused.
 
 ---
 

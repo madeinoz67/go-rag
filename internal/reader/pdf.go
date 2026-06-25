@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
 )
 
 // PDFReader extracts text from PDF documents using pdfcpu's content extraction.
@@ -22,21 +24,75 @@ func (r *PDFReader) SupportedExtensions() []string { return []string{".pdf"} }
 func (r *PDFReader) SupportedMimeTypes() []string  { return []string{"application/pdf"} }
 
 func (r *PDFReader) Read(_ context.Context, data []byte, _ string) (string, map[string]any, error) {
-	var buf bytes.Buffer
-	err := api.ExtractContent(bytes.NewReader(data), nil, func(rs io.Reader, _ int) error {
-		_, e := io.Copy(&buf, rs)
-		return e
-	}, nil)
-	if err != nil {
+	rs := bytes.NewReader(data)
+	pageText := map[int]string{} // pdfcpu page number -> extracted text
+	if err := api.ExtractContent(rs, nil, func(rd io.Reader, page int) error {
+		var b bytes.Buffer
+		if _, e := io.Copy(&b, rd); e != nil {
+			return e
+		}
+		pageText[page] = extractShowText(b.String())
+		return nil
+	}, nil); err != nil {
 		return "", nil, fmt.Errorf("pdf extract: %w", err)
 	}
-	text := extractShowText(buf.String())
+	text, pageOffsets := joinPageText(pageText)
 	md := map[string]any{
 		"format":     "pdf",
-		"page_count": countPages(buf.String()),
+		"page_count": len(pageOffsets),
 	}
 	populatePDFMetadata(data, md)
+	if spans := pdfHeadingSpans(data, pageOffsets); len(spans) > 0 {
+		md["heading_spans"] = spans // spec 031 US2 — non-identity sidecar (pipeline strips before identity)
+	}
 	return text, md, nil
+}
+
+// joinPageText concatenates per-page extracted text in page order and returns the
+// joined text plus a map of page number -> byte offset where that page's text
+// begins (spec 031 US2 — bookmarks map a heading to its page's offset).
+func joinPageText(pageText map[int]string) (string, map[int]int) {
+	pages := make([]int, 0, len(pageText))
+	for p := range pageText {
+		pages = append(pages, p)
+	}
+	sort.Ints(pages)
+	var content strings.Builder
+	pageOffsets := make(map[int]int, len(pages))
+	for _, p := range pages {
+		pageOffsets[p] = content.Len()
+		content.WriteString(pageText[p])
+		content.WriteByte('\n')
+	}
+	return strings.TrimRight(content.String(), "\n"), pageOffsets
+}
+
+// pdfHeadingSpans (spec 031 US2 PDF, research R3/T002) reads the PDF bookmark
+// outline via pdfcpu and maps it to positional heading spans. A bookmark's
+// PageFrom (1-based) is translated to the byte offset of that page's start in the
+// extracted content. Nested bookmarks deepen the level. PDFs without an outline
+// (api.Bookmarks returns ErrNoOutlines) produce no spans — the font-size fallback
+// is a separate path.
+func pdfHeadingSpans(data []byte, pageOffsets map[int]int) []HeadingSpan {
+	bms, err := api.Bookmarks(bytes.NewReader(data), nil)
+	if err != nil || len(bms) == 0 {
+		return nil
+	}
+	var spans []HeadingSpan
+	var walk func(kids []pdfcpu.Bookmark, level int)
+	walk = func(kids []pdfcpu.Bookmark, level int) {
+		for _, bm := range kids {
+			if title := strings.TrimSpace(bm.Title); title != "" {
+				if off, ok := pageOffsets[bm.PageFrom]; ok {
+					spans = append(spans, HeadingSpan{Level: level, Text: title, Offset: off})
+				}
+			}
+			walk(bm.Kids, level+1)
+		}
+	}
+	walk(bms, 1)
+	sort.SliceStable(spans, func(i, j int) bool { return spans[i].Offset < spans[j].Offset })
+	return spans
 }
 
 // populatePDFMetadata (spec 031 US1) reads the PDF Info dictionary via pdfcpu and
@@ -90,11 +146,6 @@ func extractShowText(content string) string {
 		}
 	}
 	return strings.TrimSpace(b.String())
-}
-
-// countPages counts "BT" begin-text markers as a rough page/segment indicator.
-func countPages(content string) int {
-	return strings.Count(content, "BT")
 }
 
 // keep io referenced for future streaming.
