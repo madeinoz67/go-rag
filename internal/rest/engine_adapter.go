@@ -168,6 +168,72 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toIngestSummary(res))
 }
 
+// handleMigratePlan is the REST projection of engine.MigratePlan (POST
+// /v1/migrate/plan) — the read-only migration preview (H24/spec 028). It never
+// re-embeds and needs no embedding backend (FR-003/FR-004).
+func (s *Server) handleMigratePlan(w http.ResponseWriter, _ *http.Request) {
+	plan, err := s.eng.MigratePlan()
+	if err != nil {
+		writeEngineErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toMigrationPlan(plan))
+}
+
+// toMigrationPlan maps the engine plan to its REST JSON projection (snake_case).
+func toMigrationPlan(p *engine.MigrationPlan) migrationPlanResponse {
+	if p == nil {
+		return migrationPlanResponse{}
+	}
+	srcs := make([]modelCountJSON, len(p.Sources))
+	for i, s := range p.Sources {
+		srcs[i] = modelCountJSON{Model: s.Model, Count: s.Count, Stale: s.Stale}
+	}
+	dims := make([]dimCountJSON, len(p.Dimensions))
+	for i, d := range p.Dimensions {
+		dims[i] = dimCountJSON{Dim: d.Dim, Count: d.Count}
+	}
+	return migrationPlanResponse{
+		TargetModel: p.TargetModel,
+		Total:       p.Total,
+		StaleTotal:  p.StaleTotal,
+		Sources:     srcs,
+		Dimensions:  dims,
+		Consistent:  p.Consistent,
+		Estimate: estimateJSON{
+			StaleEmbeddings: p.Estimate.StaleEmbeddings,
+			ModelChange:     p.Estimate.ModelChange,
+			MixedCorpus:     p.Estimate.MixedCorpus,
+			Note:            p.Estimate.Note,
+		},
+	}
+}
+
+type migrationPlanResponse struct {
+	TargetModel string           `json:"target_model"`
+	Total       int              `json:"total"`
+	StaleTotal  int              `json:"stale_total"`
+	Sources     []modelCountJSON `json:"sources"`
+	Dimensions  []dimCountJSON   `json:"dimensions"`
+	Consistent  bool             `json:"consistent"`
+	Estimate    estimateJSON     `json:"estimate"`
+}
+type modelCountJSON struct {
+	Model string `json:"model"`
+	Count int    `json:"count"`
+	Stale bool   `json:"stale"`
+}
+type dimCountJSON struct {
+	Dim   int `json:"dim"`
+	Count int `json:"count"`
+}
+type estimateJSON struct {
+	StaleEmbeddings int    `json:"stale_embeddings"`
+	ModelChange     bool   `json:"model_change"`
+	MixedCorpus     bool   `json:"mixed_corpus"`
+	Note            string `json:"note"`
+}
+
 // handleFiles is the REST projection of engine.Files (GET /v1/files).
 func (s *Server) handleFiles(w http.ResponseWriter, _ *http.Request) {
 	files, err := s.eng.Files()

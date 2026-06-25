@@ -169,6 +169,45 @@ func (a *Adapter) Migrate(ctx context.Context, _ *goragpb.MigrateRequest) (*gora
 	return toIngestSummary(res), nil
 }
 
+// MigratePlan is the gRPC projection of engine.MigratePlan (H24/spec 028) — the
+// read-only migration preview. It never re-embeds and needs no backend.
+func (a *Adapter) MigratePlan(_ context.Context, _ *goragpb.MigratePlanRequest) (*goragpb.MigrationPlan, error) {
+	plan, err := a.eng.MigratePlan()
+	if err != nil {
+		return nil, toStatusErr(err)
+	}
+	return toMigrationPlanPB(plan), nil
+}
+
+// toMigrationPlanPB maps the engine plan to its proto projection (H24/spec 028).
+func toMigrationPlanPB(p *engine.MigrationPlan) *goragpb.MigrationPlan {
+	if p == nil {
+		return &goragpb.MigrationPlan{}
+	}
+	srcs := make([]*goragpb.ModelCount, len(p.Sources))
+	for i, s := range p.Sources {
+		srcs[i] = &goragpb.ModelCount{Model: s.Model, Count: int32(s.Count), Stale: s.Stale}
+	}
+	dims := make([]*goragpb.DimCount, len(p.Dimensions))
+	for i, d := range p.Dimensions {
+		dims[i] = &goragpb.DimCount{Dim: int32(d.Dim), Count: int32(d.Count)}
+	}
+	return &goragpb.MigrationPlan{
+		TargetModel: p.TargetModel,
+		Total:       int32(p.Total),
+		StaleTotal:  int32(p.StaleTotal),
+		Sources:     srcs,
+		Dimensions:  dims,
+		Consistent:  p.Consistent,
+		Estimate: &goragpb.Estimate{
+			StaleEmbeddings: int32(p.Estimate.StaleEmbeddings),
+			ModelChange:     p.Estimate.ModelChange,
+			MixedCorpus:     p.Estimate.MixedCorpus,
+			Note:            p.Estimate.Note,
+		},
+	}
+}
+
 // Files is the gRPC projection of engine.Files.
 func (a *Adapter) Files(_ context.Context, _ *goragpb.FilesRequest) (*goragpb.FilesResponse, error) {
 	files, err := a.eng.Files()

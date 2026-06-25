@@ -133,15 +133,14 @@ func (e *Engine) Migrate(ctx context.Context) (sum *IngestSummary, err error) {
 		observe.SpanError(span, err)
 		span.End()
 	}()
-	current := e.cfg.EmbeddingModel
-	stats := pipeline.EmbeddingModelStats(e.db)
-	stale := 0
-	for m, n := range stats {
-		if m != current {
-			stale += n
-		}
+	// H24/spec 028: the stale set is computed once via MigratePlan and shared with
+	// the dry-run preview, so preview and execution can never disagree (FR-008).
+	// Proceed only when there is stale work to do.
+	plan, err := e.MigratePlan()
+	if err != nil {
+		return nil, err
 	}
-	if stale == 0 {
+	if plan.StaleTotal == 0 {
 		return &IngestSummary{}, nil
 	}
 	// H06/spec 016: a model change invalidates every cached result and every

@@ -169,6 +169,8 @@ func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any
 		return s.renderReprocess(eng, args)
 	case "go_rag_migrate":
 		return s.renderMigrate(eng)
+	case "go_rag_migrate_plan":
+		return s.renderMigratePlan(eng) // H24/spec 028
 	case "go_rag_poison_list":
 		return s.renderPoisonList(eng)
 	case "go_rag_poison_release":
@@ -393,6 +395,39 @@ func (s *Server) renderMigrate(eng *engine.Engine) (string, error) {
 	return fmt.Sprintf("migrated=%d files re-embedded to %s (%d errors)", res.New, eng.Config().EmbeddingModel, res.Errors), nil
 }
 
+// renderMigratePlan is the read-only migration preview (H24/spec 028): shows what
+// a migrate would do and cost without re-embedding (and without a backend).
+func (s *Server) renderMigratePlan(eng *engine.Engine) (string, error) {
+	plan, err := eng.MigratePlan()
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "target model: %s, total embeddings: %d (stale: %d)", plan.TargetModel, plan.Total, plan.StaleTotal)
+	for _, src := range plan.Sources {
+		if src.Stale {
+			fmt.Fprintf(&b, ", %d on %s (stale)", src.Count, src.Model)
+		}
+	}
+	if len(plan.Dimensions) > 0 {
+		parts := make([]string, 0, len(plan.Dimensions))
+		for _, d := range plan.Dimensions {
+			parts = append(parts, fmt.Sprintf("%dd×%d", d.Dim, d.Count))
+		}
+		cons := "consistent"
+		if !plan.Consistent {
+			cons = "MIXED"
+		}
+		fmt.Fprintf(&b, ", dims: %s (%s)", strings.Join(parts, ", "), cons)
+	}
+	if plan.StaleTotal > 0 {
+		fmt.Fprintf(&b, ", estimate: ~%d to regenerate (%s)", plan.Estimate.StaleEmbeddings, plan.Estimate.Note)
+	} else {
+		b.WriteString(", nothing to migrate")
+	}
+	return b.String(), nil
+}
+
 // renderPoisonList lists chunks flagged as injection-poisoning (H04/spec 019).
 func (s *Server) renderPoisonList(eng *engine.Engine) (string, error) {
 	flagged, err := eng.ListPoisoned()
@@ -574,6 +609,7 @@ func (s *Server) guide() (string, error) {
 	b.WriteString("- **go_rag_scan** — Detect and apply filesystem changes (added/modified/deleted).\n")
 	b.WriteString("- **go_rag_reprocess** — Force re-ingest a directory (after reader/config changes).\n")
 	b.WriteString("- **go_rag_migrate** — Re-embed all documents to the current model.\n")
+	b.WriteString("- **go_rag_migrate_plan** — Preview a migration (what would change + cost) without re-embedding.\n")
 	b.WriteString("- **go_rag_config** — Get or set configuration.\n")
 	b.WriteString("- **go_rag_init** — Initialize a new database.\n")
 	b.WriteString("- **go_rag_vault_list** — List all vaults.\n")
@@ -724,6 +760,11 @@ func toolDefs() []map[string]any {
 		{
 			"name":        "go_rag_migrate",
 			"description": "Re-embed all documents whose embeddings use a different model than the current one.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "go_rag_migrate_plan",
+			"description": "Preview a migration: which embeddings are stale, the model/dimensionality change, and an estimate — without re-embedding (read-only, no embedding backend needed).",
 			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
 		},
 		{

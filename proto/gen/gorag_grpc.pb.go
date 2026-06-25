@@ -34,6 +34,7 @@ const (
 	Gorag_Scan_FullMethodName            = "/gorag.Gorag/Scan"
 	Gorag_Reprocess_FullMethodName       = "/gorag.Gorag/Reprocess"
 	Gorag_Migrate_FullMethodName         = "/gorag.Gorag/Migrate"
+	Gorag_MigratePlan_FullMethodName     = "/gorag.Gorag/MigratePlan"
 	Gorag_Files_FullMethodName           = "/gorag.Gorag/Files"
 	Gorag_Dirs_FullMethodName            = "/gorag.Gorag/Dirs"
 	Gorag_GetConfig_FullMethodName       = "/gorag.Gorag/GetConfig"
@@ -65,6 +66,8 @@ type GoragClient interface {
 	Reprocess(ctx context.Context, in *ReprocessRequest, opts ...grpc.CallOption) (*IngestSummary, error)
 	// Re-embed docs whose model != current. → engine.Migrate
 	Migrate(ctx context.Context, in *MigrateRequest, opts ...grpc.CallOption) (*IngestSummary, error)
+	// H24/spec 028: preview a migration (what would change + cost) without re-embedding. → engine.MigratePlan
+	MigratePlan(ctx context.Context, in *MigratePlanRequest, opts ...grpc.CallOption) (*MigrationPlan, error)
 	// List ingested files. → engine.Files
 	Files(ctx context.Context, in *FilesRequest, opts ...grpc.CallOption) (*FilesResponse, error)
 	// List ingested dirs with counts. → engine.Dirs
@@ -145,6 +148,16 @@ func (c *goragClient) Migrate(ctx context.Context, in *MigrateRequest, opts ...g
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(IngestSummary)
 	err := c.cc.Invoke(ctx, Gorag_Migrate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *goragClient) MigratePlan(ctx context.Context, in *MigratePlanRequest, opts ...grpc.CallOption) (*MigrationPlan, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MigrationPlan)
+	err := c.cc.Invoke(ctx, Gorag_MigratePlan_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -270,6 +283,8 @@ type GoragServer interface {
 	Reprocess(context.Context, *ReprocessRequest) (*IngestSummary, error)
 	// Re-embed docs whose model != current. → engine.Migrate
 	Migrate(context.Context, *MigrateRequest) (*IngestSummary, error)
+	// H24/spec 028: preview a migration (what would change + cost) without re-embedding. → engine.MigratePlan
+	MigratePlan(context.Context, *MigratePlanRequest) (*MigrationPlan, error)
 	// List ingested files. → engine.Files
 	Files(context.Context, *FilesRequest) (*FilesResponse, error)
 	// List ingested dirs with counts. → engine.Dirs
@@ -313,6 +328,9 @@ func (UnimplementedGoragServer) Reprocess(context.Context, *ReprocessRequest) (*
 }
 func (UnimplementedGoragServer) Migrate(context.Context, *MigrateRequest) (*IngestSummary, error) {
 	return nil, status.Error(codes.Unimplemented, "method Migrate not implemented")
+}
+func (UnimplementedGoragServer) MigratePlan(context.Context, *MigratePlanRequest) (*MigrationPlan, error) {
+	return nil, status.Error(codes.Unimplemented, "method MigratePlan not implemented")
 }
 func (UnimplementedGoragServer) Files(context.Context, *FilesRequest) (*FilesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Files not implemented")
@@ -469,6 +487,24 @@ func _Gorag_Migrate_Handler(srv interface{}, ctx context.Context, dec func(inter
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(GoragServer).Migrate(ctx, req.(*MigrateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Gorag_MigratePlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MigratePlanRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoragServer).MigratePlan(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Gorag_MigratePlan_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoragServer).MigratePlan(ctx, req.(*MigratePlanRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -683,6 +719,10 @@ var Gorag_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Migrate",
 			Handler:    _Gorag_Migrate_Handler,
+		},
+		{
+			MethodName: "MigratePlan",
+			Handler:    _Gorag_MigratePlan_Handler,
 		},
 		{
 			MethodName: "Files",

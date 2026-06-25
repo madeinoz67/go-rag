@@ -34,6 +34,9 @@ service Gorag {
   // Re-embed docs whose model != current. → engine.Migrate
   rpc Migrate(MigrateRequest) returns (IngestSummary);
 
+  // H24/spec 028: preview a migration (what would change + cost) without re-embedding. → engine.MigratePlan
+  rpc MigratePlan(MigratePlanRequest) returns (MigrationPlan);
+
   // List ingested files. → engine.Files
   rpc Files(FilesRequest) returns (FilesResponse);
 
@@ -178,6 +181,37 @@ message AddRequest { string path = 1; }
 message ScanRequest {}
 message ReprocessRequest { string path = 1; }
 message MigrateRequest {}
+
+// H24/spec 028: read-only migration preview request (no args). Mirrors the
+// REST POST /v1/migrate/plan and the MCP go_rag_migrate_plan tool.
+message MigratePlanRequest {}
+
+// MigrationPlan is the read-only migration preview (H24/spec 028). Mirrors
+// engine.MigrationPlan 1:1.
+message MigrationPlan {
+  string target_model = 1;          // model a real migrate would re-embed onto
+  int32 total = 2;                   // total tracked embeddings
+  int32 stale_total = 3;            // embeddings a real migrate would re-embed
+  repeated ModelCount sources = 4;  // per stored model
+  repeated DimCount dimensions = 5; // stored dimensionality distribution
+  bool consistent = 6;              // single model+dim+convention
+  Estimate estimate = 7;            // labelled-approximate cost
+}
+message ModelCount {
+  string model = 1;
+  int32 count = 2;
+  bool stale = 3; // model != target_model
+}
+message DimCount {
+  int32 dim = 1;
+  int32 count = 2;
+}
+message Estimate {
+  int32 stale_embeddings = 1;
+  bool model_change = 2;
+  bool mixed_corpus = 3;
+  string note = 4; // always: an estimate, not a time guarantee
+}
 
 message IngestSummary {
   int32 new = 1;

@@ -185,6 +185,44 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/IngestSummary' }
 
+  /v1/migrate/plan:
+    post:
+      summary: Preview a migration (read-only) — what would change + cost, no re-embedding (H24)
+      responses:
+        '200':
+          description: migration plan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  target_model: { type: string }
+                  total: { type: integer }
+                  stale_total: { type: integer }
+                  consistent: { type: boolean }
+                  sources:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        model: { type: string }
+                        count: { type: integer }
+                        stale: { type: boolean }
+                  dimensions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        dim: { type: integer }
+                        count: { type: integer }
+                  estimate:
+                    type: object
+                    properties:
+                      stale_embeddings: { type: integer }
+                      model_change: { type: boolean }
+                      mixed_corpus: { type: boolean }
+                      note: { type: string }
+
   /v1/files:
     get:
       summary: List ingested files

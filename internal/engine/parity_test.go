@@ -399,6 +399,60 @@ func TestCrossTransport_QueryParity(t *testing.T) {
 	assertHitsEqual(t, "gRPC", grpcCanon, want)
 }
 
+// TestCrossTransport_MigratePlanParity (H24/spec 028, FR-006 / SC-004): the
+// read-only migration plan is identical across the facade, REST, and gRPC (all
+// backed by the same Engine). Read-only + no backend: it previews the ingested
+// corpus without re-embedding or reaching the embedder.
+func TestCrossTransport_MigratePlanParity(t *testing.T) {
+	eng := sharedEngine(t, "the go-rag server performs keyword retrieval over local documents")
+
+	// Reference: facade directly.
+	ref, err := eng.MigratePlan()
+	if err != nil {
+		t.Fatalf("engine.MigratePlan: %v", err)
+	}
+
+	// REST.
+	restSrv := httptest.NewServer(rest.New(eng, "").Handler())
+	defer restSrv.Close()
+	resp, err := http.Post(restSrv.URL+"/v1/migrate/plan", "application/json", nil)
+	if err != nil {
+		t.Fatalf("REST migrate/plan: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("REST status = %d, want 200", resp.StatusCode)
+	}
+	var rmp struct {
+		TargetModel string `json:"target_model"`
+		Total       int    `json:"total"`
+		StaleTotal  int    `json:"stale_total"`
+		Consistent  bool   `json:"consistent"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&rmp); err != nil {
+		t.Fatalf("decode REST plan: %v", err)
+	}
+	if rmp.TargetModel != ref.TargetModel || rmp.Total != ref.Total ||
+		rmp.StaleTotal != ref.StaleTotal || rmp.Consistent != ref.Consistent {
+		t.Errorf("REST plan mismatch: got target=%s total=%d stale=%d consistent=%v, want target=%s total=%d stale=%d consistent=%v",
+			rmp.TargetModel, rmp.Total, rmp.StaleTotal, rmp.Consistent,
+			ref.TargetModel, ref.Total, ref.StaleTotal, ref.Consistent)
+	}
+
+	// gRPC.
+	client := dialGRPC(t, eng)
+	gp, err := client.MigratePlan(context.Background(), &goragpb.MigratePlanRequest{})
+	if err != nil {
+		t.Fatalf("gRPC MigratePlan: %v", err)
+	}
+	if gp.GetTargetModel() != ref.TargetModel || int(gp.GetTotal()) != ref.Total ||
+		int(gp.GetStaleTotal()) != ref.StaleTotal || gp.GetConsistent() != ref.Consistent {
+		t.Errorf("gRPC plan mismatch: got target=%s total=%d stale=%d consistent=%v, want target=%s total=%d stale=%d consistent=%v",
+			gp.GetTargetModel(), gp.GetTotal(), gp.GetStaleTotal(), gp.GetConsistent(),
+			ref.TargetModel, ref.Total, ref.StaleTotal, ref.Consistent)
+	}
+}
+
 // TestCrossTransport_SectionContextParity (H23/spec 025, FR-004 / SC-002): a
 // heading-bearing Markdown chunk's section_context is byte-identical across the
 // facade, REST, and gRPC. (Heading-less chunks omit it identically — covered by

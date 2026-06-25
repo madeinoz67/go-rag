@@ -38,7 +38,7 @@ tests) is part of the deliverable, not optional:
 
 **Purpose**: Record the pre-feature green baseline (US1/US3 "nothing changed" claims are measured against it).
 
-- [ ] T001 Run `make build vet test` (or `CGO_ENABLED=0 go build ./... && go vet ./... && go test ./...`) on `main`; confirm green and record as the pre-feature baseline. No code changes.
+- [x] T001 Run `make build vet test` (or `CGO_ENABLED=0 go build ./... && go vet ./... && go test ./...`) on `main`; confirm green and record as the pre-feature baseline. No code changes.
 
 ---
 
@@ -48,8 +48,8 @@ tests) is part of the deliverable, not optional:
 
 **⚠️ CRITICAL**: Blocks US1, US2, US3.
 
-- [ ] T002 Create `internal/engine/migrate_plan.go`: the `MigrationPlan`, `ModelCount{Model,Count,Stale}`, `DimCount{Dim,Count}`, and `Estimate{StaleEmbeddings,ModelChange,MixedCorpus,Note}` types, plus `Engine.MigratePlan(ctx) (*MigrationPlan, error)` — a pure derive from `pipeline.EmbeddingModelStats(e.db)` + `engine.CorpusProfile(e.db)` + `e.cfg.EmbeddingModel`. Strictly read-only: no `Embedder`, no `flushCaches`, no `ReprocessAll`, no `refreshBaseline`, no epoch bump (R1/R5). `Estimate.Note` states it is an estimate, not a time guarantee (R4). data-model.md §1/§3.
-- [ ] T003 Refactor `Engine.Migrate` in `internal/engine/ingest.go` to call `MigratePlan` first and proceed only when `StaleTotal > 0` (replacing the inline stats/stale pre-amble). The real mutate path (`flushCaches` → `ReprocessAll` → `refreshBaselineAfterMigrate`) is unchanged; only the plan computation is shared, so the preview and execution can never disagree (FR-008). Depends T002.
+- [x] T002 Create `internal/engine/migrate_plan.go`: the `MigrationPlan`, `ModelCount{Model,Count,Stale}`, `DimCount{Dim,Count}`, and `Estimate{StaleEmbeddings,ModelChange,MixedCorpus,Note}` types, plus `Engine.MigratePlan(ctx) (*MigrationPlan, error)` — a pure derive from `pipeline.EmbeddingModelStats(e.db)` + `engine.CorpusProfile(e.db)` + `e.cfg.EmbeddingModel`. Strictly read-only: no `Embedder`, no `flushCaches`, no `ReprocessAll`, no `refreshBaseline`, no epoch bump (R1/R5). `Estimate.Note` states it is an estimate, not a time guarantee (R4). data-model.md §1/§3.
+- [x] T003 Refactor `Engine.Migrate` in `internal/engine/ingest.go` to call `MigratePlan` first and proceed only when `StaleTotal > 0` (replacing the inline stats/stale pre-amble). The real mutate path (`flushCaches` → `ReprocessAll` → `refreshBaselineAfterMigrate`) is unchanged; only the plan computation is shared, so the preview and execution can never disagree (FR-008). Depends T002.
 
 **Checkpoint**: The plan exists and `Migrate` reuses it — story work can begin.
 
@@ -63,9 +63,9 @@ tests) is part of the deliverable, not optional:
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] Add the `--dry-run` flag to `migrate` in `internal/cli/migrate.go`: when set, open the DB, build an engine (or call `Engine.MigratePlan` directly), render the plan human-readably (target model, per-source counts with `<- stale` markers, dim distribution, consistency, estimate), and `return` without re-embedding. Replace the existing hand-rolled inline preview so plain `migrate` renders the *same* plan first, then proceeds (retire the duplicate logic — R1). Exit 0 in all cases (empty/clean/mixed). Depends T002.
-- [ ] T005 [US1] Create `internal/engine/migrate_plan_test.go` asserting: (a) **read-only** — `MigratePlan` leaves embedding counts/contents, caches, baseline, and index epoch byte-identical before/after (FR-003); (b) **no-backend** — it succeeds and returns a correct plan with the embedder unreachable / never constructed (FR-004); (c) **deterministic** — repeated calls identical (FR-007). Use an isolated temp DB. SC-001/SC-002. Depends T002.
-- [ ] T006 [US1] Add a **preview == execution** test (`internal/engine/migrate_plan_test.go`): build a corpus with known stale embeddings, capture `MigratePlan().StaleTotal`, run a real `Migrate`, and assert the count actually re-embedded equals the preview's stale total; after migrate, `MigratePlan()` reports `StaleTotal == 0` (FR-008 / SC-005). Depends T003, T005.
+- [x] T004 [US1] Add the `--dry-run` flag to `migrate` in `internal/cli/migrate.go`: when set, open the DB, build an engine (or call `Engine.MigratePlan` directly), render the plan human-readably (target model, per-source counts with `<- stale` markers, dim distribution, consistency, estimate), and `return` without re-embedding. Replace the existing hand-rolled inline preview so plain `migrate` renders the *same* plan first, then proceeds (retire the duplicate logic — R1). Exit 0 in all cases (empty/clean/mixed). Depends T002.
+- [x] T005 [US1] Create `internal/engine/migrate_plan_test.go` asserting: (a) **read-only** — `MigratePlan` leaves embedding counts/contents, caches, baseline, and index epoch byte-identical before/after (FR-003); (b) **no-backend** — it succeeds and returns a correct plan with the embedder unreachable / never constructed (FR-004); (c) **deterministic** — repeated calls identical (FR-007). Use an isolated temp DB. SC-001/SC-002. Depends T002.
+- [x] T006 [US1] Add a **preview == execution** test (`internal/engine/migrate_plan_test.go`): build a corpus with known stale embeddings, capture `MigratePlan().StaleTotal`, run a real `Migrate`, and assert the count actually re-embedded equals the preview's stale total; after migrate, `MigratePlan()` reports `StaleTotal == 0` (FR-008 / SC-005). Depends T003, T005.
 
 **Checkpoint**: The dry-run works end-to-end on the CLI and is proven read-only, backend-free, and execution-faithful.
 
@@ -79,7 +79,7 @@ tests) is part of the deliverable, not optional:
 
 ### Implementation for User Story 2
 
-- [ ] T007 [US2] Extend `internal/engine/migrate_plan_test.go` to assert `MigrationPlan` populates the cost fields correctly: on a **mixed** corpus (two models/dims) — `StaleTotal` > 0, `Sources[]` with correct `Stale` flags, `Dimensions[]` reflecting the stored distribution, `Consistent == false`, and `Estimate{ModelChange,MixedCorpus}` set with `Note` labelled approximate; on a **clean** single-model corpus — `StaleTotal == 0`, `Consistent == true`, no dimensionality change. (FR-002/FR-005, SC-003, R2.) Depends T002.
+- [x] T007 [US2] Extend `internal/engine/migrate_plan_test.go` to assert `MigrationPlan` populates the cost fields correctly: on a **mixed** corpus (two models/dims) — `StaleTotal` > 0, `Sources[]` with correct `Stale` flags, `Dimensions[]` reflecting the stored distribution, `Consistent == false`, and `Estimate{ModelChange,MixedCorpus}` set with `Note` labelled approximate; on a **clean** single-model corpus — `StaleTotal == 0`, `Consistent == true`, no dimensionality change. (FR-002/FR-005, SC-003, R2.) Depends T002.
 
 **Checkpoint**: The estimate is decision-useful and honestly labelled.
 
@@ -93,10 +93,10 @@ tests) is part of the deliverable, not optional:
 
 ### Implementation for User Story 3
 
-- [ ] T008 [P] [US3] Add the gRPC surface: `rpc MigratePlan(MigratePlanRequest) returns (MigrationPlan)` plus the `MigrationPlan`/`ModelCount`/`DimCount`/`Estimate` messages to `proto/gorag.proto`; regenerate `proto/gen`; wire the handler in `internal/grpc/engine_adapter.go` to call `Engine.MigratePlan`. contracts/api.md. Depends T002.
-- [ ] T009 [P] [US3] Add the REST surface: `POST /v1/migrate/plan` (no body) returning the `MigrationPlan` JSON in `internal/rest/` (route + types + adapter). contracts/api.md. Depends T002.
-- [ ] T010 [P] [US3] Add the MCP surface: a `migrate_plan` tool (no args) returning the plan as structured output in `internal/mcp/server.go`. contracts/api.md. Depends T002.
-- [ ] T011 [US3] Extend `internal/engine/parity_test.go`: invoke the preview over CLI/REST/gRPC/MCP on the same isolated corpus and assert the returned `MigrationPlan` is byte-identical across transports, and that each leaves corpus/cache/baseline/epoch unchanged (FR-006/FR-003, SC-004). Depends T008, T009, T010.
+- [x] T008 [P] [US3] Add the gRPC surface: `rpc MigratePlan(MigratePlanRequest) returns (MigrationPlan)` plus the `MigrationPlan`/`ModelCount`/`DimCount`/`Estimate` messages to `proto/gorag.proto`; regenerate `proto/gen`; wire the handler in `internal/grpc/engine_adapter.go` to call `Engine.MigratePlan`. contracts/api.md. Depends T002.
+- [x] T009 [P] [US3] Add the REST surface: `POST /v1/migrate/plan` (no body) returning the `MigrationPlan` JSON in `internal/rest/` (route + types + adapter). contracts/api.md. Depends T002.
+- [x] T010 [P] [US3] Add the MCP surface: a `migrate_plan` tool (no args) returning the plan as structured output in `internal/mcp/server.go`. contracts/api.md. Depends T002.
+- [x] T011 [US3] Extend `internal/engine/parity_test.go`: invoke the preview over CLI/REST/gRPC/MCP on the same isolated corpus and assert the returned `MigrationPlan` is byte-identical across transports, and that each leaves corpus/cache/baseline/epoch unchanged (FR-006/FR-003, SC-004). Depends T008, T009, T010.
 
 **Checkpoint**: The preview is uniform and provably side-effect-free everywhere.
 
@@ -106,9 +106,9 @@ tests) is part of the deliverable, not optional:
 
 **Purpose**: Final gate and audit bookkeeping.
 
-- [ ] T012 [P] Run the full gate: `make build vet lint test` green; `CGO_ENABLED=0 go build ./...` succeeds (Constitution III); `go mod tidy` clean (no new dependency expected).
-- [ ] T013 Update audit tracking: mark finding **H24** done in `RAG_BOOK_AUDIT_BACKLOG.md` (Phase 6 §1.8) with a one-line completion note (spec 028 — read-only `MigratePlan` shared by all transports + `Migrate`; succeeds with no backend).
-- [ ] T014 Final gate: commit to `main` with Conventional Commits (e.g. `feat(migrate): dry-run migration plan (H24)`) and push (single-author repo — straight to `main`, per `CLAUDE.md`).
+- [x] T012 [P] Run the full gate: `make build vet lint test` green; `CGO_ENABLED=0 go build ./...` succeeds (Constitution III); `go mod tidy` clean (no new dependency expected).
+- [x] T013 Update audit tracking: mark finding **H24** done in `RAG_BOOK_AUDIT_BACKLOG.md` (Phase 6 §1.8) with a one-line completion note (spec 028 — read-only `MigratePlan` shared by all transports + `Migrate`; succeeds with no backend).
+- [x] T014 Final gate: commit to `main` with Conventional Commits (e.g. `feat(migrate): dry-run migration plan (H24)`) and push (single-author repo — straight to `main`, per `CLAUDE.md`).
 
 ---
 
