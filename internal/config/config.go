@@ -49,7 +49,7 @@ type Config struct {
 
 	// spec 029: background document enrichment (local model; opt-in, default off).
 	EnrichmentEnabled bool   `json:"enrichment_enabled,omitempty"` // default false; true enables background doc tag+summary
-	EnrichmentModel  string `json:"enrichment_model,omitempty"`   // the local generation model for tags+summary
+	EnrichmentModel   string `json:"enrichment_model,omitempty"`   // the local generation model for tags+summary
 
 	// H04/spec 019: retrieval-poisoning (indirect prompt injection) detection.
 	// Detection scores every chunk at ingest and quarantines flagged chunks out
