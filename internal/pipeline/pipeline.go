@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/madeinoz67/go-rag/internal/caption"
 	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/enrich"
@@ -58,6 +59,7 @@ type Pipeline struct {
 	redactor *redact.Scanner // H19/spec 022: redacts secrets/PII pre-chunk; nil = disabled
 	nearDupK int             // H20/spec 026: SimHash Hamming threshold for near-dup clustering (0 = default 3)
 	enricher enrich.Enricher // spec 029: background document enrichment (tags+summary); nil = off
+	captioner caption.Captioner // spec 031 US4: background image captioning; nil = off (default)
 
 	queue chan job
 	wg    sync.WaitGroup
@@ -137,6 +139,11 @@ func (p *Pipeline) SetNearDupK(k int) { p.nearDupK = k }
 // when cfg.EffectiveEnrichmentEnabled(); nil (the default) leaves enrichment off
 // and the system byte-identical to today.
 func (p *Pipeline) SetEnricher(e enrich.Enricher) { p.enricher = e }
+
+// SetCaptioner binds the image captioner (spec 031 US4). Bound once by the Engine
+// when cfg.EffectiveCaptioningEnabled(); nil (the default) leaves captioning off
+// and the system byte-identical to today (SC-006).
+func (p *Pipeline) SetCaptioner(c caption.Captioner) { p.captioner = c }
 
 // Close drains the async queue and stops workers.
 func (p *Pipeline) Close() {
@@ -250,6 +257,11 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	// non-Markdown readers / heading-less docs → section context absent (FR-006).
 	spans, _ := metadata["heading_spans"].([]reader.HeadingSpan)
 	delete(metadata, "heading_spans")
+	// spec 031 US4: pull the reader's transient image refs out of metadata BEFORE
+	// identity. Image bytes are NEVER persisted and NEVER enter the identity hash
+	// (Constitution II) — they ride the in-memory job queue to the post-ACK captioner.
+	images, _ := metadata["images"].([]reader.ImageRef)
+	delete(metadata, "images")
 
 	docID := model.GenerateID(content, mimeType(ext), metadata)
 	// H19/spec 022: redact secrets/PII AFTER identity (docID over original content —
@@ -336,7 +348,7 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	}
 
 	// Async FTS index + near-dup + enrich after the ACK (embed is now the embedder's job).
-	p.queue <- job{docID: docID, chunks: chunks}
+	p.queue <- job{docID: docID, chunks: chunks, images: images, mimeType: mimeType(ext)}
 	return "NEW", nil
 }
 

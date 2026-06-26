@@ -170,6 +170,7 @@ type StatusInfo struct {
 
 	// spec 029: document enrichment observability (background tags + summary).
 	EnrichmentEnabled bool // background enrichment on (opt-in, default false)
+	CaptioningEnabled bool // background image captioning on (spec 031 US4, opt-in, default false)
 	EnrichedDocs      int  // documents with a non-nil Enrichment sidecar (eventually consistent)
 
 	// spec 030: crash-safe background embedder backlog.

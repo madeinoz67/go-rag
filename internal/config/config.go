@@ -50,6 +50,9 @@ type Config struct {
 	// spec 029: background document enrichment (local model; opt-in, default off).
 	EnrichmentEnabled bool   `json:"enrichment_enabled,omitempty"` // default false; true enables background doc tag+summary
 	EnrichmentModel   string `json:"enrichment_model,omitempty"`   // the local generation model for tags+summary
+	// spec 031 US4: background image/chart captioning (local vision model; opt-in, default off).
+	CaptioningEnabled bool   `json:"captioning_enabled,omitempty"` // default false; true enables background image captioning
+	CaptioningModel   string `json:"captioning_model,omitempty"`   // the local vision model for image captions (llava/llama3.2-vision/moondream)
 
 	// H04/spec 019: retrieval-poisoning (indirect prompt injection) detection.
 	// Detection scores every chunk at ingest and quarantines flagged chunks out
@@ -219,6 +222,11 @@ func (c Config) EffectivePoisoningEnabled() bool { return c.PoisoningEnabled }
 // enables it. When false the system makes zero enrichment model calls and is
 // byte-identical to today.
 func (c Config) EffectiveEnrichmentEnabled() bool { return c.EnrichmentEnabled }
+
+// EffectiveCaptioningEnabled reports whether background image captioning
+// (spec 031 US4) runs. Defaults to false (opt-in). When false the system makes
+// zero vision-model calls and is byte-identical to today.
+func (c Config) EffectiveCaptioningEnabled() bool { return c.CaptioningEnabled }
 
 // EffectivePoisonThresholdSuspicious returns the configured suspicious threshold
 // when positive, else the default (0.40).

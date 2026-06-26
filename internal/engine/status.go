@@ -139,6 +139,7 @@ func (e *Engine) Status() (*StatusInfo, error) {
 
 		// spec 029: document enrichment observability.
 		EnrichmentEnabled: e.cfg.EffectiveEnrichmentEnabled(),
+		CaptioningEnabled: e.cfg.EffectiveCaptioningEnabled(),
 		EnrichedDocs:      enrichedDocs,
 
 		// spec 030: crash-safe embedder backlog.

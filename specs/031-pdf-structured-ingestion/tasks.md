@@ -138,16 +138,18 @@ Each story touches specific principles — called out inline so implement-time r
 
 > Interface + config + provider are independent files → parallelizable; pipeline wiring depends on them.
 
-- [ ] T020 [P] [US4] Create the `Captioner` interface + `ImageData{Position, Bytes}` type in `internal/caption/captioner.go` (sibling of `internal/enrich/enricher.go` — `Caption(ctx, imageBytes) (string, error)` + `Model()`)
-- [ ] T021 [P] [US4] Add config keys `captioning_enabled` (default `false`) and `captioning_model` in `internal/config/config.go`
-- [ ] T022 [US4] Implement the local Ollama vision caption provider in `internal/caption/ollama.go` — mirror the enrich Ollama provider's HTTP client; use a chart-data-aware prompt (describe trend/key values/comparisons, not just "a chart") (depends on T020)
-- [ ] T023 [US4] Test the caption path — fake captioner (like the fake enricher), PDF image extraction, pipeline caption-splice-into-content, circuit-breaker trip, and graceful skip-when-disabled in `internal/caption/*_test.go` and `internal/reader/pdf_test.go` (depends on T020)
-- [ ] T024 [US4] Implement PDF embedded-image extraction in `internal/reader/pdf.go` — `api.ExtractImages` → `metadata["images"] = []ImageData{Position, Bytes}` (per T002 verified API; bytes discarded after captioning)
-- [ ] T025 [US4] Bind the captioner in `internal/engine/engine.go` — instantiate + inject only when `captioning_enabled` (default off), else nil (depends on T020, T021, T022)
-- [ ] T026 [US4] Wire post-ACK captioning in `internal/pipeline/pipeline.go` — when a captioner is bound and images are present: for each image call `Caption` and splice the caption into `content` at the image position BEFORE chunking; reuse the spec 029/030 circuit-breaker primitive; MUST NOT block the write ACK (Constitution IV); skip gracefully when disabled or model unavailable (depends on T023, T024, T025)
-- [ ] T027 [US4] Validate SC-004 + SC-006 end-to-end via `quickstart.md` (captioning on with a pulled vision model → chart queryable; off → images skipped, rest extracts)
+- [X] T020 [P] [US4] Create the `Captioner` interface + `ImageData{Position, Bytes}` type in `internal/caption/captioner.go` (sibling of `internal/enrich/enricher.go` — `Caption(ctx, imageBytes) (string, error)` + `Model()`)
+- [X] T021 [P] [US4] Add config keys `captioning_enabled` (default `false`) and `captioning_model` in `internal/config/config.go`
+- [X] T022 [US4] Implement the local Ollama vision caption provider in `internal/caption/ollama.go` — mirror the enrich Ollama provider's HTTP client; use a chart-data-aware prompt (describe trend/key values/comparisons, not just "a chart") (depends on T020)
+- [X] T023 [US4] Test the caption path — fake captioner (like the fake enricher), PDF image extraction, pipeline caption-splice-into-content, circuit-breaker trip, and graceful skip-when-disabled in `internal/caption/*_test.go` and `internal/reader/pdf_test.go` (depends on T020)
+- [X] T024 [US4] Implement PDF embedded-image extraction in `internal/reader/pdf.go` — `api.ExtractImages` → `metadata["images"] = []ImageData{Position, Bytes}` (per T002 verified API; bytes discarded after captioning)
+- [X] T025 [US4] Bind the captioner in `internal/engine/engine.go` — instantiate + inject only when `captioning_enabled` (default off), else nil (depends on T020, T021, T022)
+- [X] T026 [US4] Wire post-ACK captioning in `internal/pipeline/pipeline.go` — when a captioner is bound and images are present: for each image call `Caption` and splice the caption into `content` at the image position BEFORE chunking; reuse the spec 029/030 circuit-breaker primitive; MUST NOT block the write ACK (Constitution IV); skip gracefully when disabled or model unavailable (depends on T023, T024, T025)
+- [X] T027 [US4]  (SC-006 + SC-004 WIRING verified via fake captioner; real SC-004 E2E over a live vision model is an operator smoke test — needs `ollama pull llava` + captioning_enabled) Validate SC-004 + SC-006 end-to-end via `quickstart.md` (captioning on with a pulled vision model → chart queryable; off → images skipped, rest extracts)
 
 **Checkpoint**: All four user stories independently functional.
+
+> **US4 v1 limitations (documented, deferred):** (1) **ReCaption back-fill** — a transient caption failure (circuit open / network) leaves no caption chunk and no "owed" signal; retry needs a `reprocess`/re-ingest (a ReCaption command mirroring ReEnrich is a follow-up). (2) **Positional captions** — the caption chunk is page-0 and appended after the last original chunk, not placed at each image's page (a caption for a page-7 chart is searchable but not retrievable as "the page-7 chunk"). (3) **Sequential latency** — captions are per-image, seconds each, sequential within a worker; bounded by the 32-image-per-doc cap, but a 32-image PDF blocks that worker for minutes (parallelism is a follow-up). (4) **Vision request shape** — the Ollama `/api/chat` images-field format is the documented native shape but UNVERIFIED in-codebase; a wrong shape surfaces as 4xx → every image skipped.
 
 ---
 

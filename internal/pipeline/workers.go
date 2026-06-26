@@ -3,22 +3,28 @@ package pipeline
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"math/bits"
 	"strings"
 	"time"
 
+	"github.com/madeinoz67/go-rag/internal/caption"
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/enrich"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/near"
+	"github.com/madeinoz67/go-rag/internal/reader"
 	"github.com/madeinoz67/go-rag/internal/storage"
 )
 
 // job is a unit of async indexing work: embed a document's chunks and add them to
 // the FTS and vector indexes.
 type job struct {
-	docID  string
-	chunks []model.Chunk
+	docID    string
+	chunks   []model.Chunk
+	images   []reader.ImageRef // spec 031 US4: transient image bytes for post-ACK captioning (nil for non-PDF / image-less)
+	mimeType string            // document mime type (the caption chunk's GenerateID input)
 }
 
 // worker drains the queue, embedding and indexing chunks, then updates the
@@ -56,6 +62,8 @@ func (p *Pipeline) processJob(j job) {
 	p.clusterNearDup(j.chunks, ndK)
 	// spec 029: background document enrichment (tags + summary).
 	p.enrichDocument(j.docID, j.chunks)
+	// spec 031 US4: background image captioning (writes a synthetic caption chunk).
+	p.captionImages(j)
 	// Status is always "embedded" — the chunks are durably stored (0x03) + queued
 	// for embedding (0x14). An embed failure is the embedder's concern (it marks
 	// the 0x14 record status=failed); the document is "stored" regardless.
@@ -94,6 +102,120 @@ func (p *Pipeline) enrichDocument(docID string, chunks []model.Chunk) {
 		return
 	}
 	p.setEnrichment(docID, info)
+}
+
+// captionImages runs background image captioning (spec 031 US4): for each image
+// the reader extracted, ask the bound captioner for a description and write the
+// concatenated captions as a NEW chunk — searchable via FTS + the embedder (a
+// fresh ID → fresh fts.Index + a fresh 0x14 embed-queue record → vec.Add),
+// avoiding the stale-vector / fts-no-op traps of mutating an existing chunk.
+// Async-after-ACK; a no-op when no captioner is bound or the doc has no images
+// (SC-006). A transient failure (circuit open / network / ctx) leaves the caption
+// chunk unwritten this pass (retry on reprocess). Image bytes ride the job queue
+// (in-memory) and are never persisted.
+func (p *Pipeline) captionImages(j job) {
+	if p.captioner == nil || len(j.images) == 0 {
+		return // SC-006: disabled or image-less doc
+	}
+	ctx := context.Background()
+	var lines []string
+	var pages []int
+	for _, img := range j.images {
+		c, err := p.captioner.Caption(ctx, img.Bytes, fmt.Sprintf("page %d, %s", img.PageNr, img.FileType))
+		switch {
+		case err == nil:
+			if t := strings.TrimSpace(c); t != "" {
+				lines = append(lines, fmt.Sprintf("Figure on page %d: %s", img.PageNr, t))
+				pages = append(pages, img.PageNr)
+			}
+		case caption.IsNothing(err):
+			// terminal: skip this image
+		case caption.IsPermanent(err):
+			// permanent: skip (do not pollute results)
+		default:
+			return // transient (circuit open / ctx / network): leave unwritten, retry on reprocess
+		}
+	}
+	if len(lines) == 0 {
+		return
+	}
+	captionsText := strings.Join(lines, "\n")
+	captionID := model.GenerateID(captionsText, j.mimeType, map[string]any{"doc": j.docID, "idx": len(j.chunks), "kind": "caption"})
+	now := time.Now().UTC()
+	cc := model.Chunk{
+		ID:          captionID,
+		DocumentID:  j.docID,
+		Content:     captionsText,
+		ChunkIndex:  len(j.chunks),
+		TotalChunks: len(j.chunks) + 1, // v1 known display inconsistency: original chunks keep their old TotalChunks (updating N is N RMWs, not worth it)
+		CreatedAt:   now,
+		Kind:        "caption",
+		Caption:     &model.CaptionInfo{Model: p.captioner.Model(), GeneratedAt: now, Status: "done", ImagePages: pages},
+	}
+	if n := len(j.chunks); n > 0 {
+		cc.PreviousChunkID = j.chunks[n-1].ID // link into the chunk linked-list
+	}
+
+	// Serialize the Document/chunk read-modify-writes with setEnrichment /
+	// markStatus. fts.Index + PutEmbedQueueItem are safe under p.mu (fts has its
+	// own lock; the queue write is a single Set). NOTE: clusterNearDup is NOT
+	// p.mu-gated but it ran earlier in processJob and only touches PrefixChunk by
+	// chunk ID; this new caption ID cannot collide, so there is no race.
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	cj, _ := json.Marshal(cc)
+	if err := p.db.SetWithPrefix(storage.PrefixChunk, []byte(captionID), cj); err != nil {
+		slog.Warn("caption: store caption chunk", "err", err)
+		return
+	}
+	// CRITICAL: the embed-queue record MUST be written or the caption is
+	// BM25-searchable but NOT vector-searchable (silent half-fail of SC-004).
+	// p.embed may be nil for non-engine constructors (caption-only test/eval
+	// harnesses); the embedder re-reads the model at drain time, so "" is benign.
+	embModel := ""
+	if p.embed != nil {
+		embModel = p.embed.Model()
+	}
+	if err := p.db.PutEmbedQueueItem(captionID, embModel); err != nil {
+		slog.Warn("caption: queue caption for embed", "err", err)
+	}
+	p.fts.Index(captionID, map[string]string{"body": captionsText})
+
+	// Point the last original chunk's NextChunkID at the caption (linked-list tail).
+	if n := len(j.chunks); n > 0 {
+		lastID := j.chunks[n-1].ID
+		if raw, ok, _ := p.db.GetWithPrefix(storage.PrefixChunk, []byte(lastID)); ok {
+			var lc model.Chunk
+			if json.Unmarshal(raw, &lc) == nil {
+				lc.NextChunkID = captionID
+				if lj, merr := json.Marshal(lc); merr == nil {
+					if err := p.db.SetWithPrefix(storage.PrefixChunk, []byte(lastID), lj); err != nil {
+						slog.Warn("caption: link last chunk NextChunkID", "err", err)
+					}
+				}
+			}
+		}
+	}
+
+	// Bump the document's ChunkCount (a non-identity statistic, like Status).
+	if raw, ok, _ := p.db.GetWithPrefix(storage.PrefixDocument, []byte(j.docID)); ok {
+		var d model.Document
+		if json.Unmarshal(raw, &d) == nil {
+			d.ChunkCount++
+			d.UpdatedAt = now
+			if dj, merr := json.Marshal(d); merr == nil {
+				if err := p.db.SetWithPrefix(storage.PrefixDocument, []byte(j.docID), dj); err != nil {
+					slog.Warn("caption: bump document ChunkCount", "err", err)
+				}
+			}
+		}
+	}
+
+	p.indexChanged()            // FTS epoch bump (H06 query-cache invalidation)
+	if p.OnNotifyEmbed != nil { // wake the embedder to drain the caption's 0x14 now
+		p.OnNotifyEmbed()
+	}
 }
 
 // setEnrichment reads a Document, attaches the EnrichInfo sidecar, and writes it

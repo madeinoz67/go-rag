@@ -58,7 +58,48 @@ func (r *PDFReader) Read(_ context.Context, data []byte, _ string) (string, map[
 	if spans := pdfHeadingSpans(data, pageOffsets); len(spans) > 0 {
 		md["heading_spans"] = spans // spec 031 US2 — non-identity sidecar (pipeline strips before identity)
 	}
+	if imgs := extractPDFImages(data); len(imgs) > 0 {
+		md["images"] = imgs // spec 031 US4 — transient image bytes; pipeline strips before identity (Constitution II)
+	}
 	return text, md, nil
+}
+
+// extractPDFImages (spec 031 US4) reads embedded PDF images via pdfcpu into
+// transient ImageRefs (bytes + page position) for the pipeline to caption
+// post-ACK. Bounded: a 2 MiB per-image cap and a 32-image per-doc cap protect
+// the in-memory job queue from image-heavy PDFs. Returns nil on any error or
+// when no images are present (graceful — images are optional). The reader makes
+// NO model calls; bytes never persist (the pipeline discards them after captioning).
+func extractPDFImages(data []byte) []ImageRef {
+	rawImgs, err := api.ExtractImagesRaw(bytes.NewReader(data), nil, nil)
+	if err != nil {
+		return nil
+	}
+	const maxImageBytes = 2 * 1024 * 1024
+	const maxImages = 32
+	var refs []ImageRef
+	for _, m := range rawImgs {
+		for _, img := range m {
+			if img.Reader == nil {
+				continue // CRITICAL: a nil-interface reader panics inside io.ReadAll
+			}
+			b, err := io.ReadAll(img.Reader)
+			if err != nil || len(b) == 0 || len(b) > maxImageBytes {
+				continue
+			}
+			refs = append(refs, ImageRef{
+				PageNr:   img.PageNr,
+				Bytes:    b,
+				Width:    img.Width,
+				Height:   img.Height,
+				FileType: img.FileType,
+			})
+			if len(refs) >= maxImages {
+				return refs
+			}
+		}
+	}
+	return refs
 }
 
 // joinPageText concatenates per-page extracted text in page order and returns the

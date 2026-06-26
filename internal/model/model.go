@@ -117,6 +117,15 @@ type Chunk struct {
 	// or document identity. Populated async-after-ACK by the ingest worker's
 	// clustering pass; opt-in query-time collapse reads it.
 	NearDup *NearDupInfo `json:"near_dup,omitempty"`
+	// Caption is the image-caption sidecar (spec 031 US4) for synthetic caption
+	// chunks. A non-identity sidecar (like Poisoning / SectionContext / NearDup):
+	// GenerateID hashes content + mimeType + metadata only, so this never
+	// participates in identity. nil for non-caption chunks.
+	Caption *CaptionInfo `json:"caption,omitempty"`
+	// Kind tags a chunk's role (spec 031 US4): "caption" marks the synthetic
+	// post-ACK caption chunk produced by image captioning. Empty for ordinary
+	// chunks. Non-identity sidecar.
+	Kind string `json:"kind,omitempty"`
 }
 
 // NearDupInfo is the per-chunk near-duplicate verdict (audit H20 / spec 026).
@@ -127,6 +136,17 @@ type Chunk struct {
 type NearDupInfo struct {
 	Siblings   []string `json:"siblings,omitempty"`
 	Similarity float64  `json:"similarity,omitempty"`
+}
+
+// CaptionInfo is the per-chunk image-caption sidecar (spec 031 US4): provenance
+// for a synthetic caption chunk (the vision model + time + the source image page
+// numbers + status). Non-identity; stored on Chunk.Caption for chunks with
+// Kind=="caption". Absent (nil) for non-caption chunks.
+type CaptionInfo struct {
+	Model       string    `json:"model,omitempty"`
+	GeneratedAt time.Time `json:"generated_at,omitempty"`
+	Status      string    `json:"status,omitempty"`
+	ImagePages  []int     `json:"image_pages,omitempty"`
 }
 
 // EnrichInfo is the per-document enrichment sidecar (spec 029): auto-generated
