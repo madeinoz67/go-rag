@@ -2,6 +2,8 @@ package pipeline
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -123,12 +125,34 @@ func (p *Pipeline) captionImages(j job) {
 	var lines []string
 	var pages []int
 	for _, img := range j.images {
+		// Cross-document image-caption cache (spec 031 FU): content-addressed by
+		// image SHA-256 — the same image in ANY document reuses the cached caption,
+		// skipping the vision call. Also deduplicates within a document (a logo on
+		// every page → captioned once). Cache value carries the model so a model
+		// change triggers a re-caption.
+		h := sha256.Sum256(img.Bytes)
+		hashKey := hex.EncodeToString(h[:])
+		if cached, ok, _ := p.db.GetWithPrefix(storage.PrefixImageCaption, []byte(hashKey)); ok {
+			var ci struct {
+				Caption string `json:"caption"`
+				Model   string `json:"model"`
+			}
+			if json.Unmarshal(cached, &ci) == nil && ci.Model == p.captioner.Model() && ci.Caption != "" {
+				lines = append(lines, fmt.Sprintf("Figure on page %d: %s", img.PageNr, ci.Caption))
+				pages = append(pages, img.PageNr)
+				continue // cache hit (same model) — skip the vision call
+			}
+		}
+		// Cache miss or model mismatch — caption the image.
 		c, err := p.captioner.Caption(ctx, img.Bytes, fmt.Sprintf("page %d, %s", img.PageNr, img.FileType))
 		switch {
 		case err == nil:
 			if t := strings.TrimSpace(c); t != "" {
 				lines = append(lines, fmt.Sprintf("Figure on page %d: %s", img.PageNr, t))
 				pages = append(pages, img.PageNr)
+				// Cache the caption for cross-document reuse.
+				cv, _ := json.Marshal(map[string]string{"caption": t, "model": p.captioner.Model()})
+				_ = p.db.SetWithPrefix(storage.PrefixImageCaption, []byte(hashKey), cv)
 			}
 		case caption.IsNothing(err):
 			// terminal: skip this image

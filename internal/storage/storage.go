@@ -28,4 +28,5 @@ const (
 	PrefixThreatSrc    byte = 0x12 // H04/spec 019: threat-source store (FR-012/013, D12)
 	PrefixNearDup      byte = 0x13 // H20/spec 026: near-dup SimHash fingerprint (chunkID → uint64) for sibling scan
 	PrefixEmbedQueue   byte = 0x14 // spec 030: durable pending-embed work queue (chunkID → {model,status,attempts})
+	PrefixImageCaption byte = 0x15 // spec 031: cross-doc image-caption cache (image SHA-256 → {caption,model})
 )
