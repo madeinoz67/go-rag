@@ -60,7 +60,7 @@ type QueryHit struct {
 	Content    string // full chunk text
 	FilePath   string
 	Page       int            // Chunk.PageNumber; 0 when not paginated
-	ChunkIndex int            // H21/spec 023: 0-based ordinal within the source document
+	ChunkIndex int            // H21/spec 023: 0-based ordinal within the source document (synthetic caption chunks, Kind="caption", carry index N and are tail-positioned — spec 031 US4)
 	Preview    string         // convenience truncated preview for text renders
 	Context    []ContextChunk // H15/spec 015: sibling chunks for reading context; nil when ContextWindow=0
 	// Poisoning is the per-chunk injection-poisoning verdict (H04/spec 019),

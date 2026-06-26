@@ -266,6 +266,13 @@ const minNearDupTokens = 8
 // has near-duplicates (audit H20 / spec 026). Async-after-ACK. Short chunks are
 // skipped (R10). Siblings are pairwise/asymmetric (this chunk lists its existing
 // siblings); query-time collapse detects pairs bidirectionally.
+//
+// SAFETY INVARIANT (spec 031 US4 review): the chunk read-modify-write below is
+// UNSYNCHRONIZED (no p.mu). It is safe ONLY because chunk IDs are content-addressed
+// and doc-scoped — no concurrent writer touches the same chunk ID. captionImages
+// (spec 031 US4) relies on the same invariant for its new caption IDs. Any future
+// change that clusters ACROSS documents, or any other concurrent writer to
+// PrefixChunk by ID, MUST take p.mu (else last-writer-wins on the JSON blob).
 func (p *Pipeline) clusterNearDup(chunks []model.Chunk, k int) {
 	// Pass 1: fingerprint + index under 0x13.
 	for _, c := range chunks {
