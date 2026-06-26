@@ -18,13 +18,12 @@ import (
 // chat endpoint with base64 image payloads. Safe for concurrent use (the
 // pipeline's background workers call it).
 //
-// TODO(provider-abstraction, spec 031 follow-up): the provider (Ollama) + its API
-// endpoint are hardcoded as the sole captioning backend, and the same gap exists
-// for enrich.Enricher + embed.Embedder (each has a single Ollama impl). To support
-// alternative providers (a cloud vision API, an OpenAI-compatible endpoint, another
-// local inference server), introduce a provider-selection config (provider +
-// endpoint + model per capability) + non-Ollama impls behind these interfaces.
-// Captured as a tracked follow-up in specs/031-pdf-structured-ingestion/tasks.md.
+// FU-1 PARTIALLY SHIPPED: the caption provider is now abstracted (caption.New
+// factory dispatches Ollama vs OpenAI-compatible; see openai.go + config
+// captioning_provider/endpoint/api_key). The SAME gap remains for enrich.Enricher
+// + embed.Embedder (each has a single Ollama impl). To extend: mirror the caption
+// factory pattern (New(provider,...) -> NewOllama/NewOpenAI) + add the config
+// fields per capability. See FU-1 in tasks.md.
 //
 // NOTE (research.md T002 / US4 SC-004 validation, 2026-06-26): the /api/chat
 // images-field shape is the documented Ollama native format (raw base64 strings in
