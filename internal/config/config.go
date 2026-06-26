@@ -53,6 +53,10 @@ type Config struct {
 	// spec 031 US4: background image/chart captioning (local vision model; opt-in, default off).
 	CaptioningEnabled bool   `json:"captioning_enabled,omitempty"` // default false; true enables background image captioning
 	CaptioningModel   string `json:"captioning_model,omitempty"`   // the local vision model for image captions (llava/llama3.2-vision/moondream)
+	// spec 031 FU-1: provider abstraction — alternative captioning backends.
+	CaptioningProvider string `json:"captioning_provider,omitempty"` // "ollama" (default) | "openai"
+	CaptioningEndpoint string `json:"captioning_endpoint,omitempty"` // empty = OllamaURL (for ollama) or the OpenAI base URL
+	CaptioningAPIKey   string `json:"captioning_api_key,omitempty"`   // for cloud providers (Bearer token)
 
 	// H04/spec 019: retrieval-poisoning (indirect prompt injection) detection.
 	// Detection scores every chunk at ingest and quarantines flagged chunks out

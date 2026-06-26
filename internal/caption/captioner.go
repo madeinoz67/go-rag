@@ -10,6 +10,7 @@ package caption
 import (
 	"context"
 	"errors"
+	"strings"
 )
 
 // Captioner produces a text description of an image (spec 031 US4). The local
@@ -45,3 +46,17 @@ func IsPermanent(err error) bool { return errors.Is(err, ErrPermanent) }
 
 // IsNothing reports whether err signals nothing-to-caption.
 func IsNothing(err error) bool { return errors.Is(err, ErrNothingToCaption) }
+
+// New constructs the configured Captioner provider (spec 031 FU-1). provider
+// "ollama" or "" (default) → the Ollama vision provider; "openai" → an
+// OpenAI-compatible provider (covers OpenAI/Azure/vLLM/LM Studio). endpoint is
+// the base URL (resolved by the caller — empty falls back to OllamaURL). apiKey is
+// used by cloud providers (Bearer token).
+func New(provider, endpoint, model, apiKey string) Captioner {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "openai", "openai-compatible":
+		return NewOpenAI(endpoint, model, apiKey)
+	default:
+		return NewOllama(endpoint, model)
+	}
+}

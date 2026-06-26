@@ -233,7 +233,11 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	// captioning_enabled is false or captioning_model is empty. Produces a
 	// synthetic caption chunk async-after-ACK.
 	if e.cfg.EffectiveCaptioningEnabled() && e.cfg.CaptioningModel != "" {
-		e.pipe.SetCaptioner(caption.NewOllama(e.cfg.OllamaURL, e.cfg.CaptioningModel))
+		capEndpoint := e.cfg.CaptioningEndpoint
+		if capEndpoint == "" {
+			capEndpoint = e.cfg.OllamaURL
+		}
+		e.pipe.SetCaptioner(caption.New(e.cfg.CaptioningProvider, capEndpoint, e.cfg.CaptioningModel, e.cfg.CaptioningAPIKey))
 	}
 	// spec 030: construct + start the crash-safe background embedder. It drains
 	// the durable 0x14 pending-embed queue, micro-batches across documents, and
