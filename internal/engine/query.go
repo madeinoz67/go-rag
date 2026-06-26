@@ -217,7 +217,11 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 
 	var reranker index.Reranker
 	if e.cfg.RerankModel != "" && !req.NoRerank {
-		reranker = rerank.New(e.cfg.OllamaURL, e.cfg.RerankModel)
+		rerankEndpoint := e.cfg.RerankEndpoint
+		if rerankEndpoint == "" {
+			rerankEndpoint = e.cfg.OllamaURL
+		}
+		reranker = rerank.New(e.cfg.RerankProvider, rerankEndpoint, e.cfg.RerankModel, e.cfg.RerankAPIKey)
 	}
 
 	hits, rerankFailed, err := r.SearchWithRerank(ctx, req.Query, req.K, index.ParseMode(req.Mode), docOf(e.db), reranker, func(id string) string {

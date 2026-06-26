@@ -64,6 +64,10 @@ type Config struct {
 	EnrichmentProvider string `json:"enrichment_provider,omitempty"` // "ollama" (default) | "openai"
 	EnrichmentEndpoint string `json:"enrichment_endpoint,omitempty"` // empty = OllamaURL
 	EnrichmentAPIKey   string `json:"enrichment_api_key,omitempty"`   // for cloud providers
+	// spec 031 FU-1: provider abstraction for rerank.
+	RerankProvider    string `json:"rerank_provider,omitempty"`    // "ollama" (default) | "openai"
+	RerankEndpoint    string `json:"rerank_endpoint,omitempty"`    // empty = OllamaURL
+	RerankAPIKey      string `json:"rerank_api_key,omitempty"`      // for cloud providers
 
 	// H04/spec 019: retrieval-poisoning (indirect prompt injection) detection.
 	// Detection scores every chunk at ingest and quarantines flagged chunks out

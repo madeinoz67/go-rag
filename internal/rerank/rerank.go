@@ -12,33 +12,47 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/madeinoz67/go-rag/internal/index"
 )
 
 // Reranker scores query-passage relevance using an Ollama LLM (generate) as a
 // second-pass scorer. One call scores all candidates at once.
-type Reranker struct {
+type OllamaReranker struct {
 	url    string
 	model  string
 	client *http.Client
 }
 
 // New returns a reranker that calls Ollama at url using model for scoring.
-func New(url, model string) *Reranker {
-	return &Reranker{
+func NewOllama(url, model string) *OllamaReranker {
+	return &OllamaReranker{
 		url:    url,
 		model:  model,
 		client: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
+// New constructs the configured Reranker provider (spec 031 FU-1). provider "ollama"
+// or "" (default) → the Ollama reranker; "openai" → an OpenAI-compatible reranker.
+// Returns index.Reranker (the interface the engine's query path uses).
+func New(provider, endpoint, model, apiKey string) index.Reranker {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "openai", "openai-compatible":
+		return NewOpenAIReranker(endpoint, model, apiKey)
+	default:
+		return NewOllama(endpoint, model)
+	}
+}
+
 // Model returns the reranker model identifier (satisfies index.Reranker; used by
 // the retrieval layer for failure logging — H09 FR-003).
-func (r *Reranker) Model() string { return r.model }
+func (r *OllamaReranker) Model() string { return r.model }
 
 // Score returns a normalised relevance score per candidate (0.0–1.0, higher =
 // more relevant). Sends one Ollama generate call with all candidates and parses
 // the comma-separated scores from the response.
-func (r *Reranker) Score(ctx context.Context, query string, candidates []string) ([]float64, error) {
+func (r *OllamaReranker) Score(ctx context.Context, query string, candidates []string) ([]float64, error) {
 	if len(candidates) == 0 {
 		return nil, nil
 	}

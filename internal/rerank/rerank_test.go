@@ -14,7 +14,7 @@ func TestReranker_Score(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rr := New(srv.URL, "test")
+	rr := NewOllama(srv.URL, "test")
 	scores, err := rr.Score(context.Background(), "query", []string{"a", "b", "c", "d"})
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +57,7 @@ func TestParseScores_MaxNormalisation(t *testing.T) {
 }
 
 func TestReranker_EmptyInput(t *testing.T) {
-	rr := New("http://x", "m")
+	rr := NewOllama("http://x", "m")
 	scores, err := rr.Score(context.Background(), "q", nil)
 	if err != nil || scores != nil {
 		t.Fatalf("empty input → nil,nil; got %v %v", scores, err)
