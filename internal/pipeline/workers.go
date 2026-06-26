@@ -64,10 +64,12 @@ func (p *Pipeline) processJob(j job) {
 		ndK = config.DefaultNearDupHamming
 	}
 	p.clusterNearDup(j.chunks, ndK)
-	// spec 029: background document enrichment (tags + summary).
-	p.enrichDocument(j.docID, j.chunks)
 	// spec 031 US4: background image captioning (writes a synthetic caption chunk).
-	p.captionImages(j)
+	// Runs BEFORE enrichment so the enricher's tags + summary include the caption
+	// text (image-heavy docs get meaningful tags, not just sparse body text).
+	captions := p.captionImages(j)
+	// spec 029: background document enrichment (tags + summary) — includes captions.
+	p.enrichDocument(j.docID, j.chunks, captions)
 	// Status is always "embedded" — the chunks are durably stored (0x03) + queued
 	// for embedding (0x14). An embed failure is the embedder's concern (it marks
 	// the 0x14 record status=failed); the document is "stored" regardless.
@@ -80,11 +82,15 @@ func (p *Pipeline) processJob(j job) {
 // is bound. Failures are terminal-statused (failed / nothing-to-enrich) so the
 // worker never loops; transient errors (model unreachable, circuit open, ctx
 // cancelled) leave the sidecar nil for a later back-fill retry.
-func (p *Pipeline) enrichDocument(docID string, chunks []model.Chunk) {
+func (p *Pipeline) enrichDocument(docID string, chunks []model.Chunk, captions string) {
 	if p.enricher == nil {
 		return
 	}
 	var b strings.Builder
+	if captions != "" {
+		b.WriteString(captions) // captions first (high-value for image-heavy docs)
+		b.WriteByte('\n')
+	}
 	for _, c := range chunks {
 		b.WriteString(c.Content)
 		b.WriteByte('\n')
@@ -117,9 +123,9 @@ func (p *Pipeline) enrichDocument(docID string, chunks []model.Chunk) {
 // (SC-006). A transient failure (circuit open / network / ctx) leaves the caption
 // chunk unwritten this pass (retry on reprocess). Image bytes ride the job queue
 // (in-memory) and are never persisted.
-func (p *Pipeline) captionImages(j job) {
+func (p *Pipeline) captionImages(j job) string {
 	if p.captioner == nil || len(j.images) == 0 {
-		return // SC-006: disabled or image-less doc
+		return "" // SC-006: disabled or image-less doc
 	}
 	ctx := context.Background()
 	var lines []string
@@ -159,11 +165,11 @@ func (p *Pipeline) captionImages(j job) {
 		case caption.IsPermanent(err):
 			// permanent: skip (do not pollute results)
 		default:
-			return // transient (circuit open / ctx / network): leave unwritten, retry on reprocess
+			return "" // transient (circuit open / ctx / network): leave unwritten, retry on reprocess
 		}
 	}
 	if len(lines) == 0 {
-		return
+		return ""
 	}
 	captionsText := strings.Join(lines, "\n")
 	captionID := model.GenerateID(captionsText, j.mimeType, map[string]any{"doc": j.docID, "idx": len(j.chunks), "kind": "caption"})
@@ -202,7 +208,7 @@ func (p *Pipeline) captionImages(j job) {
 	cj, _ := json.Marshal(cc)
 	if err := p.db.SetWithPrefix(storage.PrefixChunk, []byte(captionID), cj); err != nil {
 		slog.Warn("caption: store caption chunk", "err", err)
-		return
+		return ""
 	}
 	// CRITICAL: the embed-queue record MUST be written or the caption is
 	// BM25-searchable but NOT vector-searchable (silent half-fail of SC-004).
@@ -251,6 +257,7 @@ func (p *Pipeline) captionImages(j job) {
 	if p.OnNotifyEmbed != nil { // wake the embedder to drain the caption's 0x14 now
 		p.OnNotifyEmbed()
 	}
+	return captionsText
 }
 
 // setEnrichment reads a Document, attaches the EnrichInfo sidecar, and writes it
