@@ -53,7 +53,7 @@ Each story touches specific principles — called out inline so implement-time r
 
 **⚠️ CRITICAL**: T004 MUST be complete before the PDF portions of US2 (T014) and US3 (T017).
 
-- [ ] T004 Add positioned-text content-stream helper in `internal/reader/pdf.go` — parse `Tj`/`TJ` text operators together with `Tm`/`TD` positioning operators into `[]positionedText{Text, X, Y, Font, Size}` (depends on T002's pdfcpu findings; consumed by US2 PDF heading heuristics T014 and US3 table detection T017)
+- [X] T004 Add positioned-text content-stream helper in `internal/reader/pdf.go` — parse `Tj`/`TJ` text operators together with `Tm`/`TD` positioning operators into `[]positionedText{Text, X, Y, Font, Size}` (depends on T002's pdfcpu findings; consumed by US2 PDF heading heuristics T014 and US3 table detection T017)
 
 **Checkpoint**: Shared PDF content-stream parser ready — US2/US3 PDF work can proceed.
 
@@ -116,13 +116,13 @@ Each story touches specific principles — called out inline so implement-time r
 
 ### Tests for User Story 3
 
-- [ ] T016 [P] [US3] Test table grid detection → Markdown table render; multi-page table handling; no-table graceful (text passes through unchanged) in `internal/reader/pdf_test.go`
+- [X] T016 [P] [US3] Test table grid detection → Markdown table render; multi-page table handling; no-table graceful (text passes through unchanged) in `internal/reader/pdf_test.go`
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] Implement table grid detection in `internal/reader/pdf.go` — detect positionally-aligned text (consistent X offsets = columns, consistent Y offsets = rows) from the T004 positioned-text helper; render the region as a Markdown table spliced into `content` at the table's position (depends on T004)
-- [ ] T018 [US3] Handle multi-page tables in `internal/reader/pdf.go` — extract as one logical table, or split with explicit continuation markers (per spec.md acceptance scenario 3)
-- [ ] T019 [US3] Validate SC-003 end-to-end via `quickstart.md` (query a cell value → structured table text returned)
+- [X] T017 [US3] Implement table grid detection in `internal/reader/pdf.go` — detect positionally-aligned text (consistent X offsets = columns, consistent Y offsets = rows) from the T004 positioned-text helper; render the region as a Markdown table spliced into `content` at the table's position (depends on T004)
+- [ ] T018 [US3] Handle multi-page tables (DEFERRED: v1 emits per-page standalone tables — "clearly split" semantics; cross-page column-match + repeated-header merge is a follow-up) in `internal/reader/pdf.go` — extract as one logical table, or split with explicit continuation markers (per spec.md acceptance scenario 3)
+- [X] T019 [US3] Validate SC-003 end-to-end via `quickstart.md` (query a cell value → structured table text returned)
 
 **Checkpoint**: User Stories 1, 2, AND 3 all work independently.
 

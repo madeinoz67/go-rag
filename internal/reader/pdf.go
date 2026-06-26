@@ -31,7 +31,20 @@ func (r *PDFReader) Read(_ context.Context, data []byte, _ string) (string, map[
 		if _, e := io.Copy(&b, rd); e != nil {
 			return e
 		}
-		pageText[page] = extractShowText(b.String())
+		raw := b.String()
+		legacy := extractShowText(raw)
+		frags, flat, amb := parsePositionedText(raw)
+		// Table detection (spec 031 T017): parse the content stream for positioned
+		// text and splice any detected grid tables into the parser's doc-ordered
+		// flat text. Non-table or ambiguous pages keep the identity-stable legacy
+		// extractShowText output (never worse than today).
+		if !amb && len(frags) >= 4 {
+			if rendered := renderPageWithTables(flat, frags); rendered != flat {
+				pageText[page] = rendered
+				return nil
+			}
+		}
+		pageText[page] = legacy
 		return nil
 	}, nil); err != nil {
 		return "", nil, fmt.Errorf("pdf extract: %w", err)
