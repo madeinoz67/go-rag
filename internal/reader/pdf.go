@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
@@ -25,26 +26,39 @@ func (r *PDFReader) SupportedMimeTypes() []string  { return []string{"applicatio
 
 func (r *PDFReader) Read(_ context.Context, data []byte, _ string) (string, map[string]any, error) {
 	rs := bytes.NewReader(data)
-	pageText := map[int]string{} // pdfcpu page number -> extracted text
+	// spec 031 US2: decide heading source up front. Outlined PDFs use bookmark
+	// spans (page-granularity; identity-stable legacy text). Outline-less PDFs use
+	// the parser's flat text as the page text + font-size heading detection — the
+	// flat IS the page text, so font-size frag offsets index it directly (no offset
+	// hazard). Bookmarks win when present (the high-precision signal).
+	bms, _ := api.Bookmarks(bytes.NewReader(data), nil)
+	hasBookmarks := len(bms) > 0
+
+	pageText := map[int]string{}            // pdfcpu page number -> extracted text
+	pageFrags := map[int][]positionedText{} // outline-less non-table pages (for font-size)
 	if err := api.ExtractContent(rs, nil, func(rd io.Reader, page int) error {
 		var b bytes.Buffer
 		if _, e := io.Copy(&b, rd); e != nil {
 			return e
 		}
 		raw := b.String()
-		legacy := extractShowText(raw)
 		frags, flat, amb := parsePositionedText(raw)
-		// Table detection (spec 031 T017): parse the content stream for positioned
-		// text and splice any detected grid tables into the parser's doc-ordered
-		// flat text. Non-table or ambiguous pages keep the identity-stable legacy
-		// extractShowText output (never worse than today).
+		// Table detection (spec 031 T017) on the parser's flat text.
 		if !amb && len(frags) >= 4 {
 			if rendered := renderPageWithTables(flat, frags); rendered != flat {
-				pageText[page] = rendered
+				pageText[page] = rendered // table detected (flat-based, spliced); no font-size spans
 				return nil
 			}
 		}
-		pageText[page] = legacy
+		// No table on this page.
+		if hasBookmarks {
+			pageText[page] = extractShowText(raw) // outlined: identity-stable legacy
+		} else {
+			pageText[page] = flat // outline-less: flat so font-size offsets align
+			if !amb {
+				pageFrags[page] = frags
+			}
+		}
 		return nil
 	}, nil); err != nil {
 		return "", nil, fmt.Errorf("pdf extract: %w", err)
@@ -55,7 +69,13 @@ func (r *PDFReader) Read(_ context.Context, data []byte, _ string) (string, map[
 		"page_count": len(pageOffsets),
 	}
 	populatePDFMetadata(data, md)
-	if spans := pdfHeadingSpans(data, pageOffsets); len(spans) > 0 {
+	var spans []HeadingSpan
+	if hasBookmarks {
+		spans = bookmarkHeadingSpans(bms, pageOffsets)
+	} else {
+		spans = fontSizeHeadingSpans(pageFrags, pageOffsets)
+	}
+	if len(spans) > 0 {
 		md["heading_spans"] = spans // spec 031 US2 — non-identity sidecar (pipeline strips before identity)
 	}
 	if imgs := extractPDFImages(data); len(imgs) > 0 {
@@ -127,9 +147,8 @@ func joinPageText(pageText map[int]string) (string, map[int]int) {
 // extracted content. Nested bookmarks deepen the level. PDFs without an outline
 // (api.Bookmarks returns ErrNoOutlines) produce no spans — the font-size fallback
 // is a separate path.
-func pdfHeadingSpans(data []byte, pageOffsets map[int]int) []HeadingSpan {
-	bms, err := api.Bookmarks(bytes.NewReader(data), nil)
-	if err != nil || len(bms) == 0 {
+func bookmarkHeadingSpans(bms []pdfcpu.Bookmark, pageOffsets map[int]int) []HeadingSpan {
+	if len(bms) == 0 {
 		return nil
 	}
 	var spans []HeadingSpan
@@ -147,6 +166,63 @@ func pdfHeadingSpans(data []byte, pageOffsets map[int]int) []HeadingSpan {
 	walk(bms, 1)
 	sort.SliceStable(spans, func(i, j int) bool { return spans[i].Offset < spans[j].Offset })
 	return spans
+}
+
+// fontSizeHeadingSpans (spec 031 US2 — font-size fallback for OUTLINE-LESS PDFs)
+// promotes the largest font sizes on each page to heading spans. It runs ONLY on
+// pages whose text is the parser's flat (no detected table), so each frag's
+// ByteStart indexes the page text directly — sidestepping the offset hazard that
+// table splicing would introduce (table pages get the spliced render + no
+// font-size spans). Conservative: requires a clear size gap (max > 1.15x median);
+// degrades to no spans on ambiguity (FR-007).
+func fontSizeHeadingSpans(pageFrags map[int][]positionedText, pageOffsets map[int]int) []HeadingSpan {
+	var spans []HeadingSpan
+	for page, frags := range pageFrags {
+		var sizes []float64
+		for _, f := range frags {
+			if f.FontSize > 0 {
+				sizes = append(sizes, f.FontSize)
+			}
+		}
+		if len(sizes) < 2 {
+			continue
+		}
+		sort.Float64s(sizes)
+		median := sizes[(len(sizes)-1)/2] // lower median = the body size (so a few large headings stand out)
+		maxSize := sizes[len(sizes)-1]
+		if maxSize <= median*1.15 {
+			continue // no clear size gap -> not heading structure
+		}
+		threshold := median + (maxSize-median)*0.6
+		pageOff := pageOffsets[page]
+		for _, f := range frags {
+			if f.FontSize >= threshold && isHeadingText(f.Text) {
+				spans = append(spans, HeadingSpan{Level: 1, Text: strings.TrimSpace(f.Text), Offset: pageOff + f.ByteStart})
+			}
+		}
+	}
+	sort.SliceStable(spans, func(i, j int) bool { return spans[i].Offset < spans[j].Offset })
+	return spans
+}
+
+// isHeadingText reports whether a string looks like a heading: 2..80 chars, no
+// terminal sentence punctuation, and contains a letter.
+func isHeadingText(s string) bool {
+	s = strings.TrimSpace(s)
+	n := len(s)
+	if n < 2 || n > 80 {
+		return false
+	}
+	switch s[n-1] {
+	case '.', ',', ';', ':', '!', '?':
+		return false
+	}
+	for _, r := range s {
+		if unicode.IsLetter(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // populatePDFMetadata (spec 031 US1) reads the PDF Info dictionary via pdfcpu and

@@ -104,7 +104,7 @@ Each story touches specific principles — called out inline so implement-time r
 
 **Checkpoint**: User Stories 1 AND 2 both work independently.
 
-> **PDF font-size fallback deferred (T004):** T014 ships the bookmark path — `api.Bookmarks` → page-offset `[]HeadingSpan` (tree depth = level). This is the high-precision primary signal and spec-compliant: outline-less PDFs are gracefully absent (FR-007). The font-size fallback AND the T004 positioned-text content-stream parser are deferred to the US3 turn — both table detection and font-size headings share that parser, so it is built once there and reused.
+> **PDF font-size fallback SHIPPED:** T014 ships BOTH paths. Outlined PDFs use `api.Bookmarks` → page-offset spans (high-precision, identity-stable legacy page text). Outline-less PDFs use the parser's flat text as the page text + `fontSizeHeadingSpans` (largest font → heading; offset into the flat directly, no hazard; table pages keep the spliced render and skip font-size). Bookmarks win when present. Verified by TestPDFReader_BookmarkHeadings + TestPDFReader_FontSizeHeadings.
 
 ---
 

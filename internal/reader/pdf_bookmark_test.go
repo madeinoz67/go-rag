@@ -135,3 +135,44 @@ func TestPDFReader_NoBookmarks(t *testing.T) {
 		t.Errorf("did not expect heading_spans for an outline-less PDF; got %v", v)
 	}
 }
+
+// TestPDFReader_FontSizeHeadings (spec 031 US2 font-size fallback, SC-002): an
+// OUTLINE-LESS PDF (no bookmarks) with a clear font-size gap promotes the largest
+// font to a heading span. The page text is the parser's flat, so the span offset
+// indexes the content directly (no offset hazard). The body (smaller font) is NOT
+// promoted. Single-font pages yield no spans (no gap).
+func TestPDFReader_FontSizeHeadings(t *testing.T) {
+	stream := "BT /F1 24 Tf 1 0 0 1 72 700 Tm (Big Section Title) Tj /F1 10 Tf 1 0 0 1 72 670 Tm (Body text under the heading goes here) Tj ET"
+	objs := []string{
+		"<< /Type /Catalog /Pages 2 0 R >>",
+		"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+		"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+		"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+		fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(stream), stream),
+	}
+	pdf := assemblePDF(objs, "")
+	r := &PDFReader{}
+	content, md, err := r.Read(context.Background(), pdf, "fontsize.pdf")
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	spans, _ := md["heading_spans"].([]HeadingSpan)
+	foundTitle := false
+	for _, sp := range spans {
+		if sp.Text == "Big Section Title" {
+			foundTitle = true
+			if sp.Level != 1 {
+				t.Errorf("heading level: got %d, want 1", sp.Level)
+			}
+			if sp.Offset < 0 || sp.Offset >= len(content) {
+				t.Errorf("heading offset %d out of bounds (content len %d)", sp.Offset, len(content))
+			}
+		}
+		if strings.Contains(sp.Text, "Body text") {
+			t.Errorf("body text must not be promoted to a heading; got span %+v", sp)
+		}
+	}
+	if !foundTitle {
+		t.Errorf("expected a 'Big Section Title' heading span; got %+v", spans)
+	}
+}
