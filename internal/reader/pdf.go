@@ -85,6 +85,9 @@ func (r *PDFReader) Read(_ context.Context, data []byte, _ string) (string, map[
 	if imgs := extractPDFImages(data); len(imgs) > 0 {
 		md["images"] = imgs // spec 031 US4 — transient image bytes; pipeline strips before identity (Constitution II)
 	}
+	if len(pageOffsets) > 0 {
+		md["page_offsets"] = pageOffsets // spec 031: transient; pipeline strips before identity + threads to worker for caption SectionContext
+	}
 	return text, md, nil
 }
 

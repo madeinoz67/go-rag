@@ -21,10 +21,12 @@ import (
 // job is a unit of async indexing work: embed a document's chunks and add them to
 // the FTS and vector indexes.
 type job struct {
-	docID    string
-	chunks   []model.Chunk
-	images   []reader.ImageRef // spec 031 US4: transient image bytes for post-ACK captioning (nil for non-PDF / image-less)
-	mimeType string            // document mime type (the caption chunk's GenerateID input)
+	docID       string
+	chunks      []model.Chunk
+	images      []reader.ImageRef // spec 031 US4: transient image bytes for post-ACK captioning (nil for non-PDF / image-less)
+	mimeType    string            // document mime type (the caption chunk's GenerateID input)
+	spans       []reader.HeadingSpan // spec 031: heading spans for caption SectionContext
+	pageOffsets map[int]int           // spec 031: page->byte-offset map for caption SectionContext
 }
 
 // worker drains the queue, embedding and indexing chunks, then updates the
@@ -154,6 +156,15 @@ func (p *Pipeline) captionImages(j job) {
 	}
 	if n := len(j.chunks); n > 0 {
 		cc.PreviousChunkID = j.chunks[n-1].ID // link into the chunk linked-list
+	}
+
+	// SectionContext: the heading breadcrumb at the first image's page position
+	// (spec 031 — captions carry document hierarchy). Uses the heading spans +
+	// page offsets threaded from the reader via the job.
+	if len(j.spans) > 0 && len(j.pageOffsets) > 0 && len(j.images) > 0 {
+		if off, ok := j.pageOffsets[j.images[0].PageNr]; ok {
+			cc.SectionContext = resolveBreadcrumb(j.spans, off, nil)
+		}
 	}
 
 	// Serialize the Document/chunk read-modify-writes with setEnrichment /

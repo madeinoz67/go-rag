@@ -262,6 +262,10 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	// (Constitution II) — they ride the in-memory job queue to the post-ACK captioner.
 	images, _ := metadata["images"].([]reader.ImageRef)
 	delete(metadata, "images")
+	// spec 031: page offsets (transient — the reader's page→byte-offset map, used by
+		// the worker to compute caption SectionContext). Stripped before identity.
+	pageOffsets, _ := metadata["page_offsets"].(map[int]int)
+	delete(metadata, "page_offsets")
 
 	docID := model.GenerateID(content, mimeType(ext), metadata)
 	// H19/spec 022: redact secrets/PII AFTER identity (docID over original content —
@@ -348,7 +352,7 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	}
 
 	// Async FTS index + near-dup + enrich after the ACK (embed is now the embedder's job).
-	p.queue <- job{docID: docID, chunks: chunks, images: images, mimeType: mimeType(ext)}
+	p.queue <- job{docID: docID, chunks: chunks, images: images, mimeType: mimeType(ext), spans: spans, pageOffsets: pageOffsets}
 	return "NEW", nil
 }
 
