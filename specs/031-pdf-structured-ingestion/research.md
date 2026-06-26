@@ -276,16 +276,20 @@ XObject (/DCTDecode), and run through the full pipeline:
    `captioning_model=minicpm-v:latest`, ingesting the chart PDF produced a caption
    chunk; querying "bar chart increasing four bars" returned it (score 1.000).
 
-**Model comparison** (same chart, same prompt):
-- `llava:latest` (6.5s): WRONG — "five bars… red, blue, yellow, green, and white"
-  (counted the background as a bar); no trend.
-- `minicpm-v:latest` (7.8s): CORRECT — "four vertical bars… red 10%, green 20%,
-  blue ~45%, yellow ~70%… clear increase from left to right." Correct count,
-  correct trend, approximate values.
+**Model comparison** (same chart — 4 vertical bars red→yellow increasing; times vary with warm-up):
 
-**Recommendation: `minicpm-v`** for chart/image captioning (correct bar count +
-trend; llava miscounted). Both ~6-8s/image. The captioning model is
-operator-configured (`captioning_model`); minicpm-v is the tested-recommended
-default. Latency note: captioning is per-image + sequential within a worker, so a
-many-image PDF is bounded by the 32-image-per-doc cap (US4 v1 limitation).
+| Model | Time | Verdict |
+|-------|------|---------|
+| **`minicpm-v4.6:latest`** | **4.5s** | ✅ **BEST** — "four vertical bar segments (red, green, blue, yellow) progressively increasing… rising values." Correct, concise, fastest. |
+| `minicpm-v:latest` | 5.8–7.8s | ✅ Correct (4 bars, colors, trend) but verbose; mislabeled "horizontal." |
+| `glm-ocr:latest` | 137.6s | ✅ Excellent detail (trend + approximate values) but 137s/image — unusable for ingest. |
+| `deepseek-ocr:latest` | 7.3s | ❌ **Hallucinated** a fabricated "Sales Analysis" table ($100/$150/$200). Dangerous for searchable captions. |
+| `llava:latest` | 6.5s | ❌ Miscounted ("five bars… and white" — counted the background). |
+| `richardyoung/smolvlm2-2.2b-instruct` | — | ❌ Not multimodal in Ollama ("model does not support multimodal requests" — SmolVLM2/llama.cpp incompatibility). |
+
+**Recommendation: `minicpm-v4.6`** for chart/image captioning — correct + concise +
+fastest (4.5s/image). The captioning model is operator-configured
+(`captioning_model`); minicpm-v4.6 is the tested-recommended default. Latency note:
+captioning is per-image + sequential within a worker, so a many-image PDF is bounded
+by the 32-image-per-doc cap (US4 v1 limitation).
 

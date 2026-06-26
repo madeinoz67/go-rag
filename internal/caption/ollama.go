@@ -29,8 +29,10 @@ import (
 // NOTE (research.md T002 / US4 SC-004 validation, 2026-06-26): the /api/chat
 // images-field shape is the documented Ollama native format (raw base64 strings in
 // messages[].images, NOT OpenAI-style data-URLs) — VERIFIED end-to-end: a real
-// chart JPEG → minicpm-v caption → caption chunk → retrieval. minicpm-v is the
-// tested-recommended model (llava miscounted the bars). A wrong shape surfaces as
+// chart JPEG → minicpm-v4.6 caption → caption chunk → retrieval. minicpm-v4.6 is the
+// tested-recommended model (6-model comparison: minicpm-v4.6 correct + concise +
+// fastest at 4.5s; deepseek-ocr hallucinated, glm-ocr 137s, llava miscounted,
+// smolvlm2 not multimodal in Ollama — see research.md). A wrong shape surfaces as
 // 4xx → WrapPermanent (every image skipped, captioning configured but idle).
 type Ollama struct {
 	baseURL string
