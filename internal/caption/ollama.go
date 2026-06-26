@@ -18,12 +18,20 @@ import (
 // chat endpoint with base64 image payloads. Safe for concurrent use (the
 // pipeline's background workers call it).
 //
-// NOTE (research.md T002 / US4 design open-risk): the /api/chat images-field
-// shape is the documented Ollama native format (raw base64 strings in
-// messages[].images, NOT OpenAI-style data-URLs). The real end-to-end (SC-004)
-// is an operator smoke test against the configured vision model; a wrong shape
-// surfaces as 4xx → WrapPermanent (every image skipped, captioning appears
-// configured but produces nothing).
+// TODO(provider-abstraction, spec 031 follow-up): the provider (Ollama) + its API
+// endpoint are hardcoded as the sole captioning backend, and the same gap exists
+// for enrich.Enricher + embed.Embedder (each has a single Ollama impl). To support
+// alternative providers (a cloud vision API, an OpenAI-compatible endpoint, another
+// local inference server), introduce a provider-selection config (provider +
+// endpoint + model per capability) + non-Ollama impls behind these interfaces.
+// Captured as a tracked follow-up in specs/031-pdf-structured-ingestion/tasks.md.
+//
+// NOTE (research.md T002 / US4 SC-004 validation, 2026-06-26): the /api/chat
+// images-field shape is the documented Ollama native format (raw base64 strings in
+// messages[].images, NOT OpenAI-style data-URLs) — VERIFIED end-to-end: a real
+// chart JPEG → minicpm-v caption → caption chunk → retrieval. minicpm-v is the
+// tested-recommended model (llava miscounted the bars). A wrong shape surfaces as
+// 4xx → WrapPermanent (every image skipped, captioning configured but idle).
 type Ollama struct {
 	baseURL string
 	model   string

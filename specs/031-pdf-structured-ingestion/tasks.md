@@ -252,3 +252,17 @@ US2-PDF (T014) and US3 (T017) share T004 — coordinate so T014's font-size clus
 - **Commits to `main` directly** (single-author repo, Conventional Commits).
 - **pdfcpu API risk** (research.md R1/R2): metadata/outline/images likely available; table detection is heuristic. T002 resolves R1 before PDF implementation; table detection (T017) is best-effort and MUST fail gracefully.
 - Verify each test fails before implementing; commit after each task or logical group.
+
+---
+
+## Future Work (tracked follow-ups)
+
+Deferred items — out of scope for spec 031 v1; do only if a concrete need appears.
+
+- **FU-1 — Provider abstraction (requested).** The model-level interfaces (`embed.Embedder`, `enrich.Enricher`, `caption.Captioner`) exist, but the **provider (Ollama) + its API endpoint are hardcoded as the sole backend** for all three (each has one Ollama impl; the base URL is a single `OllamaURL` config). To support alternative providers (a cloud vision API, an OpenAI-compatible endpoint, another local inference server), introduce a **provider-selection config** (provider + endpoint + model per capability) + non-Ollama impls behind the interfaces. See the `TODO(provider-abstraction)` comment in `internal/caption/ollama.go`. Cross-cutting (affects embed + enrich + caption).
+- **FU-2 — Full grid-merge of cross-page tables.** T018 ships the continuation-marker-split (spanning tables are searchable-as-one-unit with explicit markers — spec-acceptable). A true merge (one Markdown table across pages) needs a cross-page coordinate space + touches every caller + the byte-range hazard `pdftext.go` warns about. High risk to the shipped US3 for marginal value.
+- **FU-3 — Positional per-image caption chunks.** US4 emits one caption chunk per doc (page-0, appended). Positional = one chunk per image with the right `PageNumber`, placed at the image's page (needs `pageOffsets` threaded to the worker + redaction-style offset translation). A query already finds the caption *content*; this only adds "retrievable as page-N's chunk."
+- **FU-4 — CaptionChunks status counter.** Operators can't see caption output volume in `status` (captioning fails silently on 4xx). A count via `PrefixScan` adds O(chunks) latency to every `status` call; the `slog.Warn` log lines already surface failures.
+- **FU-5 — ReCaption back-fill command.** A dedicated command to retry failed/skipped captions — but `reprocess` already re-runs the reader (re-extracts images) + worker (re-captions), so it already retries captioning. ReCaption would mostly duplicate it.
+- **FU-6 — The 8 medium/low US3 verify-findings.** e.g. `readNumberToken` silently → 0.0 on malformed numbers, `Tz` not reset by `BT` (spec-correct but a hole), `'`/`"` move-and-show operators drop their text, single-link `clusterX`. All safe/non-blocking; logged in the US3 verify output.
+- **FU-7 — Retrieval-eval no-regression (T028).** The harness exists (`internal/eval`) but has no PDF golden set; needs an operator-curated query→expected-chunk set + a baseline. SC-001/002/003/004/006 are now all verified end-to-end.

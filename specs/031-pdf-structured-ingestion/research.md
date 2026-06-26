@@ -258,3 +258,34 @@ through the existing `pdfcpu` + Ollama HTTP client. R1's "verify at implement ti
 now closed for metadata/bookmarks/images; the only open risk is table-detection
 quality (R2), which is best-effort by design.
 
+---
+
+## US4 SC-004 validation — vision-model captioning, verified end-to-end (2026-06-26)
+
+**Closed the last operator-deferred item.** A real chart image (4 colored bars,
+increasing: red<green<blue<yellow) was rendered to JPEG, embedded as a PDF image
+XObject (/DCTDecode), and run through the full pipeline:
+
+1. **Reader extraction** (TestPDFReader_ExtractsEmbeddedImage): `extractPDFImages`
+   on the real image XObject yields **encoded JPEG bytes** (3183 bytes, FileType
+   "jpg", SOI 0xFFD8) — NOT raw decoded pixels. Resolves US4 design open-risk #4:
+   the captioner's base64 input is a decodable image the vision model can read.
+2. **Vision request shape** confirmed: the Ollama `/api/chat` `messages[].images`
+   (raw base64) format works — both tested models returned sensible chart captions.
+3. **End-to-end retrieval** (SC-004): with `captioning_enabled=true` +
+   `captioning_model=minicpm-v:latest`, ingesting the chart PDF produced a caption
+   chunk; querying "bar chart increasing four bars" returned it (score 1.000).
+
+**Model comparison** (same chart, same prompt):
+- `llava:latest` (6.5s): WRONG — "five bars… red, blue, yellow, green, and white"
+  (counted the background as a bar); no trend.
+- `minicpm-v:latest` (7.8s): CORRECT — "four vertical bars… red 10%, green 20%,
+  blue ~45%, yellow ~70%… clear increase from left to right." Correct count,
+  correct trend, approximate values.
+
+**Recommendation: `minicpm-v`** for chart/image captioning (correct bar count +
+trend; llava miscounted). Both ~6-8s/image. The captioning model is
+operator-configured (`captioning_model`); minicpm-v is the tested-recommended
+default. Latency note: captioning is per-image + sequential within a worker, so a
+many-image PDF is bounded by the 32-image-per-doc cap (US4 v1 limitation).
+
