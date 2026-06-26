@@ -49,16 +49,16 @@ type Result struct {
 // Pipeline runs the ingest pipeline over paths, storing synchronously and indexing
 // asynchronously.
 type Pipeline struct {
-	db       *storage.DB
-	splitter *chunk.Splitter
-	embed    embed.Embedder
-	prefixer *embed.Prefixer // H07: applies the document-role instruction prefix; nil = no prefixing
-	fts      *index.FTS
-	vec      *index.Vector
-	detector poison.Detector // H04/spec 019: scores chunks at ingest; nil = detection disabled
-	redactor *redact.Scanner // H19/spec 022: redacts secrets/PII pre-chunk; nil = disabled
-	nearDupK int             // H20/spec 026: SimHash Hamming threshold for near-dup clustering (0 = default 3)
-	enricher enrich.Enricher // spec 029: background document enrichment (tags+summary); nil = off
+	db        *storage.DB
+	splitter  *chunk.Splitter
+	embed     embed.Embedder
+	prefixer  *embed.Prefixer // H07: applies the document-role instruction prefix; nil = no prefixing
+	fts       *index.FTS
+	vec       *index.Vector
+	detector  poison.Detector   // H04/spec 019: scores chunks at ingest; nil = detection disabled
+	redactor  *redact.Scanner   // H19/spec 022: redacts secrets/PII pre-chunk; nil = disabled
+	nearDupK  int               // H20/spec 026: SimHash Hamming threshold for near-dup clustering (0 = default 3)
+	enricher  enrich.Enricher   // spec 029: background document enrichment (tags+summary); nil = off
 	captioner caption.Captioner // spec 031 US4: background image captioning; nil = off (default)
 
 	queue chan job
@@ -263,7 +263,7 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	images, _ := metadata["images"].([]reader.ImageRef)
 	delete(metadata, "images")
 	// spec 031: page offsets (transient — the reader's page→byte-offset map, used by
-		// the worker to compute caption SectionContext). Stripped before identity.
+	// the worker to compute caption SectionContext). Stripped before identity.
 	pageOffsets, _ := metadata["page_offsets"].(map[int]int)
 	delete(metadata, "page_offsets")
 

@@ -47,7 +47,7 @@ func (o *OpenAI) Model() string { return o.model }
 
 // Caption asks the OpenAI-compatible vision model for a description, guarded by a
 // circuit breaker (mirrors the Ollama provider's contract).
-func (o *OpenAI) Caption(ctx context.Context, imageBytes []byte, hint string) (string, error) {
+func (o *OpenAI) Caption(ctx context.Context, imageBytes []byte, _ string) (string, error) {
 	if err := o.br.allow(); err != nil {
 		return "", err
 	}

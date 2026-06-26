@@ -6,8 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/caption"
+	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/embedproc"
@@ -151,7 +151,7 @@ func (e *Engine) embedderOrOllama() embed.Embedder {
 	if e.embedder != nil {
 		return e.embedder
 	}
-		embEndpoint := e.cfg.EmbeddingEndpoint
+	embEndpoint := e.cfg.EmbeddingEndpoint
 	if embEndpoint == "" {
 		embEndpoint = e.cfg.OllamaURL
 	}
@@ -231,11 +231,11 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	// spec 029: bind the document enricher (opt-in, default off). nil when
 	// enrichment_enabled is false. Produces tags + summary async-after-ACK.
 	if e.cfg.EffectiveEnrichmentEnabled() {
-			enrEndpoint := e.cfg.EnrichmentEndpoint
-	if enrEndpoint == "" {
-		enrEndpoint = e.cfg.OllamaURL
-	}
-	e.pipe.SetEnricher(enrich.New(e.cfg.EnrichmentProvider, enrEndpoint, e.cfg.EnrichmentModel, e.cfg.EnrichmentAPIKey))
+		enrEndpoint := e.cfg.EnrichmentEndpoint
+		if enrEndpoint == "" {
+			enrEndpoint = e.cfg.OllamaURL
+		}
+		e.pipe.SetEnricher(enrich.New(e.cfg.EnrichmentProvider, enrEndpoint, e.cfg.EnrichmentModel, e.cfg.EnrichmentAPIKey))
 	}
 	// spec 031 US4: bind the image captioner (opt-in, default off). nil when
 	// captioning_enabled is false or captioning_model is empty. Produces a

@@ -19,7 +19,7 @@ type countingCaptioner struct {
 	calls  *int
 }
 
-func (c *countingCaptioner) Model() string                            { return c.model }
+func (c *countingCaptioner) Model() string { return c.model }
 func (c *countingCaptioner) Caption(_ context.Context, _ []byte, _ string) (string, error) {
 	*c.calls++
 	return c.result, nil

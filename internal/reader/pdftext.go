@@ -16,10 +16,10 @@ import (
 // silently mis-assign ranges and splice table Markdown into the wrong bytes).
 type positionedText struct {
 	Text               string
-	X, Y               float64  // text-space start = (Tm.e, Tm.f); PDF Y-up (consumer flips for reading order)
-	FontSize           float64  // Tf size operand; 0 = unknown
-	Font               string   // Tf /Name (slash stripped)
-	ByteStart, ByteEnd int      // byte offsets into parsePositionedText's flat output
+	X, Y               float64 // text-space start = (Tm.e, Tm.f); PDF Y-up (consumer flips for reading order)
+	FontSize           float64 // Tf size operand; 0 = unknown
+	Font               string  // Tf /Name (slash stripped)
+	ByteStart, ByteEnd int     // byte offsets into parsePositionedText's flat output
 }
 
 // mat is a 2x3 affine text matrix [a b c d e f]; origin = (e, f).
@@ -54,11 +54,11 @@ func absVal(x float64) float64 {
 type tokKind uint8
 
 const (
-	tNum tokKind = iota
-	tStr  // literal or hex string, decoded
-	tName // /Foo
-	tArr  // TJ array
-	tOp   // operator word (Tj, TJ, Tm, ...)
+	tNum  tokKind = iota
+	tStr          // literal or hex string, decoded
+	tName         // /Foo
+	tArr          // TJ array
+	tOp           // operator word (Tj, TJ, Tm, ...)
 )
 
 type arrEl struct {
@@ -368,7 +368,7 @@ func readArray(s string, i int) ([]arrEl, int) {
 			i = next
 			continue
 		}
-		if c == '<' && !(i+1 < n && s[i+1] == '<') {
+		if c == '<' && (i+1 >= n || s[i+1] != '<') {
 			str, next := readHex(s, i+1)
 			elems = append(elems, arrEl{isStr: true, str: str})
 			i = next
@@ -519,8 +519,8 @@ func parsePositionedText(content string) (frags []positionedText, flat string, a
 		case "Tj":
 			if len(stack) >= 1 && stack[len(stack)-1].kind == tStr {
 				t := stack[len(stack)-1].str
-			emit(t, tm.e, tm.f)
-			tm.e += approxWidth(t, fontSize, tScale)
+				emit(t, tm.e, tm.f)
+				tm.e += approxWidth(t, fontSize, tScale)
 			}
 			stack = stack[:0]
 		case "TJ":

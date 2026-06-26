@@ -25,10 +25,10 @@ import (
 type job struct {
 	docID       string
 	chunks      []model.Chunk
-	images      []reader.ImageRef // spec 031 US4: transient image bytes for post-ACK captioning (nil for non-PDF / image-less)
-	mimeType    string            // document mime type (the caption chunk's GenerateID input)
+	images      []reader.ImageRef    // spec 031 US4: transient image bytes for post-ACK captioning (nil for non-PDF / image-less)
+	mimeType    string               // document mime type (the caption chunk's GenerateID input)
 	spans       []reader.HeadingSpan // spec 031: heading spans for caption SectionContext
-	pageOffsets map[int]int           // spec 031: page->byte-offset map for caption SectionContext
+	pageOffsets map[int]int          // spec 031: page->byte-offset map for caption SectionContext
 }
 
 // worker drains the queue, embedding and indexing chunks, then updates the

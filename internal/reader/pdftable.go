@@ -211,7 +211,7 @@ func renderMarkdownTable(grid [][]string) string {
 	nCols := len(grid[0])
 	clean := func(s string) string {
 		s = strings.TrimSpace(s)
-		s = collapseSpaces(s)            // collapse 2+ whitespace -> 1 (keep the join space)
+		s = collapseSpaces(s) // collapse 2+ whitespace -> 1 (keep the join space)
 		s = strings.ReplaceAll(s, "|", "\\|")
 		return s
 	}
@@ -409,7 +409,7 @@ func colMedians(colCellLen [][]int) []float64 {
 
 // fontStats returns min, median, max of non-zero fragment font sizes. All zero
 // if no fragment has a known size.
-func fontStats(frags []positionedText) (min, med, max float64) {
+func fontStats(frags []positionedText) (minSize, medSize, maxSize float64) {
 	var sizes []float64
 	for _, f := range frags {
 		if f.FontSize > 0 {
@@ -420,8 +420,8 @@ func fontStats(frags []positionedText) (min, med, max float64) {
 		return 0, 0, 0
 	}
 	sort.Float64s(sizes)
-	min, max = sizes[0], sizes[len(sizes)-1]
-	med = sizes[len(sizes)/2]
+	minSize, maxSize = sizes[0], sizes[len(sizes)-1]
+	medSize = sizes[len(sizes)/2]
 	return
 }
 

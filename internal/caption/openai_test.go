@@ -81,7 +81,7 @@ func TestCaption_OpenAI(t *testing.T) {
 // TestCaption_OpenAI_PermanentError (spec 031 FU-1): a 4xx response is a permanent
 // failure (WrapPermanent), not retried.
 func TestCaption_OpenAI_PermanentError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(`{"error":"bad model"}`))
 	}))
@@ -100,11 +100,4 @@ func TestCaption_OpenAI_EmptyImage(t *testing.T) {
 	if !IsNothing(err) {
 		t.Errorf("empty image should be ErrNothingToCaption; got %v", err)
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

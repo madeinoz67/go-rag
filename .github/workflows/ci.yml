@@ -33,7 +33,12 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          # Pinned: go.mod targets a recent Go, and golangci-lint must be built
+          # with a Go >= the `go` directive or it refuses to load config
+          # ("Go language version used to build golangci-lint is lower than the
+          # targeted Go version"). v2.12.2 is built with go1.26.2 and lints
+          # go1.26.4 cleanly. Bump alongside go.mod's `go` directive.
+          version: v2.12.2
 
       - name: govulncheck
         run: |

@@ -42,6 +42,7 @@ func countLines(s string) int {
 //   - ALL CAPS line: 3..80 chars, has an uppercase letter, no lowercase, no
 //     terminal sentence punctuation -> H1.
 //   - Short ":"-terminated line (<60 chars, has a letter) -> H2.
+//
 // Lower confidence than Markdown/DOCX; text without patterns yields no spans.
 func detectTextHeadings(s string) []HeadingSpan {
 	lines := strings.Split(s, "\n")

@@ -23,7 +23,7 @@ type fakeCaptioner struct {
 	err       error
 }
 
-func (f fakeCaptioner) Model() string                            { return f.modelName }
+func (f fakeCaptioner) Model() string { return f.modelName }
 func (f fakeCaptioner) Caption(_ context.Context, _ []byte, _ string) (string, error) {
 	return f.caption, f.err
 }

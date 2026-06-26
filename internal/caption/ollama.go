@@ -73,7 +73,7 @@ type chatResponse struct {
 // Caption asks the local vision model for a description, guarded by a circuit
 // breaker. An open breaker fast-fails with ErrCircuitOpen (transient — the
 // caption chunk is left unwritten for a later retry).
-func (o *Ollama) Caption(ctx context.Context, imageBytes []byte, hint string) (string, error) {
+func (o *Ollama) Caption(ctx context.Context, imageBytes []byte, _ string) (string, error) {
 	if err := o.br.allow(); err != nil {
 		return "", err
 	}
