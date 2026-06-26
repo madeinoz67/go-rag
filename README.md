@@ -99,6 +99,50 @@ go-rag vault list
 Vault root: `~/.go-rag/vaults/` (override via `GO_RAG_VAULT_ROOT`). Vault names:
 lowercase alphanumeric + hyphens, 1–64 chars.
 
+## Structured PDF ingestion
+
+`go-rag add` extracts the full structure of a PDF (not just flattened text):
+
+- **Metadata** — title, author, subject, keywords from the PDF Info dictionary → `Document.Metadata`. Keywords flow into the `--tags` filter.
+- **Document hierarchy** — headings from DOCX (Word styles), PDF (bookmark outline or font-size heuristics), and text (pattern heuristics). Threaded into each chunk's `section_context` breadcrumb (spec 025 parity).
+- **Tables** — grid-detected tables rendered as searchable Markdown in the chunk content. Cross-page tables get continuation markers.
+- **Image/chart captions** — embedded images extracted and captioned by a local vision model (opt-in). The caption text becomes a searchable chunk so image content is retrievable.
+
+### Enabling image captioning
+
+Captioning is **opt-in** (default off). Set in `.go-rag/config.json`:
+
+```json
+{
+  "captioning_enabled": true,
+  "captioning_model": "minicpm-v4.6:latest"
+}
+```
+
+Tested models (chart-caption quality, June 2026):
+
+| Model | Speed | Quality |
+|-------|-------|---------|
+| `minicpm-v4.6:latest` | 4.5s | ✅ Recommended — correct, concise, fastest |
+| `glm-ocr:latest` | 137s | Accurate but too slow for ingest |
+| `llava:latest` | 6.5s | Miscounts (not recommended) |
+
+### Provider abstraction (model backends)
+
+Every model-using component (embeddings, enrichment, captioning, reranking) can use Ollama (default) or any OpenAI-compatible endpoint (OpenAI, Azure, vLLM, LM Studio). Per-capability config:
+
+```json
+{
+  "captioning_provider": "openai",
+  "captioning_endpoint": "https://api.openai.com/v1",
+  "captioning_api_key": "sk-...",
+  "embedding_provider": "ollama"
+}
+```
+
+The same `provider`/`endpoint`/`api_key` pattern applies to `embedding_*`, `enrichment_*`, `captioning_*`, and `rerank_*`. Default is Ollama at `ollama_url` for all.
+
+
 ## Hybrid retrieval (RRF)
 
 Hybrid mode fuses the BM25 (keyword) and vector (semantic) ranked lists with
