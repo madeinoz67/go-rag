@@ -57,6 +57,13 @@ type Config struct {
 	CaptioningProvider string `json:"captioning_provider,omitempty"` // "ollama" (default) | "openai"
 	CaptioningEndpoint string `json:"captioning_endpoint,omitempty"` // empty = OllamaURL (for ollama) or the OpenAI base URL
 	CaptioningAPIKey   string `json:"captioning_api_key,omitempty"`   // for cloud providers (Bearer token)
+	// spec 031 FU-1: provider abstraction for embed/enrich (same pattern as captioning).
+	EmbeddingProvider  string `json:"embedding_provider,omitempty"`  // "ollama" (default) | "openai"
+	EmbeddingEndpoint  string `json:"embedding_endpoint,omitempty"`  // empty = OllamaURL
+	EmbeddingAPIKey    string `json:"embedding_api_key,omitempty"`    // for cloud providers
+	EnrichmentProvider string `json:"enrichment_provider,omitempty"` // "ollama" (default) | "openai"
+	EnrichmentEndpoint string `json:"enrichment_endpoint,omitempty"` // empty = OllamaURL
+	EnrichmentAPIKey   string `json:"enrichment_api_key,omitempty"`   // for cloud providers
 
 	// H04/spec 019: retrieval-poisoning (indirect prompt injection) detection.
 	// Detection scores every chunk at ingest and quarantines flagged chunks out

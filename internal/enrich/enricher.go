@@ -9,6 +9,7 @@ package enrich
 import (
 	"context"
 	"errors"
+	"strings"
 )
 
 // Enricher produces a document's enrichment (tags + summary) from its text using
@@ -47,3 +48,14 @@ func IsPermanent(err error) bool { return errors.Is(err, ErrPermanent) }
 
 // IsNothing reports whether err signals nothing-to-enrich.
 func IsNothing(err error) bool { return errors.Is(err, ErrNothingToEnrich) }
+
+// New constructs the configured Enricher provider (spec 031 FU-1). provider "ollama"
+// or "" (default) → the Ollama enricher; "openai" → an OpenAI-compatible enricher.
+func New(provider, endpoint, model, apiKey string) Enricher {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "openai", "openai-compatible":
+		return NewOpenAI(endpoint, model, apiKey)
+	default:
+		return NewOllama(endpoint, model)
+	}
+}

@@ -151,7 +151,11 @@ func (e *Engine) embedderOrOllama() embed.Embedder {
 	if e.embedder != nil {
 		return e.embedder
 	}
-	return embed.NewOllama(e.cfg.OllamaURL, e.cfg.EmbeddingModel)
+		embEndpoint := e.cfg.EmbeddingEndpoint
+	if embEndpoint == "" {
+		embEndpoint = e.cfg.OllamaURL
+	}
+	return embed.New(e.cfg.EmbeddingProvider, embEndpoint, e.cfg.EmbeddingModel, e.cfg.EmbeddingAPIKey)
 }
 
 // Config returns the engine's loaded configuration (read-only snapshot).
@@ -227,7 +231,11 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	// spec 029: bind the document enricher (opt-in, default off). nil when
 	// enrichment_enabled is false. Produces tags + summary async-after-ACK.
 	if e.cfg.EffectiveEnrichmentEnabled() {
-		e.pipe.SetEnricher(enrich.NewOllama(e.cfg.OllamaURL, e.cfg.EnrichmentModel))
+			enrEndpoint := e.cfg.EnrichmentEndpoint
+	if enrEndpoint == "" {
+		enrEndpoint = e.cfg.OllamaURL
+	}
+	e.pipe.SetEnricher(enrich.New(e.cfg.EnrichmentProvider, enrEndpoint, e.cfg.EnrichmentModel, e.cfg.EnrichmentAPIKey))
 	}
 	// spec 031 US4: bind the image captioner (opt-in, default off). nil when
 	// captioning_enabled is false or captioning_model is empty. Produces a

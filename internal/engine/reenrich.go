@@ -24,7 +24,11 @@ func (e *Engine) ReEnrich(ctx context.Context) (*IngestSummary, error) {
 	if !e.cfg.EffectiveEnrichmentEnabled() {
 		return sum, nil
 	}
-	en := enrich.NewOllama(e.cfg.OllamaURL, e.cfg.EnrichmentModel)
+	enrEndpoint := e.cfg.EnrichmentEndpoint
+	if enrEndpoint == "" {
+		enrEndpoint = e.cfg.OllamaURL
+	}
+	en := enrich.New(e.cfg.EnrichmentProvider, enrEndpoint, e.cfg.EnrichmentModel, e.cfg.EnrichmentAPIKey)
 
 	// Gather chunk text per document (bounded) from the stored chunks.
 	docText := map[string]string{}

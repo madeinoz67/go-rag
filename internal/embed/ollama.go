@@ -15,12 +15,7 @@ import (
 	"time"
 )
 
-// Embedder generates vector embeddings for text (PRD §4 embedding client).
-type Embedder interface {
-	Embed(ctx context.Context, texts []string) ([][]float32, error)
-	Dimensions() int
-	Model() string
-}
+// The Embedder interface is defined in embedder.go (spec 031 FU-1 provider abstraction).
 
 // Ollama is the v1 Embedder: it calls a local Ollama /api/embed endpoint. Safe for
 // concurrent use (the pipeline's background workers call Embed in parallel).
