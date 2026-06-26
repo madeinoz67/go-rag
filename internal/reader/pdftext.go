@@ -93,13 +93,30 @@ func isNumStart(c byte) bool { return c == '+' || c == '-' || c == '.' || isDigi
 
 func readNumberToken(s string, i int) (float64, int) {
 	n := len(s)
-	j := i + 1
-	for j < n {
-		c := s[j]
-		if isDigit(c) || c == '.' || c == '+' || c == '-' || c == 'e' || c == 'E' {
+	j := i
+	// optional leading sign
+	if j < n && (s[j] == '+' || s[j] == '-') {
+		j++
+	}
+	// integer part (digits)
+	for j < n && isDigit(s[j]) {
+		j++
+	}
+	// fractional part (. digits)
+	if j < n && s[j] == '.' {
+		j++
+		for j < n && isDigit(s[j]) {
 			j++
-		} else {
-			break
+		}
+	}
+	// exponent (e/E optional-sign digits)
+	if j < n && (s[j] == 'e' || s[j] == 'E') {
+		j++
+		if j < n && (s[j] == '+' || s[j] == '-') {
+			j++
+		}
+		for j < n && isDigit(s[j]) {
+			j++
 		}
 	}
 	f, _ := strconv.ParseFloat(s[i:j], 64)
@@ -435,6 +452,19 @@ func parsePositionedText(content string) (frags []positionedText, flat string, a
 			if len(stack) > 64 {
 				stack = stack[len(stack)-64:]
 			}
+			continue
+		}
+		// ' (0x27) and " (0x22): move-to-next-line-and-show (spec §9.4.3).
+		// Previously dropped (hit default); now handled as T* + Tj (FU-6 #7).
+		if len(tk.str) == 1 && (tk.str[0] == 0x27 || tk.str[0] == 0x22) {
+			tlm = tlm.translate(0, -leading)
+			tm = tlm
+			if len(stack) >= 1 && stack[len(stack)-1].kind == tStr {
+				t := stack[len(stack)-1].str
+				emit(t, tm.e, tm.f)
+				tm.e += approxWidth(t, fontSize, tScale)
+			}
+			stack = stack[:0]
 			continue
 		}
 		switch tk.str {
