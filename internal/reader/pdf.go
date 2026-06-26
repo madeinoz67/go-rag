@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 	"sort"
 	"strings"
@@ -36,6 +37,7 @@ func (r *PDFReader) Read(_ context.Context, data []byte, _ string) (string, map[
 
 	pageText := map[int]string{}            // pdfcpu page number -> extracted text
 	pageFrags := map[int][]positionedText{} // outline-less non-table pages (for font-size)
+	pageCands := map[int][]tableCandidate{} // spec 031 T018: tables per page (cross-page continuation)
 	if err := api.ExtractContent(rs, nil, func(rd io.Reader, page int) error {
 		var b bytes.Buffer
 		if _, e := io.Copy(&b, rd); e != nil {
@@ -45,8 +47,9 @@ func (r *PDFReader) Read(_ context.Context, data []byte, _ string) (string, map[
 		frags, flat, amb := parsePositionedText(raw)
 		// Table detection (spec 031 T017) on the parser's flat text.
 		if !amb && len(frags) >= 4 {
-			if rendered := renderPageWithTables(flat, frags); rendered != flat {
-				pageText[page] = rendered // table detected (flat-based, spliced); no font-size spans
+			if cands := detectTablesStructured(frags); len(cands) > 0 {
+				pageText[page] = renderPageWithTables(flat, frags) // unchanged render (byte-identical to today)
+				pageCands[page] = cands                            // for cross-page continuation (T018)
 				return nil
 			}
 		}
@@ -63,6 +66,7 @@ func (r *PDFReader) Read(_ context.Context, data []byte, _ string) (string, map[
 	}, nil); err != nil {
 		return "", nil, fmt.Errorf("pdf extract: %w", err)
 	}
+	annotateContinuations(pageText, pageCands) // spec 031 T018: mark tables spanning pages (before joinPageText so pageOffsets stay coherent)
 	text, pageOffsets := joinPageText(pageText)
 	md := map[string]any{
 		"format":     "pdf",
@@ -139,6 +143,59 @@ func joinPageText(pageText map[int]string) (string, map[int]int) {
 		content.WriteByte('\n')
 	}
 	return strings.TrimRight(content.String(), "\n"), pageOffsets
+}
+
+// annotateContinuations (spec 031 T018) marks tables that span page boundaries with
+// "[table continues on next page]" / "[table continued from previous page]" markers.
+// STRICTLY ADDITIVE: it only appends/prepends marker lines to pageText — it never
+// garbles searchable text (a wrong marker is a confusing annotation, not
+// corruption). The shipped per-page table detection is untouched. Any doubt -> no
+// marker (two standalone tables, today's exact behavior). Runs BEFORE joinPageText
+// so pageOffsets account for the markers (heading-span offsets stay coherent).
+func annotateContinuations(pageText map[int]string, pageCands map[int][]tableCandidate) {
+	pages := make([]int, 0, len(pageCands))
+	for p := range pageCands {
+		pages = append(pages, p)
+	}
+	sort.Ints(pages)
+	for i := 0; i+1 < len(pages); i++ {
+		n, n1 := pages[i], pages[i+1]
+		if n1 != n+1 {
+			continue // a gap (non-consecutive pages) breaks the chain
+		}
+		cN, cN1 := pageCands[n], pageCands[n1]
+		if len(cN) == 0 || len(cN1) == 0 {
+			continue
+		}
+		last, first := cN[len(cN)-1], cN1[0] // page N's bottom table, page N+1's top table
+		if !continuesTable(last, first) {
+			continue
+		}
+		pageText[n] = pageText[n] + "\n[table continues on next page]\n"
+		pageText[n1] = "[table continued from previous page]\n" + pageText[n1]
+	}
+}
+
+// continuesTable reports whether page N+1's first table is a continuation of page
+// N's last table. HARD GATES (all must hold; any doubt -> false): column-count
+// match; font-size parity (a continued table is the same size); X-anchor alignment
+// within colTol (same columns -> same X positions). colTol is pinned explicitly
+// for the cross-page comparison (scaled by the larger of the two pages' font sizes).
+func continuesTable(a, b tableCandidate) bool {
+	if len(a.Anchors) != len(b.Anchors) || len(a.Anchors) < 3 {
+		return false
+	}
+	maxFS := math.Max(a.MedFS, b.MedFS)
+	if maxFS > 0 && math.Abs(a.MedFS-b.MedFS)/maxFS > 0.15 {
+		return false
+	}
+	colTol := math.Max(2.0, 0.25*maxFS)
+	for i := range a.Anchors {
+		if math.Abs(a.Anchors[i]-b.Anchors[i]) > colTol {
+			return false
+		}
+	}
+	return true
 }
 
 // pdfHeadingSpans (spec 031 US2 PDF, research R3/T002) reads the PDF bookmark

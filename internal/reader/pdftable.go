@@ -14,6 +14,18 @@ type splice struct {
 	Replacement        string
 }
 
+// tableCandidate is a detected table carrying the structured data the cross-page
+// continuation pass (spec 031 T018) needs: the column X-anchors (for cross-page
+// column matching), the run's font size (scales colTol + the font-parity gate),
+// and the byte extent in the page's flat. Markdown is carried so detectTables
+// renders the splice from the SAME detection (one gate code path, no drift).
+type tableCandidate struct {
+	Markdown           string
+	Anchors            []float64
+	MedFS              float64
+	ByteStart, ByteEnd int
+}
+
 // ptRow is a Y-band of fragments sharing a baseline (reading order = high Y first).
 type ptRow struct {
 	anchorY float64
@@ -44,12 +56,46 @@ func detectTables(frags []positionedText) []splice {
 	if hi-lo < 3 {
 		return nil // require >=3 rows (header + >=2 data rows); a 2-row region is too eager
 	}
+	cands := detectTablesInRun(rows[lo:hi], medFS)
+	splices := make([]splice, len(cands))
+	for i, c := range cands {
+		splices[i] = splice{ByteStart: c.ByteStart, ByteEnd: c.ByteEnd, Replacement: "\n" + c.Markdown + "\n"}
+	}
+	return splices
+}
+
+// detectTablesStructured (spec 031 T018) runs the IDENTICAL conservative gate as
+// detectTables but returns structured candidates (column anchors + font size +
+// byte extent) for the cross-page continuation pass, instead of rendered splices.
+// It shares detectTablesInRun (one gate code path, no drift); a prove-equal test
+// guards agreement with detectTables. detectTables/renderPageWithTables output is
+// byte-identical (the shipped feature is untouched).
+func detectTablesStructured(frags []positionedText) []tableCandidate {
+	if len(frags) < 4 {
+		return nil
+	}
+	minFS, medFS, maxFS := fontStats(frags)
+	if medFS <= 0 {
+		minFS, medFS, maxFS = 12, 12, 12
+	}
+	if maxFS > 3*minFS {
+		return nil
+	}
+	rowTol := math.Max(2.0, 0.5*medFS)
+	rows := bandRows(frags, rowTol)
+	if len(rows) < 2 || len(rows) > 60 {
+		return nil
+	}
+	lo, hi := longestUniformRun(rows, 0.9*minFS, 3*maxFS)
+	if hi-lo < 3 {
+		return nil
+	}
 	return detectTablesInRun(rows[lo:hi], medFS)
 }
 
 // detectTablesInRun runs column detection + cell assembly on a uniform-pitch run
 // of rows and returns a splice (or nil). Applies the full conservative gate.
-func detectTablesInRun(rows []ptRow, medFS float64) []splice {
+func detectTablesInRun(rows []ptRow, medFS float64) []tableCandidate {
 	colTol := math.Max(2.0, 0.25*medFS)
 	var all []positionedText
 	for _, r := range rows {
@@ -152,7 +198,7 @@ func detectTablesInRun(rows []ptRow, medFS float64) []splice {
 			be = f.ByteEnd
 		}
 	}
-	return []splice{{ByteStart: bs, ByteEnd: be, Replacement: "\n" + md + "\n"}}
+	return []tableCandidate{{Markdown: md, Anchors: anchors, MedFS: medFS, ByteStart: bs, ByteEnd: be}}
 }
 
 // renderMarkdownTable renders the grid as a GitHub-Flavored Markdown table. The
