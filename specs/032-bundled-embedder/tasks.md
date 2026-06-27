@@ -43,7 +43,7 @@
 - [X] T007 [US1] Add `case "native","gomlx","hugot": return NewHugot(...)` and flip the `default` to `NewHugot` in the provider factory — `internal/embed/embedder.go`
 - [X] T008 [P] [US1] Implement the `go-rag model install [--force]` cobra command (idempotent: no-op if present+hash-matches; else `modelbundle.Download` + `Verify`; clear errors on offline/tamper) — `internal/cli/model.go`
 - [X] T009 [US1] Wire the model fetch into `go-rag init` (auto-fetch on first init, hash-gated) so `add`/`query` never need to fetch — `internal/cli/` (init command)
-- [ ] T010 [US1] Mirror `model install` as the MCP tool `gorag.install_model` (force?: bool → status) — `internal/mcp/`
+- [X] T010 [US1] (go_rag_model_install) Mirror `model install` as the MCP tool `gorag.install_model` (force?: bool → status) — `internal/mcp/`
 - [X] T011 [P] [US1] Flip the embedding-provider default to `"native"` (empty/omitted → native; was `"ollama"`) — `internal/config/config.go`
 - [X] T012 [US1] Engine wiring: construct the default embedder via `embed.New` using the native provider; ensure lazy model load keeps cold start < 1 s and never blocks the < 10 ms write ACK — `internal/engine/`
 - [X] T013 [US1] Test US1 end-to-end: on an isolated DB with no Ollama, `init` fetches+verifies, `add` + `query` returns semantic results with no external-service error — `internal/cli/` integration test

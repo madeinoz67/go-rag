@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/config"
+	"github.com/madeinoz67/go-rag/internal/embed/modelbundle"
 	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/eval"
 	"github.com/madeinoz67/go-rag/internal/storage"
@@ -124,6 +125,10 @@ func (s *Server) dispatch(name string, args map[string]any) (string, error) {
 		// Self-provisions a throwaway vault from the golden corpus; does not need
 		// (and does not touch) the caller's database.
 		return s.renderEval(nil, args)
+	case "go_rag_model_install":
+		// Global model fetch (no vault DB needed); ensures the bundled pure-Go
+		// embedding model is present + verified (spec 032).
+		return s.modelInstallTool(args)
 	}
 	if s.eng != nil {
 		// Daemon mode with a shared engine: reuse it (no per-call close) so the
@@ -662,6 +667,19 @@ func (s *Server) initTool(args map[string]any) (string, error) {
 	return fmt.Sprintf("initialized go-rag at %s (model %s, url %s)", cfg.DBPath, cfg.EmbeddingModel, cfg.OllamaURL), nil
 }
 
+func (s *Server) modelInstallTool(args map[string]any) (string, error) {
+	if force, ok := args["force"].(bool); ok && force {
+		if dir, err := modelbundle.ModelDir(); err == nil {
+			_ = os.RemoveAll(dir)
+		}
+	}
+	dir, err := modelbundle.EnsureModel(context.Background())
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("bundled model %s ready at %s", modelbundle.ModelID, dir), nil
+}
+
 // --- JSON-RPC helpers ---
 
 func ok(id any, result any) any {
@@ -709,6 +727,14 @@ func toolDefs() []map[string]any {
 				"type":       "object",
 				"properties": map[string]any{"path": map[string]any{"type": "string"}},
 				"required":   []string{"path"},
+			},
+		},
+		{
+			"name":        "go_rag_model_install",
+			"description": "Download and verify the bundled pure-Go embedding model (spec 032). Idempotent; force=true re-downloads.",
+			"inputSchema": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"force": map[string]any{"type": "boolean", "default": false, "description": "re-download even if present"}},
 			},
 		},
 		{
