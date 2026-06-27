@@ -69,7 +69,7 @@
 | N6 | Distributed clustering | Single-node. MuninnDB's Cortex/Lobe model is reference for future. |
 | N7 | Web UI | CLI only for v1. TUI (bubbletea) can be added later. |
 | N8 | Plugin system | Extension interface for file types is sufficient for v1. Plugin architecture (like MuninnDB's 3-tier system) is v2. |
-| N9 | Custom embedding models beyond Ollama | Ollama is the only supported embedding provider for v1. The client interface is abstracted for future providers. |
+| N9 | Cloud / non-local embedding providers | A **pure-Go bundled embedder** (Hugot GoMLX + bge-small-en-v1.5, int8) is the DEFAULT embedding provider as of spec 032 — zero-setup, no Ollama required (`init` fetches the model once, hash-verified). Ollama remains a selectable alternative for users who want it. Cloud/managed/non-local embedding providers stay out of scope for v1. |
 
 ---
 
