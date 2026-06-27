@@ -1,0 +1,99 @@
+name: Release
+
+# Tag-triggered release pipeline (researched 2026-06-26). Pure-Go CGO_ENABLED=0
+# cross-compile → per-OS/arch archives → SHA-256 checksums → GitHub Release with
+# generated notes. Also attaches the bundled embedding model (spec 032) so
+# `go-rag init` can fetch it same-origin from the release assets (D1a) instead of
+# HuggingFace. Nothing runs until a v* tag is pushed.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: darwin, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: linux,  goarch: amd64 }
+          - { goos: linux,  goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build static binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          mkdir -p out
+          ext=""
+          [ "$GOOS" = "windows" ] && ext=".exe"
+          go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
+            -o "out/go-rag${ext}" ./cmd/go-rag
+      - name: Verify linux/amd64 binary responds
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
+        run: ./out/go-rag version
+      - name: Archive
+        run: |
+          v="${GITHUB_REF_NAME}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            (cd out && zip -r "../go-rag-${v}-${{ matrix.goos }}-${{ matrix.goarch }}.zip" .)
+          else
+            tar -czf "go-rag-${v}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" -C out .
+          fi
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-rag-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: go-rag-*-${{ matrix.goos }}-${{ matrix.goarch }}.*
+          if-no-files-found: error
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Bundle the default embedding model (spec 032, D1a)
+        run: |
+          set -e
+          repo="Xenova/bge-small-en-v1.5"
+          base="https://huggingface.co/${repo}/resolve/main"
+          mkdir -p "model/${repo//\//_}"
+          curl -fL "$base/onnx/model_int8.onnx" -o "model/${repo//\//_}/model_int8.onnx"
+          for f in tokenizer.json config.json tokenizer_config.json special_tokens_map.json vocab.txt; do
+            curl -fL "$base/$f" -o "model/${repo//\//_}/$f"
+          done
+          tar -czf dist/go-rag-model-bge-small-en-v1.5-int8.tar.gz -C model .
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum go-rag-* > checksums.txt
+          echo "--- checksums ---"
+          cat checksums.txt
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            dist/go-rag-* dist/checksums.txt
