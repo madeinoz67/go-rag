@@ -2,7 +2,8 @@
 
 > A single-binary local RAG (Retrieval-Augmented Generation) database for your
 > documents — ingest, index, and query PDFs, Word files, Markdown, and images on
-> your filesystem with zero external dependencies beyond a local Ollama instance.
+> your filesystem. Embeddings work out of the box via a bundled pure-Go model
+> (spec 032); a local Ollama is optional for alternative models.
 
 **Status:** alpha — v1 implemented and working end-to-end. Multi-vault support,
 cross-encoder reranking, muninn-style MCP daemon, and Obsidian-aware ingestion.
@@ -17,12 +18,12 @@ and you have a working RAG system.
 ## Requirements
 
 - **Go** 1.22+ (build from source)
-- **Ollama** with an embedding model (`ollama pull mxbai-embed-large`)
+- _(Optional)_ **Ollama** + an embedding model — only if you prefer Ollama embeddings over the bundled pure-Go default
 
 ## Quickstart
 
 ```bash
-ollama pull mxbai-embed-large        # one-time: fetch an embedding model
+ollama pull mxbai-embed-large        # OPTIONAL — only for Ollama embeddings (the default pure-Go model needs no pull)
 make build                           # build the static binary into ./bin
 ./bin/go-rag init                    # create ./.go-rag/ (config + data)
 ./bin/go-rag add ./my-docs/          # ingest a folder (PDF/Word/Markdown/text)
@@ -140,7 +141,7 @@ Every model-using component (embeddings, enrichment, captioning, reranking) can 
 }
 ```
 
-The same `provider`/`endpoint`/`api_key` pattern applies to `embedding_*`, `enrichment_*`, `captioning_*`, and `rerank_*`. Default is Ollama at `ollama_url` for all.
+The same `provider`/`endpoint`/`api_key` pattern applies to `embedding_*`, `enrichment_*`, `captioning_*`, and `rerank_*`. Embeddings default to `native` (the bundled pure-Go model, spec 032 — no service required); enrichment/captioning/rerank default to Ollama at `ollama_url`.
 
 
 ## Hybrid retrieval (RRF)
