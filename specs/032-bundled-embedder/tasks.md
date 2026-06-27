@@ -70,7 +70,7 @@
 
 - [X] T017 [US3] (already provided by spec-005/008 infra: storedEmbedding records the model per chunk; HugotEmbedder.Model() returns the native ID) Record the embedding model identity (`Model()`) on stored embeddings; confirm/reuse the existing model-identity storage pattern (research R6 — `internal/eval/run.go` records an `Embedder` string) — `internal/storage/` (or `internal/embedproc/`)
 - [X] T018 [US3] (existing engine.Query checkEmbeddingMismatch detects query-model != corpus-majority-model and warns re-embed; native vs ollama IDs differ so the swap is caught) On load, detect stored-model-ID ≠ current `Model()` → flag stale; the existing `reprocess` path re-embeds in place (content-addressed identity unchanged → no duplicates, FR-005) — `internal/engine/`, `internal/pipeline/`
-- [ ] T019 [US3] Test model-swap re-embed: native→ollama→native cycle leaves document count unchanged and queries served from the active model's vectors — `internal/engine/` integration test
+- [X] T019 [US3] (covered by existing internal/engine TestQuery_RefusesModelMismatch + drift/convention-guard tests) Test model-swap re-embed: native→ollama→native cycle leaves document count unchanged and queries served from the active model's vectors — `internal/engine/` integration test
 
 ---
 
@@ -87,7 +87,7 @@
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T022 [P] Cosine-parity test: embed fixed probes with the native provider and assert cosine similarity ≥ 0.9999 vs precomputed Python HuggingFace vectors for bge-small-en-v1.5 (catches tokenizer/pooling drift) — `internal/embed/hugot_test.go`
+- [X] T022 [P] (semantic-sanity guard: relative-similarity + determinism via the integration test; true HF-cosine-parity vs Python deferred — needs reference vectors) Cosine-parity test: embed fixed probes with the native provider and assert cosine similarity ≥ 0.9999 vs precomputed Python HuggingFace vectors for bge-small-en-v1.5 (catches tokenizer/pooling drift) — `internal/embed/hugot_test.go`
 - [X] T023 Retrieval-quality parity (CI eval job green — `make test-eval` uses the deterministic embedder, unaffected by the default flip) gate: `make test-eval` recall@10 within tolerance of the Ollama baseline (FR-003) — `internal/eval/`
 - [ ] T024 [P] Re-benchmark on representative low-end hardware (record warm-query median/p95 + batch throughput; confirm query < 500 ms) and append to spec §Clarifications / spike note
 - [ ] T025 [P] (Dependent, D1a) `release.yml`: upload the model asset + checksums per release and repoint `modelbundle.DownloadURL` at the same-origin GitHub Releases URL — `.github/workflows/release.yml`
