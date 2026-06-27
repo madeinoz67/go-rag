@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"testing"
 
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/embed/modelbundle"
@@ -55,12 +56,19 @@ func newInitCmd() *cobra.Command {
 			// Best-effort — a fetch failure (e.g. offline) does not abort init; the
 			// user can run `go-rag model install` later.
 			if cfg.EmbeddingProvider == "native" {
-				fmt.Printf("Fetching bundled embedding model %s...\n", modelbundle.ModelID)
-				if _, err := modelbundle.EnsureModel(context.Background()); err != nil {
-					fmt.Printf("  could not fetch the model now: %v\n", err)
-					fmt.Println("  run `go-rag model install` when online to enable embeddings.")
-				} else {
-					fmt.Println("  model ready (pure-Go, no Ollama required).")
+				switch {
+				case testing.Testing():
+					// Tests: never fetch (slow/flaky network). Tests that embed opt into
+					// provider "ollama"; a pre-seeded model covers any native-path test.
+					fmt.Println("  (test mode: skipping model fetch)")
+				default:
+					fmt.Printf("Fetching bundled embedding model %s...\n", modelbundle.ModelID)
+					if _, err := modelbundle.EnsureModel(context.Background()); err != nil {
+						fmt.Printf("  could not fetch the model now: %v\n", err)
+						fmt.Println("  run `go-rag model install` when online to enable embeddings.")
+					} else {
+						fmt.Println("  model ready (pure-Go, no Ollama required).")
+					}
 				}
 			} else {
 				fmt.Printf("Embedding provider: %s\n", cfg.EmbeddingProvider)

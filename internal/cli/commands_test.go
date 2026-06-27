@@ -132,6 +132,7 @@ func TestCLI_Dirs(t *testing.T) {
 	initCmd := newInitCmd()
 	_ = initCmd.Flags().Set("ollama-url", srv.URL)
 	_ = initCmd.Flags().Set("model", "m")
+	_ = initCmd.Flags().Set("embedding-provider", "ollama")
 	_ = initCmd.RunE(initCmd, nil)
 
 	for _, sub := range []string{"Notes", "Projects"} {
@@ -165,6 +166,7 @@ func TestCLI_Files(t *testing.T) {
 	initCmd := newInitCmd()
 	_ = initCmd.Flags().Set("ollama-url", srv.URL)
 	_ = initCmd.Flags().Set("model", "m")
+	_ = initCmd.Flags().Set("embedding-provider", "ollama")
 	_ = initCmd.RunE(initCmd, nil)
 
 	docPath := filepath.Join(dir, "listed.txt")
