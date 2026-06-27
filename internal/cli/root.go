@@ -77,6 +77,7 @@ func Execute(version string) error {
 		newEvalGenCmd(),
 		newMCPCmd(),
 		newVaultCmd(),
+		newModelCmd(),
 	)
 	return rootCmd.Execute()
 }

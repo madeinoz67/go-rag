@@ -41,12 +41,12 @@
 
 - [X] T006 [P] [US1] Implement `HugotEmbedder` wrapping Hugot's GoMLX `FeatureExtractionPipeline` (`WithNormalization()`); `NewHugot(modelPath)`, lazy pipeline build on first `Embed`; `Embed`→`RunPipeline`→`[][]float32`; `Dimensions()` (0 until first Embed); `Model()` returns `modelbundle.ModelID` — `internal/embed/hugot.go`
 - [X] T007 [US1] Add `case "native","gomlx","hugot": return NewHugot(...)` and flip the `default` to `NewHugot` in the provider factory — `internal/embed/embedder.go`
-- [ ] T008 [P] [US1] Implement the `go-rag model install [--force]` cobra command (idempotent: no-op if present+hash-matches; else `modelbundle.Download` + `Verify`; clear errors on offline/tamper) — `internal/cli/model.go`
-- [ ] T009 [US1] Wire the model fetch into `go-rag init` (auto-fetch on first init, hash-gated) so `add`/`query` never need to fetch — `internal/cli/` (init command)
+- [X] T008 [P] [US1] Implement the `go-rag model install [--force]` cobra command (idempotent: no-op if present+hash-matches; else `modelbundle.Download` + `Verify`; clear errors on offline/tamper) — `internal/cli/model.go`
+- [X] T009 [US1] Wire the model fetch into `go-rag init` (auto-fetch on first init, hash-gated) so `add`/`query` never need to fetch — `internal/cli/` (init command)
 - [ ] T010 [US1] Mirror `model install` as the MCP tool `gorag.install_model` (force?: bool → status) — `internal/mcp/`
-- [ ] T011 [P] [US1] Flip the embedding-provider default to `"native"` (empty/omitted → native; was `"ollama"`) — `internal/config/config.go`
-- [ ] T012 [US1] Engine wiring: construct the default embedder via `embed.New` using the native provider; ensure lazy model load keeps cold start < 1 s and never blocks the < 10 ms write ACK — `internal/engine/`
-- [ ] T013 [US1] Test US1 end-to-end: on an isolated DB with no Ollama, `init` fetches+verifies, `add` + `query` returns semantic results with no external-service error — `internal/cli/` integration test
+- [X] T011 [P] [US1] Flip the embedding-provider default to `"native"` (empty/omitted → native; was `"ollama"`) — `internal/config/config.go`
+- [X] T012 [US1] Engine wiring: construct the default embedder via `embed.New` using the native provider; ensure lazy model load keeps cold start < 1 s and never blocks the < 10 ms write ACK — `internal/engine/`
+- [X] T013 [US1] Test US1 end-to-end: on an isolated DB with no Ollama, `init` fetches+verifies, `add` + `query` returns semantic results with no external-service error — `internal/cli/` integration test
 - [ ] T014 [US1] Test the pure-Go build gate: `CGO_ENABLED=0 go build ./...` succeeds and `govulncheck ./...` is clean (FR-009) — CI / `.github/workflows/ci.yml` already runs both
 
 ---

@@ -57,6 +57,9 @@ func TestCLI_InitAddQuery(t *testing.T) {
 
 	// init
 	initCmd := newInitCmd()
+	if err := initCmd.Flags().Set("embedding-provider", "ollama"); err != nil {
+		t.Fatal(err)
+	}
 	if err := initCmd.Flags().Set("ollama-url", srv.URL); err != nil {
 		t.Fatal(err)
 	}

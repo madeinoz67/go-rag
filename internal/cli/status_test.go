@@ -17,6 +17,7 @@ func TestStatus_AfterIngest(t *testing.T) {
 	defer func() { dbPath = saved }()
 
 	initCmd := newInitCmd()
+	_ = initCmd.Flags().Set("embedding-provider", "ollama")
 	_ = initCmd.Flags().Set("ollama-url", srv.URL)
 	_ = initCmd.Flags().Set("model", "m")
 	if err := initCmd.RunE(initCmd, nil); err != nil {
@@ -64,6 +65,7 @@ func TestStatus_DegradedWhenOllamaDown(t *testing.T) {
 	defer func() { dbPath = saved }()
 
 	initCmd := newInitCmd()
+	_ = initCmd.Flags().Set("embedding-provider", "ollama")
 	_ = initCmd.Flags().Set("ollama-url", "http://127.0.0.1:1") // unreachable
 	_ = initCmd.Flags().Set("model", "m")
 	_ = initCmd.RunE(initCmd, nil)

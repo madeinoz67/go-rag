@@ -13,6 +13,7 @@ func TestConfig_SetValidPersists(t *testing.T) {
 	defer func() { dbPath = saved }()
 
 	initCmd := newInitCmd()
+	_ = initCmd.Flags().Set("embedding-provider", "ollama")
 	if err := initCmd.RunE(initCmd, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -38,6 +39,7 @@ func TestConfig_SetInvalidRetainsPrevious(t *testing.T) {
 	defer func() { dbPath = saved }()
 
 	initCmd := newInitCmd()
+	_ = initCmd.Flags().Set("embedding-provider", "ollama")
 	_ = initCmd.RunE(initCmd, nil) // default ollama_url = http://localhost:11434
 
 	setCmd := newConfigSetCmd()
@@ -64,6 +66,7 @@ func TestConfig_GetUnknownKey(t *testing.T) {
 	defer func() { dbPath = saved }()
 
 	initCmd := newInitCmd()
+	_ = initCmd.Flags().Set("embedding-provider", "ollama")
 	_ = initCmd.RunE(initCmd, nil)
 
 	getCmd := newConfigGetCmd()
