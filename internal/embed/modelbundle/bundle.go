@@ -29,10 +29,10 @@ const (
 	ModelFilename = "model_int8.onnx"      // local filename under ModelDir
 	EmbeddingDim  = 384
 
-	// ExpectedSHA256 pins the weights' SHA-256 (supply-chain guard). Empty = dev mode
-	// (Verify is a no-op). MUST be pinned before release via HashFile on the first
-	// verified download.
-	ExpectedSHA256 = ""
+	// ExpectedSHA256 pins the SHA-256 of the int8 ONNX weights from
+	// Xenova/bge-small-en-v1.5 (supply-chain guard). Download verifies against this;
+	// a mismatch (tamper/corruption) is rejected and the file deleted.
+	ExpectedSHA256 = "bf64d05457cb391fa88d045faf5927a15ea36d96228ddf23ea970087afdc1197"
 )
 
 // ErrHashMismatch is returned when a model file fails its integrity check. The
