@@ -33,6 +33,8 @@ func New(provider, endpoint, model, apiKey string) Embedder {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
 	case "openai", "openai-compatible":
 		return NewOpenAI(endpoint, model, apiKey)
+	case "native", "gomlx", "hugot":
+		return NewHugot()
 	default:
 		return NewOllama(endpoint, model)
 	}
