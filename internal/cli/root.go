@@ -23,7 +23,8 @@ var rootCmd = &cobra.Command{
 
 Point it at a directory of PDFs, Word documents, images, and markdown files and it
 builds a searchable vector database that answers questions grounded in your local
-content — zero external dependencies beyond a local Ollama instance for embeddings.
+content — a bundled pure-Go embedder (spec 032) means zero external services
+by default; a local Ollama is optional for alternative embedding models.
 
 Full specification: PRD_RAG_Database.md`,
 	SilenceUsage: true,
