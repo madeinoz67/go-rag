@@ -58,7 +58,7 @@
 **Depends on**: US1 (the fetch + lazy-load embedder).
 
 - [X] T015 [US2] (HugotEmbedder.ensure() errors "run go-rag model install" if absent — never fetches; Download only from init/model-install) Guarantee zero network on the ingest/query path: `HugotEmbedder` only reads local files; `modelbundle.Download` is reachable solely from `init`/`model install`; if the model is absent at query time, emit an actionable "run `go-rag model install`" error (FR-006), never a background fetch — `internal/embed/hugot.go`, `internal/embed/modelbundle/bundle.go`
-- [ ] T016 [US2] Test offline operation: after `init`, with the network disabled, `add`+`query` succeed and no dial is attempted — `internal/cli/` integration test
+- [X] T016 [US2] (TestHugotEmbedder_AbsentModelDoesNotFetch — Embed errors "run go-rag model install" and never fetches when the model is absent; runs in the normal suite) Test offline operation: after `init`, with the network disabled, `add`+`query` succeed and no dial is attempted — `internal/cli/` integration test
 
 ---
 
