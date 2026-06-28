@@ -41,7 +41,7 @@ jobs:
           mkdir -p out
           ext=""
           [ "$GOOS" = "windows" ] && ext=".exe"
-          go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
+          go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME} -X github.com/madeinoz67/go-rag/internal/embed/modelbundle.binaryVersion=${GITHUB_REF_NAME}" \
             -o "out/go-rag${ext}" ./cmd/go-rag
       - name: Verify linux/amd64 binary responds
         if: matrix.goos == 'linux' && matrix.goarch == 'amd64'

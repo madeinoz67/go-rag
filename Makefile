@@ -2,7 +2,7 @@ BINARY  := go-rag
 BIN_DIR := bin
 PKG     := ./...
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS := -X main.version=$(VERSION)
+LDFLAGS := -X main.version=$(VERSION) -X github.com/madeinoz67/go-rag/internal/embed/modelbundle.binaryVersion=$(VERSION)
 
 .PHONY: build run test test-eval vet fmt lint vuln tidy install docker clean help
 
