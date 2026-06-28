@@ -20,6 +20,24 @@ and you have a working RAG system.
 - **Go** 1.22+ (build from source)
 - _(Optional)_ **Ollama** + an embedding model — only if you prefer Ollama embeddings over the bundled pure-Go default
 
+## Installation
+
+**Homebrew** (macOS/Linux — recommended):
+
+```bash
+brew install madeinoz67/tap/go-rag
+go-rag version
+```
+
+**Build from source** (needs Go 1.22+):
+
+```bash
+make build   # → ./bin/go-rag
+```
+
+Prebuilt binaries for every release: [github.com/madeinoz67/go-rag/releases](https://github.com/madeinoz67/go-rag/releases).
+
+
 ## Quickstart
 
 ```bash
