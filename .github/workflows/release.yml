@@ -122,10 +122,10 @@ jobs:
             exit 0
           fi
           ver="${VERSION#v}"
-          sha_amd64_mac=$(sha256sum dist/go-rag-*-"${VERSION}"-darwin-amd64.tar.gz | awk '{print $1}')
-          sha_arm64_mac=$(sha256sum dist/go-rag-*-"${VERSION}"-darwin-arm64.tar.gz | awk '{print $1}')
-          sha_amd64_linux=$(sha256sum dist/go-rag-*-"${VERSION}"-linux-amd64.tar.gz | awk '{print $1}')
-          sha_arm64_linux=$(sha256sum dist/go-rag-*-"${VERSION}"-linux-arm64.tar.gz | awk '{print $1}')
+          sha_amd64_mac=$(sha256sum "dist/go-rag-${VERSION}-darwin-amd64.tar.gz" | awk '{print $1}')
+          sha_arm64_mac=$(sha256sum "dist/go-rag-${VERSION}-darwin-arm64.tar.gz" | awk '{print $1}')
+          sha_amd64_linux=$(sha256sum "dist/go-rag-${VERSION}-linux-amd64.tar.gz" | awk '{print $1}')
+          sha_arm64_linux=$(sha256sum "dist/go-rag-${VERSION}-linux-arm64.tar.gz" | awk '{print $1}')
           sed -e "s/__VER__/${ver}/" \
               -e "s/__SHA_AMD64_MAC__/${sha_amd64_mac}/" \
               -e "s/__SHA_ARM64_MAC__/${sha_arm64_mac}/" \
