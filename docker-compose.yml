@@ -1,26 +1,60 @@
 # docker-compose.yml — go-rag local RAG database (spec 033)
 #
-# One service, one foreground daemon, one Pebble vault. Bring up with:
+# One foreground daemon, one Pebble vault. Bring up with:
 #   docker compose up -d                      # bundled embedder, zero external deps
 #   docker compose --profile ollama up -d      # opt-in Ollama sidecar (escape hatch)
+#
+# FIRST-RUN: the go-rag-init sidecar runs `go-rag init` once on the empty vault
+# volume (creating config.json + the Pebble dir and fetching the bundled model)
+# before the daemon starts. `serve` will not boot on an uninitialized vault.
 #
 # SINGLE-WRITER RULE (PRD §6.7 / spec 007): exactly ONE go-rag process may own the
 # vault at a time. NEVER set deploy.replicas > 1, and NEVER run a second writer
 # container against the same `go-rag-data` volume. Restart/crash recovery is fine
 # (the PID lock is released when the old process dies); concurrent live writers
-# corrupt the store. Read replicas are out of scope for v1.
+# corrupt the store.
 #
-# Local-first (Principle I): the default profile has NO cloud or runtime dependency
-# beyond the host. The bundled pure-Go embedder (spec 032) needs no external
-# service; Ollama is an opt-in escape hatch.
+# Local-first (Principle I): the default profile has NO cloud or runtime
+# dependency beyond the host. The bundled pure-Go embedder (spec 032) needs no
+# external service; Ollama is an opt-in escape hatch.
 
 services:
+  # ── one-shot: initialize the vault + fetch the bundled model ──────────────
+  # A fresh named volume has no config.json, and `serve` refuses to boot without
+  # one. This runs `go-rag init` once (idempotent) before the daemon starts.
+  # HOME=/data co-locates the bundled model (default ~/.go-rag/models) inside the
+  # vault volume so it survives container recreation (no re-fetch per boot).
+  # To use the published image instead of a local build, set `image:` on BOTH
+  # this service and `go-rag` and comment out both `build:` lines.
+  go-rag-init:
+    build: .
+    # image: ghcr.io/madeinoz67/go-rag:latest
+    container_name: go-rag-init
+    environment:
+      HOME: /data
+    command: ["init"]
+    volumes:
+      - go-rag-data:/data
+    restart: "no"   # one-shot; exits 0 when the vault is ready
+
   go-rag:
-    # Use the published multi-arch image by default (release.yml, spec 033), or
-    # `build: .` to build locally from the repo Dockerfile.
-    image: ghcr.io/madeinoz67/go-rag:latest
-    # build: .
+    build: .
+    # image: ghcr.io/madeinoz67/go-rag:latest
     container_name: go-rag
+    depends_on:
+      go-rag-init:
+        condition: service_completed_successfully   # wait for init before booting
+    environment:
+      HOME: /data   # keep the bundled model under the vault volume (matches init)
+      # GO_RAG_* env-var config overrides layer over <dbPath>/config.json
+      # (spec 033). Env wins only when set + non-empty; file is otherwise base.
+      # NOTE: ingestion is API-driven (POST /v1/add above). The daemon does NOT
+      # auto-watch a directory today, so GO_RAG_WATCH_DIRS does not trigger ingest
+      # in `serve`; re-POST /v1/add (or POST /v1/scan) to pick up new files.
+      # Opt-in Ollama (meaningful only under the `ollama` profile). Setting this
+      # alone does NOT switch the embedder — also set GO_RAG_EMBEDDING_MODEL.
+      GO_RAG_OLLAMA_URL: http://ollama:11434
+      #   GO_RAG_EMBEDDING_MODEL: nomic-embed-text
     restart: unless-stopped
 
     # `serve` = FOREGROUND daemon (PID 1, owns SIGTERM/SIGINT graceful shutdown).
@@ -31,8 +65,6 @@ services:
     # (loopback by default).
     command:
       - serve
-      - --db-path
-      - /data
       - --mcp-addr
       - 0.0.0.0:7878
       - --rest-addr
@@ -55,38 +87,31 @@ services:
 
     volumes:
       # The Pebble vault — single-writer. Named volume so it survives down/up.
-      # The JSON config (.go-rag/config.json) lives here as the config BASE layer.
+      # config.json + the data/ dir + the bundled model (via HOME=/data) persist here.
       - go-rag-data:/data
       # Ingestion surface: read-only bind mount of host docs into the container.
-      #   One-shot ingest:   docker compose exec go-rag go-rag add /ingest
-      #   Single file:       docker compose exec go-rag go-rag add /ingest/spec.md
-      #   Continuous ingest: set GO_RAG_WATCH_DIRS: /ingest below (spec 033 env
-      #   override) — the daemon's watcher then tails this path.
+      # The daemon ingests via its REST API (single-writer-safe — do NOT exec a
+      # second `go-rag add`; the running daemon holds the Pebble lock):
+      #   curl -X POST http://127.0.0.1:7879/v1/add  -H 'Content-Type: application/json' -d '{"path":"/ingest"}'
+      #   curl -X POST http://127.0.0.1:7879/v1/query -H 'Content-Type: application/json' -d '{"query":"term","k":5}'
+      # REST routes are bearer-guarded, DISABLED when the token is empty (the
+      # default on local loopback). Set GO_RAG_MCP_TOKEN to require auth.
       - ./docs:/ingest:ro
-
-    environment:
-      # GO_RAG_* env-var config overrides layer over <dbPath>/.go-rag/config.json
-      # (spec 033). Env wins only when set + non-empty; file is otherwise base.
-      # Continuous ingest from the read-only mount above (uncomment to enable):
-      #   GO_RAG_WATCH_DIRS: /ingest
-      # Opt-in Ollama (meaningful only under the `ollama` profile below). Setting
-      # this alone does NOT switch the embedder — also set GO_RAG_EMBEDDING_MODEL.
-      GO_RAG_OLLAMA_URL: http://ollama:11434
-      #   GO_RAG_EMBEDDING_MODEL: nomic-embed-text
 
     # Exec-form healthcheck — invokes the binary directly. distroless/static has
     # NO shell and NO curl, so `go-rag health` (spec 033) is the only viable probe.
     # It pings 127.0.0.1:7878/mcp/health from INSIDE the container, always
     # reachable regardless of --bind-external or the host port mapping.
     healthcheck:
-      test: ["CMD", "/go-rag", "health"]
+      test: ["CMD", "go-rag", "health"]
       interval: 10s
       timeout: 3s
       retries: 3
       start_period: 15s
 
     # Single-writer: never raise this above 1 and never add a second service
-    # mounting go-rag-data read-write.
+    # mounting go-rag-data read-write (go-rag-init mounts it but exits before
+    # the daemon starts, so there is never a live concurrent writer).
     deploy:
       replicas: 1
 
@@ -113,5 +138,5 @@ services:
     #           capabilities: [gpu]
 
 volumes:
-  go-rag-data:    # the vault — single-writer; never mount RW into a second container
+  go-rag-data:    # the vault — single-writer; never mount RW into a second live container
   ollama-models:

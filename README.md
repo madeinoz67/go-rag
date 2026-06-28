@@ -367,9 +367,11 @@ embedder means **zero external services by default**.
 ### Quick start
 
 ```bash
-docker compose up -d                                # healthy daemon on host loopback
-docker compose exec go-rag go-rag add /ingest       # ingest the ./docs bind mount
-docker compose exec go-rag go-rag query "<term>"    # query
+docker compose up -d                         # healthy daemon on host loopback
+# Ingest + query via the daemon's REST API (single-writer-safe — do NOT exec a
+# second `go-rag add`; the daemon holds the Pebble lock):
+curl -s -X POST http://127.0.0.1:7879/v1/add  -H 'Content-Type: application/json' -d '{"path":"/ingest"}'
+curl -s -X POST http://127.0.0.1:7879/v1/query -H 'Content-Type: application/json' -d '{"query":"retrieval","k":5}'
 ```
 
 - **Image**: `ghcr.io/madeinoz67/go-rag:latest` (multi-arch `linux/amd64` +
@@ -379,8 +381,10 @@ docker compose exec go-rag go-rag query "<term>"    # query
   gRPC `:7880`. See `docker-compose.yml` for the commented LAN-exposure variant
   (no TLS — trusted networks only).
 - **Vault**: named volume `go-rag-data` at `/data` (persists across `down`/`up`).
-- **Ingestion**: host `./docs` is bind-mounted **read-only** at `/ingest`.
-  One-shot via `go-rag add /ingest`; continuous via `GO_RAG_WATCH_DIRS=/ingest`.
+- **Ingestion**: host `./docs` is bind-mounted **read-only** at `/ingest`. The
+  daemon ingests via its REST API (`POST /v1/add`, single-writer-safe — a second
+  `go-rag add` process is blocked by the Pebble lock). REST auth is disabled when
+  the token is empty (default, loopback); set `GO_RAG_MCP_TOKEN` to require it.
 
 ### Configuration — `GO_RAG_*` environment variables
 

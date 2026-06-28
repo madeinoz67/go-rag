@@ -69,7 +69,7 @@ calls it).
 ### Implementation for User Story 1
 
 - [x] T008 [US1] Create `docker-compose.yml`: `go-rag` service (`image: ghcr.io/madeinoz67/go-rag:latest` with commented `build: .`); `command: [serve, --db-path, /data, --mcp-addr, 0.0.0.0:7878, --rest-addr, 0.0.0.0:7879, --grpc-addr, 0.0.0.0:7880, --bind-external]`; host-loopback `ports` (`127.0.0.1:7878:7878` etc.) with a commented LAN variant; `volumes: go-rag-data:/data`; `healthcheck: test:["CMD","/go-rag","health"] interval:10s timeout:3s retries:3 start_period:15s`; `restart: unless-stopped`; `deploy.replicas: 1`; single-writer + spec-007 warning comments; top-level `volumes: go-rag-data:` — `docker-compose.yml`
-- [ ] T009 [US1] Validate: `docker compose up -d` → `Up (healthy)` within `start_period`; `curl -s 127.0.0.1:7878/mcp/health` → `ok`; `curl -s 127.0.0.1:7879/health` → 200; `docker compose down && docker compose up -d` → prior vault still queryable (named volume persists) — `specs/033-docker-deployment/quickstart.md` (Scenario A + D)
+- [x] T009 [US1] Validate: `docker compose up -d` → `Up (healthy)` within `start_period`; `curl -s 127.0.0.1:7878/mcp/health` → `ok`; `curl -s 127.0.0.1:7879/health` → 200; `docker compose down && docker compose up -d` → prior vault still queryable (named volume persists) — `specs/033-docker-deployment/quickstart.md` (Scenario A + D)
 
 **Checkpoint**: MVP delivered — a one-command healthy local deployment. STOP and validate before proceeding.
 
@@ -84,7 +84,7 @@ calls it).
 ### Implementation for User Story 2
 
 - [x] T010 [US2] Add the read-only ingestion mount (`./docs:/ingest:ro`) to the `go-rag` service and document both modes in compose comments: one-shot (`docker compose exec go-rag go-rag add /ingest`) and continuous (uncomment `GO_RAG_WATCH_DIRS: /ingest`, layered via the Phase 2 env override) — `docker-compose.yml`
-- [ ] T011 [US2] Validate one-shot: add test docs to `./docs`; `docker compose exec go-rag go-rag add /ingest` → `Processed: N new…`; `docker compose exec go-rag go-rag query "<term>"` → returns host content; `git status ./docs` clean (read-only honoured). Validate continuous: set `GO_RAG_WATCH_DIRS: /ingest`, drop a new file, confirm ingested within `poll_interval` — `specs/033-docker-deployment/quickstart.md` (Scenario B + C)
+- [x] T011 [US2] Validate one-shot: add test docs to `./docs`; `docker compose exec go-rag go-rag add /ingest` → `Processed: N new…`; `docker compose exec go-rag go-rag query "<term>"` → returns host content; `git status ./docs` clean (read-only honoured). Validate continuous: set `GO_RAG_WATCH_DIRS: /ingest`, drop a new file, confirm ingested within `poll_interval` — `specs/033-docker-deployment/quickstart.md` (Scenario B + C)
 
 **Checkpoint**: host files flow into the containerized vault; vault and source tree stay distinct.
 

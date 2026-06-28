@@ -16,10 +16,10 @@ the implementation phase; this is the validation guide. Interface details are in
 
 ## Build / obtain the image
 
-- **Local build** (CI smoke equivalent): `make docker` → tags `go-rag`. Or
-  `docker compose build` (compose file has a commented `build: .`).
-- **Published image** (release equivalent): `docker pull ghcr.io/madeinoz67/go-rag:latest`
-  (compose `image:` uses this by default).
+- **Local build** (default): `docker compose build` — the compose file builds from
+  the repo `Dockerfile` (`build: .`). No published image exists until a `v*` tag is
+  pushed (release.yml `docker-image` job); then swap to `image: ghcr.io/madeinoz67/go-rag:latest`.
+- **Published image** (once a release exists): `docker pull ghcr.io/madeinoz67/go-rag:latest`.
 
 ---
 
@@ -43,10 +43,12 @@ honoured, not weakened.
 ## Scenario B — ingest host files (one-shot) (US2, FR-010/011, SC-003)
 
 1. Put docs in `./docs` (the compose `./docs:/ingest:ro` mount).
-2. `docker compose exec go-rag go-rag add /ingest`
-   → `Processed: N new, 0 skipped, 0 errors`.
-3. Query: `docker compose exec go-rag go-rag query "<term>"` → returns content
-   sourced from the mounted host files.
+2. Ingest via the daemon's REST API (single-writer-safe — the daemon owns the
+   Pebble lock; do NOT `exec` a second `go-rag add`):
+   `curl -s -X POST http://127.0.0.1:7879/v1/add -H 'Content-Type: application/json' -d '{"path":"/ingest"}'`
+   → `{"new":N,"skipped":0,...,"errors":0}`.
+3. Query: `curl -s -X POST http://127.0.0.1:7879/v1/query -H 'Content-Type: application/json' -d '{"query":"<term>","k":5}'`
+   → returns content sourced from the mounted host files.
 4. Confirm host files are **unchanged** (`git status ./docs` clean) — the mount is
    read-only (FR-011).
 
@@ -55,23 +57,30 @@ honoured, not weakened.
 
 ---
 
-## Scenario C — ingest host files (continuous watch) (US2, FR-010, SC-003)
+## Scenario C — pick up new/changed host files (US2, FR-010)
 
-1. In `docker-compose.yml`, uncomment `GO_RAG_WATCH_DIRS: /ingest` under
-   `environment:`. `docker compose up -d`.
-2. Drop a new file into host `./docs`.
-3. Within `poll_interval` (default 60 s) the daemon detects + ingests it;
-   `docker compose exec go-rag go-rag query "<new-term>"` returns it.
+> `serve` does **not** auto-watch a directory today, so `GO_RAG_WATCH_DIRS` does
+> not trigger ingest in the daemon. Re-run the API call to pick up new files
+> (idempotent — already-ingested content is skipped, Principle II):
 
-**Expected**: new host files are ingested without a container restart.
+1. Drop a new file into host `./docs`.
+2. Re-POST: `curl -s -X POST http://127.0.0.1:7879/v1/add -H 'Content-Type: application/json' -d '{"path":"/ingest"}'`
+   → `{"new":1,"skipped":N,...}` (only the new file is embedded).
+   (Or `POST /v1/scan` for a change-detection rescan.)
+3. Query the new content: `curl -s -X POST http://127.0.0.1:7879/v1/query ... -d '{"query":"<new-term>","k":5}'`.
+
+**Expected**: new host files are ingested on re-POST without a container restart.
+(A true in-daemon file watcher — `serve` auto-watching `GO_RAG_WATCH_DIRS` — is a
+future enhancement; today ingestion is API-driven.)
 
 ---
 
 ## Scenario D — vault persistence across recreate (US1, FR-003, SC-002)
 
-1. After Scenario B (docs ingested), note a query result.
-2. `docker compose down` then `docker compose up -d`.
-3. Re-run the same query → identical results.
+1. After Scenario B (docs ingested), note a `POST /v1/query` result.
+2. `docker compose down` then `docker compose up -d` (the `go-rag-init` sidecar
+   is idempotent; the vault + model persist in `go-rag-data`).
+3. Re-run the same `POST /v1/query` → identical results.
 
 **Expected**: the named `go-rag-data` volume survives recreate; no re-ingest
 needed. **Passes SC-002.**
@@ -94,12 +103,13 @@ needed. **Passes SC-002.**
 
 ## Scenario F — env-var config override (FR-017)
 
-1. `docker compose exec go-rag go-rag config get` → shows file-base values.
-2. Add to `environment:` e.g. `GO_RAG_ENRICHMENT_ENABLED: "true"`; `up -d`.
-3. `docker compose exec go-rag go-rag config get enrichment_enabled` → `true`
-   (env overrode the file default `false`), **without** editing the config file.
-4. Negative: set `GO_RAG_ENRICHMENT_ENABLED: "on"` → ignored (ParseBool rejects
-   `on`); file value kept. Confirms documented coercion semantics.
+1. `curl -s http://127.0.0.1:7879/v1/config` (or `-H 'Authorization: Bearer $TOK'`
+   if a token is set) → shows the effective (env-layered) config.
+2. Add to `environment:` e.g. `GO_RAG_ENRICHMENT_ENABLED: "true"`; `docker compose up -d`.
+3. `GET /v1/config` again → `enrichment_enabled: true` (env overrode the file
+   default), **without** editing the config file.
+4. Negative: set `GO_RAG_ENRICHMENT_ENABLED: "on"` → ignored (`strconv.ParseBool`
+   rejects `on`); file value kept. Confirms documented coercion semantics.
 
 **Expected**: env wins only when set + valid + non-empty; file is otherwise
 authoritative.
@@ -111,8 +121,9 @@ authoritative.
 1. `docker compose --profile ollama up -d`.
 2. `docker compose exec go-rag-ollama ollama pull nomic-embed-text`.
 3. Set `GO_RAG_EMBEDDING_MODEL: nomic-embed-text` on the `go-rag` service; `up -d`.
-4. Re-ingest (`go-rag add /ingest --redact` or `reprocess`); confirm embeddings
-   come from Ollama (status/model report), bundled model bypassed.
+4. Re-ingest via the API (`curl -X POST http://127.0.0.1:7879/v1/reprocess`) so the
+   corpus re-embeds under Ollama; confirm `GET /v1/status` reports the Ollama model
+   and the bundled model is bypassed.
 
 **Expected**: Ollama is opt-in and off by default; when activated + selected,
 embeddings come from it. **Passes US4.**
