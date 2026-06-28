@@ -140,3 +140,68 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "go-rag ${VERSION}" || echo "no formula changes"
           git push
+
+  # spec 033: publish a multi-arch (linux/amd64 + linux/arm64) container image to
+  # GHCR on every tag. `needs: build` (NOT release) so the image is not gated on
+  # model-bundling/Homebrew — it publishes as soon as the binary build passes.
+  # go-rag is CGO-free + distroless static, so QEMU user-mode emulates arm64 with
+  # NO C toolchain pulled. Implicit GITHUB_TOKEN (packages: write) — no PAT.
+  docker-image:
+    name: publish multi-arch image to GHCR
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read       # job-level perms REPLACE workflow-level — re-declare
+      packages: write      # required for GITHUB_TOKEN to push to ghcr.io
+      id-token: write      # reserved for future OIDC keyless signing (cosign)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ghcr.io/madeinoz67/go-rag is already lowercase (GHCR rejects mixed-case).
+      # type=semver strips the leading v (v0.4.2 -> 0.4.2, 0.4); the hyphen guard
+      # suppresses `latest` on pre-release tags (v0.4.2-rc.1).
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/madeinoz67/go-rag
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name,'-') }}
+          labels: |
+            org.opencontainers.image.title=go-rag
+            org.opencontainers.image.description=Single-binary, local-first, pure-Go RAG database
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build and push multi-arch image
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+      - name: Print published image digest
+        run: echo "Published ${{ steps.meta.outputs.tags }} @ ${{ steps.build.outputs.digest }}"

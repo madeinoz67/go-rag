@@ -358,6 +358,54 @@ go-rag beyond loopback, front it with a TLS-terminating reverse proxy or tunnel.
 The default-close posture is deliberate: a frictionless local database should
 never silently expose your document vault to the network.
 
+## Deployment (Docker)
+
+go-rag ships as a static, CGO-free binary in a minimal distroless image, with a
+`docker-compose.yml` for one-command local deployment. The bundled pure-Go
+embedder means **zero external services by default**.
+
+### Quick start
+
+```bash
+docker compose up -d                                # healthy daemon on host loopback
+docker compose exec go-rag go-rag add /ingest       # ingest the ./docs bind mount
+docker compose exec go-rag go-rag query "<term>"    # query
+```
+
+- **Image**: `ghcr.io/madeinoz67/go-rag:latest` (multi-arch `linux/amd64` +
+  `linux/arm64`, built by the release workflow). Set `build: .` in
+  `docker-compose.yml` to build locally instead of pulling.
+- **Ports** (host **loopback** by default): MCP `127.0.0.1:7878`, REST `:7879`,
+  gRPC `:7880`. See `docker-compose.yml` for the commented LAN-exposure variant
+  (no TLS — trusted networks only).
+- **Vault**: named volume `go-rag-data` at `/data` (persists across `down`/`up`).
+- **Ingestion**: host `./docs` is bind-mounted **read-only** at `/ingest`.
+  One-shot via `go-rag add /ingest`; continuous via `GO_RAG_WATCH_DIRS=/ingest`.
+
+### Configuration — `GO_RAG_*` environment variables
+
+go-rag config is **hybrid**: the file base (`.go-rag/config.json` in the vault)
+is overridden by `GO_RAG_*` env vars set in `docker-compose.yml` (an env var wins
+only when set + non-empty). Container-priority vars include `GO_RAG_MCP_ADDR`,
+`GO_RAG_MCP_TOKEN`, `GO_RAG_OLLAMA_URL`, `GO_RAG_EMBEDDING_MODEL`,
+`GO_RAG_WATCH_DIRS`, `GO_RAG_ENRICHMENT_ENABLED`. Full mapping table:
+[`specs/033-docker-deployment/contracts/interface-contracts.md`](specs/033-docker-deployment/contracts/interface-contracts.md).
+
+### Rules
+
+- **Single-writer**: exactly one go-rag process may own the vault volume — never
+  set `deploy.replicas > 1` or mount `go-rag-data` read-write into a second
+  container.
+- **Loopback-by-default** (spec 007): the container binds `0.0.0.0` and passes
+  `--bind-external` (required for port-forwarding to work); host exposure stays
+  loopback by default.
+- **Optional Ollama** (escape hatch): `docker compose --profile ollama up -d`
+  enables a sidecar; set `GO_RAG_EMBEDDING_MODEL` on `go-rag` to switch off the
+  bundled embedder.
+
+Runnable validation scenarios:
+[`specs/033-docker-deployment/quickstart.md`](specs/033-docker-deployment/quickstart.md).
+
 ## Architecture
 
 Layered: **CLI** → **ingest pipeline** (async-after-ACK, <10ms writes) →

@@ -1,0 +1,117 @@
+# docker-compose.yml — go-rag local RAG database (spec 033)
+#
+# One service, one foreground daemon, one Pebble vault. Bring up with:
+#   docker compose up -d                      # bundled embedder, zero external deps
+#   docker compose --profile ollama up -d      # opt-in Ollama sidecar (escape hatch)
+#
+# SINGLE-WRITER RULE (PRD §6.7 / spec 007): exactly ONE go-rag process may own the
+# vault at a time. NEVER set deploy.replicas > 1, and NEVER run a second writer
+# container against the same `go-rag-data` volume. Restart/crash recovery is fine
+# (the PID lock is released when the old process dies); concurrent live writers
+# corrupt the store. Read replicas are out of scope for v1.
+#
+# Local-first (Principle I): the default profile has NO cloud or runtime dependency
+# beyond the host. The bundled pure-Go embedder (spec 032) needs no external
+# service; Ollama is an opt-in escape hatch.
+
+services:
+  go-rag:
+    # Use the published multi-arch image by default (release.yml, spec 033), or
+    # `build: .` to build locally from the repo Dockerfile.
+    image: ghcr.io/madeinoz67/go-rag:latest
+    # build: .
+    container_name: go-rag
+    restart: unless-stopped
+
+    # `serve` = FOREGROUND daemon (PID 1, owns SIGTERM/SIGINT graceful shutdown).
+    # NEVER use `start` here — it detaches and forks a child, wrong for PID 1.
+    # Loopback-by-default contract (spec 007): the daemon refuses non-loopback
+    # binds unless --bind-external is passed, so the container MUST pass 0.0.0.0
+    # addrs AND --bind-external. Host-side exposure is governed by `ports:` below
+    # (loopback by default).
+    command:
+      - serve
+      - --db-path
+      - /data
+      - --mcp-addr
+      - 0.0.0.0:7878
+      - --rest-addr
+      - 0.0.0.0:7879
+      - --grpc-addr
+      - 0.0.0.0:7880
+      - --bind-external
+
+    # Host LOOPBACK by default — the daemon is reachable only from this machine.
+    # To expose on the LAN, replace 127.0.0.1 with 0.0.0.0 (or a NIC IP) on each
+    # line. There is NO TLS; only do this on a trusted network (spec 007 warning).
+    ports:
+      - "127.0.0.1:7878:7878"   # MCP  (HTTP/JSON-RPC, always-on)
+      - "127.0.0.1:7879:7879"   # REST (stdlib net/http)
+      - "127.0.0.1:7880:7880"   # gRPC (grpc-go)
+    # LAN-exposure variant (uncomment to publish on all interfaces, no TLS):
+    #   - "7878:7878"
+    #   - "7879:7879"
+    #   - "7880:7880"
+
+    volumes:
+      # The Pebble vault — single-writer. Named volume so it survives down/up.
+      # The JSON config (.go-rag/config.json) lives here as the config BASE layer.
+      - go-rag-data:/data
+      # Ingestion surface: read-only bind mount of host docs into the container.
+      #   One-shot ingest:   docker compose exec go-rag go-rag add /ingest
+      #   Single file:       docker compose exec go-rag go-rag add /ingest/spec.md
+      #   Continuous ingest: set GO_RAG_WATCH_DIRS: /ingest below (spec 033 env
+      #   override) — the daemon's watcher then tails this path.
+      - ./docs:/ingest:ro
+
+    environment:
+      # GO_RAG_* env-var config overrides layer over <dbPath>/.go-rag/config.json
+      # (spec 033). Env wins only when set + non-empty; file is otherwise base.
+      # Continuous ingest from the read-only mount above (uncomment to enable):
+      #   GO_RAG_WATCH_DIRS: /ingest
+      # Opt-in Ollama (meaningful only under the `ollama` profile below). Setting
+      # this alone does NOT switch the embedder — also set GO_RAG_EMBEDDING_MODEL.
+      GO_RAG_OLLAMA_URL: http://ollama:11434
+      #   GO_RAG_EMBEDDING_MODEL: nomic-embed-text
+
+    # Exec-form healthcheck — invokes the binary directly. distroless/static has
+    # NO shell and NO curl, so `go-rag health` (spec 033) is the only viable probe.
+    # It pings 127.0.0.1:7878/mcp/health from INSIDE the container, always
+    # reachable regardless of --bind-external or the host port mapping.
+    healthcheck:
+      test: ["CMD", "/go-rag", "health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+    # Single-writer: never raise this above 1 and never add a second service
+    # mounting go-rag-data read-write.
+    deploy:
+      replicas: 1
+
+  # ---- Optional Ollama sidecar (escape hatch, spec 032 / PRD §4.2.5) ------------
+  # Off by default. Activate with:  docker compose --profile ollama up -d
+  # Then pull a model (docker compose exec go-rag-ollama ollama pull nomic-embed-text)
+  # and set GO_RAG_EMBEDDING_MODEL on go-rag to switch off the bundled embedder.
+  ollama:
+    image: ollama/ollama:0.9
+    container_name: go-rag-ollama
+    restart: unless-stopped
+    profiles: ["ollama"]
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    # GPU passthrough (uncomment on a host with nvidia-container-toolkit):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  go-rag-data:    # the vault — single-writer; never mount RW into a second container
+  ollama-models:

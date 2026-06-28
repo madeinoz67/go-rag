@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/embed"
 )
@@ -381,7 +382,108 @@ func Load(path string) (Config, error) {
 			c.AuditLogEnabled = true
 		}
 	}
+	// spec 033: layer GO_RAG_* env overrides over the file base (12-factor:
+	// an env var wins ONLY when set AND non-empty; the file is the base). Applied
+	// inside Load so every consumer — engine.Open → openDB → every CLI subcommand,
+	// plus serve.go / dashboard.go / vault.go / `config get` — sees the same
+	// env-layered config with zero call-site changes. Invalid int/bool values are
+	// ignored (file value kept); downstream Validate() is the authority.
+	ApplyEnvOverrides(&c)
 	return c, nil
+}
+
+// ApplyEnvOverrides layers GO_RAG_* environment variables over a file-loaded
+// Config (spec 033). MUST be called after Load() has produced the file base.
+//
+// Layering rule: an env var wins ONLY when it is set AND non-empty; unset or
+// empty env leaves the file value untouched. This matches the existing
+// GO_RAG_VAULT_ROOT precedent (internal/vault/registry.go) and the codebase's
+// raw encoding/json posture (no viper, no envconfig).
+//
+// Naming convention: GO_RAG_ + UPPER_SNAKE of the json tag.
+// Invalid values (a non-numeric chunk_size, a non-bool enrichment_enabled) are
+// IGNORED — the file value is kept (never zeroed). WatchDirs REPLACES (does not
+// append to) the file list when set.
+func ApplyEnvOverrides(c *Config) {
+	// --- string fields (direct assign when set + non-empty) ---
+	if v := os.Getenv("GO_RAG_OLLAMA_URL"); v != "" {
+		c.OllamaURL = v
+	}
+	if v := os.Getenv("GO_RAG_EMBEDDING_MODEL"); v != "" {
+		c.EmbeddingModel = v
+	}
+	if v := os.Getenv("GO_RAG_RERANK_MODEL"); v != "" {
+		c.RerankModel = v
+	}
+	if v := os.Getenv("GO_RAG_ENRICHMENT_MODEL"); v != "" {
+		c.EnrichmentModel = v
+	}
+	if v := os.Getenv("GO_RAG_MCP_ADDR"); v != "" {
+		c.MCPAddr = v
+	}
+	if v := os.Getenv("GO_RAG_MCP_TOKEN"); v != "" {
+		c.MCPToken = v
+	}
+	if v := os.Getenv("GO_RAG_DB_PATH"); v != "" {
+		c.DBPath = v
+	}
+
+	// --- []string (comma-separated; REPLACES the file list when set) ---
+	if v := os.Getenv("GO_RAG_WATCH_DIRS"); v != "" {
+		dirs := []string{}
+		for _, d := range strings.Split(v, ",") {
+			if d = strings.TrimSpace(d); d != "" {
+				dirs = append(dirs, d)
+			}
+		}
+		if len(dirs) > 0 { // all-empty → keep file value
+			c.WatchDirs = dirs
+		}
+	}
+
+	// --- int fields (Atoi; invalid → keep file value) ---
+	if v := os.Getenv("GO_RAG_CHUNK_SIZE"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.ChunkSize = n
+		}
+	}
+	if v := os.Getenv("GO_RAG_CHUNK_OVERLAP"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.ChunkOverlap = n
+		}
+	}
+	if v := os.Getenv("GO_RAG_POLL_INTERVAL_SECS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.PollIntervalSec = n
+		}
+	}
+
+	// --- bool fields (ParseBool: 1/0/t/f/true/false — NOT yes/no/on/off) ---
+	if v := os.Getenv("GO_RAG_ENRICHMENT_ENABLED"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			c.EnrichmentEnabled = b
+		}
+	}
+	if v := os.Getenv("GO_RAG_CAPTIONING_ENABLED"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			c.CaptioningEnabled = b
+		}
+	}
+	if v := os.Getenv("GO_RAG_METRICS_ENABLED"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			c.MetricsEnabled = b
+		}
+	}
+	if v := os.Getenv("GO_RAG_AUDIT_LOG_ENABLED"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			c.AuditLogEnabled = b
+		}
+	}
+	if v := os.Getenv("GO_RAG_POISONING_ENABLED"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			c.PoisoningEnabled = b
+		}
+	}
 }
 
 // Save writes config to a JSON file (creating parent dirs).

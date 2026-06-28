@@ -190,3 +190,71 @@ func TestRRFK_Config(t *testing.T) {
 		t.Error("set non-numeric rrf_k must fail")
 	}
 }
+
+// TestApplyEnvOverrides_OverrideWins covers the spec 033 happy path: a set,
+// non-empty GO_RAG_* env var overrides the file value for string / int / bool /
+// []string fields. WatchDirs is comma-split, trimmed, empties dropped, and
+// REPLACES (not appends to) the file list.
+func TestApplyEnvOverrides_OverrideWins(t *testing.T) {
+	c := Config{
+		OllamaURL:         "http://file:11434",
+		MCPAddr:           "127.0.0.1:7878",
+		ChunkSize:         512,
+		EnrichmentEnabled: false,
+		WatchDirs:         []string{"/file"},
+	}
+	t.Setenv("GO_RAG_OLLAMA_URL", "http://env:11434")
+	t.Setenv("GO_RAG_MCP_ADDR", "0.0.0.0:7878")
+	t.Setenv("GO_RAG_CHUNK_SIZE", "2048")
+	t.Setenv("GO_RAG_ENRICHMENT_ENABLED", "true")
+	t.Setenv("GO_RAG_WATCH_DIRS", "/a, /b ,") // trailing empty + spaces
+
+	ApplyEnvOverrides(&c)
+
+	if c.OllamaURL != "http://env:11434" {
+		t.Errorf("string override: got %q", c.OllamaURL)
+	}
+	if c.MCPAddr != "0.0.0.0:7878" {
+		t.Errorf("mcp_addr override: got %q", c.MCPAddr)
+	}
+	if c.ChunkSize != 2048 {
+		t.Errorf("int override: got %d", c.ChunkSize)
+	}
+	if !c.EnrichmentEnabled {
+		t.Errorf("bool override: got %v", c.EnrichmentEnabled)
+	}
+	if len(c.WatchDirs) != 2 || c.WatchDirs[0] != "/a" || c.WatchDirs[1] != "/b" {
+		t.Errorf("watch_dirs replace/trim/drop-empty: got %#v", c.WatchDirs)
+	}
+}
+
+// TestApplyEnvOverrides_EmptyKeepsFile guards spec 007: an empty GO_RAG_MCP_ADDR
+// MUST leave the file's loopback value intact — an assignment without the
+// "!= \"\"" guard would silently bind all-interfaces.
+func TestApplyEnvOverrides_EmptyKeepsFile(t *testing.T) {
+	t.Setenv("GO_RAG_MCP_ADDR", "")
+	c := Config{MCPAddr: "127.0.0.1:7878"}
+	ApplyEnvOverrides(&c)
+	if c.MCPAddr != "127.0.0.1:7878" {
+		t.Errorf("empty env must keep file loopback (spec 007), got %q", c.MCPAddr)
+	}
+}
+
+// TestApplyEnvOverrides_InvalidKeepsFile: a non-numeric int or a non-bool bool
+// env value is IGNORED — the file value is kept, never zeroed (downstream
+// Validate() is the authority on well-formedness).
+func TestApplyEnvOverrides_InvalidKeepsFile(t *testing.T) {
+	t.Setenv("GO_RAG_CHUNK_SIZE", "abc")
+	c := Config{ChunkSize: 512}
+	ApplyEnvOverrides(&c)
+	if c.ChunkSize != 512 {
+		t.Errorf("invalid int must keep file value 512, got %d", c.ChunkSize)
+	}
+
+	t.Setenv("GO_RAG_ENRICHMENT_ENABLED", "on") // ParseBool rejects on/off/yes/no
+	c2 := Config{EnrichmentEnabled: true}
+	ApplyEnvOverrides(&c2)
+	if !c2.EnrichmentEnabled {
+		t.Error("invalid bool 'on' must keep file value true")
+	}
+}
