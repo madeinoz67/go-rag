@@ -1,0 +1,41 @@
+# go-rag Homebrew formula TEMPLATE (rendered by release.yml's `tap` job).
+# Placeholders __VER__, __SHA_AMD64_MAC__, __SHA_ARM64_MAC__, __SHA_AMD64_LINUX__,
+# __SHA_ARM64_LINUX__ are substituted per release. Do not edit the tap repo's copy
+# by hand — it is regenerated on each tag.
+class GoRag < Formula
+  desc "Single-binary local RAG database with bundled pure-Go embeddings (no Ollama required)"
+  homepage "https://github.com/madeinoz67/go-rag"
+  version "__VER__"
+  license "Apache-2.0"
+
+  on_macos do
+    on_arm do
+      url "https://github.com/madeinoz67/go-rag/releases/download/v#{version}/go-rag-v#{version}-darwin-arm64.tar.gz"
+      sha256 "__SHA_ARM64_MAC__"
+    end
+    on_intel do
+      url "https://github.com/madeinoz67/go-rag/releases/download/v#{version}/go-rag-v#{version}-darwin-amd64.tar.gz"
+      sha256 "__SHA_AMD64_MAC__"
+    end
+  end
+
+  on_linux do
+    on_arm do
+      url "https://github.com/madeinoz67/go-rag/releases/download/v#{version}/go-rag-v#{version}-linux-arm64.tar.gz"
+      sha256 "__SHA_ARM64_LINUX__"
+    end
+    on_intel do
+      url "https://github.com/madeinoz67/go-rag/releases/download/v#{version}/go-rag-v#{version}-linux-amd64.tar.gz"
+      sha256 "__SHA_AMD64_LINUX__"
+    end
+  end
+
+  # The release archive contains a single static binary at its root.
+  def install
+    bin.install "go-rag"
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/go-rag --version")
+  end
+end

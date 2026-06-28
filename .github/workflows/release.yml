@@ -97,3 +97,46 @@ jobs:
             --title "${GITHUB_REF_NAME}" \
             --generate-notes \
             dist/go-rag-* dist/checksums.txt
+
+
+  tap:
+    name: bump homebrew tap
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4   # for the formula template at .github/homebrew/go-rag.rb.tmpl
+      - name: Download all build artifacts (for the 4 brew-platform SHA-256s)
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Render Formula/go-rag.rb from the template and push to madeinoz67/homebrew-tap
+        continue-on-error: true   # don't fail the release if the tap token isn't set yet
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -e
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN secret not set; skipping Homebrew tap bump. Add a PAT (contents:write on madeinoz67/homebrew-tap) as the HOMEBREW_TAP_TOKEN repo secret to enable."
+            exit 0
+          fi
+          ver="${VERSION#v}"
+          sha_amd64_mac=$(sha256sum dist/go-rag-*-"${VERSION}"-darwin-amd64.tar.gz | awk '{print $1}')
+          sha_arm64_mac=$(sha256sum dist/go-rag-*-"${VERSION}"-darwin-arm64.tar.gz | awk '{print $1}')
+          sha_amd64_linux=$(sha256sum dist/go-rag-*-"${VERSION}"-linux-amd64.tar.gz | awk '{print $1}')
+          sha_arm64_linux=$(sha256sum dist/go-rag-*-"${VERSION}"-linux-arm64.tar.gz | awk '{print $1}')
+          sed -e "s/__VER__/${ver}/" \
+              -e "s/__SHA_AMD64_MAC__/${sha_amd64_mac}/" \
+              -e "s/__SHA_ARM64_MAC__/${sha_arm64_mac}/" \
+              -e "s/__SHA_AMD64_LINUX__/${sha_amd64_linux}/" \
+              -e "s/__SHA_ARM64_LINUX__/${sha_arm64_linux}/" \
+              .github/homebrew/go-rag.rb.tmpl > /tmp/go-rag.rb
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/madeinoz67/homebrew-tap" tap
+          mkdir -p tap/Formula
+          mv /tmp/go-rag.rb tap/Formula/go-rag.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "go-rag ${VERSION}" || echo "no formula changes"
+          git push
