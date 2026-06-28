@@ -57,21 +57,21 @@ honoured, not weakened.
 
 ---
 
-## Scenario C — pick up new/changed host files (US2, FR-010)
+## Scenario C — auto-watch a directory (US2, FR-010)
 
-> `serve` does **not** auto-watch a directory today, so `GO_RAG_WATCH_DIRS` does
-> not trigger ingest in the daemon. Re-run the API call to pick up new files
-> (idempotent — already-ingested content is skipped, Principle II):
+> The daemon auto-watches `GO_RAG_WATCH_DIRS` (set to `/ingest` in the compose).
+> Drop a file in host `./docs` and it is ingested automatically — no manual call.
 
-1. Drop a new file into host `./docs`.
-2. Re-POST: `curl -s -X POST http://127.0.0.1:7879/v1/add -H 'Content-Type: application/json' -d '{"path":"/ingest"}'`
-   → `{"new":1,"skipped":N,...}` (only the new file is embedded).
-   (Or `POST /v1/scan` for a change-detection rescan.)
-3. Query the new content: `curl -s -X POST http://127.0.0.1:7879/v1/query ... -d '{"query":"<new-term>","k":5}'`.
+1. Drop a new file into host `./docs` (e.g. `echo '# unique token zephyrxyz' > docs/new.md`).
+2. Within the poll interval (`GO_RAG_POLL_INTERVAL_SECS`, 15 s in the compose —
+   fsnotify is unreliable across Docker Desktop bind mounts, so the poll is what
+   catches host-side changes on macOS) the daemon ingests it.
+3. Query the new content with NO manual `/v1/add`:
+   `curl -s -X POST http://127.0.0.1:7879/v1/query -H 'Content-Type: application/json' -d '{"query":"zephyrxyz","k":5}'`
+   → returns the new file.
 
-**Expected**: new host files are ingested on re-POST without a container restart.
-(A true in-daemon file watcher — `serve` auto-watching `GO_RAG_WATCH_DIRS` — is a
-future enhancement; today ingestion is API-driven.)
+**Expected**: new host files are indexed by the watcher — no restart, no manual
+add. (The initial scan at boot also ingests files already present under `/ingest`.)
 
 ---
 

@@ -46,11 +46,14 @@ services:
         condition: service_completed_successfully   # wait for init before booting
     environment:
       HOME: /data   # keep the bundled model under the vault volume (matches init)
+      GO_RAG_WATCH_DIRS: /ingest   # daemon auto-watches this dir → drop files to ingest
+      GO_RAG_POLL_INTERVAL_SECS: "15"  # poll cadence (fsnotify is unreliable across Docker Desktop bind mounts)
       # GO_RAG_* env-var config overrides layer over <dbPath>/config.json
       # (spec 033). Env wins only when set + non-empty; file is otherwise base.
-      # NOTE: ingestion is API-driven (POST /v1/add above). The daemon does NOT
-      # auto-watch a directory today, so GO_RAG_WATCH_DIRS does not trigger ingest
-      # in `serve`; re-POST /v1/add (or POST /v1/scan) to pick up new files.
+      # The daemon auto-watches cfg.WatchDirs (single-writer-safe; serve starts a
+      # watcher goroutine). GO_RAG_WATCH_DIRS=/ingest → drop a file in ./docs and
+      # it is ingested automatically (initial scan + fsnotify + poll). You can also
+      # force a one-shot via POST /v1/add.
       # Opt-in Ollama (meaningful only under the `ollama` profile). Setting this
       # alone does NOT switch the embedder — also set GO_RAG_EMBEDDING_MODEL.
       GO_RAG_OLLAMA_URL: http://ollama:11434

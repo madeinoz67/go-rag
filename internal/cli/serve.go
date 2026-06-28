@@ -104,6 +104,35 @@ func newServeCmd() *cobra.Command {
 				fmt.Fprintf(os.Stderr, "go-rag drift: %s — run `migrate` to re-embed under the current model\n", detail)
 			}
 
+			// spec 033: auto-watch cfg.WatchDirs (single-writer-safe — the watcher runs in
+			// THIS daemon process, never a second Pebble writer). Set directories via the
+			// GO_RAG_WATCH_DIRS env override (e.g. /ingest). The watcher does an initial
+			// scan (ingests existing files) then watches for changes (fsnotify + poll).
+			watchCtx, watchCancel := context.WithCancel(context.Background())
+			defer watchCancel() // stop the watcher on any return (before the eng/db drain)
+			if dirs := cfg.WatchDirs; len(dirs) > 0 {
+				poll := time.Duration(cfg.PollIntervalSec) * time.Second
+				if poll <= 0 {
+					poll = 60 * time.Second
+				}
+				glob := cfg.FileGlob
+				if glob == "" {
+					glob = "*"
+				}
+				for _, dir := range dirs {
+					if dir == "" {
+						continue
+					}
+					dir := dir
+					go func() {
+						fmt.Fprintf(os.Stderr, "go-rag daemon watching %s (poll %s)\n", dir, poll)
+						if err := eng.Watch(watchCtx, dir, glob, poll); err != nil {
+							fmt.Fprintf(os.Stderr, "go-rag watch %s ended: %v\n", dir, err)
+						}
+					}()
+				}
+			}
+
 			// MCP (HTTP/JSON-RPC) — always on; its /mcp/health is the daemon's
 			// startup/health probe target. Backed by the SAME shared engine as
 			// REST/gRPC (audit H06/spec 016) so MCP queries hit the cache,
