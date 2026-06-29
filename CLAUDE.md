@@ -85,6 +85,11 @@ transport. One Pebble writer; writes ACK on the durable store and embed async
   the daemon for tests/smoke, always pass `--db-path <tmp>` plus non-default
   `--mcp-addr`/`--rest-addr`/`--grpc-addr`, or you will collide with and stop a
   live instance.
+- **Lint before push.** Run `make lint` (golangci-lint) before `git push` — it is
+  the `ci.yml` gate and strictly stricter than `go vet`/`go test` (catches
+  built-in shadowing like `min`/`max`, gofmt nits, errcheck, staticcheck). A
+  committed pre-push hook in `githooks/` enforces it once enabled
+  (`git config core.hooksPath githooks`); bypass one push with `git push --no-verify`.
 
 ## Out of scope for v1 (PRD §2.2)
 

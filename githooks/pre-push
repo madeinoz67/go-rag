@@ -1,0 +1,19 @@
+#!/bin/sh
+# go-rag pre-push hook — run golangci-lint (the ci.yml gate) before pushing.
+# It is stricter than `go vet`/`go test` (catches built-in shadowing, gofmt
+# nits, errcheck, staticcheck, …) and is what ci.yml enforces, so catching it
+# here avoids a red CI run.
+#
+# Enable:   git config core.hooksPath githooks
+# Bypass:   git push --no-verify
+# Skips silently when golangci-lint is not installed (e.g. fresh CI clones).
+if ! command -v golangci-lint >/dev/null 2>&1; then
+	exit 0
+fi
+
+echo "pre-push: running golangci-lint (ci.yml gate)..." >&2
+if ! make lint; then
+	echo "pre-push: golangci-lint failed — fix the findings above," >&2
+	echo "          or bypass once with: git push --no-verify" >&2
+	exit 1
+fi
