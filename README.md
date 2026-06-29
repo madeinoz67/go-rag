@@ -5,7 +5,7 @@
 > your filesystem. Embeddings work out of the box via a bundled pure-Go model
 > (spec 032); a local Ollama is optional for alternative models.
 
-**Status:** alpha — v1 implemented and working end-to-end. Multi-vault support,
+**Status:** alpha (v0.1.x) — feature-complete and working end-to-end. Multi-vault support,
 cross-encoder reranking, muninn-style MCP daemon, and Obsidian-aware ingestion.
 Full spec: [`PRD_RAG_Database.md`](./PRD_RAG_Database.md).
 
