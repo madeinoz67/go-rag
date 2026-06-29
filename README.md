@@ -460,4 +460,4 @@ make help     # list all targets
 
 ## License
 
-TBD (likely MIT — the dependency stack is permissively licensed, PRD §9.3).
+Apache License 2.0 (SPDX: `Apache-2.0`) — see [LICENSE](LICENSE). Copyright (c) 2026 Stephen Eaton. The dependency stack is permissively licensed (PRD §9.3).
