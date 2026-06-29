@@ -1,5 +1,25 @@
 <!--
 === Sync Impact Report ===
+Version change: 1.0.0 -> 1.1.0
+Modified principles: none. The five Core Principles (I-V) are unchanged.
+Added rules (Development & Quality Workflow + Governance):
+  - Storage discipline: on-disk schema version tracked under the global 0xFF
+    meta key; any key-space layout change (prefix, value encoding, key
+    construction) MUST add a numbered idempotent migration, bump
+    migrate.ExpectedVersion, and update PRD 6.7.
+  - Schema evolution (new bullet): migrations numbered/idempotent/contiguous
+    from 1, each with an idempotency + v(n)->v(n+1) transform test; stores
+    newer than ExpectedVersion are refused; migration-on-open is a one-time
+    cost exempt from the cold-start budget.
+  - Compliance: PRs touching the storage key-space MUST state the
+    schema-version impact (migration added + new ExpectedVersion) or affirm
+    no on-disk layout change.
+Removed: nothing.
+Source: spec 034 (CLI self-upgrade + schema migration), shipped 2026-06-29.
+-->
+
+<!--
+=== Sync Impact Report ===
 Version change: (unratified template) -> 1.0.0
 Modified principles: none prior. All five principles are newly defined in this
   initial ratification, derived from PRD_RAG_Database.md.
@@ -108,7 +128,18 @@ Non-functional budgets and durability guarantees (PRD §10):
   package. Internal packages live under `internal/`, mapping 1:1 to PRD subsystems.
 - **Storage discipline**: all state lives in ONE Pebble instance, key-space
   partitioned by single-byte prefixes (PRD §6.7). No second database, no sidecar
-  files for core data.
+  files for core data. The on-disk schema version is tracked under the global
+  `0xFF` meta key (spec 034); any change to the key-space layout — a new/retired
+  prefix, value encoding, or key construction — MUST add a numbered, idempotent
+  migration in `internal/storage/migrate`, bump `migrate.ExpectedVersion`, and
+  update PRD §6.7.
+- **Schema evolution**: migrations are numbered, idempotent, and applied in
+  ascending order on store open with the version key fsynced after each step
+  (spec 034). Every migration MUST ship a test covering idempotency and the
+  v(n)→v(n+1) transform; the registry MUST stay contiguous from version 1
+  (enforced at runtime by `migrate.Run`). A store newer than the binary's
+  `ExpectedVersion` MUST be refused, never silently misread. Migration-on-open is
+  a one-time cost, exempt from the cold-start budget and surfaced to the user.
 - **Commits**: Conventional Commits (`feat:`, `fix:`, `chore:` …) — `cliff.toml`
   generates the changelog.
 - **Code navigation**: tokensave-indexed; prefer `tokensave_context` over ad-hoc
@@ -127,10 +158,13 @@ product behavior.
 
 - **Compliance**: every `/speckit-plan` run MUST pass the Constitution Check gate
   before Phase 0 research; every PR MUST state compliance with the five principles,
-  or justify a logged violation in the plan's Complexity Tracking table.
+  or justify a logged violation in the plan's Complexity Tracking table. Every PR
+  that touches the storage key-space MUST state the schema-version impact (the
+  migration added + the new `ExpectedVersion`) or affirm there is no on-disk
+  layout change.
 - **Amendments**: require a PR, an updated Sync Impact Report, and a semver bump —
   MAJOR for principle removal or incompatible redefinition, MINOR for a new
   principle or material expansion, PATCH for clarifications and wording.
 - **Runtime guidance**: see `CLAUDE.md` for day-to-day development conventions.
 
-**Version**: 1.0.0 | **Ratified**: 2026-06-19 | **Last Amended**: 2026-06-19
+**Version**: 1.1.0 | **Ratified**: 2026-06-19 | **Last Amended**: 2026-06-29
