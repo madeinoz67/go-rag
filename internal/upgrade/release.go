@@ -62,7 +62,7 @@ func latestVersionDefault() (string, error) {
 // Windows prints the release URL and exits — see internal/cli/upgrade.go).
 func ReleaseAssetURL(version, goos, goarch string) string {
 	return fmt.Sprintf(
-		"%s/releases/download/%s/go-rag_%s_%s_%s.tar.gz",
+		"%s/releases/download/%s/go-rag-%s-%s-%s.tar.gz",
 		releaseBaseURL, version, version, goos, goarch,
 	)
 }
@@ -73,7 +73,7 @@ func checksumsURL(version string) string {
 
 // assetName is the tar.gz filename for a version/platform pair.
 func assetName(version, goos, goarch string) string {
-	return fmt.Sprintf("go-rag_%s_%s_%s.tar.gz", version, goos, goarch)
+	return fmt.Sprintf("go-rag-%s-%s-%s.tar.gz", version, goos, goarch)
 }
 
 // ExpectedSHA256 fetches the release checksums file and returns the SHA-256

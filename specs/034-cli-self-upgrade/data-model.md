@@ -16,7 +16,7 @@ A published go-rag release the user could move to. Built from the GitHub Release
 | Field | Type | Notes |
 |-------|------|-------|
 | `version` | semver string | `tag_name` from `/releases/latest`, e.g. `v1.3.0` |
-| `assetURL` | string | `releases/download/{version}/go-rag_{version}_{goos}_{goarch}.tar.gz` |
+| `assetURL` | string | `releases/download/{version}/go-rag-{version}-{goos}-{goarch}.tar.gz` |
 | `checksumsURL` | string | `releases/download/{version}/checksums.txt` |
 | `expectedSHA256` | string (hex) | line for this asset in `checksums.txt`; absent ⇒ fatal (R3) |
 | `prerelease` | bool | excluded unless `--pre` (FR-009) |

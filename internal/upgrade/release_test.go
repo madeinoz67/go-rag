@@ -36,19 +36,19 @@ func TestLatestVersionDevSkipsNetwork(t *testing.T) {
 
 func TestReleaseAssetURL(t *testing.T) {
 	got := ReleaseAssetURL("v1.3.0", "darwin", "arm64")
-	want := "https://github.com/madeinoz67/go-rag/releases/download/v1.3.0/go-rag_v1.3.0_darwin_arm64.tar.gz"
+	want := "https://github.com/madeinoz67/go-rag/releases/download/v1.3.0/go-rag-v1.3.0-darwin-arm64.tar.gz"
 	if got != want {
 		t.Errorf("ReleaseAssetURL = %q, want %q", got, want)
 	}
 }
 
 func TestParseChecksumForAsset(t *testing.T) {
-	body := "abc123  go-rag_v1.3.0_darwin_arm64.tar.gz\n" +
-		"def456  go-rag_v1.3.0_linux_amd64.tar.gz\n"
-	if got := parseChecksumForAsset(body, "go-rag_v1.3.0_darwin_arm64.tar.gz"); got != "abc123" {
+	body := "abc123  go-rag-v1.3.0-darwin-arm64.tar.gz\n" +
+		"def456  go-rag-v1.3.0-linux-amd64.tar.gz\n"
+	if got := parseChecksumForAsset(body, "go-rag-v1.3.0-darwin-arm64.tar.gz"); got != "abc123" {
 		t.Errorf("darwin hash = %q, want abc123", got)
 	}
-	if got := parseChecksumForAsset(body, "go-rag_v1.3.0_windows_amd64.tar.gz"); got != "" {
+	if got := parseChecksumForAsset(body, "go-rag-v1.3.0-windows-amd64.zip"); got != "" {
 		t.Errorf("absent asset = %q, want empty", got)
 	}
 }

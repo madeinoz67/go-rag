@@ -108,7 +108,7 @@ path**.
   adopts the `install.sh` checksum discipline **inside** the in-process upgrade (MuninnDB splits
   it across two paths; go-rag unifies them).
 
-**Asset / checksum format**: follow MuninnDB's release layout — publish `go-rag_{tag}_{goos}_{goarch}.tar.gz`
+**Asset / checksum format**: the existing `.github/workflows/release.yml` CI publishes `go-rag-{tag}-{goos}-{goarch}.tar.gz` (Unix; `.zip` on Windows)
 assets plus a `checksums.txt` (lines of `<sha256>  <asset>`). The upgrade fetches the checksums
 file, matches the asset line, compares. A missing/mismatched checksum is fatal (do not install).
 

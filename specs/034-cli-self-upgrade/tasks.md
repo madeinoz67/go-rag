@@ -45,7 +45,7 @@
 
 ### Implementation for User Story 1
 
-- [X] T006 [P] [US1] Implement asset + checksum URL resolution in `internal/upgrade/release.go` — `releaseAssetURL(version, goos, goarch)` (`go-rag_{ver}_{goos}_{goarch}.tar.gz`) and `checksums.txt` fetch/parse (line per asset)
+- [X] T006 [P] [US1] Implement asset + checksum URL resolution in `internal/upgrade/release.go` — `releaseAssetURL(version, goos, goarch)` (`go-rag-{ver}-{goos}-{goarch}.tar.gz`) and `checksums.txt` fetch/parse (line per asset)
 - [X] T007 [P] [US1] Implement download + extract in `internal/upgrade/download.go` — HTTP GET (5min timeout, progress), gzip→tar extract the `go-rag` binary into a temp file **in `filepath.Dir(exe)`** (same dir is mandatory for atomic rename); cleanup on any error (port MuninnDB `downloadAndExtractBinary`)
 - [X] T008 [US1] Implement verification in `internal/upgrade/verify.go` — SHA-256 of the temp file vs `checksums.txt` (fatal mismatch ⇒ abort, remove temp; missing checksum ⇒ fatal, do not install), then functional smoke check running `<tmp> version` (port + strengthen MuninnDB `verifyBinary`)
 - [X] T009 [US1] Implement atomic self-replace in `internal/upgrade/selfupdate.go` — `os.Executable()` → `EvalSymlinks`; backup `exe`→`exe.prev`; `os.Rename(tmp, exe)`; on any failure remove temp and leave current binary byte-identical (depends T006, T007, T008)
@@ -113,7 +113,7 @@
 **Purpose**: docs, release tooling, and the spec correction surfaced by research.
 
 - [X] T023 [P] Document the new `0xFF` global meta prefix in `PRD_RAG_Database.md` §6.7 (key-space schema summary) and the `internal/storage/migrate` row in `CLAUDE.md`'s architecture map
-- [X] T024 [P] Add release-pipeline artifacts in `Makefile` + `.github/workflows/` — build `go-rag_{ver}_{goos}_{goarch}.tar.gz` for the supported matrix and generate `checksums.txt` (SHA-256) per release; `-ldflags` version from tag
+- [X] T024 Release pipeline — `.github/workflows/release.yml` (pre-existing) builds per-OS/arch `go-rag-{ver}-{goos}-{goarch}.tar.gz` + Windows zip + model bundle + `checksums.txt` (SHA-256) on tag push; `-ldflags` injects the version. The upgrade code resolves the hyphen-named assets (verified against the real v0.1.4 release). A redundant `make release` target added during planning was removed — release.yml is canonical.
 - [X] T025 Reword spec FR-014 in `specs/034-cli-self-upgrade/spec.md` to name the **idempotent-replay** crash-safety mechanism (per research.md R8), retaining the Pebble Checkpoint only as an escape hatch for non-idempotent steps
 - [X] T026 Run all [quickstart.md](./quickstart.md) validation scenarios end-to-end on an isolated DB (non-default ports); capture pass/fail per scenario
 - [X] T027 [P] Handle Windows in `internal/cli/upgrade.go` — print the asset URL and exit without self-replace (OS locks running executables); document as a known v1 limitation in `CLAUDE.md`/quickstart
