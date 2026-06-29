@@ -200,8 +200,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          provenance: true
-          sbom: true
+          provenance: false   # disabled: keeps the GHCR arch list clean (no unknown/unknown attestation manifests)
+          sbom: false
 
       - name: Print published image digest
         run: echo "Published ${{ steps.meta.outputs.tags }} @ ${{ steps.build.outputs.digest }}"

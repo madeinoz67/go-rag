@@ -115,8 +115,9 @@ the file's import block.
 
 - **Architectures**: `linux/amd64`, `linux/arm64` (single manifest list).
 - **Base**: `gcr.io/distroless/static-debian12:nonroot` (UID 65532; no shell).
-- **Provenance/SBOM**: attestation enabled on release (set `false` only if a
-  strict runtime chokes on the extra manifest entries).
+- **Provenance/SBOM**: **disabled** — kept the GHCR architecture list clean
+  (`provenance: false`, `sbom: false`); the attestation manifests otherwise show
+  as `unknown/unknown` platforms in the GHCR UI. Re-enable for SLSA provenance.
 - **Cache**: GHA cache (`type=gha,mode=max`) — switch to registry cache if the
   image grows past the 10 GB repo cache budget.
 
