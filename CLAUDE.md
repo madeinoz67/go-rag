@@ -37,6 +37,8 @@ make tidy         # go mod tidy
 | `internal/reader` | `FileReader` interface + registry | §8 |
 | `internal/embed` | `Embedder` interface (Ollama) | §4 |
 | `internal/storage` | Pebble KV + key-space prefixes | §6.7, §4.2 |
+| `internal/storage/migrate` | on-open schema-migration runner (spec 034) | §6.7 |
+| `internal/upgrade` | binary self-upgrade: release resolve + checksum verify + atomic self-replace (spec 034) | §5 |
 | `internal/index` | BM25 FTS + vector (chromem-go) | §6.6 |
 | `internal/pipeline` | ingest pipeline | §4.4 |
 | `internal/watcher` | fsnotify + polling change detection | §7 |
@@ -92,5 +94,5 @@ system, embedding providers beyond Ollama. Don't build these without revisiting 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/033-docker-deployment/plan.md
+at specs/034-cli-self-upgrade/plan.md
 <!-- SPECKIT END -->

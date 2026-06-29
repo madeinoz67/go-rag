@@ -9,6 +9,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/migrate"
 )
 
 // Open loads the config and opens the Pebble store under <base>/data. It is the
@@ -23,6 +24,12 @@ func Open(base string) (config.Config, *storage.DB, error) {
 	db, err := storage.Open(filepath.Join(base, "data"))
 	if err != nil {
 		return cfg, nil, err
+	}
+	// Migrate the on-disk schema before serving any operation (migration-on-open,
+	// FR-013). Runs under Pebble's single-writer lock; idempotent and replay-safe.
+	if err := migrate.RunMigrations(db.Pebble()); err != nil {
+		db.Close()
+		return cfg, nil, fmt.Errorf("migrate store: %w", err)
 	}
 	return cfg, db, nil
 }

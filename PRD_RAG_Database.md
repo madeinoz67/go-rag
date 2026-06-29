@@ -692,6 +692,7 @@ Represents the searchable indexes (FTS and vector). Not a stored entity per se â
 | `0x0D` | Content hash index (for dedup) | Global |
 | `0x0E` | Change detection state | Global |
 | `0x0F` | Idempotency receipts | Global |
+| `0xFF` | Store metadata â€” schema-version key (spec 034; global, outside the data range) | Global |
 
 ---
 

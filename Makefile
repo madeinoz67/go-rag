@@ -4,10 +4,24 @@ PKG     := ./...
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X main.version=$(VERSION) -X github.com/madeinoz67/go-rag/internal/embed/modelbundle.binaryVersion=$(VERSION)
 
-.PHONY: build run test test-eval vet fmt lint vuln tidy install docker clean help
+.PHONY: build run test test-eval vet fmt lint vuln tidy install docker release clean help
 
 build: ## Build the static go-rag binary into ./bin
 	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY) ./cmd/go-rag
+
+RELEASE_DIRS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64
+
+release: ## Build release artifacts (per-OS/arch tar.gz + checksums.txt) into ./dist (spec 034)
+	@rm -rf dist && mkdir -p dist
+	@for pair in $(RELEASE_DIRS); do \
+		goos=$${pair%/*}; goarch=$${pair#*/}; \
+		echo "  building $${goos}/$${goarch}"; \
+		CGO_ENABLED=0 GOOS=$${goos} GOARCH=$${goarch} go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/go-rag; \
+		tar -czf dist/$(BINARY)_$(VERSION)_$${goos}_$${goarch}.tar.gz $(BINARY); \
+		rm -f $(BINARY); \
+	done
+	@cd dist && sha256sum *.tar.gz > checksums.txt
+	@echo "release artifacts in ./dist (VERSION=$(VERSION)); upload dist/*.tar.gz and dist/checksums.txt to the GitHub release"
 
 run: build ## Build and run go-rag (pass ARGS="..." for flags)
 	./$(BIN_DIR)/$(BINARY) $(ARGS)

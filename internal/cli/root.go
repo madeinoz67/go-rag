@@ -80,6 +80,7 @@ func Execute(version string) error {
 		newMCPCmd(),
 		newVaultCmd(),
 		newModelCmd(),
+		newUpgradeCmd(version),
 	)
 	return rootCmd.Execute()
 }
