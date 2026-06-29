@@ -130,7 +130,7 @@ jobs:
         run: docker run --rm go-rag:smoke version
 
   # spec 033: rolling "dev" image. On every push to main (NOT on PRs) publish
-  # ghcr.io/madeinoz67/go-rag:dev (+ :main, :sha-<sha>) so there's always a
+  # ghcr.io/madeinoz67/go-rag:dev (+ :main) so there's always a
   # bleeding-edge image from the latest main — separate from release tags
   # (:latest = newest release; :dev = newest main). Gated on test. Binary version
   # is `git describe` (e.g. v0.1.2-3-gb4f04be) so `go-rag version` shows how far
