@@ -47,7 +47,8 @@ flags (win for the three listener addrs). See `data-model.md` §1.
 | `GO_RAG_MCP_ADDR` | `MCPAddr` | string | `host:port` |
 | `GO_RAG_MCP_TOKEN` | `MCPToken` | string | any string (secret) |
 | `GO_RAG_OLLAMA_URL` | `OllamaURL` | string | URL |
-| `GO_RAG_EMBEDDING_MODEL` | `EmbeddingModel` | string | model name |
+| `GO_RAG_EMBEDDING_PROVIDER` | `EmbeddingProvider` | string | `native` (bundled default) \| `ollama` \| `openai` — **required to switch off the bundled model** |
+| `GO_RAG_EMBEDDING_MODEL` | `EmbeddingModel` | string | model name (ignored while provider=`native`) |
 | `GO_RAG_RERANK_MODEL` | `RerankModel` | string | model name |
 | `GO_RAG_ENRICHMENT_MODEL` | `EnrichmentModel` | string | model name |
 | `GO_RAG_WATCH_DIRS` | `WatchDirs` | []string | comma-separated; **replaces** file list |
@@ -118,5 +119,6 @@ flags (win for the three listener addrs). See `data-model.md` §1.
   (FR-011).
 - Ollama sidecar off by default (Principle I — bundled embedder is the
   zero-config default). Activating the profile + setting `GO_RAG_OLLAMA_URL` does
-  not alone switch the embedder — also set `GO_RAG_EMBEDDING_MODEL`.
+  not alone switch the embedder — also set `GO_RAG_EMBEDDING_PROVIDER=ollama`
+  (and `GO_RAG_EMBEDDING_MODEL`).
 - Single-writer: no second service may mount `go-rag-data` read-write.

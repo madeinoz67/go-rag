@@ -395,7 +395,7 @@ curl -s -X POST http://127.0.0.1:7879/v1/query -H 'Content-Type: application/jso
 go-rag config is **hybrid**: the file base (`.go-rag/config.json` in the vault)
 is overridden by `GO_RAG_*` env vars set in `docker-compose.yml` (an env var wins
 only when set + non-empty). Container-priority vars include `GO_RAG_MCP_ADDR`,
-`GO_RAG_MCP_TOKEN`, `GO_RAG_OLLAMA_URL`, `GO_RAG_EMBEDDING_MODEL`,
+`GO_RAG_MCP_TOKEN`, `GO_RAG_OLLAMA_URL`, `GO_RAG_EMBEDDING_PROVIDER`, `GO_RAG_EMBEDDING_MODEL`,
 `GO_RAG_WATCH_DIRS`, `GO_RAG_ENRICHMENT_ENABLED`. Full mapping table:
 [`specs/033-docker-deployment/contracts/interface-contracts.md`](specs/033-docker-deployment/contracts/interface-contracts.md).
 
@@ -407,9 +407,12 @@ only when set + non-empty). Container-priority vars include `GO_RAG_MCP_ADDR`,
 - **Loopback-by-default** (spec 007): the container binds `0.0.0.0` and passes
   `--bind-external` (required for port-forwarding to work); host exposure stays
   loopback by default.
-- **Optional Ollama** (escape hatch): `docker compose --profile ollama up -d`
-  enables a sidecar; set `GO_RAG_EMBEDDING_MODEL` on `go-rag` to switch off the
-  bundled embedder.
+- **Optional Ollama** (escape hatch): the bundled embedder is the default. To use
+  an external Ollama, set `GO_RAG_EMBEDDING_PROVIDER=ollama` (the actual switch —
+  `GO_RAG_EMBEDDING_MODEL` alone has no effect) + `GO_RAG_EMBEDDING_MODEL` +
+  `GO_RAG_OLLAMA_URL`. Point the URL at host Ollama
+  (`http://host.docker.internal:11434` on Docker/Podman Desktop) or at the optional
+  sidecar (`http://ollama:11434`, run with `--profile ollama`).
 
 Runnable validation scenarios:
 [`specs/033-docker-deployment/quickstart.md`](specs/033-docker-deployment/quickstart.md).

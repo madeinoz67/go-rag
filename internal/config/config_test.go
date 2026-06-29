@@ -201,13 +201,15 @@ func TestApplyEnvOverrides_OverrideWins(t *testing.T) {
 		MCPAddr:           "127.0.0.1:7878",
 		ChunkSize:         512,
 		EnrichmentEnabled: false,
+		EmbeddingProvider: "native",
 		WatchDirs:         []string{"/file"},
 	}
 	t.Setenv("GO_RAG_OLLAMA_URL", "http://env:11434")
 	t.Setenv("GO_RAG_MCP_ADDR", "0.0.0.0:7878")
 	t.Setenv("GO_RAG_CHUNK_SIZE", "2048")
 	t.Setenv("GO_RAG_ENRICHMENT_ENABLED", "true")
-	t.Setenv("GO_RAG_WATCH_DIRS", "/a, /b ,") // trailing empty + spaces
+	t.Setenv("GO_RAG_EMBEDDING_PROVIDER", "ollama") // switches off the bundled model
+	t.Setenv("GO_RAG_WATCH_DIRS", "/a, /b ,")       // trailing empty + spaces
 
 	ApplyEnvOverrides(&c)
 
@@ -222,6 +224,9 @@ func TestApplyEnvOverrides_OverrideWins(t *testing.T) {
 	}
 	if !c.EnrichmentEnabled {
 		t.Errorf("bool override: got %v", c.EnrichmentEnabled)
+	}
+	if c.EmbeddingProvider != "ollama" {
+		t.Errorf("embedding_provider override: got %q", c.EmbeddingProvider)
 	}
 	if len(c.WatchDirs) != 2 || c.WatchDirs[0] != "/a" || c.WatchDirs[1] != "/b" {
 		t.Errorf("watch_dirs replace/trim/drop-empty: got %#v", c.WatchDirs)

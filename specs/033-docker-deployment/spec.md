@@ -146,11 +146,12 @@ A user who wants Ollama embeddings instead of the bundled default can run Ollama
 compose showing how.
 
 **Why this priority**: The bundled embedder (spec 032) covers the default;
-Ollama is the escape hatch (Principle V). MuninnDB ships the same optional
-sidecar pattern.
+Ollama is the escape hatch (Principle V).
 
-**Independent Test**: Uncomment the Ollama sidecar, point go-rag at it, re-embed,
-and confirm embeddings come from Ollama.
+**Independent Test**: Point go-rag at an Ollama — host Ollama via
+`host.docker.internal` (Docker/Podman Desktop), or the optional `--profile ollama`
+sidecar — set `GO_RAG_EMBEDDING_PROVIDER=ollama` + `GO_RAG_EMBEDDING_MODEL`,
+re-embed, and confirm embeddings come from Ollama (bundled bypassed).
 
 **Acceptance Scenarios**:
 

@@ -116,17 +116,29 @@ authoritative.
 
 ---
 
-## Scenario G — optional Ollama sidecar (US4, FR-009, Principle V)
+## Scenario G — optional external Ollama (US4, FR-009, Principle V)
 
-1. `docker compose --profile ollama up -d`.
-2. `docker compose exec go-rag-ollama ollama pull nomic-embed-text`.
-3. Set `GO_RAG_EMBEDDING_MODEL: nomic-embed-text` on the `go-rag` service; `up -d`.
-4. Re-ingest via the API (`curl -X POST http://127.0.0.1:7879/v1/reprocess`) so the
-   corpus re-embeds under Ollama; confirm `GET /v1/status` reports the Ollama model
-   and the bundled model is bypassed.
+> Ollama is opt-in (the bundled pure-Go embedder is the default). Point go-rag at
+> an Ollama you already run — e.g. on the host (Docker/Podman Desktop), reachable
+> from the container at `host.docker.internal`.
 
-**Expected**: Ollama is opt-in and off by default; when activated + selected,
-embeddings come from it. **Passes US4.**
+1. In `docker-compose.yml`, uncomment the Ollama block:
+   `GO_RAG_OLLAMA_URL: http://host.docker.internal:11434`,
+   `GO_RAG_EMBEDDING_PROVIDER: ollama`, `GO_RAG_EMBEDDING_MODEL: nomic-embed-text`
+   (the URL alone does NOT switch the embedder — `GO_RAG_EMBEDDING_PROVIDER=ollama`
+   is what turns off the bundled model).
+2. `docker compose down -v && docker compose up -d` (fresh vault re-embeds under
+   Ollama via the watcher's initial scan).
+3. `curl -s http://127.0.0.1:7879/v1/status` → `embedding_model: nomic-embed-text`
+   + `ollama_url: http://host.docker.internal:11434` (bundled model bypassed).
+4. `curl -s -X POST http://127.0.0.1:7879/v1/query -H 'Content-Type: application/json' -d '{"query":"...","k":5}'`
+   → hits via Ollama embeddings.
+
+(No host Ollama? Run the bundled sidecar instead: `docker compose --profile ollama
+up -d` and set `GO_RAG_OLLAMA_URL: http://ollama:11434`; pull a model with
+`docker compose exec go-rag-ollama ollama pull nomic-embed-text`.)
+
+**Expected**: when activated + selected, embeddings come from Ollama. **Passes US4.**
 
 ---
 

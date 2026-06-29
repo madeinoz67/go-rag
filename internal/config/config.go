@@ -412,6 +412,13 @@ func ApplyEnvOverrides(c *Config) {
 	if v := os.Getenv("GO_RAG_EMBEDDING_MODEL"); v != "" {
 		c.EmbeddingModel = v
 	}
+	// GO_RAG_EMBEDDING_PROVIDER selects the embedder backend: "native" (bundled
+	// pure-Go, the default) vs "ollama"/"openai". Required to switch OFF the
+	// bundled model — setting only GO_RAG_EMBEDDING_MODEL has no effect while the
+	// provider stays "native" (embed.New ignores the model for the native backend).
+	if v := os.Getenv("GO_RAG_EMBEDDING_PROVIDER"); v != "" {
+		c.EmbeddingProvider = v
+	}
 	if v := os.Getenv("GO_RAG_RERANK_MODEL"); v != "" {
 		c.RerankModel = v
 	}

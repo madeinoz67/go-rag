@@ -107,14 +107,14 @@ calls it).
 
 ## Phase 6: User Story 4 — Bring-your-own Ollama (Priority: P3)
 
-**Goal**: An optional Ollama sidecar (off by default) lets users swap the bundled embedder for an Ollama model, with the compose showing how.
+**Goal**: An optional external Ollama (off by default) lets users swap the bundled embedder for an Ollama model — host Ollama (`host.docker.internal`) or the optional `--profile ollama` sidecar.
 
-**Independent Test**: `quickstart.md` Scenario G — `docker compose --profile ollama up -d`, pull a model, set `GO_RAG_EMBEDDING_MODEL`, re-embed → embeddings from Ollama.
+**Independent Test**: `quickstart.md` Scenario G — set `GO_RAG_EMBEDDING_PROVIDER=ollama` + `GO_RAG_EMBEDDING_MODEL=nomic-embed-text` + `GO_RAG_OLLAMA_URL=http://host.docker.internal:11434`, fresh up; GET `/v1/status` shows the Ollama model (bundled bypassed); query returns hits.
 
 ### Implementation for User Story 4
 
 - [x] T014 [US4] Add an optional `ollama` service to `docker-compose.yml` (`image: ollama/ollama:0.9`, `profiles: ["ollama"]`, `127.0.0.1:11434:11434`, `ollama-models` volume, commented nvidia GPU passthrough) and set `GO_RAG_OLLAMA_URL: http://ollama:11434` on `go-rag` with a comment that switching the embedder also requires `GO_RAG_EMBEDDING_MODEL` — `docker-compose.yml`
-- [ ] T015 [US4] Validate: `docker compose --profile ollama up -d`; `docker compose exec go-rag-ollama ollama pull nomic-embed-text`; set `GO_RAG_EMBEDDING_MODEL: nomic-embed-text` on `go-rag`; `docker compose exec go-rag go-rag reprocess` (or `add …`); confirm embeddings come from Ollama and the bundled model is bypassed — `specs/033-docker-deployment/quickstart.md` (Scenario G)
+- [x] T015 [US4] Validate the Ollama escape hatch (host Ollama): set `GO_RAG_OLLAMA_URL=http://host.docker.internal:11434` + `GO_RAG_EMBEDDING_PROVIDER=ollama` + `GO_RAG_EMBEDDING_MODEL=nomic-embed-text`; `docker compose down -v && up -d`; GET `/v1/status` reports `embedding_model: nomic-embed-text` + the host URL (bundled bypassed); POST `/v1/query` returns hits via Ollama embeddings — `specs/033-docker-deployment/quickstart.md` (Scenario G)
 
 **Checkpoint**: Ollama is opt-in and off by default (Principle I preserved); when activated + selected, embeddings come from it.
 

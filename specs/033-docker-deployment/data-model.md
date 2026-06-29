@@ -38,8 +38,10 @@ GO_RAG_* env  (config.ApplyEnvOverrides, applied inside config.Load)
 
 ### Field coverage (container-priority subset; full list in research.md RQ4)
 
-- Strings: `OllamaURL`, `EmbeddingModel`, `RerankModel`, `EnrichmentModel`,
-  `MCPAddr`, `MCPToken`, `DBPath`.
+- Strings: `OllamaURL`, `EmbeddingModel`, `EmbeddingProvider` (selects the
+  backend — `native` bundled default vs `ollama`/`openai`; required to switch off
+  the bundled model), `RerankModel`, `EnrichmentModel`, `MCPAddr`, `MCPToken`,
+  `DBPath`.
 - Ints: `ChunkSize`, `ChunkOverlap`, `PollIntervalSec`.
 - Bools: `EnrichmentEnabled`, `CaptioningEnabled`, `MetricsEnabled`,
   `AuditLogEnabled`, `PoisoningEnabled`.
