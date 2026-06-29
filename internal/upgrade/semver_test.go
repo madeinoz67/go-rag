@@ -4,9 +4,9 @@ import "testing"
 
 func TestParseSemver(t *testing.T) {
 	cases := []struct {
-		in       string
-		maj, min, pat int
-		ok       bool
+		in                  string
+		major, minor, patch int
+		ok                  bool
 	}{
 		{"v1.2.3", 1, 2, 3, true},
 		{"1.2.3", 1, 2, 3, true},
@@ -18,10 +18,10 @@ func TestParseSemver(t *testing.T) {
 		{"", 0, 0, 0, false},
 	}
 	for _, c := range cases {
-		maj, min, pat, ok := parseSemver(c.in)
-		if ok != c.ok || maj != c.maj || min != c.min || pat != c.pat {
+		major, minor, patch, ok := parseSemver(c.in)
+		if ok != c.ok || major != c.major || minor != c.minor || patch != c.patch {
 			t.Errorf("parseSemver(%q) = (%d,%d,%d,%t), want (%d,%d,%d,%t)",
-				c.in, maj, min, pat, ok, c.maj, c.min, c.pat, c.ok)
+				c.in, major, minor, patch, ok, c.major, c.minor, c.patch, c.ok)
 		}
 	}
 }
