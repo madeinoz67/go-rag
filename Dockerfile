@@ -10,7 +10,13 @@ COPY go.mod go.sum* ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
+# VERSION is injected at release via --build-arg VERSION=<tag> (release.yml
+# docker-image job); defaults to "dev" for local/CI builds. Mirrors the Makefile
+# LDFLAGS (main.version + modelbundle.binaryVersion) so `go-rag version` reports
+# the release tag (spec 033 FR-014).
+ARG VERSION=dev
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags="-s -w -X main.version=${VERSION} -X github.com/madeinoz67/go-rag/internal/embed/modelbundle.binaryVersion=${VERSION}" \
     -o /out/go-rag ./cmd/go-rag
 
 # ---- runtime stage ----
