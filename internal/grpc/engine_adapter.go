@@ -146,7 +146,7 @@ func toChunkPB(c model.Chunk) *goragpb.Chunk {
 		NextChunkId:     c.NextChunkID,
 		Poisoning:       toPoisoningPB(c.Poisoning),
 		SectionContext:  c.SectionContext,
-		Wikilinks:       c.Wikilinks,              // spec 036 / BL-004 (FR-009)
+		Wikilinks:       c.Wikilinks, // spec 036 / BL-004 (FR-009)
 		NearDup:         toNearDupPB(c.NearDup),
 		Kind:            c.Kind,
 		CreatedAt:       created,

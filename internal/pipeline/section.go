@@ -67,3 +67,33 @@ func resolveBreadcrumb(spans []reader.HeadingSpan, startIdx int, edits []redact.
 	}
 	return out
 }
+
+// resolveWikilinks returns the de-duplicated, first-occurrence-ordered canonical
+// wikilink targets whose (redaction-translated) offset falls within the chunk's
+// [startIdx, endIdx) range — i.e. the links physically located in this chunk's
+// text (spec 036 / BL-004, research R3). wspans carry offsets in the reader's
+// STRIPPED-text space, in document order; edits translate them into the
+// REDACTED-text space the chunker indexes (identity when redaction is off, the
+// common case) — the same translation resolveBreadcrumb applies to heading
+// spans. Uses offset containment (a wikilink is a point in the text) rather than
+// the heading stack; targets seen earlier in the chunk are dropped (de-dup,
+// first-occurrence order). nil when no span falls in the chunk.
+func resolveWikilinks(wspans []reader.WikilinkSpan, startIdx, endIdx int, edits []redact.Edit) []string {
+	if len(wspans) == 0 {
+		return nil
+	}
+	var out []string
+	seen := make(map[string]struct{})
+	for _, sp := range wspans {
+		off := redact.TranslateOffset(sp.Offset, edits)
+		if off < startIdx || off >= endIdx {
+			continue
+		}
+		if _, dup := seen[sp.Target]; dup {
+			continue
+		}
+		seen[sp.Target] = struct{}{}
+		out = append(out, sp.Target)
+	}
+	return out
+}

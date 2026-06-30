@@ -76,14 +76,17 @@ func (r *MarkdownReader) Read(_ context.Context, data []byte, _ string) (string,
 	// code fences; this unifies them. Heading offsets index into the returned
 	// text, so they share the chunker's coordinate space (the pipeline translates
 	// them through redaction — research R3).
-	stripped, spans := stripMarkdownSpans(body)
-	if len(spans) > 0 {
-		headings = make([]string, len(spans))
-		for i, sp := range spans {
+	stripped, hspans, wspans := stripMarkdownSpans(body)
+	if len(hspans) > 0 {
+		headings = make([]string, len(hspans))
+		for i, sp := range hspans {
 			headings[i] = sp.Text
 		}
-		md["headings"] = headings   // backward-compatible flat list
-		md["heading_spans"] = spans // positional; consumed + dropped by the pipeline
+		md["headings"] = headings    // backward-compatible flat list
+		md["heading_spans"] = hspans // positional; consumed + dropped by the pipeline
+	}
+	if len(wspans) > 0 {
+		md["wikilink_spans"] = wspans // spec 036 / BL-004: positional; consumed + dropped by the pipeline
 	}
 	return stripped, md, nil
 }
@@ -96,20 +99,23 @@ var (
 // normalizeObsidian resolves Obsidian embeds and wikilinks into plain tokens and
 // collects note-transclusion targets. Embeds are handled before wikilinks so that
 // "![[x]]" is not double-processed as "[[x]]".
+// normalizeObsidian resolves Obsidian note/file embeds (![[…]]) into plain tokens
+// and collects note-transclusion targets. Plain [[wikilink]] syntax is NOT
+// substituted here: it is resolved later by stripMarkdownSpans, which must
+// record each link's offset in stripped-text space (spec 036 / BL-004) so the
+// pipeline can attribute links to chunks through the same redaction translation
+// HeadingSpan uses. Embeds are handled first so "![[x]]" is not later read as a
+// plain "[[x]]" wikilink.
 func normalizeObsidian(s string) (string, []string) {
 	var transcludes []string
 
 	s = reObsidianEmbed.ReplaceAllStringFunc(s, func(m string) string {
-		inner := strings.TrimSpace(m[3 : len(m)-2]) // strip "![[" and "]]"
+		inner := strings.TrimSpace(m[3 : len(m)-2]) // strip "![[ " and "]]"
 		if isMediaEmbed(inner) {
 			return inner // file embed: keep filename as a token, drop syntax
 		}
 		transcludes = append(transcludes, linkTarget(inner)) // note transclusion
 		return linkDisplay(inner)
-	})
-
-	s = reObsidianLink.ReplaceAllStringFunc(s, func(m string) string {
-		return linkDisplay(m[2 : len(m)-2]) // strip "[[" and "]]"
 	})
 
 	return s, transcludes
@@ -193,9 +199,21 @@ func stripInlineEmphasis(t string) string {
 // heading (FR-009) and heading offsets align with the chunker's coordinate
 // space. The span Text is the emphasis-stripped heading text (what the
 // breadcrumb shows); the offset points at where that text is written.
-func stripMarkdownSpans(s string) (string, []HeadingSpan) {
+// stripMarkdownSpans is the unified, code-fence-aware scan (audit H23 / spec
+// 025, research R1/R4). It produces the plain stripped text — byte-identical to
+// legacy stripMarkdown — a positional table of in-body Markdown headings, and a
+// positional table of Obsidian [[wikilink]] spans (spec 036 / BL-004), each with
+// its byte Offset into the returned stripped text. Fenced-code state is tracked
+// once so a `# comment` inside a code block is not mistaken for a heading
+// (FR-009) and heading/wikilink offsets align with the chunker's coordinate
+// space. Wikilinks inside fenced code are substituted to display text (for
+// byte-identity) but NOT recorded — code is literal, not graph edges (FR-014);
+// wikilinks in body/heading text are recorded with targets canonicalised by
+// linkTarget (alias/anchor stripped, path preserved).
+func stripMarkdownSpans(s string) (string, []HeadingSpan, []WikilinkSpan) {
 	var b strings.Builder
-	var spans []HeadingSpan
+	var hspans []HeadingSpan
+	var wspans []WikilinkSpan
 	inCode := false
 	for _, line := range strings.Split(s, "\n") {
 		t := strings.TrimSpace(line)
@@ -204,7 +222,9 @@ func stripMarkdownSpans(s string) (string, []HeadingSpan) {
 			continue
 		}
 		if inCode {
-			b.WriteString(line)
+			// Fenced code: substitute wikilinks to display (byte-identity with the
+			// pre-feature body-wide normalisation) but do NOT record spans (FR-014).
+			b.WriteString(substituteWikilinks(line))
 			b.WriteByte('\n')
 			continue
 		}
@@ -215,24 +235,71 @@ func stripMarkdownSpans(s string) (string, []HeadingSpan) {
 				level++
 			}
 			if rest := strings.TrimSpace(t[level:]); rest != "" {
-				stripped := stripInlineEmphasis(rest)
-				spans = append(spans, HeadingSpan{
+				stripped, w := stripLineSpans(rest, b.Len())
+				hspans = append(hspans, HeadingSpan{
 					Level:  level,
 					Text:   stripped,
 					Offset: b.Len(), // where the heading text lands in the output
 				})
+				wspans = append(wspans, w...)
 				b.WriteString(stripped)
 				b.WriteByte('\n')
 				continue
 			}
 		}
-		// Non-heading line (lone '#', blockquote, or body): legacy transform.
+		// Non-heading line (lone '#', blockquote, or body): legacy transform +
+		// wikilink substitution. Trim leading markers first (matches legacy).
 		if strings.HasPrefix(t, "#") || strings.HasPrefix(t, ">") {
 			t = strings.TrimLeft(t, "#> ")
 		}
-		t = stripInlineEmphasis(t)
-		b.WriteString(t)
+		stripped, w := stripLineSpans(t, b.Len())
+		wspans = append(wspans, w...)
+		b.WriteString(stripped)
 		b.WriteByte('\n')
 	}
-	return strings.TrimSpace(b.String()), spans
+	return strings.TrimSpace(b.String()), hspans, wspans
+}
+
+// substituteWikilinks replaces every [[wikilink]] in s with its display text
+// (linkDisplay), matching the pre-feature reader's body-wide normalisation. Used
+// for fenced-code lines, where links are substituted for byte-identity but NOT
+// recorded as spans (code is literal, not graph edges — FR-014).
+func substituteWikilinks(s string) string {
+	return reObsidianLink.ReplaceAllStringFunc(s, func(m string) string {
+		return linkDisplay(m[2 : len(m)-2]) // strip "[[" and "]]"
+	})
+}
+
+// stripLineSpans processes one non-code line: it drops inline emphasis
+// (identical to stripInlineEmphasis) and substitutes [[wikilink]] syntax with
+// its (emphasis-stripped) display text, recording each link's canonical target
+// and the byte offset of its display text in the returned stripped line.
+// baseOffset is the byte offset in the document's stripped output where this
+// line begins; WikilinkSpan.Offset is in that output space — the same coordinate
+// space HeadingSpan uses, which the pipeline translates through redaction.
+// Targets are extracted from the raw inner via linkTarget (before emphasis
+// stripping) to match the reader's canonicaliser; the display text is
+// emphasis-stripped so the stripped output stays byte-identical to the
+// pre-feature reader. Targets that canonicalise to empty (e.g. [[]], [[|a]]) are
+// not recorded. De-duplication is deferred to the pipeline (per-chunk).
+func stripLineSpans(s string, baseOffset int) (string, []WikilinkSpan) {
+	var b strings.Builder
+	var spans []WikilinkSpan
+	last := 0
+	for _, m := range reObsidianLink.FindAllStringSubmatchIndex(s, -1) {
+		start, end := m[0], m[1]
+		innerStart, innerEnd := m[2], m[3]
+		// Emphasis on the text before this link (piece-wise == whole-line).
+		b.WriteString(stripInlineEmphasis(s[last:start]))
+		inner := s[innerStart:innerEnd]
+		if target := linkTarget(inner); target != "" {
+			spans = append(spans, WikilinkSpan{Target: target, Offset: baseOffset + b.Len()})
+		}
+		// Emphasis-strip the display text too (byte-identity with pre-feature,
+		// which emphasis-stripped the line after substituting the link).
+		b.WriteString(stripInlineEmphasis(linkDisplay(inner)))
+		last = end
+	}
+	b.WriteString(stripInlineEmphasis(s[last:]))
+	return b.String(), spans
 }

@@ -35,6 +35,7 @@ type chunkDTO struct {
 	NextChunkID     string         `json:"next_chunk_id,omitempty"`
 	Poisoning       *poisonVerdict `json:"poisoning,omitempty"`
 	SectionContext  []string       `json:"section_context,omitempty"`
+	Wikilinks       []string       `json:"wikilinks,omitempty"` // spec 036 / BL-004
 	NearDup         *nearDupInfo   `json:"near_dup,omitempty"`
 	Kind            string         `json:"kind,omitempty"`
 	CreatedAt       string         `json:"created_at,omitempty"`
@@ -107,6 +108,7 @@ func toChunkDTO(c model.Chunk) chunkDTO {
 		NextChunkID:     c.NextChunkID,
 		Poisoning:       toPoisonVerdictDTO(c.Poisoning),
 		SectionContext:  c.SectionContext,
+		Wikilinks:       c.Wikilinks, // spec 036 / BL-004
 		NearDup:         toNearDupDTO(c.NearDup),
 		Kind:            c.Kind,
 		CreatedAt:       rfc3339(c.CreatedAt),

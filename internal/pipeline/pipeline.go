@@ -257,6 +257,13 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	// non-Markdown readers / heading-less docs → section context absent (FR-006).
 	spans, _ := metadata["heading_spans"].([]reader.HeadingSpan)
 	delete(metadata, "heading_spans")
+	// spec 036 / BL-004: pull the reader's positional wikilink spans out of
+	// metadata to resolve per-chunk wikilinks. Removed BEFORE identity so the
+	// transient, un-persisted span table never enters the document identity hash
+	// (Constitution II — docID stays byte-identical to the pre-feature value).
+	// nil for non-Markdown readers / link-less docs → wikilinks absent (FR-007).
+	wspans, _ := metadata["wikilink_spans"].([]reader.WikilinkSpan)
+	delete(metadata, "wikilink_spans")
 	// spec 031 US4: pull the reader's transient image refs out of metadata BEFORE
 	// identity. Image bytes are NEVER persisted and NEVER enter the identity hash
 	// (Constitution II) — they ride the in-memory job queue to the post-ACK captioner.
@@ -311,6 +318,11 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 			// chunk's start position — non-identity sidecar. nil when the source has
 			// no headings (FR-006). Computed on the ACK path, no I/O (research R8).
 			SectionContext: resolveBreadcrumb(spans, s.StartCharIdx, redEdits),
+			// spec 036 / BL-004: the canonical [[wikilink]] targets located in this
+			// chunk's text range — non-identity sidecar, resolved by offset
+			// containment through the same redaction translation as SectionContext.
+			// nil when the source has no wikilinks. Computed on the ACK path, no I/O.
+			Wikilinks: resolveWikilinks(wspans, s.StartCharIdx, s.EndCharIdx, redEdits),
 		}
 	}
 	// H15/spec 015: populate the per-document linked list so context-window

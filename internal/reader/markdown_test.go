@@ -79,7 +79,7 @@ func TestMarkdownReader_ObsidianTransclusion(t *testing.T) {
 // heading text lands in the stripped output (spec 025/H23, research R1/R5).
 func TestStripMarkdownSpans_HeadingsAndOffsets(t *testing.T) {
 	in := "# Top\nintro\n## Mid\ntext"
-	out, spans := stripMarkdownSpans(in)
+	out, spans, _ := stripMarkdownSpans(in)
 	if !strings.Contains(out, "Top") || !strings.Contains(out, "Mid") {
 		t.Fatalf("stripped text missing heading text: %q", out)
 	}
@@ -106,7 +106,7 @@ func TestStripMarkdownSpans_HeadingsAndOffsets(t *testing.T) {
 // flat-heading loop ignored code fences; the unified scan tracks them.
 func TestStripMarkdownSpans_CodeFenceHashExcluded(t *testing.T) {
 	in := "# Real Heading\n\n```sh\n#!/bin/sh\n# a comment\necho hi\n```\n\n## After\n"
-	_, spans := stripMarkdownSpans(in)
+	_, spans, _ := stripMarkdownSpans(in)
 	if len(spans) != 2 {
 		t.Fatalf("want exactly 2 headings, got %d: %+v", len(spans), spans)
 	}
@@ -123,7 +123,7 @@ func TestStripMarkdownSpans_CodeFenceHashExcluded(t *testing.T) {
 // TestStripMarkdownSpans_Nesting verifies H1..H3 levels are captured in order.
 func TestStripMarkdownSpans_Nesting(t *testing.T) {
 	in := "# A\n## B\n### C\nbody"
-	_, spans := stripMarkdownSpans(in)
+	_, spans, _ := stripMarkdownSpans(in)
 	want := []struct {
 		level int
 		text  string
@@ -142,7 +142,7 @@ func TestStripMarkdownSpans_Nesting(t *testing.T) {
 // returned unchanged (FR-006 graceful — section context will be absent).
 func TestStripMarkdownSpans_NoHeadings(t *testing.T) {
 	in := "just some plain text\nno headings here"
-	out, spans := stripMarkdownSpans(in)
+	out, spans, _ := stripMarkdownSpans(in)
 	if len(spans) != 0 {
 		t.Errorf("want no spans for heading-less body, got %+v", spans)
 	}
@@ -187,5 +187,103 @@ func TestMarkdownReader_HeadingSpansMetadata(t *testing.T) {
 	flat, ok := md["headings"].([]string)
 	if !ok || len(flat) != 2 || flat[0] != "A" || flat[1] != "B" {
 		t.Errorf("flat headings list = %+v, want [A B]", md["headings"])
+	}
+}
+
+// spec 036 / BL-004: wikilink span grammar. The reader records each [[wikilink]]
+// as a WikilinkSpan (target canonicalised by linkTarget) in metadata["wikilink_spans"],
+// in document order. De-duplication is the pipeline's job (resolveWikilinks), so
+// duplicate links yield one span each here.
+func wikilinkTargets(spans []WikilinkSpan) []string {
+	out := make([]string, len(spans))
+	for i, s := range spans {
+		out[i] = s.Target
+	}
+	return out
+}
+
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestMarkdownReader_WikilinkSpans(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  []string // expected targets, in order (pre-de-dup)
+	}{
+		{"plain", "see [[authentication]] now", []string{"authentication"}},
+		{"alias-stripped", "[[IDH|Honeypots book]]", []string{"IDH"}},
+		{"anchor-stripped", "[[Notes#Architecture]] end", []string{"Notes"}},
+		{"blockref-stripped", "[[Notes#^block1]]", []string{"Notes"}},
+		{"path-preserved", "[[concepts/auth]] then [[a/b/Note]]", []string{"concepts/auth", "a/b/Note"}},
+		{"dangling-included", "[[phantom note]]", []string{"phantom note"}},
+		{"empty-targets-skipped", "x [[]] y [[|alias]] z", nil},
+		{"dups-not-deduped-here", "[[a]] then [[a]]", []string{"a", "a"}},
+	}
+	r := &MarkdownReader{}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, md, err := r.Read(context.Background(), []byte(tc.input), "x.md")
+			if err != nil {
+				t.Fatal(err)
+			}
+			spans, _ := md["wikilink_spans"].([]WikilinkSpan)
+			if got := wikilinkTargets(spans); !equalStringSlices(got, tc.want) {
+				t.Errorf("targets = %v, want %v", got, tc.want)
+			}
+			for _, s := range spans {
+				if s.Offset < 0 {
+					t.Errorf("span offset < 0: %+v", s)
+				}
+			}
+		})
+	}
+}
+
+// Code-context exclusion (FR-014): [[..]] inside a fenced code block is
+// substituted to display for byte-identity but NOT recorded as a span.
+func TestMarkdownReader_WikilinkSpans_CodeContextExcluded(t *testing.T) {
+	src := []byte("intro [[kept-one]]\n```\ncode [[excluded]] more\n```\nafter [[kept-two]]\n")
+	r := &MarkdownReader{}
+	content, md, err := r.Read(context.Background(), src, "x.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	spans, _ := md["wikilink_spans"].([]WikilinkSpan)
+	want := []string{"kept-one", "kept-two"}
+	if got := wikilinkTargets(spans); !equalStringSlices(got, want) {
+		t.Errorf("code-context not excluded: targets = %v, want %v", got, want)
+	}
+	// byte-identity: the fenced wikilink is still substituted to display text.
+	if !contains(content, "excluded") {
+		t.Errorf("fenced wikilink display should still appear in content: %q", content)
+	}
+}
+
+// Embeds/transclusions are not wikilinks (FR-003): media embeds become tokens,
+// note transclusions go to md["transcludes"]; neither appears in wikilink_spans.
+func TestMarkdownReader_WikilinkSpans_EmbedsExcluded(t *testing.T) {
+	src := []byte("[[real-link]] and ![[Note Transclusion]] and ![[image.png]]")
+	r := &MarkdownReader{}
+	_, md, err := r.Read(context.Background(), src, "x.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	spans, _ := md["wikilink_spans"].([]WikilinkSpan)
+	if got := wikilinkTargets(spans); !equalStringSlices(got, []string{"real-link"}) {
+		t.Errorf("embeds leaked into wikilinks: %v", got)
+	}
+	transcludes, _ := md["transcludes"].([]string)
+	if len(transcludes) != 1 || transcludes[0] != "Note Transclusion" {
+		t.Errorf("transcludes = %v, want [Note Transclusion]", transcludes)
 	}
 }

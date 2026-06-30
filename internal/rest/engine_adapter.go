@@ -68,6 +68,7 @@ func toQueryHits(hits []engine.QueryHit) []queryHit {
 			ChunkIndex:       h.ChunkIndex, // H21/spec 023
 			Poisoning:        pv,
 			SectionContext:   h.SectionContext,   // H23/spec 025 (FR-004)
+			Wikilinks:        h.Wikilinks,        // spec 036 / BL-004 (FR-009)
 			NearDup:          nd,                 // H20/spec 026 (FR-004)
 			Summary:          h.Summary,          // spec 029 (FR-010)
 			EnrichmentStatus: h.EnrichmentStatus, // spec 029 (FR-010)
