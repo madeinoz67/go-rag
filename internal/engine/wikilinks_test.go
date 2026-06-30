@@ -82,3 +82,62 @@ func TestGetChunk_NoWikilinks_IsAbsent(t *testing.T) {
 		t.Errorf("no-link chunk Wikilinks = %v, want absent/empty", res.Chunk.Wikilinks)
 	}
 }
+
+// T016 (spec 036 US2): determinism + identity safety. Two independent engines
+// ingesting the same Markdown doc resolve to identical chunk IDs (the
+// wikilink_spans transient is dropped before GenerateID — Constitution II) and
+// identical Wikilinks per chunk (FR-006). Grammar: alpha/beta plain,
+// concepts/gamma path-preserved.
+func TestWikilinks_DeterministicAndIdentitySafe(t *testing.T) {
+	body := "# Doc\n\nSee [[alpha]] and [[beta]] and [[concepts/gamma]] here.\n"
+	e1 := newCacheEngine(t)
+	addMarkdown(t, e1, body)
+	e2 := newCacheEngine(t)
+	addMarkdown(t, e2, body)
+
+	q1, err := e1.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
+	if err != nil || len(q1.Hits) == 0 {
+		t.Fatalf("e1 query: err=%v hits=%d", err, len(q1.Hits))
+	}
+	q2, err := e2.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
+	if err != nil || len(q2.Hits) == 0 {
+		t.Fatalf("e2 query: err=%v hits=%d", err, len(q2.Hits))
+	}
+	if q1.Hits[0].ChunkID != q2.Hits[0].ChunkID {
+		t.Errorf("chunk_id differs across engines: %q vs %q (identity not safe)", q1.Hits[0].ChunkID, q2.Hits[0].ChunkID)
+	}
+	if !wikilinksEq(q1.Hits[0].Wikilinks, q2.Hits[0].Wikilinks) {
+		t.Errorf("Wikilinks differ across engines: %v vs %v", q1.Hits[0].Wikilinks, q2.Hits[0].Wikilinks)
+	}
+	for _, want := range []string{"alpha", "beta", "concepts/gamma"} {
+		if !sliceHas(q1.Hits[0].Wikilinks, want) {
+			t.Errorf("Wikilinks %v missing %q", q1.Hits[0].Wikilinks, want)
+		}
+	}
+}
+
+// T021 (spec 036 US3): a non-Markdown source (.txt) yields an absent/empty
+// Wikilinks sidecar — only the Markdown reader emits wikilink_spans (FR-007).
+func TestWikilinks_NonMarkdownIsAbsent(t *testing.T) {
+	e := newCacheEngine(t)
+	addDoc(t, e, "plain text with no wikilinks at all, just prose about authentication tokens")
+	q, err := e.Query(context.Background(), QueryRequest{Query: "authentication", Mode: "keyword", K: 5})
+	if err != nil || len(q.Hits) == 0 {
+		t.Fatalf("setup query failed: err=%v hits=%d", err, len(q.Hits))
+	}
+	if len(q.Hits[0].Wikilinks) != 0 {
+		t.Errorf(".txt chunk Wikilinks = %v, want absent/empty", q.Hits[0].Wikilinks)
+	}
+}
+
+func wikilinksEq(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

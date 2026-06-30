@@ -306,6 +306,9 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 			nearDup = fmt.Sprintf(" ≈%d near-dup", len(h.NearDup.Siblings))
 		}
 		fmt.Fprintf(&b, "- (score %.3f) %s%s%s%s\n", h.Score, section, h.Preview, nearDup, mark)
+		if len(h.Wikilinks) > 0 { // spec 036 / BL-004: chunk wikilink targets (FR-009)
+			fmt.Fprintf(&b, "    wikilinks: %s\n", strings.Join(h.Wikilinks, ", "))
+		}
 		if h.Summary != "" { // spec 029: document summary
 			fmt.Fprintf(&b, "    summary: %s\n", h.Summary)
 		}
@@ -496,6 +499,9 @@ func (s *Server) renderGetChunk(eng *engine.Engine, args map[string]any) (string
 	}
 	if len(res.Chunk.SectionContext) > 0 {
 		fmt.Fprintf(&b, "section: %s\n", strings.Join(res.Chunk.SectionContext, " / "))
+	}
+	if len(res.Chunk.Wikilinks) > 0 { // spec 036 / BL-004
+		fmt.Fprintf(&b, "wikilinks: %s\n", strings.Join(res.Chunk.Wikilinks, ", "))
 	}
 	if res.Document.ID != "" {
 		fmt.Fprintf(&b, "document: %s (%s, status %s)\n", res.Document.FilePath, res.Document.FileType, res.Document.Status)

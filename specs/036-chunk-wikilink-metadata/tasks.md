@@ -78,9 +78,9 @@ description: "Task list for spec 036 — Chunk Wikilink Metadata (BL-004)"
 
 ### Implementation + Tests for User Story 2
 
-- [ ] T015 [US2] Harden determinism in `internal/pipeline`: guarantee `Wikilinks` is a pure function of chunk text + span order — stable first-occurrence ordering, no map-iteration nondeterminism in the resolution path. [FR-006] (depends T009)
-- [ ] T016 [US2] Chunk-scope + determinism + identity tests (in `internal/pipeline`/`internal/engine` test files): (a) multi-paragraph doc → paragraph-1 chunks list `alpha` not `beta`, vice versa; (b) same file ingested twice → byte-identical `Wikilinks` for matching chunk IDs; (c) re-ingested chunks keep identical `chunk_id` (identity safety — `wikilink_spans` dropped before `GenerateID`). [FR-005, FR-006, FR-010; US2 acceptance #1/#2] (depends T015)
-- [ ] T017 [US2] Boundary test: a wikilink whose text sits at a chunk boundary attributes to exactly the chunk containing its opening `[` and is never silently dropped. [US2 acceptance #3; FR-005] (depends T015)
+- [X] T015 [US2] Harden determinism in `internal/pipeline`: guarantee `Wikilinks` is a pure function of chunk text + span order — stable first-occurrence ordering, no map-iteration nondeterminism in the resolution path. [FR-006] (depends T009)
+- [X] T016 [US2] Chunk-scope + determinism + identity tests (in `internal/pipeline`/`internal/engine` test files): (a) multi-paragraph doc → paragraph-1 chunks list `alpha` not `beta`, vice versa; (b) same file ingested twice → byte-identical `Wikilinks` for matching chunk IDs; (c) re-ingested chunks keep identical `chunk_id` (identity safety — `wikilink_spans` dropped before `GenerateID`). [FR-005, FR-006, FR-010; US2 acceptance #1/#2] (depends T015)
+- [X] T017 [US2] Boundary test: a wikilink whose text sits at a chunk boundary attributes to exactly the chunk containing its opening `[` and is never silently dropped. [US2 acceptance #3; FR-005] (depends T015)
 
 **Checkpoint**: US1 + US2 together — wikilinks are correct, chunk-scoped, deterministic, and identity-safe.
 
@@ -94,10 +94,10 @@ description: "Task list for spec 036 — Chunk Wikilink Metadata (BL-004)"
 
 ### Implementation + Tests for User Story 3
 
-- [ ] T018 [P] [US3] Render `Wikilinks` on CLI in `internal/cli/query.go` (`renderResults`) and the spec 035 `chunk get` command — render the list per hit/chunk, omit the line when absent. [FR-009]
-- [ ] T019 [P] [US3] Include `Wikilinks` in MCP in `internal/mcp/server.go` — the query-hit payload and the `go_rag_get_chunk` tool result. [FR-009]
-- [ ] T020 [US3] Extend `internal/engine/parity_test.go`: assert `wikilinks` is byte-identical across CLI, REST, gRPC, and MCP for the same chunk (mirror the `section_context` parity assertion; SC-002). [FR-009; SC-001] (depends T018, T019, T006)
-- [ ] T021 [US3] Non-markdown absent test: ingest PDF, docx, and txt sources; assert `Wikilinks` is absent/empty on the resulting chunks across transports (the markdown reader is the only populator). [FR-007, FR-008] (depends T020)
+- [X] T018 [P] [US3] Render `Wikilinks` on CLI in `internal/cli/query.go` (`renderResults`) and the spec 035 `chunk get` command — render the list per hit/chunk, omit the line when absent. [FR-009]
+- [X] T019 [P] [US3] Include `Wikilinks` in MCP in `internal/mcp/server.go` — the query-hit payload and the `go_rag_get_chunk` tool result. [FR-009]
+- [X] T020 [US3] Extend `internal/engine/parity_test.go`: assert `wikilinks` is byte-identical across CLI, REST, gRPC, and MCP for the same chunk (mirror the `section_context` parity assertion; SC-002). [FR-009; SC-001] (depends T018, T019, T006)
+- [X] T021 [US3] Non-markdown absent test: ingest PDF, docx, and txt sources; assert `Wikilinks` is absent/empty on the resulting chunks across transports (the markdown reader is the only populator). [FR-007, FR-008] (depends T020)
 
 **Checkpoint**: all three stories done — the field is correct, chunk-scoped, deterministic, identity-safe, and byte-identical across every transport and format.
 

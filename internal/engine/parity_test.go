@@ -226,6 +226,7 @@ type restQueryHit struct {
 	Page           int          `json:"page"`
 	Poisoning      *restPoison  `json:"poisoning,omitempty"`       // H04/spec 019
 	SectionContext []string     `json:"section_context,omitempty"` // H23/spec 025
+	Wikilinks      []string     `json:"wikilinks,omitempty"`       // spec 036 / BL-004
 	NearDup        *restNearDup `json:"near_dup,omitempty"`        // H20/spec 026
 }
 
@@ -1205,5 +1206,48 @@ func TestCrossTransport_EffectiveDepthPoolMode_Parity(t *testing.T) {
 	if int(gresp.GetEffectiveK()) != ref.EffectiveK || int(gresp.GetEffectivePool()) != ref.EffectivePool || gresp.GetEffectiveMode() != ref.EffectiveMode {
 		t.Errorf("gRPC effective triple = (k=%d pool=%d mode=%q), engine = (k=%d pool=%d mode=%q)",
 			gresp.GetEffectiveK(), gresp.GetEffectivePool(), gresp.GetEffectiveMode(), ref.EffectiveK, ref.EffectivePool, ref.EffectiveMode)
+	}
+}
+
+// TestCrossTransport_WikilinksParity (spec 036 / BL-004, FR-009 / SC-001): a
+// wikilink-bearing Markdown chunk's wikilinks are byte-identical across the
+// facade, REST, and gRPC.
+func TestCrossTransport_WikilinksParity(t *testing.T) {
+	md := "# Auth\n\nSee [[authentication]] and [[JWT tokens]] for detail.\n"
+	eng := sharedMarkdownEngine(t, "auth.md", md)
+
+	const q = "authentication"
+	ref, err := eng.Query(context.Background(), engine.QueryRequest{Query: q, Mode: "keyword", K: 5})
+	if err != nil {
+		t.Fatalf("engine.Query: %v", err)
+	}
+	if len(ref.Hits) == 0 {
+		t.Fatal("need >=1 hit — corpus did not match query")
+	}
+	want := ref.Hits[0].Wikilinks
+	if len(want) == 0 {
+		t.Fatalf("engine hit has no wikilinks; wikilink-bearing doc expected")
+	}
+
+	restSrv := httptest.NewServer(rest.New(eng, "").Handler())
+	defer restSrv.Close()
+	restHits := queryOverREST(t, restSrv.URL, q, "keyword", 5)
+	if len(restHits) == 0 {
+		t.Fatal("REST returned no hits")
+	}
+	if !sliceEq(restHits[0].Wikilinks, want) {
+		t.Errorf("REST wikilinks = %v, want %v", restHits[0].Wikilinks, want)
+	}
+
+	client := dialGRPC(t, eng)
+	resp, err := client.Query(context.Background(), &goragpb.QueryRequest{Query: q, Mode: "keyword", K: 5})
+	if err != nil {
+		t.Fatalf("gRPC Query: %v", err)
+	}
+	if len(resp.GetHits()) == 0 {
+		t.Fatal("gRPC returned no hits")
+	}
+	if !sliceEq(resp.GetHits()[0].GetWikilinks(), want) {
+		t.Errorf("gRPC wikilinks = %v, want %v", resp.GetHits()[0].GetWikilinks(), want)
 	}
 }

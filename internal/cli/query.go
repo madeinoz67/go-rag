@@ -21,6 +21,7 @@ type queryResult struct {
 	Chunk          string            `json:"chunk"`
 	Poisoning      *poisonVerdictDTO `json:"poisoning,omitempty"`       // H04/spec 019
 	SectionContext []string          `json:"section_context,omitempty"` // H23/spec 025: heading breadcrumb (absent when nil)
+	Wikilinks      []string          `json:"wikilinks,omitempty"`       // spec 036 / BL-004: chunk wikilink targets (absent when nil)
 	NearDup        *nearDupDTO       `json:"near_dup,omitempty"`        // H20/spec 026: near-dup context (absent when nil)
 	Summary        string            `json:"summary,omitempty"`         // spec 029: document summary (absent when unenriched)
 }
@@ -111,6 +112,7 @@ func newQueryCmd() *cobra.Command {
 					Chunk:          h.Content,
 					Poisoning:      toPoisonDTO(h),
 					SectionContext: h.SectionContext, // H23/spec 025 (FR-004)
+					Wikilinks:      h.Wikilinks,      // spec 036 / BL-004 (FR-009)
 					Summary:        h.Summary,        // spec 029 (FR-010)
 					NearDup: func() *nearDupDTO {
 						if h.NearDup == nil {
@@ -164,6 +166,9 @@ func renderResults(results []queryResult, res *engine.QueryResult, format string
 		fmt.Printf("[%d] %s%s (score %.3f)\n", i+1, r.Source, page, r.Score)
 		if len(r.SectionContext) > 0 { // H23/spec 025: heading breadcrumb (FR-004)
 			fmt.Printf("    section: %s\n", strings.Join(r.SectionContext, " / "))
+		}
+		if len(r.Wikilinks) > 0 { // spec 036 / BL-004: chunk wikilink targets (FR-009)
+			fmt.Printf("    wikilinks: %s\n", strings.Join(r.Wikilinks, ", "))
 		}
 		if r.Summary != "" { // spec 029: document summary
 			fmt.Printf("    summary: %s\n", r.Summary)

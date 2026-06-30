@@ -36,6 +36,7 @@ type chunkOut struct {
 	NextChunkID     string               `json:"next_chunk_id"`
 	Poisoning       *model.PoisonVerdict `json:"poisoning,omitempty"`
 	SectionContext  []string             `json:"section_context,omitempty"`
+	Wikilinks       []string             `json:"wikilinks,omitempty"` // spec 036 / BL-004
 	NearDup         *model.NearDupInfo   `json:"near_dup,omitempty"`
 	Kind            string               `json:"kind,omitempty"`
 	CreatedAt       string               `json:"created_at,omitempty"`
@@ -105,6 +106,7 @@ func toChunkOut(c model.Chunk) chunkOut {
 		NextChunkID:     c.NextChunkID,
 		Poisoning:       c.Poisoning,
 		SectionContext:  c.SectionContext,
+		Wikilinks:       c.Wikilinks, // spec 036 / BL-004
 		NearDup:         c.NearDup,
 		Kind:            c.Kind,
 		CreatedAt:       created,
@@ -187,6 +189,9 @@ func printChunkText(c chunkOut) {
 	}
 	if len(c.SectionContext) > 0 {
 		fmt.Printf("section: %s\n", strings.Join(c.SectionContext, " / "))
+	}
+	if len(c.Wikilinks) > 0 { // spec 036 / BL-004
+		fmt.Printf("wikilinks: %s\n", strings.Join(c.Wikilinks, ", "))
 	}
 	if c.Poisoning != nil {
 		fmt.Printf("poisoning: %s (score %.2f)\n", c.Poisoning.Level, c.Poisoning.Score)
