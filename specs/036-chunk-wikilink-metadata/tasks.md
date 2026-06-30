@@ -26,7 +26,7 @@ description: "Task list for spec 036 — Chunk Wikilink Metadata (BL-004)"
 
 **Purpose**: confirm a green baseline before the feature lands. No new project structure, dependencies, or packages (go-rag exists; BL-004 adds no deps — Constitution Principle III).
 
-- [ ] T001 Verify baseline `make build && make vet && make test` is green on `main` before starting; fix any pre-existing failure first so the repo is never red on this feature's account.
+- [X] T001 Verify baseline `make build && make vet && make test` is green on `main` before starting; fix any pre-existing failure first so the repo is never red on this feature's account.
 
 ---
 
@@ -34,11 +34,11 @@ description: "Task list for spec 036 — Chunk Wikilink Metadata (BL-004)"
 
 **Purpose**: the shared data-model + wire-contract changes that EVERY user story depends on. **No story work begins until this phase is green.**
 
-- [ ] T002 [P] Add the `Wikilinks []string` non-identity sidecar field to `Chunk` in `internal/model/model.go` — `json:"wikilinks,omitempty"`, with a doc comment mirroring `SectionContext` (states: non-identity, absent for no-link/pre-feature, surfaced on `QueryHit`/`GetChunk` across all transports). [FR-008, FR-010, FR-012; R2]
-- [ ] T003 [P] Add the transient `WikilinkSpan{Target string; Offset int}` type in `internal/reader/markdown.go` — doc comment noting it is transient (consumed + dropped by the pipeline before identity/store, mirroring `HeadingSpan`). [R3]
-- [ ] T004 [P] Add two additive gRPC fields in `proto/gorag.proto`: `repeated string wikilinks = 17;` on `message Chunk` (after `created_at = 16`) and `repeated string wikilinks = 13;` on `message QueryHit` (after `enrichment_status = 12`), each with a `spec 036 / BL-004` comment. [FR-009; R7; contracts/api.md]
-- [ ] T005 Regenerate `proto/gen/gorag.pb.go` from the updated `proto/gorag.proto` (the repo's `go generate` / protoc step). (depends T004)
-- [ ] T006 Wire model↔proto mapping for `Wikilinks` in `internal/grpc` — project `Chunk.Wikilinks` ↔ proto `Chunk.wikilinks` and `engine.QueryHit.Wikilinks` ↔ proto `QueryHit.wikilinks`, beside the existing `section_context` mapping. (depends T002, T005)
+- [X] T002 [P] Add the `Wikilinks []string` non-identity sidecar field to `Chunk` in `internal/model/model.go` — `json:"wikilinks,omitempty"`, with a doc comment mirroring `SectionContext` (states: non-identity, absent for no-link/pre-feature, surfaced on `QueryHit`/`GetChunk` across all transports). [FR-008, FR-010, FR-012; R2]
+- [X] T003 [P] Add the transient `WikilinkSpan{Target string; Offset int}` type in `internal/reader/markdown.go` — doc comment noting it is transient (consumed + dropped by the pipeline before identity/store, mirroring `HeadingSpan`). [R3]
+- [X] T004 [P] Add two additive gRPC fields in `proto/gorag.proto`: `repeated string wikilinks = 17;` on `message Chunk` (after `created_at = 16`) and `repeated string wikilinks = 13;` on `message QueryHit` (after `enrichment_status = 12`), each with a `spec 036 / BL-004` comment. [FR-009; R7; contracts/api.md]
+- [X] T005 Regenerate `proto/gen/gorag.pb.go` from the updated `proto/gorag.proto` (the repo's `go generate` / protoc step). (depends T004)
+- [X] T006 Wire model↔proto mapping for `Wikilinks` in `internal/grpc` — project `Chunk.Wikilinks` ↔ proto `Chunk.wikilinks` and `engine.QueryHit.Wikilinks` ↔ proto `QueryHit.wikilinks`, beside the existing `section_context` mapping. (depends T002, T005)
 
 **Checkpoint**: Foundation ready — the field exists on the model, the proto carries it, gRPC maps it. User-story work can begin.
 
@@ -51,6 +51,8 @@ description: "Task list for spec 036 — Chunk Wikilink Metadata (BL-004)"
 **Independent Test**: ingest a markdown doc with `[[authentication]]` and `[[JWT tokens]]`; fetch a chunk via `GetChunk` (REST) and assert `Wikilinks` contains both canonical targets. A no-link chunk returns the field absent/empty. (`quickstart.md` Scenario 1.)
 
 ### Implementation for User Story 1
+
+> **Implementation-time refinement (found executing T007–T008):** `WikilinkSpan.Offset` MUST be in the reader's **stripped-text** space (same as `HeadingSpan`) so the pipeline's `redact.TranslateOffset` applies. Because `normalizeObsidian` substitutes `[[…]]`→display text *before* `stripMarkdownSpans` runs, detection **cannot stay in `normalizeObsidian`**. Refined approach: move wikilink detection+substitution into the code-fence-aware `stripMarkdownSpans` pass — reuses `inCode` for FR-014 (code-context exclusion) for free, records `WikilinkSpan.Offset` in stripped space as `b.Len()` advances, and preserves byte-identity (unchanged `chunk_id` for every existing chunk) by applying the *identical* `linkDisplay` substitution. **Ordering constraint:** extract `linkTarget` *before* `stripInlineEmphasis` so emphasis markers inside a target aren't dropped. This supersedes the "in the `reObsidianLink` callback" wording of T007/T008 — detection lives in `stripMarkdownSpans`, `normalizeObsidian` keeps only the `![[…]]` embed pass. Verify against `TestMarkdownReader_ObsidianWikilinks` + the spec-025 byte-identity tests.
 
 - [ ] T007 [US1] Add plain-wikilink collection to `normalizeObsidian` in `internal/reader/markdown.go`: in the `reObsidianLink` callback, capture `linkTarget(inner)` + the match's byte offset into a `[]WikilinkSpan`. Reuse `linkTarget()` — do NOT introduce a second parser. Grammar via `linkTarget`: alias `[[a|b]]`→`a`, anchor `[[a#h]]`/`[[a#^id]]`→`a`, path `[[concepts/auth]]`→`concepts/auth` (preserved), dangling `[[phantom]]`→included, malformed `[[]]`/`[[a|]`→non-empty targets only, de-dup first-occurrence. Embeds `![[…]]` and note-transclusions stay excluded (handled by the separate `reObsidianEmbed` pass). [FR-001, FR-002, FR-003, FR-004, FR-013; Q1, Q4, Q5]
 - [ ] T008 [US1] Make the wikilink collection code-fence-aware in `internal/reader/markdown.go`: exclude `[[…]]` inside fenced code blocks and inline code by tracking `inCode` state (reuse the `stripMarkdownSpans` pattern); emit the collected spans as `md["wikilink_spans"]` from `Read`. [FR-014; Q3] (depends T007, same file)
