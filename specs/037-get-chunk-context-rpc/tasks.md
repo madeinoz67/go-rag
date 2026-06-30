@@ -26,7 +26,7 @@ description: "Task list for spec 037 — GetChunkContext (BL-002)"
 
 **Purpose**: confirm a green baseline. No new project structure or deps (pure-read RPC, Constitution III).
 
-- [ ] T001 Verify baseline `make build && make vet && make test` is green on `main` before starting.
+- [x] T001 Verify baseline `make build && make vet && make test` is green on `main` before starting.
 
 ---
 
@@ -34,8 +34,8 @@ description: "Task list for spec 037 — GetChunkContext (BL-002)"
 
 **Purpose**: the wire contract (proto) that the gRPC transport (US3) depends on. Defined early so all transports share one surface. **No story work begins until this phase is green.**
 
-- [ ] T002 [P] Add the gRPC contract in `proto/gorag.proto`: `rpc GetChunkContext(GetChunkContextRequest) returns (GetChunkContextResponse);` to the `Gorag` service (after `GetChunk`, before the closing `}`), and the two messages — `GetChunkContextRequest { string chunk_id = 1; int32 window = 2; }` and `GetChunkContextResponse { repeated Chunk chunks = 1; int32 target_index = 2; DocumentMeta document = 3; }` (reuse the spec-035 `Chunk` + `DocumentMeta`). [FR-013; contracts/api.md]
-- [ ] T003 Regenerate `proto/gen/gorag.pb.go` + `proto/gen/gorag_grpc.pb.go` from the updated `proto/gorag.proto` (`protoc -I proto --go_out=. --go_opt=module=github.com/madeinoz67/go-rag --go-grpc_out=. --go-grpc_opt=module=github.com/madeinoz67/go-rag proto/gorag.proto`). (depends T002)
+- [x] T002 [P] Add the gRPC contract in `proto/gorag.proto`: `rpc GetChunkContext(GetChunkContextRequest) returns (GetChunkContextResponse);` to the `Gorag` service (after `GetChunk`, before the closing `}`), and the two messages — `GetChunkContextRequest { string chunk_id = 1; int32 window = 2; }` and `GetChunkContextResponse { repeated Chunk chunks = 1; int32 target_index = 2; DocumentMeta document = 3; }` (reuse the spec-035 `Chunk` + `DocumentMeta`). [FR-013; contracts/api.md]
+- [x] T003 Regenerate `proto/gen/gorag.pb.go` + `proto/gen/gorag_grpc.pb.go` from the updated `proto/gorag.proto` (`protoc -I proto --go_out=. --go_opt=module=github.com/madeinoz67/go-rag --go-grpc_out=. --go-grpc_opt=module=github.com/madeinoz67/go-rag proto/gorag.proto`). (depends T002)
 
 **Checkpoint**: the wire contract exists and compiles. User-story work can begin.
 
@@ -49,12 +49,12 @@ description: "Task list for spec 037 — GetChunkContext (BL-002)"
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] Implement `Engine.GetChunkContext(chunkID string, window int) (*ContextResult, error)` + the `ContextResult{Chunks []model.Chunk; TargetIndex int; Document model.Document; Source model.Source}` type in `internal/engine/` (new `get_chunk_context.go`). Reuse `lookupChunk`/`lookupDoc` + `ErrInvalid`/`ErrNotFound`. Logic per `data-model.md`: validate id (non-empty) + window (default 2, range 0–10); `lookupChunk(target)` → `ErrNotFound` if missing; walk `PreviousChunkID` (≤window hops, prepend) and `NextChunkID` (≤window hops, append), breaking on empty id or a miss; assemble `chunks` + `target_index=len(predecessors)`; `lookupDoc` (tolerant). [FR-001..FR-009, FR-012..FR-016]
-- [ ] T005 [P] [US1] Add the REST endpoint `GET /v1/chunks/{id}/context?window=N` in `internal/rest/` (register the route in `server.go` beside `/v1/chunks/{id}`; handler in `get_chunk.go` or a new file). Parse `window` (default 2; `>10`/`<0` → 400), return JSON `{chunks: []chunkDTO, target_index, document: documentMetaDTO}` reusing the GetChunk DTOs. 404 for missing id, 400 for empty/whitespace id. [FR-010, FR-011] (depends T004)
+- [x] T004 [US1] Implement `Engine.GetChunkContext(chunkID string, window int) (*ContextResult, error)` + the `ContextResult{Chunks []model.Chunk; TargetIndex int; Document model.Document; Source model.Source}` type in `internal/engine/` (new `get_chunk_context.go`). Reuse `lookupChunk`/`lookupDoc` + `ErrInvalid`/`ErrNotFound`. Logic per `data-model.md`: validate id (non-empty) + window (default 2, range 0–10); `lookupChunk(target)` → `ErrNotFound` if missing; walk `PreviousChunkID` (≤window hops, prepend) and `NextChunkID` (≤window hops, append), breaking on empty id or a miss; assemble `chunks` + `target_index=len(predecessors)`; `lookupDoc` (tolerant). [FR-001..FR-009, FR-012..FR-016]
+- [x] T005 [P] [US1] Add the REST endpoint `GET /v1/chunks/{id}/context?window=N` in `internal/rest/` (register the route in `server.go` beside `/v1/chunks/{id}`; handler in `get_chunk.go` or a new file). Parse `window` (default 2; `>10`/`<0` → 400), return JSON `{chunks: []chunkDTO, target_index, document: documentMetaDTO}` reusing the GetChunk DTOs. 404 for missing id, 400 for empty/whitespace id. [FR-010, FR-011] (depends T004)
 
 ### Tests for User Story 1
 
-- [ ] T006 [US1] Happy-path test in `internal/engine/get_chunk_context_test.go`: ingest a multi-chunk doc (mirror the engine test helpers `newCacheEngine`/`addDoc`), fetch an interior chunk with `window=2`, assert 5 chunks in document order with `target_index=2` and the parent document resolved; assert each returned chunk carries `Wikilinks`/`SectionContext` (full metadata, FR-008). [US1 acceptance #1/#2] (depends T004)
+- [x] T006 [US1] Happy-path test in `internal/engine/get_chunk_context_test.go`: ingest a multi-chunk doc (mirror the engine test helpers `newCacheEngine`/`addDoc`), fetch an interior chunk with `window=2`, assert 5 chunks in document order with `target_index=2` and the parent document resolved; assert each returned chunk carries `Wikilinks`/`SectionContext` (full metadata, FR-008). [US1 acceptance #1/#2] (depends T004)
 
 **Checkpoint**: US1 MVP delivers — `GetChunkContext` returns a correct context window over REST. `make test` green.
 
@@ -68,7 +68,7 @@ description: "Task list for spec 037 — GetChunkContext (BL-002)"
 
 ### Tests for User Story 2
 
-- [ ] T007 [US2] Windowing tests in `internal/engine/get_chunk_context_test.go`: (a) first chunk `window=5` → `target_index=0`, successors only; (b) last chunk → predecessors only; (c) `window=0` → exactly `[target]`, `target_index=0` (≡ GetChunk); (d) `window=11` → `ErrInvalid`; (e) negative `window` → `ErrInvalid`; (f) single-chunk document → one chunk; (g) `window` larger than the document → whole doc, target at real index; (h) empty/whitespace `chunk_id` → `ErrInvalid`; (i) missing `chunk_id` → `ErrNotFound`; (j) orphan chunk (parent removed) → window returned, document zero-valued (no error). [FR-003..FR-007, US2 acceptance #1..#5] (depends T004)
+- [x] T007 [US2] Windowing tests in `internal/engine/get_chunk_context_test.go`: (a) first chunk `window=5` → `target_index=0`, successors only; (b) last chunk → predecessors only; (c) `window=0` → exactly `[target]`, `target_index=0` (≡ GetChunk); (d) `window=11` → `ErrInvalid`; (e) negative `window` → `ErrInvalid`; (f) single-chunk document → one chunk; (g) `window` larger than the document → whole doc, target at real index; (h) empty/whitespace `chunk_id` → `ErrInvalid`; (i) missing `chunk_id` → `ErrNotFound`; (j) orphan chunk (parent removed) → window returned, document zero-valued (no error). [FR-003..FR-007, US2 acceptance #1..#5] (depends T004)
 
 **Checkpoint**: windowing is correct at every boundary and edge value.
 
@@ -82,10 +82,10 @@ description: "Task list for spec 037 — GetChunkContext (BL-002)"
 
 ### Implementation + Tests for User Story 3
 
-- [ ] T008 [US3] Add the gRPC handler + response projection in `internal/grpc/engine_adapter.go`: implement `GetChunkContext(ctx, *GetChunkContextRequest) (*GetChunkContextResponse, error)` — validate (window default 2, clamp/range → INVALID_ARGUMENT), call `engine.GetChunkContext`, project `[]Chunk` (reuse the existing `Chunk` projection used by GetChunk) + `target_index` + `DocumentMeta`. INVALID_ARGUMENT / NOT_FOUND error mapping. [FR-010] (depends T003, T004)
-- [ ] T009 [P] [US3] Add the CLI command `go-rag chunk context <id> [--window N]` in `internal/cli/chunk.go` (beside `chunk get`): default `--window 2`; render the ordered chunks with the target marked (`>>>`) and `target_index`; reject `>10` with a non-zero exit + clear message. [FR-010] (depends T004)
-- [ ] T010 [P] [US3] Add the MCP tool `go_rag_get_chunk_context` in `internal/mcp/server.go` (beside `go_rag_get_chunk`): render the window as a numbered list with the target marked + the document line. [FR-010] (depends T004)
-- [ ] T011 [US3] Extend `internal/engine/parity_test.go` with `TestCrossTransport_GetChunkContextParity`: assert `GetChunkContext` returns identical `chunks` (chunk-id list) / `target_index` / `document` across CLI, REST, gRPC, and MCP for the same `(chunk_id, window)`; cover an interior chunk and a boundary (first) chunk. [FR-010; SC-001] (depends T005, T008, T009, T010)
+- [x] T008 [US3] Add the gRPC handler + response projection in `internal/grpc/engine_adapter.go`: implement `GetChunkContext(ctx, *GetChunkContextRequest) (*GetChunkContextResponse, error)` — validate (window default 2, clamp/range → INVALID_ARGUMENT), call `engine.GetChunkContext`, project `[]Chunk` (reuse the existing `Chunk` projection used by GetChunk) + `target_index` + `DocumentMeta`. INVALID_ARGUMENT / NOT_FOUND error mapping. [FR-010] (depends T003, T004)
+- [x] T009 [P] [US3] Add the CLI command `go-rag chunk context <id> [--window N]` in `internal/cli/chunk.go` (beside `chunk get`): default `--window 2`; render the ordered chunks with the target marked (`>>>`) and `target_index`; reject `>10` with a non-zero exit + clear message. [FR-010] (depends T004)
+- [x] T010 [P] [US3] Add the MCP tool `go_rag_get_chunk_context` in `internal/mcp/server.go` (beside `go_rag_get_chunk`): render the window as a numbered list with the target marked + the document line. [FR-010] (depends T004)
+- [x] T011 [US3] Extend `internal/engine/parity_test.go` with `TestCrossTransport_GetChunkContextParity`: assert `GetChunkContext` returns identical `chunks` (chunk-id list) / `target_index` / `document` across CLI, REST, gRPC, and MCP for the same `(chunk_id, window)`; cover an interior chunk and a boundary (first) chunk. [FR-010; SC-001] (depends T005, T008, T009, T010)
 
 **Checkpoint**: all four transports return identical context windows.
 
@@ -93,7 +93,7 @@ description: "Task list for spec 037 — GetChunkContext (BL-002)"
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T012 [P] Run `make lint` (golangci-lint — the `ci.yml` gate) and resolve every finding; run `quickstart.md` validation end-to-end on an isolated DB (Scenarios 1–7, non-default `--db-path`/ports per project CLAUDE.md); affirm constitution compliance in the commit (pure read, no on-disk layout change, no migration, `migrate.ExpectedVersion` unchanged, pure Go). Mark BL-002 resolved in `docs/RFC-bridge-muninndb/go-rag-bridge-backlog.md` (mirror BL-001/BL-004's resolved note).
+- [x] T012 [P] Run `make lint` (golangci-lint — the `ci.yml` gate) and resolve every finding; run `quickstart.md` validation end-to-end on an isolated DB (Scenarios 1–7, non-default `--db-path`/ports per project CLAUDE.md); affirm constitution compliance in the commit (pure read, no on-disk layout change, no migration, `migrate.ExpectedVersion` unchanged, pure Go). Mark BL-002 resolved in `docs/RFC-bridge-muninndb/go-rag-bridge-backlog.md` (mirror BL-001/BL-004's resolved note).
 
 ---
 
