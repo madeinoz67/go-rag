@@ -105,10 +105,10 @@ description: "Task list for spec 036 — Chunk Wikilink Metadata (BL-004)"
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T022 [P] Update docs: if `CLAUDE.md`'s architecture map or `README.md` enumerates `Chunk` fields / response shapes, add `Wikilinks`; cross-link BL-004 in `docs/RFC-bridge-muninndb/go-rag-bridge-backlog.md` (mark BL-004 resolved by spec 036, mirroring how BL-001 references spec 035).
-- [ ] T023 Run `make lint` (golangci-lint — the `ci.yml` gate, strictly stricter than `go vet`) and resolve every finding.
-- [ ] T024 Run `quickstart.md` validation end-to-end on an **isolated** DB (Scenarios 1–7; non-default `--db-path`/ports per project CLAUDE.md) — confirm the bridge-consumer contract holds.
-- [ ] T025 Constitution compliance check + commit affirmation: Principles I–V pass; **no on-disk key-space layout change, no migration, `migrate.ExpectedVersion` unchanged** (additive `omitempty` field on prefix `0x03`); pure Go, `CGO_ENABLED=0`, no new deps. State this in the commit/PR body.
+- [X] T022 [P] Update docs: if `CLAUDE.md`'s architecture map or `README.md` enumerates `Chunk` fields / response shapes, add `Wikilinks`; cross-link BL-004 in `docs/RFC-bridge-muninndb/go-rag-bridge-backlog.md` (mark BL-004 resolved by spec 036, mirroring how BL-001 references spec 035).
+- [X] T023 Run `make lint` (golangci-lint — the `ci.yml` gate, strictly stricter than `go vet`) and resolve every finding.
+- [X] T024 Run `quickstart.md` validation end-to-end on an **isolated** DB (Scenarios 1–7; non-default `--db-path`/ports per project CLAUDE.md) — confirm the bridge-consumer contract holds.
+- [X] T025 Constitution compliance check + commit affirmation: Principles I–V pass; **no on-disk key-space layout change, no migration, `migrate.ExpectedVersion` unchanged** (additive `omitempty` field on prefix `0x03`); pure Go, `CGO_ENABLED=0`, no new deps. State this in the commit/PR body.
 
 ---
 

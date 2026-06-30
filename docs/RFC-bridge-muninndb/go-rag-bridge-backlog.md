@@ -19,7 +19,7 @@ Backlog items required for effective integration between go-rag and MuninnDB via
 | [BL-001](#bl-001) | `GetChunk` RPC — fetch single chunk by ID | P1 | S | 1 | open |
 | [BL-002](#bl-002) | `GetChunkContext` RPC — chunk with surrounding window | P1 | S | 1 | open |
 | [BL-003](#bl-003) | `BatchGetChunks` RPC — fetch up to 100 chunks in one call | P1 | S | 1 | open |
-| [BL-004](#bl-004) | Expose wikilink targets in `Chunk` metadata | P1 | S | 1 | open ⭐ maintainer's priority pick — wikilink→`Link` enabler |
+| [BL-004](#bl-004) | Expose wikilink targets in `Chunk` metadata | P1 | S | 1 | ✅ done (spec 036) — dedicated `Chunk.Wikilinks` sidecar; the maintainer's priority pick landed |
 | [BL-005](#bl-005) | Expose section heading in `Chunk` metadata | P1 | S | 1 | open |
 | [BL-006](#bl-006) | Expose extraction quality score in `Chunk` metadata | P1 | S | 1 | open |
 | [BL-007](#bl-007) | `ListDocuments` — reliable `ingested_at` cursor + `status` filter | P1 | S | 1 | open |
@@ -213,6 +213,30 @@ Reduces sync worker call count by ~50x for average-sized documents. Required for
 ### BL-004
 
 **Expose wikilink targets in `Chunk` metadata**
+
+> **RESOLVED by spec 036** (`/speckit-implement`, 2026-06-30). Three deltas from the
+> draft above, grounded in the engine's actual conventions (see
+> [`specs/036-chunk-wikilink-metadata/`](../../specs/036-chunk-wikilink-metadata/)):
+>
+> 1. **Not a `Chunk.metadata` map key — a dedicated `Chunk.Wikilinks []string`
+>    sidecar field** (mirroring `SectionContext`, `omitempty`). `Chunk` has no
+>    per-chunk metadata map (that's on `Document`); the repo's one pattern for
+>    reader-derived per-chunk data is a dedicated non-identity sidecar.
+> 2. **Collection is added, not serialised.** The reader *parsed* `[[wikilink]]`
+>    but discarded the target (only `![[note]]` transclusions were collected).
+>    Detection moved into the code-fence-aware `stripMarkdownSpans` pass →
+>    native stripped-text offsets + code-context exclusion (FR-014) for free.
+> 3. **Grammar (clarified):** alias/anchor stripped via `linkTarget`
+>    (`[[a#h]]`→`a`), path preserved verbatim (`[[concepts/auth]]`→`concepts/auth`),
+>    embeds and note-transclusions excluded (plain wikilinks only), de-duped
+>    first-occurrence, `omitempty`/absent for no-link and pre-feature chunks.
+>    No on-disk schema change, no migration; pure Go.
+>
+> Verified end-to-end on the real binary: a wikilink-bearing Markdown chunk
+> surfaces `authentication, JWT tokens, RBAC, concepts/auth, phantom` on query
+> and GetChunk across gRPC/REST/MCP/CLI (parity-tested), with `[[not-a-link]]`
+> inside a fenced block correctly excluded. The bridge consumer sends `chunk_id`
+> + reads `Wikilinks`; it writes one MuninnDB `Link` per target at weight 0.6–0.8.
 
 **Type**: `enhancement` `metadata` `bridge`  
 **Priority**: P1 · **Size**: S · **Phase**: 1
