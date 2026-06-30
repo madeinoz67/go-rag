@@ -20,6 +20,20 @@ type HeadingSpan struct {
 	Offset int    // byte offset into the reader's returned (stripped) text
 }
 
+// WikilinkSpan is one Obsidian [[wikilink]] in the stripped text the chunker
+// receives (spec 036 / BL-004). Target is canonicalised by linkTarget (alias
+// and anchor stripped; path preserved). Offset is the byte index of the link's
+// opening "[" into the reader's returned (stripped) text — the same coordinate
+// space the chunker and HeadingSpan use; the pipeline translates it through
+// redaction before resolving the per-chunk set. Transient: produced by the
+// reader, consumed by the pipeline to assign per-chunk Wikilinks, and removed
+// from document metadata before identity/store (the HeadingSpan precedent), so
+// it is never persisted.
+type WikilinkSpan struct {
+	Target string
+	Offset int
+}
+
 // MarkdownReader extracts text from Markdown, parsing YAML frontmatter,
 // collecting headings into metadata, and normalizing Obsidian syntax:
 //

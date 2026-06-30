@@ -108,6 +108,17 @@ type Chunk struct {
 	// neither document nor chunk identity changes. Surfaced on QueryHit across
 	// every transport (FR-004).
 	SectionContext []string `json:"section_context,omitempty"`
+	// Wikilinks are the Obsidian [[wikilink]] targets whose link text falls
+	// inside this chunk's text range (spec 036 / BL-004), canonicalised by the
+	// reader's linkTarget (alias "|" and anchor "#heading"/"#^blockid" stripped;
+	// path preserved verbatim), de-duplicated, first-occurrence order. Links
+	// inside fenced/inline code are excluded. nil for chunks with no wikilinks
+	// and for chunks ingested before this feature — treated as absent (never an
+	// error) at retrieval. A non-identity sidecar (like SectionContext): the
+	// chunk ID folds text+mime+{doc,idx} only and the span data is removed from
+	// document metadata before GenerateID, so neither document nor chunk
+	// identity changes. Surfaced on QueryHit and GetChunk across every transport.
+	Wikilinks []string `json:"wikilinks,omitempty"`
 	// NearDup describes this chunk's near-duplicate relationships (audit H20 /
 	// spec 026): the chunkIDs within the configured SimHash Hamming distance
 	// (pairwise siblings) and the closest sibling's similarity. nil for chunks

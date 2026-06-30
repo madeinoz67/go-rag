@@ -88,6 +88,11 @@ type QueryHit struct {
 	// enriched|failed|nothing-to-enrich. Empty when unenriched. Surfaced 1:1 by
 	// every transport (FR-010).
 	EnrichmentStatus string
+	// Wikilinks are the chunk's Obsidian [[wikilink]] targets (spec 036 / BL-004),
+	// canonicalised by linkTarget (alias/anchor stripped, path preserved),
+	// chunk-scoped. nil/absent for chunks with no wikilinks or pre-feature.
+	// Surfaced 1:1 by every transport (FR-009).
+	Wikilinks []string
 }
 
 // QueryResult wraps the ranked hits returned by Engine.Query.
