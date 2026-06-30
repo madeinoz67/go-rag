@@ -6,6 +6,8 @@
 > **Source**: Derived from `go-rag-bridge-feature-brief.md`  
 > **Labels used**: `api` `grpc` `streaming` `metadata` `bridge` `enhancement` `feat`
 
+> **POST-REVIEW UPDATE (2026-06-30):** MuninnDB maintainer approved the bridge. **None of these BL items are blocked by MuninnDB** — Stream A (go-rag side) is fully unblocked and independent of the upstream timeline. Priority call from the maintainer: the **Obsidian wikilink → `Link` pipeline** is "the best idea in the RFC" — that bumps **BL-004** (expose wikilink targets in `Chunk.metadata`) to the headline enabler, with Hebbian edges written at weight **0.6–0.8** (on-query co-retrieval edges: **0.1–0.2**). Other maintainer invariants that bind the future bridge consumer: send `embedding: nil`, set `stability: 30.0` on chunk engrams, use gRPC (not MBP) for v1. Full mapping + the two independent work streams: see [`bridge-map-post-review.md`](./bridge-map-post-review.md). **Upstream:** the [#556](https://github.com/scrypster/muninndb/issues/556) UPSERT proto comment was posted 2026-06-30 — tracked in [`muninndb-bridge-backlog.md`](./muninndb-bridge-backlog.md); no BL item is blocked by it.
+
 Backlog items required for effective integration between go-rag and MuninnDB via the `go-rag-muninn-bridge`. Items are ordered within each phase by implementation dependency — earlier items unblock later ones.
 
 ---
@@ -17,7 +19,7 @@ Backlog items required for effective integration between go-rag and MuninnDB via
 | [BL-001](#bl-001) | `GetChunk` RPC — fetch single chunk by ID | P1 | S | 1 | open |
 | [BL-002](#bl-002) | `GetChunkContext` RPC — chunk with surrounding window | P1 | S | 1 | open |
 | [BL-003](#bl-003) | `BatchGetChunks` RPC — fetch up to 100 chunks in one call | P1 | S | 1 | open |
-| [BL-004](#bl-004) | Expose wikilink targets in `Chunk` metadata | P1 | S | 1 | open |
+| [BL-004](#bl-004) | Expose wikilink targets in `Chunk` metadata | P1 | S | 1 | open ⭐ maintainer's priority pick — wikilink→`Link` enabler |
 | [BL-005](#bl-005) | Expose section heading in `Chunk` metadata | P1 | S | 1 | open |
 | [BL-006](#bl-006) | Expose extraction quality score in `Chunk` metadata | P1 | S | 1 | open |
 | [BL-007](#bl-007) | `ListDocuments` — reliable `ingested_at` cursor + `status` filter | P1 | S | 1 | open |
@@ -87,6 +89,23 @@ None — can be implemented independently.
 #### Bridge integration value
 
 Unblocks `ActivateWithRAG` (pattern D1). Enables bridge idempotency recovery when state store is lost.
+
+> **RESOLVED by spec 035** (`/speckit-implement`, 2026-06-30). Two deltas from the
+> draft above, grounded in the engine's actual conventions (see
+> [`specs/035-get-chunk-rpc/research.md`](../../specs/035-get-chunk-rpc/research.md)):
+>
+> 1. **No `vault` field** on `GetChunkRequest`. The engine is single-vault-per-
+>    process — every chunk-scoped RPC (`ReleaseChunk`/`ResetChunk`) takes only
+>    `chunk_id`. The bridge connects to the daemon bound to the target vault
+>    (`--vault`/`--db-path`), so `vault` is a connection-time concern, not a
+>    per-call field. `GetChunkRequest { string chunk_id = 1; }`.
+> 2. **REST path is `GET /v1/chunks/{id}`** — NOT `/api/vaults/{vault}/chunks/{chunk_id}`.
+>    The existing REST API uses `/v1/<resource>` with `{id}` path params
+>    (`/v1/poison/{id}/release`); there is no `/api/` base and no per-vault URL
+>    segment on any route.
+>
+> The bridge consumer must send `chunk_id`-only requests and use `/v1/chunks/{id}`.
+> Not-found surfaces as gRPC `NOT_FOUND` / HTTP 404 / MCP `-32001` / CLI non-zero.
 
 ---
 
