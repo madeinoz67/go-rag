@@ -365,6 +365,35 @@ paths:
           description: chunk_id not found in this vault (or belongs to another vault)
         '400':
           description: empty or whitespace-only chunk_id
+  /v1/chunks/{id}/context:
+    get:
+      summary: Fetch a chunk plus up to N neighbours on each side, with the target index and parent document (spec 037)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: content-addressed chunk_id
+        - name: window
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 10, default: 2 }
+          description: neighbours per side (default 2; 0 returns exactly the target ≡ GetChunk)
+      responses:
+        '200':
+          description: the ordered context window, the target index, and the parent document
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chunks: { type: array, description: "ordered [predecessors][target][successors]; same shape as GET /v1/chunks/{id}'s chunk" }
+                  target_index: { type: integer }
+                  document: { type: object, description: "parent document metadata; absent when the chunk is an orphan" }
+        '404':
+          description: chunk_id not found in this vault (or belongs to another vault)
+        '400':
+          description: empty or whitespace-only chunk_id, or window out of [0,10]
   /v1/poison/{id}/release:
     post:
       summary: Release a flagged chunk (false-positive override) — retrievable by default

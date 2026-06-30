@@ -27,6 +27,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/engine"
 	goraggrpc "github.com/madeinoz67/go-rag/internal/grpc"
 	"github.com/madeinoz67/go-rag/internal/index"
+	"github.com/madeinoz67/go-rag/internal/mcp"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/rest"
 	"github.com/madeinoz67/go-rag/internal/storage"
@@ -1250,4 +1251,200 @@ func TestCrossTransport_WikilinksParity(t *testing.T) {
 	if !sliceEq(resp.GetHits()[0].GetWikilinks(), want) {
 		t.Errorf("gRPC wikilinks = %v, want %v", resp.GetHits()[0].GetWikilinks(), want)
 	}
+}
+
+// restChunkContextResponse mirrors internal/rest's GetChunkContext JSON envelope
+// (tags match exactly) without importing its unexported DTOs.
+type restChunkContextResponse struct {
+	Chunks []struct {
+		ChunkID string `json:"chunk_id"`
+	} `json:"chunks"`
+	TargetIndex int `json:"target_index"`
+	Document    struct {
+		ID         string `json:"id"`
+		FilePath   string `json:"file_path"`
+		SourcePath string `json:"source_path"`
+	} `json:"document"`
+}
+
+// mcpContextCall drives go_rag_get_chunk_context over the MCP HTTP transport and
+// parses the rendered window into ordered chunk ids + the target index (derived
+// from the >>> marker line — no int parsing needed).
+func mcpContextCall(t *testing.T, baseURL, id string, window int) (ids []string, targetIndex int) {
+	t.Helper()
+	body, _ := json.Marshal(map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": "go_rag_get_chunk_context",
+			"arguments": map[string]any{"chunk_id": id, "window": window}},
+	})
+	resp, err := http.Post(baseURL+"/mcp", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("MCP context call: %v", err)
+	}
+	defer resp.Body.Close()
+	var env struct {
+		Result struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode MCP context response: %v", err)
+	}
+	if len(env.Result.Content) == 0 {
+		t.Fatal("MCP context: empty content")
+	}
+	for _, line := range strings.Split(env.Result.Content[0].Text, "\n") {
+		trim := strings.TrimSpace(line)
+		if idx := strings.Index(trim, "] "); idx > 0 { // "[i] <chunkID>" or ">>> [i] <chunkID>"
+			if strings.HasPrefix(trim, ">") { // the >>> target marker
+				targetIndex = len(ids)
+			}
+			ids = append(ids, trim[idx+2:])
+		}
+	}
+	return ids, targetIndex
+}
+
+func assertContextEqual(t *testing.T, label string, gotIDs []string, gotIdx int, gotDocID, gotDocPath string, wantIDs []string, wantIdx int, wantDocID, wantDocPath string) {
+	t.Helper()
+	if !reflect.DeepEqual(gotIDs, wantIDs) {
+		t.Errorf("%s: chunk ids=%v, want %v", label, gotIDs, wantIDs)
+	}
+	if gotIdx != wantIdx {
+		t.Errorf("%s: target_index=%d, want %d", label, gotIdx, wantIdx)
+	}
+	if wantDocID != "" || gotDocID != "" { // structured transports compare document; MCP (text) skips it
+		if gotDocID != wantDocID {
+			t.Errorf("%s: document.id=%q, want %q", label, gotDocID, wantDocID)
+		}
+		if gotDocPath != wantDocPath {
+			t.Errorf("%s: document.file_path=%q, want %q", label, gotDocPath, wantDocPath)
+		}
+	}
+}
+
+// TestCrossTransport_GetChunkContextParity (spec 037 / BL-002, FR-010 / SC-001):
+// the same (chunk_id, window) resolves to the same ordered chunk window, target
+// index, and parent document over the facade, REST, gRPC, and MCP — all backed
+// by one shared Engine (MCP via NewWithEngine daemon mode). CLI projects the
+// identical engine method + the same DTO shape as REST, covered by
+// chunk_context_test.go (spec 035's cross-transport argument).
+func TestCrossTransport_GetChunkContextParity(t *testing.T) {
+	// A long corpus → many chunks. Repetition is fine here: the setup query passes
+	// IncludeQuarantined (a flagged chunk still yields an id), and GetChunkContext
+	// is a raw lookupChunk read that returns chunks regardless of poison status.
+	eng := sharedEngine(t, strings.Repeat(
+		"the go-rag context window parity corpus covers retrieval tokens sessions and authentication concepts for local indexing and ranking fusion. ", 200))
+
+	// Keyword-locate any chunk in the corpus.
+	q, err := eng.Query(context.Background(), engine.QueryRequest{Query: "retrieval", Mode: "keyword", K: 5, IncludeQuarantined: true})
+	if err != nil || len(q.Hits) == 0 {
+		t.Fatalf("setup query: err=%v hits=%d", err, len(q.Hits))
+	}
+	const window = 2
+	// Pick the MIDDLE chunk of the document's linked list → guaranteed interior
+	// (≥2 neighbours each side) for any doc with ≥5 chunks, regardless of where
+	// the keyword hit landed.
+	head := q.Hits[0].ChunkID
+	for {
+		c, werr := eng.GetChunk(head)
+		if werr != nil || c.Chunk.PreviousChunkID == "" {
+			break
+		}
+		head = c.Chunk.PreviousChunkID
+	}
+	var ordered []string
+	cur := head
+	for {
+		ordered = append(ordered, cur)
+		c, werr := eng.GetChunk(cur)
+		if werr != nil || c.Chunk.NextChunkID == "" {
+			break
+		}
+		cur = c.Chunk.NextChunkID
+	}
+	if len(ordered) < 5 {
+		t.Fatalf("setup: corpus produced %d chunks, need ≥5 for a window=2 interior parity test", len(ordered))
+	}
+	id := ordered[len(ordered)/2]
+
+	// Reference: facade.
+	ref, err := eng.GetChunkContext(id, window)
+	if err != nil {
+		t.Fatalf("facade GetChunkContext: %v", err)
+	}
+	wantIDs := make([]string, len(ref.Chunks))
+	for i, c := range ref.Chunks {
+		wantIDs[i] = c.ID
+	}
+	if len(wantIDs) != 5 {
+		t.Fatalf("setup: interior window=2 gave %d chunks, want 5 — pick a richer corpus", len(wantIDs))
+	}
+
+	// REST.
+	restSrv := httptest.NewServer(rest.New(eng, "").Handler())
+	defer restSrv.Close()
+	rr := getJSON[restChunkContextResponse](t, restSrv.URL+"/v1/chunks/"+id+"/context?window=2")
+	restIDs := make([]string, len(rr.Chunks))
+	for i, c := range rr.Chunks {
+		restIDs[i] = c.ChunkID
+	}
+	assertContextEqual(t, "REST", restIDs, rr.TargetIndex, rr.Document.ID, rr.Document.FilePath,
+		wantIDs, ref.TargetIndex, ref.Document.ID, ref.Document.FilePath)
+
+	// gRPC.
+	client := dialGRPC(t, eng)
+	gresp, err := client.GetChunkContext(context.Background(), &goragpb.GetChunkContextRequest{ChunkId: id, Window: window})
+	if err != nil {
+		t.Fatalf("gRPC GetChunkContext: %v", err)
+	}
+	grpcIDs := make([]string, len(gresp.GetChunks()))
+	for i, c := range gresp.GetChunks() {
+		grpcIDs[i] = c.GetChunkId()
+	}
+	var grpcDocID, grpcDocPath string
+	if gresp.GetDocument() != nil {
+		grpcDocID, grpcDocPath = gresp.GetDocument().GetId(), gresp.GetDocument().GetFilePath()
+	}
+	assertContextEqual(t, "gRPC", grpcIDs, int(gresp.GetTargetIndex()), grpcDocID, grpcDocPath,
+		wantIDs, ref.TargetIndex, ref.Document.ID, ref.Document.FilePath)
+
+	// M1: source-derived field (source_path) parity across the structured
+	// transports — locks down FR-008's "source path" projection end-to-end.
+	if want := ref.Source.Path; want != "" {
+		if rr.Document.SourcePath != want {
+			t.Errorf("REST source_path=%q, want %q", rr.Document.SourcePath, want)
+		}
+		if gresp.GetDocument() != nil && gresp.GetDocument().GetSourcePath() != want {
+			t.Errorf("gRPC source_path=%q, want %q", gresp.GetDocument().GetSourcePath(), want)
+		}
+	}
+
+	// M2: pin the documented proto3 window-presence asymmetry. REST ?window=0
+	// means "exactly the target" (1 chunk); gRPC Window:0 means "unspecified"
+	// → default 2 (the same 5-chunk interior window as the facade). A caller
+	// wanting exactly-one chunk over gRPC uses GetChunk.
+	rest0 := getJSON[restChunkContextResponse](t, restSrv.URL+"/v1/chunks/"+id+"/context?window=0")
+	if len(rest0.Chunks) != 1 || rest0.TargetIndex != 0 {
+		t.Errorf("REST window=0: len=%d idx=%d, want 1/0 (exactly target)", len(rest0.Chunks), rest0.TargetIndex)
+	}
+	grpc0, err := client.GetChunkContext(context.Background(), &goragpb.GetChunkContextRequest{ChunkId: id, Window: 0})
+	if err != nil {
+		t.Fatalf("gRPC window=0: %v", err)
+	}
+	if len(grpc0.GetChunks()) != len(wantIDs) || int(grpc0.GetTargetIndex()) != ref.TargetIndex {
+		t.Errorf("gRPC window=0 (→default 2): len=%d idx=%d, want len=%d idx=%d",
+			len(grpc0.GetChunks()), grpc0.GetTargetIndex(), len(wantIDs), ref.TargetIndex)
+	}
+
+	// MCP (text render) over the SAME engine — daemon mode (NewWithEngine).
+	mcpSrv := httptest.NewServer(mcp.NewWithEngine("", eng, config.Default()).HTTPHandler(""))
+	defer mcpSrv.Close()
+	mcpIDs, mcpIdx := mcpContextCall(t, mcpSrv.URL, id, window)
+	// MCP text shows file_path in the document line, not the document id, so the
+	// structured document comparison is covered by REST/gRPC/facade above; here
+	// we assert the core window parity: ordered ids + target_index.
+	assertContextEqual(t, "MCP", mcpIDs, mcpIdx, "", "", wantIDs, ref.TargetIndex, "", "")
 }

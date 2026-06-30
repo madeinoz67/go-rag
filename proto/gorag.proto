@@ -63,6 +63,10 @@ service Gorag {
   // parent document metadata. → engine.GetChunk (also REST GET /v1/chunks/{id},
   // MCP go_rag_get_chunk, CLI `go-rag chunk get`).
   rpc GetChunk(GetChunkRequest) returns (GetChunkResponse);
+  // spec 037 (BL-002): a chunk plus up to N neighbours on each side, in one
+  // call. → engine.GetChunkContext (also REST GET /v1/chunks/{id}/context,
+  // MCP go_rag_get_chunk_context, CLI `go-rag chunk context`).
+  rpc GetChunkContext(GetChunkContextRequest) returns (GetChunkContextResponse);
 }
 
 // ---- Query ----
@@ -163,6 +167,20 @@ message GetChunkRequest {
 message GetChunkResponse {
   Chunk        chunk    = 1;
   DocumentMeta document = 2;
+}
+
+// spec 037 (BL-002): request a chunk plus up to `window` neighbours each side.
+message GetChunkContextRequest {
+  string chunk_id = 1;
+  int32  window   = 2; // default 2, clamped [0,10]; >10 → INVALID_ARGUMENT
+}
+
+// spec 037 (BL-002): the ordered context window [predecessors][target][successors],
+// the requested chunk's index, and the parent document (zero-valued if orphan).
+message GetChunkContextResponse {
+  repeated Chunk chunks       = 1;
+  int32          target_index = 2;
+  DocumentMeta   document     = 3;
 }
 
 // Chunk is the transport projection of model.Chunk for a point fetch (spec 035).

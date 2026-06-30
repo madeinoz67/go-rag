@@ -48,6 +48,7 @@ func newChunkCmd() *cobra.Command {
 		Short: "Fetch a single chunk by its content-addressed ID (spec 035)",
 	}
 	cmd.AddCommand(newChunkGetCmd())
+	cmd.AddCommand(newChunkContextCmd()) // spec 037
 	return cmd
 }
 
@@ -226,5 +227,79 @@ func printDocumentText(d documentOut) {
 	}
 	if len(d.Tags) > 0 {
 		fmt.Printf("tags: %s\n", strings.Join(d.Tags, ", "))
+	}
+}
+
+// getContextResponseOut is the CLI JSON envelope for GetChunkContext — {chunks,
+// target_index, document} — mirroring the proto GetChunkContextResponse / REST
+// shape 1:1 (cross-transport parity, spec 037 US3).
+type getContextResponseOut struct {
+	Chunks      []chunkOut   `json:"chunks"`
+	TargetIndex int          `json:"target_index"`
+	Document    *documentOut `json:"document,omitempty"`
+}
+
+// newChunkContextCmd resolves a chunk_id to its chunk plus up to `window`
+// neighbours on each side (spec 037 / BL-002). JSON is the default format;
+// --format text prints the ordered window with the target marked (>>>), its
+// index, the target's content, and the parent document. Default --window 2; 0
+// returns exactly the target (≡ GetChunk); >10 exits non-zero with a message.
+func newChunkContextCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "context <chunk_id>",
+		Short: "Resolve a chunk_id to its chunk plus up to N neighbours each side (spec 037)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			format, _ := cmd.Flags().GetString("format")
+			window, _ := cmd.Flags().GetInt("window")
+			if window < 0 || window > engine.MaxChunkContextWindow() {
+				return fmt.Errorf("window must be 0..%d, got %d", engine.MaxChunkContextWindow(), window)
+			}
+			cfg, db, err := openDB(dbPath)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+			res, err := engine.NewWithDB(cfg, db).GetChunkContext(args[0], window)
+			if err != nil {
+				return err
+			}
+			resp := getContextResponseOut{Chunks: make([]chunkOut, len(res.Chunks)), TargetIndex: res.TargetIndex}
+			for i, c := range res.Chunks {
+				resp.Chunks[i] = toChunkOut(c)
+			}
+			if res.Document.ID != "" { // orphan chunk → document omitted (nil)
+				resp.Document = toDocumentOut(res.Document, res.Source)
+			}
+			if format == "json" {
+				return json.NewEncoder(os.Stdout).Encode(resp)
+			}
+			printChunkContextText(resp)
+			return nil
+		},
+	}
+	cmd.Flags().StringP("format", "f", "json", "output format: json|text")
+	cmd.Flags().Int("window", engine.DefaultChunkContextWindow(), "neighbours per side (0..10; default 2; 0 = target only)")
+	return cmd
+}
+
+// printChunkContextText renders the ordered window as a numbered list with the
+// target chunk marked (>>>), its target_index, the target's content, and the
+// parent document line. Mirrors the MCP text render (cross-transport parity).
+func printChunkContextText(resp getContextResponseOut) {
+	for i, c := range resp.Chunks {
+		marker := "   "
+		if i == resp.TargetIndex {
+			marker = ">>>"
+		}
+		fmt.Printf("%s [%d] %s\n", marker, i, c.ChunkID)
+	}
+	fmt.Printf("target_index: %d\n", resp.TargetIndex)
+	if resp.TargetIndex >= 0 && resp.TargetIndex < len(resp.Chunks) {
+		fmt.Println("--- target content ---")
+		fmt.Println(resp.Chunks[resp.TargetIndex].Content)
+	}
+	if resp.Document != nil {
+		printDocumentText(*resp.Document)
 	}
 }

@@ -190,6 +190,8 @@ func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any
 		return s.renderPoisonRescan(eng)
 	case "go_rag_get_chunk":
 		return s.renderGetChunk(eng, args) // spec 035
+	case "go_rag_get_chunk_context":
+		return s.renderGetChunkContext(eng, args) // spec 037
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
 }
@@ -511,6 +513,49 @@ func (s *Server) renderGetChunk(eng *engine.Engine, args map[string]any) (string
 	}
 	b.WriteString("--- content ---\n")
 	b.WriteString(res.Chunk.Content)
+	return b.String(), nil
+}
+
+// renderGetChunkContext is the MCP text projection of engine.GetChunkContext
+// (spec 037 / BL-002): the ordered window as a numbered list with the target
+// marked (>>>), its target_index, and the parent document line. window defaults
+// to 2 when absent; explicit 0..10 (0 = exactly the target). Mirrors GetChunk's
+// render + error surface (NotFound → -32001 via callTool).
+func (s *Server) renderGetChunkContext(eng *engine.Engine, args map[string]any) (string, error) {
+	id, _ := args["chunk_id"].(string)
+	if strings.TrimSpace(id) == "" {
+		return "", fmt.Errorf("chunk_id required")
+	}
+	window := engine.DefaultChunkContextWindow()
+	if v, ok := args["window"]; ok && v != nil {
+		switch n := v.(type) {
+		case float64:
+			window = int(n)
+		case int:
+			window = n
+		default:
+			return "", fmt.Errorf("window must be an integer 0..%d", engine.MaxChunkContextWindow())
+		}
+		if window < 0 || window > engine.MaxChunkContextWindow() {
+			return "", fmt.Errorf("window must be 0..%d, got %d", engine.MaxChunkContextWindow(), window)
+		}
+	}
+	res, err := eng.GetChunkContext(id, window)
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	for i, c := range res.Chunks {
+		marker := "   "
+		if i == res.TargetIndex {
+			marker = ">>>"
+		}
+		fmt.Fprintf(&b, "%s [%d] %s\n", marker, i, c.ID)
+	}
+	fmt.Fprintf(&b, "target_index: %d\n", res.TargetIndex)
+	if res.Document.ID != "" {
+		fmt.Fprintf(&b, "document: %s (%s, status %s)\n", res.Document.FilePath, res.Document.FileType, res.Document.Status)
+	}
 	return b.String(), nil
 }
 
@@ -882,6 +927,18 @@ func toolDefs() []map[string]any {
 				"type":       "object",
 				"properties": map[string]any{"chunk_id": map[string]any{"type": "string"}},
 				"required":   []string{"chunk_id"},
+			},
+		},
+		{
+			"name":        "go_rag_get_chunk_context",
+			"description": "Fetch a chunk plus up to N neighbours on each side (spec 037 / BL-002), in document order, with the target index and parent document. window defaults to 2 (range 0..10; 0 returns exactly the target). Returns not-found (-32001) if the id is absent from this vault.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"chunk_id": map[string]any{"type": "string"},
+					"window":   map[string]any{"type": "integer", "minimum": 0, "maximum": 10, "default": 2},
+				},
+				"required": []string{"chunk_id"},
 			},
 		},
 		{

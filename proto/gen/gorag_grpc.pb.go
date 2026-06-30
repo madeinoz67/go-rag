@@ -46,6 +46,7 @@ const (
 	Gorag_ResetChunk_FullMethodName      = "/gorag.Gorag/ResetChunk"
 	Gorag_RescanPoisoning_FullMethodName = "/gorag.Gorag/RescanPoisoning"
 	Gorag_GetChunk_FullMethodName        = "/gorag.Gorag/GetChunk"
+	Gorag_GetChunkContext_FullMethodName = "/gorag.Gorag/GetChunkContext"
 )
 
 // GoragClient is the client API for Gorag service.
@@ -89,6 +90,10 @@ type GoragClient interface {
 	// parent document metadata. → engine.GetChunk (also REST GET /v1/chunks/{id},
 	// MCP go_rag_get_chunk, CLI `go-rag chunk get`).
 	GetChunk(ctx context.Context, in *GetChunkRequest, opts ...grpc.CallOption) (*GetChunkResponse, error)
+	// spec 037 (BL-002): a chunk plus up to N neighbours on each side, in one
+	// call. → engine.GetChunkContext (also REST GET /v1/chunks/{id}/context,
+	// MCP go_rag_get_chunk_context, CLI `go-rag chunk context`).
+	GetChunkContext(ctx context.Context, in *GetChunkContextRequest, opts ...grpc.CallOption) (*GetChunkContextResponse, error)
 }
 
 type goragClient struct {
@@ -279,6 +284,16 @@ func (c *goragClient) GetChunk(ctx context.Context, in *GetChunkRequest, opts ..
 	return out, nil
 }
 
+func (c *goragClient) GetChunkContext(ctx context.Context, in *GetChunkContextRequest, opts ...grpc.CallOption) (*GetChunkContextResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetChunkContextResponse)
+	err := c.cc.Invoke(ctx, Gorag_GetChunkContext_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GoragServer is the server API for Gorag service.
 // All implementations must embed UnimplementedGoragServer
 // for forward compatibility.
@@ -320,6 +335,10 @@ type GoragServer interface {
 	// parent document metadata. → engine.GetChunk (also REST GET /v1/chunks/{id},
 	// MCP go_rag_get_chunk, CLI `go-rag chunk get`).
 	GetChunk(context.Context, *GetChunkRequest) (*GetChunkResponse, error)
+	// spec 037 (BL-002): a chunk plus up to N neighbours on each side, in one
+	// call. → engine.GetChunkContext (also REST GET /v1/chunks/{id}/context,
+	// MCP go_rag_get_chunk_context, CLI `go-rag chunk context`).
+	GetChunkContext(context.Context, *GetChunkContextRequest) (*GetChunkContextResponse, error)
 	mustEmbedUnimplementedGoragServer()
 }
 
@@ -383,6 +402,9 @@ func (UnimplementedGoragServer) RescanPoisoning(context.Context, *RescanPoisonin
 }
 func (UnimplementedGoragServer) GetChunk(context.Context, *GetChunkRequest) (*GetChunkResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetChunk not implemented")
+}
+func (UnimplementedGoragServer) GetChunkContext(context.Context, *GetChunkContextRequest) (*GetChunkContextResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetChunkContext not implemented")
 }
 func (UnimplementedGoragServer) mustEmbedUnimplementedGoragServer() {}
 func (UnimplementedGoragServer) testEmbeddedByValue()               {}
@@ -729,6 +751,24 @@ func _Gorag_GetChunk_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Gorag_GetChunkContext_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetChunkContextRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoragServer).GetChunkContext(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Gorag_GetChunkContext_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoragServer).GetChunkContext(ctx, req.(*GetChunkContextRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Gorag_ServiceDesc is the grpc.ServiceDesc for Gorag service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -807,6 +847,10 @@ var Gorag_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetChunk",
 			Handler:    _Gorag_GetChunk_Handler,
+		},
+		{
+			MethodName: "GetChunkContext",
+			Handler:    _Gorag_GetChunkContext_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

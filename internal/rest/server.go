@@ -58,6 +58,7 @@ var routes = []route{
 	{"POST", "/v1/poison/{id}/reset", true},   // H04/spec 019: undo a release
 	{"POST", "/v1/poison/rescan", true},       // H04/spec 019: re-score the corpus
 	{"GET", "/v1/chunks/{id}", true},          // spec 035: fetch a chunk by content-addressed ID
+	{"GET", "/v1/chunks/{id}/context", true},  // spec 037: a chunk plus up to N neighbours each side
 }
 
 // Handler returns the http.Handler serving the REST API (Go 1.22+ pattern mux),
@@ -120,6 +121,8 @@ func (s *Server) handlerFor(method, path string) http.HandlerFunc {
 		return s.handlePoisonRescan
 	case "GET /v1/chunks/{id}":
 		return s.handleGetChunk // spec 035
+	case "GET /v1/chunks/{id}/context":
+		return s.handleGetChunkContext // spec 037
 	}
 	return nil
 }
