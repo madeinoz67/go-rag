@@ -11,7 +11,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v7.35.1
-// source: proto/gorag.proto
+// source: gorag.proto
 
 package goragpb
 
@@ -45,6 +45,7 @@ const (
 	Gorag_ReleaseChunk_FullMethodName    = "/gorag.Gorag/ReleaseChunk"
 	Gorag_ResetChunk_FullMethodName      = "/gorag.Gorag/ResetChunk"
 	Gorag_RescanPoisoning_FullMethodName = "/gorag.Gorag/RescanPoisoning"
+	Gorag_GetChunk_FullMethodName        = "/gorag.Gorag/GetChunk"
 )
 
 // GoragClient is the client API for Gorag service.
@@ -84,6 +85,10 @@ type GoragClient interface {
 	ReleaseChunk(ctx context.Context, in *ReleaseChunkRequest, opts ...grpc.CallOption) (*PoisonActionResponse, error)
 	ResetChunk(ctx context.Context, in *ResetChunkRequest, opts ...grpc.CallOption) (*PoisonActionResponse, error)
 	RescanPoisoning(ctx context.Context, in *RescanPoisoningRequest, opts ...grpc.CallOption) (*RescanPoisoningResponse, error)
+	// spec 035 (BL-001): fetch a single chunk by its content-addressed ID, with
+	// parent document metadata. → engine.GetChunk (also REST GET /v1/chunks/{id},
+	// MCP go_rag_get_chunk, CLI `go-rag chunk get`).
+	GetChunk(ctx context.Context, in *GetChunkRequest, opts ...grpc.CallOption) (*GetChunkResponse, error)
 }
 
 type goragClient struct {
@@ -264,6 +269,16 @@ func (c *goragClient) RescanPoisoning(ctx context.Context, in *RescanPoisoningRe
 	return out, nil
 }
 
+func (c *goragClient) GetChunk(ctx context.Context, in *GetChunkRequest, opts ...grpc.CallOption) (*GetChunkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetChunkResponse)
+	err := c.cc.Invoke(ctx, Gorag_GetChunk_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GoragServer is the server API for Gorag service.
 // All implementations must embed UnimplementedGoragServer
 // for forward compatibility.
@@ -301,6 +316,10 @@ type GoragServer interface {
 	ReleaseChunk(context.Context, *ReleaseChunkRequest) (*PoisonActionResponse, error)
 	ResetChunk(context.Context, *ResetChunkRequest) (*PoisonActionResponse, error)
 	RescanPoisoning(context.Context, *RescanPoisoningRequest) (*RescanPoisoningResponse, error)
+	// spec 035 (BL-001): fetch a single chunk by its content-addressed ID, with
+	// parent document metadata. → engine.GetChunk (also REST GET /v1/chunks/{id},
+	// MCP go_rag_get_chunk, CLI `go-rag chunk get`).
+	GetChunk(context.Context, *GetChunkRequest) (*GetChunkResponse, error)
 	mustEmbedUnimplementedGoragServer()
 }
 
@@ -361,6 +380,9 @@ func (UnimplementedGoragServer) ResetChunk(context.Context, *ResetChunkRequest) 
 }
 func (UnimplementedGoragServer) RescanPoisoning(context.Context, *RescanPoisoningRequest) (*RescanPoisoningResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RescanPoisoning not implemented")
+}
+func (UnimplementedGoragServer) GetChunk(context.Context, *GetChunkRequest) (*GetChunkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetChunk not implemented")
 }
 func (UnimplementedGoragServer) mustEmbedUnimplementedGoragServer() {}
 func (UnimplementedGoragServer) testEmbeddedByValue()               {}
@@ -689,6 +711,24 @@ func _Gorag_RescanPoisoning_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Gorag_GetChunk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetChunkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoragServer).GetChunk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Gorag_GetChunk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoragServer).GetChunk(ctx, req.(*GetChunkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Gorag_ServiceDesc is the grpc.ServiceDesc for Gorag service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -764,7 +804,11 @@ var Gorag_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "RescanPoisoning",
 			Handler:    _Gorag_RescanPoisoning_Handler,
 		},
+		{
+			MethodName: "GetChunk",
+			Handler:    _Gorag_GetChunk_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/gorag.proto",
+	Metadata: "gorag.proto",
 }

@@ -193,7 +193,7 @@ func TestMCP_Eval(t *testing.T) {
 	}
 }
 
-func TestMCP_ToolsListHas18(t *testing.T) {
+func TestMCP_ToolsListCount(t *testing.T) {
 	in := strings.NewReader(jsonLine(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}))
 	out := new(bytes.Buffer)
 	if err := New(t.TempDir()).Serve(in, out); err != nil {
@@ -202,14 +202,14 @@ func TestMCP_ToolsListHas18(t *testing.T) {
 	var resp map[string]any
 	_ = json.Unmarshal(bytes.TrimSpace(out.Bytes()), &resp)
 	tools := resp["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 19 {
-		t.Fatalf("expected 19 tools, got %d", len(tools))
+	if len(tools) != 20 { // spec 035 added go_rag_get_chunk
+		t.Fatalf("expected 20 tools, got %d", len(tools))
 	}
 	names := map[string]bool{}
 	for _, tc := range tools {
 		names[tc.(map[string]any)["name"].(string)] = true
 	}
-	for _, want := range []string{"go_rag_query", "go_rag_status", "go_rag_add", "go_rag_init", "go_rag_scan", "go_rag_config", "go_rag_files", "go_rag_dirs", "go_rag_reprocess", "go_rag_migrate", "go_rag_vault_list", "go_rag_guide", "go_rag_eval"} {
+	for _, want := range []string{"go_rag_query", "go_rag_status", "go_rag_add", "go_rag_init", "go_rag_scan", "go_rag_config", "go_rag_files", "go_rag_dirs", "go_rag_reprocess", "go_rag_migrate", "go_rag_vault_list", "go_rag_guide", "go_rag_eval", "go_rag_get_chunk"} {
 		if !names[want] {
 			t.Errorf("missing tool %s", want)
 		}

@@ -58,6 +58,11 @@ service Gorag {
   rpc ReleaseChunk(ReleaseChunkRequest) returns (PoisonActionResponse);
   rpc ResetChunk(ResetChunkRequest) returns (PoisonActionResponse);
   rpc RescanPoisoning(RescanPoisoningRequest) returns (RescanPoisoningResponse);
+
+  // spec 035 (BL-001): fetch a single chunk by its content-addressed ID, with
+  // parent document metadata. → engine.GetChunk (also REST GET /v1/chunks/{id},
+  // MCP go_rag_get_chunk, CLI `go-rag chunk get`).
+  rpc GetChunk(GetChunkRequest) returns (GetChunkResponse);
 }
 
 // ---- Query ----
@@ -142,6 +147,68 @@ message RescanPoisoningRequest {}
 message RescanPoisoningResponse {
   int32 rescored = 1; // chunks (re)scored
   int32 flagged = 2;  // now flagged (suspicious/quarantine)
+}
+
+// spec 035 (BL-001): fetch a single chunk by content-addressed ID. The request
+// carries only chunk_id — the engine is single-vault-per-process, so (unlike the
+// bridge backlog's draft) there is NO vault field; mirrors ReleaseChunkRequest.
+message GetChunkRequest {
+  string chunk_id = 1;
+}
+
+// GetChunkResponse carries the resolved chunk and its parent document metadata
+// in one call. Chunk projects model.Chunk; DocumentMeta projects model.Document
+// (+ spec-029 EnrichInfo). Reuses the existing Poisoning / NearDup messages.
+message GetChunkResponse {
+  Chunk        chunk    = 1;
+  DocumentMeta document = 2;
+}
+
+// Chunk is the transport projection of model.Chunk for a point fetch (spec 035).
+// Mirrors the QueryHit field set plus the full position / linked-list span a
+// debug or bridge caller needs. Poisoning / NearDup reuse the existing messages.
+message Chunk {
+  string          chunk_id          = 1;
+  string          document_id       = 2;
+  string          content           = 3;
+  int32           chunk_index       = 4;
+  int32           total_chunks      = 5;
+  int32           page_number       = 6;   // 0 = not paginated
+  int32           start_char        = 7;
+  int32           end_char          = 8;
+  int32           token_count       = 9;
+  string          previous_chunk_id = 10;
+  string          next_chunk_id     = 11;
+  Poisoning       poisoning         = 12;  // nil = clean/unscored
+  repeated string section_context   = 13;
+  NearDup         near_dup          = 14;  // nil = none
+  string          kind              = 15;  // e.g. "caption"; empty = ordinary text
+  string          created_at        = 16;  // RFC3339; empty if unset
+}
+
+// DocumentMeta is the transport projection of model.Document (+ spec-029
+// EnrichInfo flattened) — the parent-document context a chunk consumer needs in
+// the same call (spec 035 US2). id is the identity hash; content_hash is the
+// distinct change-detection hash (PRD §7.2) — do not collapse them.
+message DocumentMeta {
+  string          id                = 1;
+  string          content_hash      = 2;
+  string          source_id         = 3;
+  string          source_path       = 4;   // absolute source dir (optional 3rd read)
+  string          file_path         = 5;   // relative to the source root
+  string          file_name         = 6;
+  string          file_type         = 7;
+  string          mime_type         = 8;
+  int32           chunk_count       = 9;
+  int64           file_size         = 10;
+  string          status            = 11;  // pending|embedded|error
+  string          ingested_at       = 12;  // RFC3339
+  string          updated_at        = 13;  // RFC3339
+  repeated string tags              = 14;  // spec 029 enrichment
+  string          summary           = 15;  // spec 029 enrichment
+  string          enrichment_status = 16;  // enriched|failed|nothing-to-enrich
+  string          enrichment_model  = 17;
+  string          enrichment_at     = 18;  // RFC3339
 }
 message QueryResponse {
   repeated QueryHit hits = 1;

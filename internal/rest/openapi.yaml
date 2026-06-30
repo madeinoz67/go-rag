@@ -342,6 +342,29 @@ paths:
                         verdict:
                           type: object
                           description: level/score/signals/matched_phrases
+  /v1/chunks/{id}:
+    get:
+      summary: Fetch a single chunk by its content-addressed ID, with parent document metadata (spec 035)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: content-addressed chunk_id
+      responses:
+        '200':
+          description: the chunk and its parent document metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chunk: { type: object, description: "chunk_id, document_id, content, page_number, section_context, poisoning, near_dup, …" }
+                  document: { type: object, description: "id, content_hash, source_path, file_path, file_type, status, summary, enrichment_status, …" }
+        '404':
+          description: chunk_id not found in this vault (or belongs to another vault)
+        '400':
+          description: empty or whitespace-only chunk_id
   /v1/poison/{id}/release:
     post:
       summary: Release a flagged chunk (false-positive override) — retrievable by default

@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/model"
@@ -17,6 +18,9 @@ import (
 func toStatusErr(err error) error {
 	if errors.Is(err, engine.ErrInvalid) {
 		return status.Error(codes.InvalidArgument, err.Error())
+	}
+	if errors.Is(err, engine.ErrNotFound) { // spec 035: a missing chunk_id is a normal client outcome, not a server fault
+		return status.Error(codes.NotFound, err.Error())
 	}
 	return status.Error(codes.Internal, err.Error())
 }
@@ -100,6 +104,50 @@ func toPoisoningPB(v *model.PoisonVerdict) *goragpb.Poisoning {
 			Stuffing:    v.Signals.Stuffing,
 			Instruction: v.Signals.Instruction,
 		},
+	}
+}
+
+// GetChunk is the gRPC projection of engine.GetChunk (spec 035 / BL-001): resolve
+// a content-addressed chunk_id to its chunk. The parent DocumentMeta is projected
+// onto the response in US2 (toDocumentMetaPB); here `document` is left nil so US1
+// stays a focused, independently testable increment.
+func (a *Adapter) GetChunk(_ context.Context, req *goragpb.GetChunkRequest) (*goragpb.GetChunkResponse, error) {
+	res, err := a.eng.GetChunk(req.GetChunkId())
+	if err != nil {
+		return nil, toStatusErr(err)
+	}
+	resp := &goragpb.GetChunkResponse{Chunk: toChunkPB(res.Chunk)}
+	if res.Document.ID != "" { // US2/spec 035: project parent-document metadata (nil for an orphan chunk)
+		resp.Document = toDocumentMetaPB(res.Document, res.Source)
+	}
+	return resp, nil
+}
+
+// toChunkPB maps a model.Chunk to its proto projection (spec 035). Mirrors the
+// QueryHit field set plus the full position / linked-list span a debug or bridge
+// caller needs. Reuses toPoisoningPB / toNearDupPB for the sidecars.
+func toChunkPB(c model.Chunk) *goragpb.Chunk {
+	created := ""
+	if !c.CreatedAt.IsZero() {
+		created = c.CreatedAt.UTC().Format(time.RFC3339)
+	}
+	return &goragpb.Chunk{
+		ChunkId:         c.ID,
+		DocumentId:      c.DocumentID,
+		Content:         c.Content,
+		ChunkIndex:      int32(c.ChunkIndex),
+		TotalChunks:     int32(c.TotalChunks),
+		PageNumber:      int32(c.PageNumber),
+		StartChar:       int32(c.StartCharIdx),
+		EndChar:         int32(c.EndCharIdx),
+		TokenCount:      int32(c.TokenCount),
+		PreviousChunkId: c.PreviousChunkID,
+		NextChunkId:     c.NextChunkID,
+		Poisoning:       toPoisoningPB(c.Poisoning),
+		SectionContext:  c.SectionContext,
+		NearDup:         toNearDupPB(c.NearDup),
+		Kind:            c.Kind,
+		CreatedAt:       created,
 	}
 }
 

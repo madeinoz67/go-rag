@@ -17,3 +17,15 @@ var ErrInvalid = errors.New("invalid request")
 // lives in the one shared Query path, so CLI/REST/gRPC/MCP refuse identically).
 // Detect with errors.Is(err, ErrEmbeddingMismatch).
 var ErrEmbeddingMismatch = errors.New("embedding mismatch")
+
+// ErrNotFound marks a read that addressed a key the bound vault does not hold —
+// used by GetChunk (spec 035) for a missing/stale chunk_id, and recommended for
+// the chunk-scoped poison RPCs. It is a NORMAL client outcome for a point lookup
+// (not a server fault), so transport adapters map it to a real not-found status:
+// gRPC codes.NotFound / HTTP 404 / MCP JSON-RPC -32001 / CLI non-zero exit. This
+// is distinct from ErrInvalid (malformed input → 400 / InvalidArgument). Wrap at
+// the lookup site: fmt.Errorf("%w: chunk %s", ErrNotFound, chunkID). Because the
+// engine is single-vault-per-process, a chunk_id from another vault resolves to
+// ErrNotFound too — the chunk is simply absent from this store (cross-vault
+// isolation, FR-003, falls out for free).
+var ErrNotFound = errors.New("not found")

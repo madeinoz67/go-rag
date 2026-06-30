@@ -57,6 +57,7 @@ var routes = []route{
 	{"POST", "/v1/poison/{id}/release", true}, // H04/spec 019: false-positive override
 	{"POST", "/v1/poison/{id}/reset", true},   // H04/spec 019: undo a release
 	{"POST", "/v1/poison/rescan", true},       // H04/spec 019: re-score the corpus
+	{"GET", "/v1/chunks/{id}", true},          // spec 035: fetch a chunk by content-addressed ID
 }
 
 // Handler returns the http.Handler serving the REST API (Go 1.22+ pattern mux),
@@ -117,6 +118,8 @@ func (s *Server) handlerFor(method, path string) http.HandlerFunc {
 		return s.handlePoisonReset
 	case "POST /v1/poison/rescan":
 		return s.handlePoisonRescan
+	case "GET /v1/chunks/{id}":
+		return s.handleGetChunk // spec 035
 	}
 	return nil
 }
@@ -182,6 +185,10 @@ func writeEngineErr(w http.ResponseWriter, err error) {
 	}
 	if errors.Is(err, engine.ErrInvalid) {
 		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if errors.Is(err, engine.ErrNotFound) { // spec 035: a missing id is a normal client outcome (FR-002)
+		writeError(w, http.StatusNotFound, err.Error())
 		return
 	}
 	writeError(w, http.StatusInternalServerError, err.Error())

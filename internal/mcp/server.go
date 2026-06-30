@@ -7,6 +7,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -101,6 +102,9 @@ func (s *Server) callTool(req rpcReq) any {
 	args, _ := req.Params["arguments"].(map[string]any)
 	out, err := s.dispatch(name, args)
 	if err != nil {
+		if errors.Is(err, engine.ErrNotFound) { // spec 035: a missing chunk_id is a normal client outcome → -32001 (not -32603 Internal)
+			return errResp(req.ID, -32001, err.Error())
+		}
 		return errResp(req.ID, -32603, err.Error())
 	}
 	return ok(req.ID, map[string]any{
@@ -184,6 +188,8 @@ func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any
 		return s.renderPoisonReset(eng, args)
 	case "go_rag_poison_rescan":
 		return s.renderPoisonRescan(eng)
+	case "go_rag_get_chunk":
+		return s.renderGetChunk(eng, args) // spec 035
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
 }
@@ -463,6 +469,43 @@ func (s *Server) renderPoisonRelease(eng *engine.Engine, args map[string]any) (s
 		return "", err
 	}
 	return fmt.Sprintf("released %s — now retrievable by default", id), nil
+}
+
+// renderGetChunk (spec 035 / BL-001) fetches a chunk by content-addressed ID and
+// renders it (with its parent document's file path/type) for an MCP agent. The
+// authoritative structured shape is the gRPC/REST {chunk, document} response; MCP
+// is the human/agent text surface. Returns engine.GetChunk's error verbatim —
+// callTool maps ErrNotFound to JSON-RPC -32001.
+func (s *Server) renderGetChunk(eng *engine.Engine, args map[string]any) (string, error) {
+	id, _ := args["chunk_id"].(string)
+	if id == "" {
+		return "", fmt.Errorf("chunk_id required")
+	}
+	res, err := eng.GetChunk(id)
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "chunk_id: %s\n", res.Chunk.ID)
+	fmt.Fprintf(&b, "document_id: %s\n", res.Chunk.DocumentID)
+	if res.Chunk.PageNumber > 0 {
+		fmt.Fprintf(&b, "page: %d\n", res.Chunk.PageNumber)
+	}
+	if res.Chunk.Kind != "" {
+		fmt.Fprintf(&b, "kind: %s\n", res.Chunk.Kind)
+	}
+	if len(res.Chunk.SectionContext) > 0 {
+		fmt.Fprintf(&b, "section: %s\n", strings.Join(res.Chunk.SectionContext, " / "))
+	}
+	if res.Document.ID != "" {
+		fmt.Fprintf(&b, "document: %s (%s, status %s)\n", res.Document.FilePath, res.Document.FileType, res.Document.Status)
+		if res.Document.Enrichment != nil && res.Document.Enrichment.Summary != "" {
+			fmt.Fprintf(&b, "summary: %s\n", res.Document.Enrichment.Summary)
+		}
+	}
+	b.WriteString("--- content ---\n")
+	b.WriteString(res.Chunk.Content)
+	return b.String(), nil
 }
 
 func (s *Server) renderPoisonReset(eng *engine.Engine, args map[string]any) (string, error) {
@@ -825,6 +868,15 @@ func toolDefs() []map[string]any {
 			"name":        "go_rag_poison_rescan",
 			"description": "Re-score the whole corpus against the current detector (idempotent; no re-ingest). Scores pre-feature chunks and applies threshold/list changes to the back-catalog.",
 			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "go_rag_get_chunk",
+			"description": "Fetch a single chunk by its content-addressed ID, with its parent document metadata (spec 035). Returns not-found (-32001) if the id is absent from this vault.",
+			"inputSchema": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"chunk_id": map[string]any{"type": "string"}},
+				"required":   []string{"chunk_id"},
+			},
 		},
 		{
 			"name":        "go_rag_vault_list",

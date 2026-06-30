@@ -58,7 +58,7 @@ func (e *Engine) ListPoisoned() ([]PoisonedChunk, error) {
 func (e *Engine) ReleaseChunk(chunkID string) error {
 	c, ok := lookupChunk(e.db, chunkID)
 	if !ok {
-		return fmt.Errorf("chunk not found: %s", chunkID)
+		return fmt.Errorf("%w: chunk %s", ErrNotFound, chunkID)
 	}
 	if c.Poisoning == nil || c.Poisoning.Level == model.PoisonReleased {
 		return nil // unscored/clean, or already released — idempotent no-op
@@ -77,7 +77,7 @@ func (e *Engine) ReleaseChunk(chunkID string) error {
 func (e *Engine) ResetChunk(chunkID string) error {
 	c, ok := lookupChunk(e.db, chunkID)
 	if !ok {
-		return fmt.Errorf("chunk not found: %s", chunkID)
+		return fmt.Errorf("%w: chunk %s", ErrNotFound, chunkID)
 	}
 	if c.Poisoning == nil {
 		return nil
