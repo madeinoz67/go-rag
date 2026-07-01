@@ -3,6 +3,7 @@ package pipeline
 import (
 	"encoding/json"
 
+	"github.com/madeinoz67/go-rag/internal/events"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
 )
@@ -43,12 +44,49 @@ func (p *Pipeline) DeleteDoc(docID string) error {
 		p.indexChanged()
 	}
 
+	// Document-record lifecycle: hold p.mu — the pipeline's document-record
+	// mutex (the same lock markStatus/captionImages/setEnrichment take; see the
+	// discipline note at workers.go:~325: "PrefixDocument writers MUST take
+	// p.mu"). Without it, the embedder's markStatus (Get→Set→publish-EMBEDDED,
+	// under p.mu) can interleave with this delete: markStatus's Get sees the
+	// record, DeleteDoc removes it + publishes DELETED, markStatus's Set then
+	// RE-CREATES it (resurrection) and publishes EMBEDDED strictly after DELETED
+	// (spec 040 adversarial-audit finding). Under p.mu the two are mutually
+	// exclusive — either DeleteDoc wins (markStatus's Get then returns !ok →
+	// no-op, no EMBEDDED) or markStatus completes first (DeleteDoc then removes
+	// the embedded record → correct INGESTED/EMBEDDED/DELETED order). The mutex
+	// also makes the existed-check + publish atomic, so two concurrent
+	// DeleteDocs for the same ID cannot both emit DELETED.
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Capture the file path (the DELETED event's SourcePath) + whether a record
+	// existed, before the durable delete. Gated on existence so a no-op delete
+	// (double-scan, already-gone doc) emits no noise.
+	var filePath string
+	existed := false
 	if raw, ok, _ := db.GetWithPrefix(storage.PrefixDocument, []byte(docID)); ok {
 		var d model.Document
 		if json.Unmarshal(raw, &d) == nil {
+			filePath = d.FilePath
+			existed = true
 			_ = db.DeleteWithPrefix(storage.PrefixContentHash, []byte(d.ContentHash))
 			_ = db.DeleteWithPrefix(storage.PrefixPathDoc, []byte(d.FilePath))
 		}
 	}
-	return db.DeleteWithPrefix(storage.PrefixDocument, []byte(docID))
+	if err := db.DeleteWithPrefix(storage.PrefixDocument, []byte(docID)); err != nil {
+		return err
+	}
+	// spec 040 / BL-008: publish DELETED while still under p.mu so it is the
+	// terminal event for this doc (mirrors markStatus publishing EMBEDDED under
+	// p.mu). Every deletion trigger (watcher-detected removal, reprocess) flows
+	// through DeleteDoc, so this single chokepoint covers them all. Publish is
+	// non-blocking (T004) — the bounded fan-out never enters the <10ms write-ACK
+	// path (Principle IV); lock order p.mu→bus.mu is acyclic (markStatus already
+	// holds it). `after` is intentionally zero for DELETED (the contract scopes
+	// it to INGESTED/EMBEDDED); document_id is the authoritative key.
+	if existed && p.OnEvent != nil {
+		p.OnEvent(events.DocumentEvent{Type: events.EventDeleted, DocumentID: docID, SourcePath: filePath})
+	}
+	return nil
 }
