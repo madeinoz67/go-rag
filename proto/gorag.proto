@@ -72,6 +72,10 @@ service Gorag {
   // failure. → engine.BatchGetChunks (also REST POST /v1/chunks/batch,
   // MCP go_rag_batch_get_chunks, CLI `go-rag chunk batch`).
   rpc BatchGetChunks(BatchGetChunksRequest) returns (BatchGetChunksResponse);
+  // spec 039 (BL-007): list documents — reliable ingested_at cursor + status
+  // filter + page_token pagination. → engine.ListDocuments (also REST
+  // GET /v1/documents, MCP go_rag_list_documents, CLI `go-rag documents list`).
+  rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
 }
 
 // ---- Query ----
@@ -207,6 +211,20 @@ message BatchGetChunksResult {
 // including duplicates and missing ids).
 message BatchGetChunksResponse {
   repeated BatchGetChunksResult results = 1;
+}
+
+// spec 039 (BL-007): list documents — cursor + status filter + pagination.
+message ListDocumentsRequest {
+  int32  page_size  = 1; // default 50, max 200; <1 or >200 → INVALID_ARGUMENT
+  string page_token = 2; // opaque; empty → first page
+  string after      = 3; // RFC3339; only docs with ingested_at > after; "" → all
+  string status     = 4; // embedded|pending|error|"" (all); AND with after
+}
+
+// spec 039 (BL-007): one page of documents + the cursor for the next page.
+message ListDocumentsResponse {
+  repeated DocumentMeta documents       = 1; // ordered (ingested_at ASC, id ASC)
+  string                next_page_token = 2; // empty ⇒ last page
 }
 
 // Chunk is the transport projection of model.Chunk for a point fetch (spec 035).

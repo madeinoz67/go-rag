@@ -48,6 +48,7 @@ const (
 	Gorag_GetChunk_FullMethodName        = "/gorag.Gorag/GetChunk"
 	Gorag_GetChunkContext_FullMethodName = "/gorag.Gorag/GetChunkContext"
 	Gorag_BatchGetChunks_FullMethodName  = "/gorag.Gorag/BatchGetChunks"
+	Gorag_ListDocuments_FullMethodName   = "/gorag.Gorag/ListDocuments"
 )
 
 // GoragClient is the client API for Gorag service.
@@ -100,6 +101,10 @@ type GoragClient interface {
 	// failure. → engine.BatchGetChunks (also REST POST /v1/chunks/batch,
 	// MCP go_rag_batch_get_chunks, CLI `go-rag chunk batch`).
 	BatchGetChunks(ctx context.Context, in *BatchGetChunksRequest, opts ...grpc.CallOption) (*BatchGetChunksResponse, error)
+	// spec 039 (BL-007): list documents — reliable ingested_at cursor + status
+	// filter + page_token pagination. → engine.ListDocuments (also REST
+	// GET /v1/documents, MCP go_rag_list_documents, CLI `go-rag documents list`).
+	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
 }
 
 type goragClient struct {
@@ -310,6 +315,16 @@ func (c *goragClient) BatchGetChunks(ctx context.Context, in *BatchGetChunksRequ
 	return out, nil
 }
 
+func (c *goragClient) ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDocumentsResponse)
+	err := c.cc.Invoke(ctx, Gorag_ListDocuments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GoragServer is the server API for Gorag service.
 // All implementations must embed UnimplementedGoragServer
 // for forward compatibility.
@@ -360,6 +375,10 @@ type GoragServer interface {
 	// failure. → engine.BatchGetChunks (also REST POST /v1/chunks/batch,
 	// MCP go_rag_batch_get_chunks, CLI `go-rag chunk batch`).
 	BatchGetChunks(context.Context, *BatchGetChunksRequest) (*BatchGetChunksResponse, error)
+	// spec 039 (BL-007): list documents — reliable ingested_at cursor + status
+	// filter + page_token pagination. → engine.ListDocuments (also REST
+	// GET /v1/documents, MCP go_rag_list_documents, CLI `go-rag documents list`).
+	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
 	mustEmbedUnimplementedGoragServer()
 }
 
@@ -429,6 +448,9 @@ func (UnimplementedGoragServer) GetChunkContext(context.Context, *GetChunkContex
 }
 func (UnimplementedGoragServer) BatchGetChunks(context.Context, *BatchGetChunksRequest) (*BatchGetChunksResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method BatchGetChunks not implemented")
+}
+func (UnimplementedGoragServer) ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListDocuments not implemented")
 }
 func (UnimplementedGoragServer) mustEmbedUnimplementedGoragServer() {}
 func (UnimplementedGoragServer) testEmbeddedByValue()               {}
@@ -811,6 +833,24 @@ func _Gorag_BatchGetChunks_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Gorag_ListDocuments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDocumentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoragServer).ListDocuments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Gorag_ListDocuments_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoragServer).ListDocuments(ctx, req.(*ListDocumentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Gorag_ServiceDesc is the grpc.ServiceDesc for Gorag service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -897,6 +937,10 @@ var Gorag_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "BatchGetChunks",
 			Handler:    _Gorag_BatchGetChunks_Handler,
+		},
+		{
+			MethodName: "ListDocuments",
+			Handler:    _Gorag_ListDocuments_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

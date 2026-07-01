@@ -50,6 +50,7 @@ var routes = []route{
 	{"POST", "/v1/migrate/plan", true}, // H24/spec 028: read-only migration preview
 	{"GET", "/v1/files", true},
 	{"GET", "/v1/dirs", true},
+	{"GET", "/v1/documents", true}, // spec 039: list documents (cursor + status + pagination)
 	{"GET", "/v1/config", true},
 	{"PUT", "/v1/config", true},
 	{"GET", "/v1/vaults", true},
@@ -106,6 +107,8 @@ func (s *Server) handlerFor(method, path string) http.HandlerFunc {
 		return s.handleFiles
 	case "GET /v1/dirs":
 		return s.handleDirs
+	case "GET /v1/documents":
+		return s.handleListDocuments // spec 039
 	case "GET /v1/config":
 		return s.handleConfigGet
 	case "PUT /v1/config":

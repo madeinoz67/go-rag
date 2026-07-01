@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math"
 	"net"
@@ -1633,5 +1634,177 @@ func TestCrossTransport_BatchGetChunksParity(t *testing.T) {
 		if got != wantErr[i] {
 			t.Errorf("MCP[%d]: err=%q want %q", i, got, wantErr[i])
 		}
+	}
+}
+
+// sharedDocsEngine ingests n distinct-content documents into one temp DB via the
+// pipeline (so they get distinct content-addressed ids) and returns an Engine over
+// it. Used by the ListDocuments parity test (which needs multiple documents).
+func sharedDocsEngine(t *testing.T, n int) *engine.Engine {
+	t.Helper()
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		t.Fatalf("mkdir data: %v", err)
+	}
+	cfg := config.Default()
+	cfg.DBPath = dir
+	cfg.EmbeddingModel = "fake"
+	db, err := storage.Open(dataDir)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	p := pipeline.New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
+	defer p.Close()
+	for i := 0; i < n; i++ {
+		dp := filepath.Join(dir, fmt.Sprintf("doc-%d.txt", i))
+		if err := os.WriteFile(dp, []byte(fmt.Sprintf("document number %d about retrieval tokens and distinct content %d", i, i)), 0o644); err != nil {
+			t.Fatalf("write %d: %v", i, err)
+		}
+		if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
+			t.Fatalf("ingest %d: %v", i, err)
+		}
+	}
+	return engine.NewWithDB(cfg, db)
+}
+
+// restListDocumentsResponse mirrors internal/rest's ListDocuments JSON envelope.
+type restListDocumentsResponse struct {
+	Documents []struct {
+		ID       string `json:"id"`
+		FilePath string `json:"file_path"`
+		Status   string `json:"status"`
+	} `json:"documents"`
+	NextPageToken string `json:"next_page_token"`
+}
+
+// mcpListCall drives go_rag_list_documents over MCP and returns the per-document
+// file paths (in order) + the next_page_token ("" if none). The render emits one
+// "<ingested_at>\t<status>\t<file_path>" line per doc, then a "next_page_token:" line.
+func mcpListCall(t *testing.T, baseURL string, args map[string]any) (paths []string, nextToken string) {
+	t.Helper()
+	if args == nil {
+		args = map[string]any{}
+	}
+	body, _ := json.Marshal(map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": "go_rag_list_documents", "arguments": args},
+	})
+	resp, err := http.Post(baseURL+"/mcp", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("MCP list call: %v", err)
+	}
+	defer resp.Body.Close()
+	var env struct {
+		Result struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode MCP list: %v", err)
+	}
+	if len(env.Result.Content) == 0 {
+		t.Fatal("MCP list: empty content")
+	}
+	for _, line := range strings.Split(env.Result.Content[0].Text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "next_page_token:") {
+			nextToken = strings.TrimSpace(strings.TrimPrefix(line, "next_page_token:"))
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) >= 3 {
+			paths = append(paths, fields[len(fields)-1]) // file_path is the last field
+		}
+	}
+	return paths, nextToken
+}
+
+func assertListParity(t *testing.T, label string, got []string, want []string) {
+	t.Helper()
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("%s: file paths=%v, want %v", label, got, want)
+	}
+}
+
+// TestCrossTransport_ListDocumentsParity (spec 039 / BL-007, FR-011): the same
+// listing returns identical per-document file paths (in order) + the same
+// next_page_token over the facade, REST, gRPC, and MCP — all backed by one shared
+// engine. Covers the no-filter listing and a paginated first page. (The after-cursor
+// + status-filter correctness is engine-tested in list_documents_test.go.)
+func TestCrossTransport_ListDocumentsParity(t *testing.T) {
+	eng := sharedDocsEngine(t, 5)
+
+	// Reference: facade, no filter.
+	ref, err := eng.ListDocuments(engine.ListDocumentsRequest{})
+	if err != nil {
+		t.Fatalf("facade ListDocuments: %v", err)
+	}
+	if len(ref.Documents) != 5 {
+		t.Fatalf("setup: %d docs, want 5", len(ref.Documents))
+	}
+	wantPaths := make([]string, len(ref.Documents))
+	for i, d := range ref.Documents {
+		wantPaths[i] = d.FilePath
+	}
+
+	restSrv := httptest.NewServer(rest.New(eng, "").Handler())
+	defer restSrv.Close()
+	client := dialGRPC(t, eng)
+	mcpSrv := httptest.NewServer(mcp.NewWithEngine("", eng, config.Default()).HTTPHandler(""))
+	defer mcpSrv.Close()
+
+	// No-filter listing — identical file-path lists across all four.
+	rr := getJSON[restListDocumentsResponse](t, restSrv.URL+"/v1/documents")
+	restPaths := make([]string, len(rr.Documents))
+	for i, d := range rr.Documents {
+		restPaths[i] = d.FilePath
+	}
+	assertListParity(t, "REST", restPaths, wantPaths)
+
+	gresp, err := client.ListDocuments(context.Background(), &goragpb.ListDocumentsRequest{})
+	if err != nil {
+		t.Fatalf("gRPC ListDocuments: %v", err)
+	}
+	grpcPaths := make([]string, len(gresp.GetDocuments()))
+	for i, d := range gresp.GetDocuments() {
+		grpcPaths[i] = d.GetFilePath()
+	}
+	assertListParity(t, "gRPC", grpcPaths, wantPaths)
+
+	mcpPaths, _ := mcpListCall(t, mcpSrv.URL, nil)
+	assertListParity(t, "MCP", mcpPaths, wantPaths)
+
+	// Paginated first page (page_size=2) — identical paths + identical next_page_token.
+	ref2, _ := eng.ListDocuments(engine.ListDocumentsRequest{PageSize: 2})
+	wantPage := []string{ref2.Documents[0].FilePath, ref2.Documents[1].FilePath}
+
+	rr2 := getJSON[restListDocumentsResponse](t, restSrv.URL+"/v1/documents?page_size=2")
+	page2 := []string{rr2.Documents[0].FilePath, rr2.Documents[1].FilePath}
+	assertListParity(t, "REST page", page2, wantPage)
+	if rr2.NextPageToken != ref2.NextPageToken {
+		t.Errorf("REST page next_page_token=%q, want %q", rr2.NextPageToken, ref2.NextPageToken)
+	}
+
+	gresp2, err := client.ListDocuments(context.Background(), &goragpb.ListDocumentsRequest{PageSize: 2})
+	if err != nil {
+		t.Fatalf("gRPC page: %v", err)
+	}
+	grpcPage := []string{gresp2.GetDocuments()[0].GetFilePath(), gresp2.GetDocuments()[1].GetFilePath()}
+	assertListParity(t, "gRPC page", grpcPage, wantPage)
+	if gresp2.GetNextPageToken() != ref2.NextPageToken {
+		t.Errorf("gRPC page next_page_token=%q, want %q", gresp2.GetNextPageToken(), ref2.NextPageToken)
+	}
+
+	mcpPage, mcpTok := mcpListCall(t, mcpSrv.URL, map[string]any{"page_size": float64(2)})
+	assertListParity(t, "MCP page", mcpPage, wantPage)
+	if mcpTok != ref2.NextPageToken {
+		t.Errorf("MCP page next_page_token=%q, want %q", mcpTok, ref2.NextPageToken)
 	}
 }

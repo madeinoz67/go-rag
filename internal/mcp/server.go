@@ -194,6 +194,8 @@ func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any
 		return s.renderGetChunkContext(eng, args) // spec 037
 	case "go_rag_batch_get_chunks":
 		return s.renderBatchGetChunks(eng, args) // spec 038
+	case "go_rag_list_documents":
+		return s.renderListDocuments(eng, args) // spec 039
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
 }
@@ -601,6 +603,38 @@ func (s *Server) renderBatchGetChunks(eng *engine.Engine, args map[string]any) (
 	return b.String(), nil
 }
 
+// renderListDocuments is the MCP text projection of engine.ListDocuments (spec
+// 039 / BL-007): one line per document (ingested_at, status, file path) in
+// ingested_at ascending order, then a next_page_token line when more remain.
+// Args (all optional): page_size, page_token, after, status.
+func (s *Server) renderListDocuments(eng *engine.Engine, args map[string]any) (string, error) {
+	req := engine.ListDocumentsRequest{}
+	if v, ok := args["page_size"].(float64); ok && v > 0 {
+		req.PageSize = int(v)
+	}
+	if v, ok := args["page_token"].(string); ok {
+		req.PageToken = v
+	}
+	if v, ok := args["after"].(string); ok {
+		req.After = v
+	}
+	if v, ok := args["status"].(string); ok {
+		req.Status = v
+	}
+	res, err := eng.ListDocuments(req)
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	for _, d := range res.Documents {
+		fmt.Fprintf(&b, "%s\t%s\t%s\n", d.IngestedAt.UTC().Format("2006-01-02T15:04:05Z07:00"), d.Status, d.FilePath)
+	}
+	if res.NextPageToken != "" {
+		fmt.Fprintf(&b, "next_page_token: %s\n", res.NextPageToken)
+	}
+	return b.String(), nil
+}
+
 func (s *Server) renderPoisonReset(eng *engine.Engine, args map[string]any) (string, error) {
 	id, _ := args["chunk_id"].(string)
 	if id == "" {
@@ -992,6 +1026,19 @@ func toolDefs() []map[string]any {
 					"chunk_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "maxItems": 100},
 				},
 				"required": []string{"chunk_ids"},
+			},
+		},
+		{
+			"name":        "go_rag_list_documents",
+			"description": "List documents — reliable ingested_at cursor + status filter + page_token pagination (spec 039 / BL-007). Returns documents in ingested_at ascending order + a next_page_token.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"page_size":  map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
+					"page_token": map[string]any{"type": "string"},
+					"after":      map[string]any{"type": "string", "format": "date-time"},
+					"status":     map[string]any{"type": "string", "enum": []string{"embedded", "pending", "error"}},
+				},
 			},
 		},
 		{

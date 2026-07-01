@@ -65,6 +65,7 @@ func Execute(version string) error {
 		newConfigCmd(),
 		newFilesCmd(),
 		newDirsCmd(),
+		newDocumentsCmd(), // spec 039
 		newStartCmd(),
 		newStopCmd(),
 		newServeCmd(),

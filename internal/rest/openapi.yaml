@@ -264,6 +264,37 @@ paths:
                         files: { type: integer }
                         chunks: { type: integer }
 
+  /v1/documents:
+    get:
+      summary: List documents — ingested_at cursor + status filter + pagination (spec 039)
+      parameters:
+        - name: page_size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: page_token
+          in: query
+          schema: { type: string }
+          description: opaque pagination cursor from a prior next_page_token
+        - name: after
+          in: query
+          schema: { type: string, format: date-time }
+          description: RFC3339; only docs with ingested_at > after
+        - name: status
+          in: query
+          schema: { type: string, enum: [embedded, pending, error] }
+      responses:
+        '200':
+          description: a page of documents + next_page_token (empty result = empty array)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents: { type: array, description: "ordered (ingested_at ASC, id ASC); same shape as GetChunk's document" }
+                  next_page_token: { type: string, description: "opaque; empty when last page" }
+        '400':
+          description: invalid-argument (page_size out of range, non-RFC3339 after, unknown status, malformed page_token)
+
   /v1/config:
     get:
       summary: Get config (all, or one via ?key=)

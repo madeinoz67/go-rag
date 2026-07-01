@@ -22,7 +22,7 @@ Backlog items required for effective integration between go-rag and MuninnDB via
 | [BL-004](#bl-004) | Expose wikilink targets in `Chunk` metadata | P1 | S | 1 | ✅ done (spec 036) — dedicated `Chunk.Wikilinks` sidecar; the maintainer's priority pick landed |
 | [BL-005](#bl-005) | Expose section heading in `Chunk` metadata | P1 | S | 1 | open |
 | [BL-006](#bl-006) | Expose extraction quality score in `Chunk` metadata | P1 | S | 1 | open |
-| [BL-007](#bl-007) | `ListDocuments` — reliable `ingested_at` cursor + `status` filter | P1 | S | 1 | open |
+| [BL-007](#bl-007) | `ListDocuments` — reliable `ingested_at` cursor + `status` filter | P1 | S | 1 | ✅ done (spec 039) — new operation (go-rag had `Files` not `ListDocuments`); `after` cursor + `status` filter + `page_token` pagination; all four transports; no `vault` field; pure read, no migration |
 | [BL-008](#bl-008) | `WatchDocuments` — gRPC server-streaming document event stream | P2 | M | 2 | open |
 | [BL-009](#bl-009) | `EMBEDDED` event type — distinct from `INGESTED` | P2 | S | 2 | open |
 | [BL-010](#bl-010) | Chunk delta in `RE_INGESTED` events | P2 | M | 2 | open |
