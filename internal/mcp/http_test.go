@@ -42,8 +42,8 @@ func TestHTTPToolsList(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 		t.Fatal(err)
 	}
-	if len(env.Result.Tools) != 21 { // spec 037 added go_rag_get_chunk_context
-		t.Fatalf("want 21 tools, got %d", len(env.Result.Tools))
+	if len(env.Result.Tools) != 22 { // spec 038 added go_rag_batch_get_chunks
+		t.Fatalf("want 22 tools, got %d", len(env.Result.Tools))
 	}
 }
 

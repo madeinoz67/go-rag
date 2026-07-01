@@ -18,7 +18,7 @@ Backlog items required for effective integration between go-rag and MuninnDB via
 |---|---|---|---|---|---|
 | [BL-001](#bl-001) | `GetChunk` RPC — fetch single chunk by ID | P1 | S | 1 | open |
 | [BL-002](#bl-002) | `GetChunkContext` RPC — chunk with surrounding window | P1 | S | 1 | ✅ done (spec 037) — all four transports (REST/gRPC/MCP/CLI), `window` is `int32 window = 2` with **no `vault` field** (single-vault store, FR-006/FR-016); default 2, cap 10 |
-| [BL-003](#bl-003) | `BatchGetChunks` RPC — fetch up to 100 chunks in one call | P1 | S | 1 | open |
+| [BL-003](#bl-003) | `BatchGetChunks` RPC — fetch up to 100 chunks in one call | P1 | S | 1 | ✅ done (spec 038) — all four transports; per-id error (partial success, REST 200/gRPC in-band); no `vault` field (FR-015) |
 | [BL-004](#bl-004) | Expose wikilink targets in `Chunk` metadata | P1 | S | 1 | ✅ done (spec 036) — dedicated `Chunk.Wikilinks` sidecar; the maintainer's priority pick landed |
 | [BL-005](#bl-005) | Expose section heading in `Chunk` metadata | P1 | S | 1 | open |
 | [BL-006](#bl-006) | Expose extraction quality score in `Chunk` metadata | P1 | S | 1 | open |

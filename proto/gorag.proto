@@ -67,6 +67,11 @@ service Gorag {
   // call. → engine.GetChunkContext (also REST GET /v1/chunks/{id}/context,
   // MCP go_rag_get_chunk_context, CLI `go-rag chunk context`).
   rpc GetChunkContext(GetChunkContextRequest) returns (GetChunkContextResponse);
+  // spec 038 (BL-003): resolve up to 100 chunks by id in one call. Per-id error
+  // (partial success) — a missing id yields an empty chunk + error, not a call
+  // failure. → engine.BatchGetChunks (also REST POST /v1/chunks/batch,
+  // MCP go_rag_batch_get_chunks, CLI `go-rag chunk batch`).
+  rpc BatchGetChunks(BatchGetChunksRequest) returns (BatchGetChunksResponse);
 }
 
 // ---- Query ----
@@ -181,6 +186,27 @@ message GetChunkContextResponse {
   repeated Chunk chunks       = 1;
   int32          target_index = 2;
   DocumentMeta   document     = 3;
+}
+
+// spec 038 (BL-003): request up to 100 content-addressed chunk ids (no vault).
+message BatchGetChunksRequest {
+  repeated string chunk_ids = 1; // max 100; >100 / empty / empty-element → INVALID_ARGUMENT
+}
+
+// spec 038 (BL-003): one positional result entry — the requested id, its chunk
+// (zero-value if not found), a non-empty error when this id failed, and the
+// parent document (zero-value if orphan/not-found). Mirrors GetChunk per entry.
+message BatchGetChunksResult {
+  string      chunk_id  = 1;
+  Chunk       chunk     = 2; // zero-value if not found
+  string      error     = 3; // non-empty iff this chunk_id failed ("not found")
+  DocumentMeta document = 4; // parent document; zero-value if orphan/not-found
+}
+
+// spec 038 (BL-003): ordered 1:1 with the request chunk_ids (same length,
+// including duplicates and missing ids).
+message BatchGetChunksResponse {
+  repeated BatchGetChunksResult results = 1;
 }
 
 // Chunk is the transport projection of model.Chunk for a point fetch (spec 035).

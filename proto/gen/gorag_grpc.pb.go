@@ -47,6 +47,7 @@ const (
 	Gorag_RescanPoisoning_FullMethodName = "/gorag.Gorag/RescanPoisoning"
 	Gorag_GetChunk_FullMethodName        = "/gorag.Gorag/GetChunk"
 	Gorag_GetChunkContext_FullMethodName = "/gorag.Gorag/GetChunkContext"
+	Gorag_BatchGetChunks_FullMethodName  = "/gorag.Gorag/BatchGetChunks"
 )
 
 // GoragClient is the client API for Gorag service.
@@ -94,6 +95,11 @@ type GoragClient interface {
 	// call. → engine.GetChunkContext (also REST GET /v1/chunks/{id}/context,
 	// MCP go_rag_get_chunk_context, CLI `go-rag chunk context`).
 	GetChunkContext(ctx context.Context, in *GetChunkContextRequest, opts ...grpc.CallOption) (*GetChunkContextResponse, error)
+	// spec 038 (BL-003): resolve up to 100 chunks by id in one call. Per-id error
+	// (partial success) — a missing id yields an empty chunk + error, not a call
+	// failure. → engine.BatchGetChunks (also REST POST /v1/chunks/batch,
+	// MCP go_rag_batch_get_chunks, CLI `go-rag chunk batch`).
+	BatchGetChunks(ctx context.Context, in *BatchGetChunksRequest, opts ...grpc.CallOption) (*BatchGetChunksResponse, error)
 }
 
 type goragClient struct {
@@ -294,6 +300,16 @@ func (c *goragClient) GetChunkContext(ctx context.Context, in *GetChunkContextRe
 	return out, nil
 }
 
+func (c *goragClient) BatchGetChunks(ctx context.Context, in *BatchGetChunksRequest, opts ...grpc.CallOption) (*BatchGetChunksResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BatchGetChunksResponse)
+	err := c.cc.Invoke(ctx, Gorag_BatchGetChunks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GoragServer is the server API for Gorag service.
 // All implementations must embed UnimplementedGoragServer
 // for forward compatibility.
@@ -339,6 +355,11 @@ type GoragServer interface {
 	// call. → engine.GetChunkContext (also REST GET /v1/chunks/{id}/context,
 	// MCP go_rag_get_chunk_context, CLI `go-rag chunk context`).
 	GetChunkContext(context.Context, *GetChunkContextRequest) (*GetChunkContextResponse, error)
+	// spec 038 (BL-003): resolve up to 100 chunks by id in one call. Per-id error
+	// (partial success) — a missing id yields an empty chunk + error, not a call
+	// failure. → engine.BatchGetChunks (also REST POST /v1/chunks/batch,
+	// MCP go_rag_batch_get_chunks, CLI `go-rag chunk batch`).
+	BatchGetChunks(context.Context, *BatchGetChunksRequest) (*BatchGetChunksResponse, error)
 	mustEmbedUnimplementedGoragServer()
 }
 
@@ -405,6 +426,9 @@ func (UnimplementedGoragServer) GetChunk(context.Context, *GetChunkRequest) (*Ge
 }
 func (UnimplementedGoragServer) GetChunkContext(context.Context, *GetChunkContextRequest) (*GetChunkContextResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetChunkContext not implemented")
+}
+func (UnimplementedGoragServer) BatchGetChunks(context.Context, *BatchGetChunksRequest) (*BatchGetChunksResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BatchGetChunks not implemented")
 }
 func (UnimplementedGoragServer) mustEmbedUnimplementedGoragServer() {}
 func (UnimplementedGoragServer) testEmbeddedByValue()               {}
@@ -769,6 +793,24 @@ func _Gorag_GetChunkContext_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Gorag_BatchGetChunks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchGetChunksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoragServer).BatchGetChunks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Gorag_BatchGetChunks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoragServer).BatchGetChunks(ctx, req.(*BatchGetChunksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Gorag_ServiceDesc is the grpc.ServiceDesc for Gorag service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -851,6 +893,10 @@ var Gorag_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetChunkContext",
 			Handler:    _Gorag_GetChunkContext_Handler,
+		},
+		{
+			MethodName: "BatchGetChunks",
+			Handler:    _Gorag_BatchGetChunks_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

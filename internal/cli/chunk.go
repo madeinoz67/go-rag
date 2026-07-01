@@ -49,6 +49,7 @@ func newChunkCmd() *cobra.Command {
 	}
 	cmd.AddCommand(newChunkGetCmd())
 	cmd.AddCommand(newChunkContextCmd()) // spec 037
+	cmd.AddCommand(newChunkBatchCmd())   // spec 038
 	return cmd
 }
 
@@ -301,5 +302,82 @@ func printChunkContextText(resp getContextResponseOut) {
 	}
 	if resp.Document != nil {
 		printDocumentText(*resp.Document)
+	}
+}
+
+// batchItemOut is one positional CLI result entry (the requested chunk_id, the
+// resolved chunk + document, or a non-empty error when not found). Field names
+// mirror the proto BatchGetChunksResult / REST DTO (snake_case) for parity.
+type batchItemOut struct {
+	ChunkID  string       `json:"chunk_id"`
+	Chunk    *chunkOut    `json:"chunk,omitempty"`
+	Error    string       `json:"error,omitempty"`
+	Document *documentOut `json:"document,omitempty"`
+}
+
+// batchResponseOut is the CLI JSON envelope for BatchGetChunks — {results} —
+// mirroring the proto BatchGetChunksResponse / REST shape 1:1 (parity, spec 038).
+type batchResponseOut struct {
+	Results []batchItemOut `json:"results"`
+}
+
+// newChunkBatchCmd resolves up to 100 chunk_ids (positional args) in one call
+// (spec 038 / BL-003). JSON default; --format text prints one line per result
+// (chunk_id, ok / "not found", document). Rejects >100 args with a non-zero exit.
+// Missing ids are per-id errors — the command exits 0 as long as the request is
+// structurally valid (mirrors the per-id-error model).
+func newChunkBatchCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "batch <chunk_id> [<chunk_id>...]",
+		Short: "Resolve up to 100 chunk_ids in one call (spec 038)",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > engine.MaxBatchGetChunks() {
+				return fmt.Errorf("max %d chunk_ids, got %d", engine.MaxBatchGetChunks(), len(args))
+			}
+			format, _ := cmd.Flags().GetString("format")
+			cfg, db, err := openDB(dbPath)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+			res, err := engine.NewWithDB(cfg, db).BatchGetChunks(args)
+			if err != nil {
+				return err
+			}
+			resp := batchResponseOut{Results: make([]batchItemOut, len(res.Results))}
+			for i, it := range res.Results {
+				out := batchItemOut{ChunkID: it.ChunkID, Error: it.Err}
+				if it.Err == "" {
+					c := toChunkOut(it.Chunk)
+					out.Chunk = &c
+					if it.Document.ID != "" {
+						out.Document = toDocumentOut(it.Document, it.Source)
+					}
+				}
+				resp.Results[i] = out
+			}
+			if format == "json" {
+				return json.NewEncoder(os.Stdout).Encode(resp)
+			}
+			printBatchText(resp)
+			return nil
+		},
+	}
+	cmd.Flags().StringP("format", "f", "json", "output format: json|text")
+	return cmd
+}
+
+func printBatchText(resp batchResponseOut) {
+	for _, r := range resp.Results {
+		if r.Error != "" {
+			fmt.Printf("%s: %s\n", r.ChunkID, r.Error)
+			continue
+		}
+		fmt.Printf("%s: ok", r.ChunkID)
+		if r.Document != nil {
+			fmt.Printf(" (%s)", r.Document.FilePath)
+		}
+		fmt.Println()
 	}
 }

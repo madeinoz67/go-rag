@@ -33,7 +33,9 @@ import (
 	"github.com/madeinoz67/go-rag/internal/storage"
 	goragpb "github.com/madeinoz67/go-rag/proto/gen"
 	grpcc "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
 
@@ -1447,4 +1449,189 @@ func TestCrossTransport_GetChunkContextParity(t *testing.T) {
 	// structured document comparison is covered by REST/gRPC/facade above; here
 	// we assert the core window parity: ordered ids + target_index.
 	assertContextEqual(t, "MCP", mcpIDs, mcpIdx, "", "", wantIDs, ref.TargetIndex, "", "")
+}
+
+// restBatchResponse mirrors internal/rest's BatchGetChunks JSON envelope (tags
+// match exactly) without importing its unexported DTOs.
+type restBatchResponse struct {
+	Results []struct {
+		ChunkID  string `json:"chunk_id"`
+		Error    string `json:"error"`
+		Document struct {
+			ID       string `json:"id"`
+			FilePath string `json:"file_path"`
+		} `json:"document"`
+	} `json:"results"`
+}
+
+// mcpBatchCall drives go_rag_batch_get_chunks over the MCP HTTP transport and
+// returns the per-position error string ("" for ok, "not found" for a miss),
+// positionally correlatable to the request (the render emits one line per id,
+// in request order).
+func mcpBatchCall(t *testing.T, baseURL string, ids []string) []string {
+	t.Helper()
+	body, _ := json.Marshal(map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": "go_rag_batch_get_chunks",
+			"arguments": map[string]any{"chunk_ids": ids}},
+	})
+	resp, err := http.Post(baseURL+"/mcp", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("MCP batch call: %v", err)
+	}
+	defer resp.Body.Close()
+	var env struct {
+		Result struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode MCP batch response: %v", err)
+	}
+	if len(env.Result.Content) == 0 {
+		t.Fatal("MCP batch: empty content")
+	}
+	var errs []string
+	for _, line := range strings.Split(env.Result.Content[0].Text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.Contains(line, "not found") {
+			errs = append(errs, "not found")
+		} else {
+			errs = append(errs, "")
+		}
+	}
+	return errs
+}
+
+// TestCrossTransport_BatchGetChunksParity (spec 038 / BL-003, FR-010 / SC-001):
+// a batch mixing live + missing + duplicate ids returns identical per-position
+// results over the facade, REST, gRPC, and MCP — all backed by one shared engine
+// (MCP via NewWithEngine daemon mode). CLI projects the identical engine method
+// (covered by chunk_batch_test.go), mirroring spec 035/037's parity argument.
+func TestCrossTransport_BatchGetChunksParity(t *testing.T) {
+	eng := sharedEngine(t, strings.Repeat(
+		"the go-rag batch parity corpus covers retrieval tokens sessions and authentication concepts for local indexing. ", 200))
+
+	q, err := eng.Query(context.Background(), engine.QueryRequest{Query: "retrieval", Mode: "keyword", K: 5, IncludeQuarantined: true})
+	if err != nil || len(q.Hits) == 0 {
+		t.Fatalf("setup query: err=%v hits=%d", err, len(q.Hits))
+	}
+	// Collect 3 live chunk ids via the linked list (independent of BatchGetChunks).
+	live := []string{q.Hits[0].ChunkID}
+	cur := q.Hits[0].ChunkID
+	for i := 0; i < 3; i++ {
+		c, werr := eng.GetChunk(cur)
+		if werr != nil || c.Chunk.NextChunkID == "" {
+			break
+		}
+		live = append(live, c.Chunk.NextChunkID)
+		cur = c.Chunk.NextChunkID
+	}
+	if len(live) < 2 {
+		t.Fatal("need >=2 live chunks for a meaningful batch parity test")
+	}
+	const missing = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef00"
+	batch := []string{live[0], live[1], missing, live[0]} // live + missing + duplicate
+
+	// Reference: facade.
+	ref, err := eng.BatchGetChunks(batch)
+	if err != nil {
+		t.Fatalf("facade BatchGetChunks: %v", err)
+	}
+	if len(ref.Results) != len(batch) {
+		t.Fatalf("facade: len=%d want %d", len(ref.Results), len(batch))
+	}
+	wantErr := make([]string, len(batch))
+	wantDocID := make([]string, len(batch))
+	wantDocPath := make([]string, len(batch))
+	for i, it := range ref.Results {
+		wantErr[i] = it.Err
+		wantDocID[i] = it.Document.ID
+		wantDocPath[i] = it.Document.FilePath
+		if it.ChunkID != batch[i] {
+			t.Errorf("facade[%d]: ChunkID=%q want %q (order)", i, it.ChunkID, batch[i])
+		}
+	}
+
+	// REST — 200 with per-id errors in-band.
+	restSrv := httptest.NewServer(rest.New(eng, "").Handler())
+	defer restSrv.Close()
+	body, _ := json.Marshal(map[string]any{"chunk_ids": batch})
+	rr, err := http.Post(restSrv.URL+"/v1/chunks/batch", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("REST batch: %v", err)
+	}
+	defer rr.Body.Close()
+	if rr.StatusCode != http.StatusOK {
+		t.Fatalf("REST status=%d want 200 (per-id errors in-band, never 404)", rr.StatusCode)
+	}
+	var rresp restBatchResponse
+	if err := json.NewDecoder(rr.Body).Decode(&rresp); err != nil {
+		t.Fatalf("decode REST batch: %v", err)
+	}
+	if len(rresp.Results) != len(batch) {
+		t.Fatalf("REST: len=%d want %d", len(rresp.Results), len(batch))
+	}
+	for i, r := range rresp.Results {
+		if r.Error != wantErr[i] {
+			t.Errorf("REST[%d]: error=%q want %q", i, r.Error, wantErr[i])
+		}
+		if wantErr[i] == "" { // found → document parity
+			if r.Document.ID != wantDocID[i] {
+				t.Errorf("REST[%d]: doc.id=%q want %q", i, r.Document.ID, wantDocID[i])
+			}
+			if r.Document.FilePath != wantDocPath[i] {
+				t.Errorf("REST[%d]: doc.path=%q want %q", i, r.Document.FilePath, wantDocPath[i])
+			}
+		}
+	}
+
+	// gRPC.
+	client := dialGRPC(t, eng)
+	gresp, err := client.BatchGetChunks(context.Background(), &goragpb.BatchGetChunksRequest{ChunkIds: batch})
+	if err != nil {
+		t.Fatalf("gRPC BatchGetChunks: %v", err)
+	}
+	if len(gresp.GetResults()) != len(batch) {
+		t.Fatalf("gRPC: len=%d want %d", len(gresp.GetResults()), len(batch))
+	}
+	for i, r := range gresp.GetResults() {
+		if r.GetError() != wantErr[i] {
+			t.Errorf("gRPC[%d]: error=%q want %q", i, r.GetError(), wantErr[i])
+		}
+		if wantErr[i] == "" && r.GetDocument() != nil {
+			if r.GetDocument().GetId() != wantDocID[i] {
+				t.Errorf("gRPC[%d]: doc.id=%q want %q", i, r.GetDocument().GetId(), wantDocID[i])
+			}
+		}
+	}
+
+	// gRPC call-level invalid-argument: >100 ids → INVALID_ARGUMENT (not a per-id error).
+	bigIDs := make([]string, engine.MaxBatchGetChunks()+1)
+	for i := range bigIDs {
+		bigIDs[i] = live[0]
+	}
+	if _, err := client.BatchGetChunks(context.Background(), &goragpb.BatchGetChunksRequest{ChunkIds: bigIDs}); err == nil {
+		t.Error("gRPC >100 ids: want INVALID_ARGUMENT error, got nil")
+	} else if status.Code(err) != codes.InvalidArgument {
+		t.Errorf("gRPC >100 ids: status=%v, want InvalidArgument", status.Code(err))
+	}
+
+	// MCP (text) over the SAME engine.
+	mcpSrv := httptest.NewServer(mcp.NewWithEngine("", eng, config.Default()).HTTPHandler(""))
+	defer mcpSrv.Close()
+	mcpErrs := mcpBatchCall(t, mcpSrv.URL, batch)
+	if len(mcpErrs) != len(batch) {
+		t.Fatalf("MCP: %d lines want %d", len(mcpErrs), len(batch))
+	}
+	for i, got := range mcpErrs {
+		if got != wantErr[i] {
+			t.Errorf("MCP[%d]: err=%q want %q", i, got, wantErr[i])
+		}
+	}
 }

@@ -192,6 +192,8 @@ func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any
 		return s.renderGetChunk(eng, args) // spec 035
 	case "go_rag_get_chunk_context":
 		return s.renderGetChunkContext(eng, args) // spec 037
+	case "go_rag_batch_get_chunks":
+		return s.renderBatchGetChunks(eng, args) // spec 038
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
 }
@@ -555,6 +557,46 @@ func (s *Server) renderGetChunkContext(eng *engine.Engine, args map[string]any) 
 	fmt.Fprintf(&b, "target_index: %d\n", res.TargetIndex)
 	if res.Document.ID != "" {
 		fmt.Fprintf(&b, "document: %s (%s, status %s)\n", res.Document.FilePath, res.Document.FileType, res.Document.Status)
+	}
+	return b.String(), nil
+}
+
+// renderBatchGetChunks is the MCP text projection of engine.BatchGetChunks (spec
+// 038 / BL-003): one line per requested chunk_id — "ok (<file>)" for live ids,
+// "<id>: not found" for missing ids. chunk_ids arrives as a JSON array ([]any of
+// string). Per-id tolerance: the call never fails for a missing id. The engine's
+// call-level error (ErrInvalid) returns verbatim → -32603 via callTool.
+func (s *Server) renderBatchGetChunks(eng *engine.Engine, args map[string]any) (string, error) {
+	raw, _ := args["chunk_ids"].([]any)
+	if len(raw) == 0 {
+		return "", fmt.Errorf("chunk_ids is required (max %d)", engine.MaxBatchGetChunks())
+	}
+	if len(raw) > engine.MaxBatchGetChunks() {
+		return "", fmt.Errorf("max %d chunk_ids, got %d", engine.MaxBatchGetChunks(), len(raw))
+	}
+	ids := make([]string, 0, len(raw))
+	for i, v := range raw {
+		id, ok := v.(string)
+		if !ok || strings.TrimSpace(id) == "" {
+			return "", fmt.Errorf("chunk_ids[%d] must be a non-empty string", i)
+		}
+		ids = append(ids, id)
+	}
+	res, err := eng.BatchGetChunks(ids)
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	for _, it := range res.Results {
+		if it.Err != "" {
+			fmt.Fprintf(&b, "%s: %s\n", it.ChunkID, it.Err)
+			continue
+		}
+		fmt.Fprintf(&b, "%s: ok", it.ChunkID)
+		if it.Document.ID != "" {
+			fmt.Fprintf(&b, " (%s)", it.Document.FilePath)
+		}
+		b.WriteByte('\n')
 	}
 	return b.String(), nil
 }
@@ -939,6 +981,17 @@ func toolDefs() []map[string]any {
 					"window":   map[string]any{"type": "integer", "minimum": 0, "maximum": 10, "default": 2},
 				},
 				"required": []string{"chunk_id"},
+			},
+		},
+		{
+			"name":        "go_rag_batch_get_chunks",
+			"description": "Resolve up to 100 chunks by id in one call (spec 038 / BL-003), one result per id in request order. A missing id yields a per-id error ('not found') — the call does not fail for one bad id. Only structurally invalid input (empty list, >100 ids, empty/whitespace element) is rejected.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"chunk_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "maxItems": 100},
+				},
+				"required": []string{"chunk_ids"},
 			},
 		},
 		{

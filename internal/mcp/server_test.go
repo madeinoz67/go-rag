@@ -202,14 +202,14 @@ func TestMCP_ToolsListCount(t *testing.T) {
 	var resp map[string]any
 	_ = json.Unmarshal(bytes.TrimSpace(out.Bytes()), &resp)
 	tools := resp["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 21 { // spec 035 added go_rag_get_chunk; spec 037 added go_rag_get_chunk_context
-		t.Fatalf("expected 21 tools, got %d", len(tools))
+	if len(tools) != 22 { // spec 035/037/038
+		t.Fatalf("expected 22 tools, got %d", len(tools))
 	}
 	names := map[string]bool{}
 	for _, tc := range tools {
 		names[tc.(map[string]any)["name"].(string)] = true
 	}
-	for _, want := range []string{"go_rag_query", "go_rag_status", "go_rag_add", "go_rag_init", "go_rag_scan", "go_rag_config", "go_rag_files", "go_rag_dirs", "go_rag_reprocess", "go_rag_migrate", "go_rag_vault_list", "go_rag_guide", "go_rag_eval", "go_rag_get_chunk", "go_rag_get_chunk_context"} {
+	for _, want := range []string{"go_rag_query", "go_rag_status", "go_rag_add", "go_rag_init", "go_rag_scan", "go_rag_config", "go_rag_files", "go_rag_dirs", "go_rag_reprocess", "go_rag_migrate", "go_rag_vault_list", "go_rag_guide", "go_rag_eval", "go_rag_get_chunk", "go_rag_get_chunk_context", "go_rag_batch_get_chunks"} {
 		if !names[want] {
 			t.Errorf("missing tool %s", want)
 		}

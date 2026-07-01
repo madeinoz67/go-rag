@@ -394,6 +394,37 @@ paths:
           description: chunk_id not found in this vault (or belongs to another vault)
         '400':
           description: empty or whitespace-only chunk_id, or window out of [0,10]
+  /v1/chunks/batch:
+    post:
+      summary: Resolve up to 100 chunks by id in one call (spec 038)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                chunk_ids: { type: array, items: { type: string }, maxItems: 100 }
+              required: [chunk_ids]
+      responses:
+        '200':
+          description: one result per requested id, in request order (per-id errors in-band)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        chunk_id: { type: string }
+                        chunk: { type: object, description: "same shape as GET /v1/chunks/{id}'s chunk; absent when not found" }
+                        error: { type: string, description: "non-empty iff this chunk_id failed ('not found')" }
+                        document: { type: object, description: "parent document metadata; absent when orphan/not-found" }
+        '400':
+          description: structural invalid-argument — empty list, >100 ids, or an empty/whitespace element (NEVER 404 for a missing id)
   /v1/poison/{id}/release:
     post:
       summary: Release a flagged chunk (false-positive override) — retrievable by default
