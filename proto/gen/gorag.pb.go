@@ -30,6 +30,60 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// spec 040 (BL-008): document lifecycle event kinds. RE_INGESTED is reserved for
+// BL-010 (before/after delta) and is NOT emitted by the MVP.
+type DocumentEventType int32
+
+const (
+	DocumentEventType_INGESTED    DocumentEventType = 0 // metadata durably committed; embedding may still be pending
+	DocumentEventType_EMBEDDED    DocumentEventType = 1 // async embedding complete — safe to promote
+	DocumentEventType_RE_INGESTED DocumentEventType = 2 // reserved (BL-010 — not emitted in the MVP)
+	DocumentEventType_DELETED     DocumentEventType = 3
+)
+
+// Enum value maps for DocumentEventType.
+var (
+	DocumentEventType_name = map[int32]string{
+		0: "INGESTED",
+		1: "EMBEDDED",
+		2: "RE_INGESTED",
+		3: "DELETED",
+	}
+	DocumentEventType_value = map[string]int32{
+		"INGESTED":    0,
+		"EMBEDDED":    1,
+		"RE_INGESTED": 2,
+		"DELETED":     3,
+	}
+)
+
+func (x DocumentEventType) Enum() *DocumentEventType {
+	p := new(DocumentEventType)
+	*p = x
+	return p
+}
+
+func (x DocumentEventType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (DocumentEventType) Descriptor() protoreflect.EnumDescriptor {
+	return file_gorag_proto_enumTypes[0].Descriptor()
+}
+
+func (DocumentEventType) Type() protoreflect.EnumType {
+	return &file_gorag_proto_enumTypes[0]
+}
+
+func (x DocumentEventType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use DocumentEventType.Descriptor instead.
+func (DocumentEventType) EnumDescriptor() ([]byte, []int) {
+	return file_gorag_proto_rawDescGZIP(), []int{0}
+}
+
 type QueryRequest struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	Query              string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
@@ -1383,6 +1437,136 @@ func (x *ListDocumentsResponse) GetNextPageToken() string {
 	return ""
 }
 
+// spec 040 (BL-008): open a long-lived stream; cursor resumes after a prior event.
+type WatchRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cursor        string                 `protobuf:"bytes,1,opt,name=cursor,proto3" json:"cursor,omitempty"` // opaque resume token; empty = start from now (no replay)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchRequest) Reset() {
+	*x = WatchRequest{}
+	mi := &file_gorag_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchRequest) ProtoMessage() {}
+
+func (x *WatchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gorag_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchRequest.ProtoReflect.Descriptor instead.
+func (*WatchRequest) Descriptor() ([]byte, []int) {
+	return file_gorag_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *WatchRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+// spec 040 (BL-008): one document lifecycle event on the WatchDocuments stream.
+type DocumentEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Type          DocumentEventType      `protobuf:"varint,1,opt,name=type,proto3,enum=gorag.DocumentEventType" json:"type,omitempty"`
+	DocumentId    string                 `protobuf:"bytes,2,opt,name=document_id,json=documentId,proto3" json:"document_id,omitempty"`
+	SourcePath    string                 `protobuf:"bytes,3,opt,name=source_path,json=sourcePath,proto3" json:"source_path,omitempty"`
+	Cursor        string                 `protobuf:"bytes,4,opt,name=cursor,proto3" json:"cursor,omitempty"` // opaque; persist + pass on reconnect
+	After         *DocumentMeta          `protobuf:"bytes,5,opt,name=after,proto3" json:"after,omitempty"`   // INGESTED/EMBEDDED: the document version
+	TimestampMs   int64                  `protobuf:"varint,6,opt,name=timestamp_ms,json=timestampMs,proto3" json:"timestamp_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DocumentEvent) Reset() {
+	*x = DocumentEvent{}
+	mi := &file_gorag_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DocumentEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DocumentEvent) ProtoMessage() {}
+
+func (x *DocumentEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_gorag_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DocumentEvent.ProtoReflect.Descriptor instead.
+func (*DocumentEvent) Descriptor() ([]byte, []int) {
+	return file_gorag_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *DocumentEvent) GetType() DocumentEventType {
+	if x != nil {
+		return x.Type
+	}
+	return DocumentEventType_INGESTED
+}
+
+func (x *DocumentEvent) GetDocumentId() string {
+	if x != nil {
+		return x.DocumentId
+	}
+	return ""
+}
+
+func (x *DocumentEvent) GetSourcePath() string {
+	if x != nil {
+		return x.SourcePath
+	}
+	return ""
+}
+
+func (x *DocumentEvent) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+func (x *DocumentEvent) GetAfter() *DocumentMeta {
+	if x != nil {
+		return x.After
+	}
+	return nil
+}
+
+func (x *DocumentEvent) GetTimestampMs() int64 {
+	if x != nil {
+		return x.TimestampMs
+	}
+	return 0
+}
+
 // Chunk is the transport projection of model.Chunk for a point fetch (spec 035).
 // Mirrors the QueryHit field set plus the full position / linked-list span a
 // debug or bridge caller needs. Poisoning / NearDup reuse the existing messages.
@@ -1411,7 +1595,7 @@ type Chunk struct {
 
 func (x *Chunk) Reset() {
 	*x = Chunk{}
-	mi := &file_gorag_proto_msgTypes[22]
+	mi := &file_gorag_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1423,7 +1607,7 @@ func (x *Chunk) String() string {
 func (*Chunk) ProtoMessage() {}
 
 func (x *Chunk) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[22]
+	mi := &file_gorag_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1436,7 +1620,7 @@ func (x *Chunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Chunk.ProtoReflect.Descriptor instead.
 func (*Chunk) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{22}
+	return file_gorag_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *Chunk) GetChunkId() string {
@@ -1588,7 +1772,7 @@ type DocumentMeta struct {
 
 func (x *DocumentMeta) Reset() {
 	*x = DocumentMeta{}
-	mi := &file_gorag_proto_msgTypes[23]
+	mi := &file_gorag_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1600,7 +1784,7 @@ func (x *DocumentMeta) String() string {
 func (*DocumentMeta) ProtoMessage() {}
 
 func (x *DocumentMeta) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[23]
+	mi := &file_gorag_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1613,7 +1797,7 @@ func (x *DocumentMeta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DocumentMeta.ProtoReflect.Descriptor instead.
 func (*DocumentMeta) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{23}
+	return file_gorag_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *DocumentMeta) GetId() string {
@@ -1755,7 +1939,7 @@ type QueryResponse struct {
 
 func (x *QueryResponse) Reset() {
 	*x = QueryResponse{}
-	mi := &file_gorag_proto_msgTypes[24]
+	mi := &file_gorag_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1767,7 +1951,7 @@ func (x *QueryResponse) String() string {
 func (*QueryResponse) ProtoMessage() {}
 
 func (x *QueryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[24]
+	mi := &file_gorag_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1780,7 +1964,7 @@ func (x *QueryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryResponse.ProtoReflect.Descriptor instead.
 func (*QueryResponse) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{24}
+	return file_gorag_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *QueryResponse) GetHits() []*QueryHit {
@@ -1826,7 +2010,7 @@ type StatusRequest struct {
 
 func (x *StatusRequest) Reset() {
 	*x = StatusRequest{}
-	mi := &file_gorag_proto_msgTypes[25]
+	mi := &file_gorag_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1838,7 +2022,7 @@ func (x *StatusRequest) String() string {
 func (*StatusRequest) ProtoMessage() {}
 
 func (x *StatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[25]
+	mi := &file_gorag_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1851,7 +2035,7 @@ func (x *StatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusRequest.ProtoReflect.Descriptor instead.
 func (*StatusRequest) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{25}
+	return file_gorag_proto_rawDescGZIP(), []int{27}
 }
 
 type StatusResponse struct {
@@ -1875,7 +2059,7 @@ type StatusResponse struct {
 
 func (x *StatusResponse) Reset() {
 	*x = StatusResponse{}
-	mi := &file_gorag_proto_msgTypes[26]
+	mi := &file_gorag_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1887,7 +2071,7 @@ func (x *StatusResponse) String() string {
 func (*StatusResponse) ProtoMessage() {}
 
 func (x *StatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[26]
+	mi := &file_gorag_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1900,7 +2084,7 @@ func (x *StatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusResponse.ProtoReflect.Descriptor instead.
 func (*StatusResponse) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{26}
+	return file_gorag_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *StatusResponse) GetDocuments() int32 {
@@ -2008,7 +2192,7 @@ type PoolUtilization struct {
 
 func (x *PoolUtilization) Reset() {
 	*x = PoolUtilization{}
-	mi := &file_gorag_proto_msgTypes[27]
+	mi := &file_gorag_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2020,7 +2204,7 @@ func (x *PoolUtilization) String() string {
 func (*PoolUtilization) ProtoMessage() {}
 
 func (x *PoolUtilization) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[27]
+	mi := &file_gorag_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2033,7 +2217,7 @@ func (x *PoolUtilization) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PoolUtilization.ProtoReflect.Descriptor instead.
 func (*PoolUtilization) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{27}
+	return file_gorag_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *PoolUtilization) GetQueries() uint64 {
@@ -2074,7 +2258,7 @@ type AddRequest struct {
 
 func (x *AddRequest) Reset() {
 	*x = AddRequest{}
-	mi := &file_gorag_proto_msgTypes[28]
+	mi := &file_gorag_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2086,7 +2270,7 @@ func (x *AddRequest) String() string {
 func (*AddRequest) ProtoMessage() {}
 
 func (x *AddRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[28]
+	mi := &file_gorag_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2099,7 +2283,7 @@ func (x *AddRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddRequest.ProtoReflect.Descriptor instead.
 func (*AddRequest) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{28}
+	return file_gorag_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *AddRequest) GetPath() string {
@@ -2124,7 +2308,7 @@ type ScanRequest struct {
 
 func (x *ScanRequest) Reset() {
 	*x = ScanRequest{}
-	mi := &file_gorag_proto_msgTypes[29]
+	mi := &file_gorag_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2136,7 +2320,7 @@ func (x *ScanRequest) String() string {
 func (*ScanRequest) ProtoMessage() {}
 
 func (x *ScanRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[29]
+	mi := &file_gorag_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2149,7 +2333,7 @@ func (x *ScanRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanRequest.ProtoReflect.Descriptor instead.
 func (*ScanRequest) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{29}
+	return file_gorag_proto_rawDescGZIP(), []int{31}
 }
 
 type ReprocessRequest struct {
@@ -2161,7 +2345,7 @@ type ReprocessRequest struct {
 
 func (x *ReprocessRequest) Reset() {
 	*x = ReprocessRequest{}
-	mi := &file_gorag_proto_msgTypes[30]
+	mi := &file_gorag_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2173,7 +2357,7 @@ func (x *ReprocessRequest) String() string {
 func (*ReprocessRequest) ProtoMessage() {}
 
 func (x *ReprocessRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[30]
+	mi := &file_gorag_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2186,7 +2370,7 @@ func (x *ReprocessRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReprocessRequest.ProtoReflect.Descriptor instead.
 func (*ReprocessRequest) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{30}
+	return file_gorag_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ReprocessRequest) GetPath() string {
@@ -2204,7 +2388,7 @@ type MigrateRequest struct {
 
 func (x *MigrateRequest) Reset() {
 	*x = MigrateRequest{}
-	mi := &file_gorag_proto_msgTypes[31]
+	mi := &file_gorag_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2216,7 +2400,7 @@ func (x *MigrateRequest) String() string {
 func (*MigrateRequest) ProtoMessage() {}
 
 func (x *MigrateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[31]
+	mi := &file_gorag_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2229,7 +2413,7 @@ func (x *MigrateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MigrateRequest.ProtoReflect.Descriptor instead.
 func (*MigrateRequest) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{31}
+	return file_gorag_proto_rawDescGZIP(), []int{33}
 }
 
 // H24/spec 028: read-only migration preview request (no args). Mirrors the
@@ -2242,7 +2426,7 @@ type MigratePlanRequest struct {
 
 func (x *MigratePlanRequest) Reset() {
 	*x = MigratePlanRequest{}
-	mi := &file_gorag_proto_msgTypes[32]
+	mi := &file_gorag_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2254,7 +2438,7 @@ func (x *MigratePlanRequest) String() string {
 func (*MigratePlanRequest) ProtoMessage() {}
 
 func (x *MigratePlanRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[32]
+	mi := &file_gorag_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2267,7 +2451,7 @@ func (x *MigratePlanRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MigratePlanRequest.ProtoReflect.Descriptor instead.
 func (*MigratePlanRequest) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{32}
+	return file_gorag_proto_rawDescGZIP(), []int{34}
 }
 
 // MigrationPlan is the read-only migration preview (H24/spec 028). Mirrors
@@ -2287,7 +2471,7 @@ type MigrationPlan struct {
 
 func (x *MigrationPlan) Reset() {
 	*x = MigrationPlan{}
-	mi := &file_gorag_proto_msgTypes[33]
+	mi := &file_gorag_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2299,7 +2483,7 @@ func (x *MigrationPlan) String() string {
 func (*MigrationPlan) ProtoMessage() {}
 
 func (x *MigrationPlan) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[33]
+	mi := &file_gorag_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2312,7 +2496,7 @@ func (x *MigrationPlan) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MigrationPlan.ProtoReflect.Descriptor instead.
 func (*MigrationPlan) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{33}
+	return file_gorag_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *MigrationPlan) GetTargetModel() string {
@@ -2375,7 +2559,7 @@ type ModelCount struct {
 
 func (x *ModelCount) Reset() {
 	*x = ModelCount{}
-	mi := &file_gorag_proto_msgTypes[34]
+	mi := &file_gorag_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2387,7 +2571,7 @@ func (x *ModelCount) String() string {
 func (*ModelCount) ProtoMessage() {}
 
 func (x *ModelCount) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[34]
+	mi := &file_gorag_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2400,7 +2584,7 @@ func (x *ModelCount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelCount.ProtoReflect.Descriptor instead.
 func (*ModelCount) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{34}
+	return file_gorag_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ModelCount) GetModel() string {
@@ -2434,7 +2618,7 @@ type DimCount struct {
 
 func (x *DimCount) Reset() {
 	*x = DimCount{}
-	mi := &file_gorag_proto_msgTypes[35]
+	mi := &file_gorag_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2446,7 +2630,7 @@ func (x *DimCount) String() string {
 func (*DimCount) ProtoMessage() {}
 
 func (x *DimCount) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[35]
+	mi := &file_gorag_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2459,7 +2643,7 @@ func (x *DimCount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DimCount.ProtoReflect.Descriptor instead.
 func (*DimCount) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{35}
+	return file_gorag_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *DimCount) GetDim() int32 {
@@ -2488,7 +2672,7 @@ type Estimate struct {
 
 func (x *Estimate) Reset() {
 	*x = Estimate{}
-	mi := &file_gorag_proto_msgTypes[36]
+	mi := &file_gorag_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2500,7 +2684,7 @@ func (x *Estimate) String() string {
 func (*Estimate) ProtoMessage() {}
 
 func (x *Estimate) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[36]
+	mi := &file_gorag_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2513,7 +2697,7 @@ func (x *Estimate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Estimate.ProtoReflect.Descriptor instead.
 func (*Estimate) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{36}
+	return file_gorag_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *Estimate) GetStaleEmbeddings() int32 {
@@ -2557,7 +2741,7 @@ type IngestSummary struct {
 
 func (x *IngestSummary) Reset() {
 	*x = IngestSummary{}
-	mi := &file_gorag_proto_msgTypes[37]
+	mi := &file_gorag_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2569,7 +2753,7 @@ func (x *IngestSummary) String() string {
 func (*IngestSummary) ProtoMessage() {}
 
 func (x *IngestSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[37]
+	mi := &file_gorag_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2582,7 +2766,7 @@ func (x *IngestSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IngestSummary.ProtoReflect.Descriptor instead.
 func (*IngestSummary) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{37}
+	return file_gorag_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *IngestSummary) GetNew() int32 {
@@ -2628,7 +2812,7 @@ type FilesRequest struct {
 
 func (x *FilesRequest) Reset() {
 	*x = FilesRequest{}
-	mi := &file_gorag_proto_msgTypes[38]
+	mi := &file_gorag_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2640,7 +2824,7 @@ func (x *FilesRequest) String() string {
 func (*FilesRequest) ProtoMessage() {}
 
 func (x *FilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[38]
+	mi := &file_gorag_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2653,7 +2837,7 @@ func (x *FilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilesRequest.ProtoReflect.Descriptor instead.
 func (*FilesRequest) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{38}
+	return file_gorag_proto_rawDescGZIP(), []int{40}
 }
 
 type FileEntry struct {
@@ -2668,7 +2852,7 @@ type FileEntry struct {
 
 func (x *FileEntry) Reset() {
 	*x = FileEntry{}
-	mi := &file_gorag_proto_msgTypes[39]
+	mi := &file_gorag_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2680,7 +2864,7 @@ func (x *FileEntry) String() string {
 func (*FileEntry) ProtoMessage() {}
 
 func (x *FileEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[39]
+	mi := &file_gorag_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2693,7 +2877,7 @@ func (x *FileEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileEntry.ProtoReflect.Descriptor instead.
 func (*FileEntry) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{39}
+	return file_gorag_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *FileEntry) GetFilePath() string {
@@ -2733,7 +2917,7 @@ type FilesResponse struct {
 
 func (x *FilesResponse) Reset() {
 	*x = FilesResponse{}
-	mi := &file_gorag_proto_msgTypes[40]
+	mi := &file_gorag_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2745,7 +2929,7 @@ func (x *FilesResponse) String() string {
 func (*FilesResponse) ProtoMessage() {}
 
 func (x *FilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[40]
+	mi := &file_gorag_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2758,7 +2942,7 @@ func (x *FilesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilesResponse.ProtoReflect.Descriptor instead.
 func (*FilesResponse) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{40}
+	return file_gorag_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *FilesResponse) GetFiles() []*FileEntry {
@@ -2776,7 +2960,7 @@ type DirsRequest struct {
 
 func (x *DirsRequest) Reset() {
 	*x = DirsRequest{}
-	mi := &file_gorag_proto_msgTypes[41]
+	mi := &file_gorag_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2788,7 +2972,7 @@ func (x *DirsRequest) String() string {
 func (*DirsRequest) ProtoMessage() {}
 
 func (x *DirsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[41]
+	mi := &file_gorag_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2801,7 +2985,7 @@ func (x *DirsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DirsRequest.ProtoReflect.Descriptor instead.
 func (*DirsRequest) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{41}
+	return file_gorag_proto_rawDescGZIP(), []int{43}
 }
 
 type DirEntry struct {
@@ -2815,7 +2999,7 @@ type DirEntry struct {
 
 func (x *DirEntry) Reset() {
 	*x = DirEntry{}
-	mi := &file_gorag_proto_msgTypes[42]
+	mi := &file_gorag_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2827,7 +3011,7 @@ func (x *DirEntry) String() string {
 func (*DirEntry) ProtoMessage() {}
 
 func (x *DirEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[42]
+	mi := &file_gorag_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2840,7 +3024,7 @@ func (x *DirEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DirEntry.ProtoReflect.Descriptor instead.
 func (*DirEntry) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{42}
+	return file_gorag_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *DirEntry) GetDir() string {
@@ -2873,7 +3057,7 @@ type DirsResponse struct {
 
 func (x *DirsResponse) Reset() {
 	*x = DirsResponse{}
-	mi := &file_gorag_proto_msgTypes[43]
+	mi := &file_gorag_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2885,7 +3069,7 @@ func (x *DirsResponse) String() string {
 func (*DirsResponse) ProtoMessage() {}
 
 func (x *DirsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[43]
+	mi := &file_gorag_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2898,7 +3082,7 @@ func (x *DirsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DirsResponse.ProtoReflect.Descriptor instead.
 func (*DirsResponse) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{43}
+	return file_gorag_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *DirsResponse) GetDirs() []*DirEntry {
@@ -2917,7 +3101,7 @@ type GetConfigRequest struct {
 
 func (x *GetConfigRequest) Reset() {
 	*x = GetConfigRequest{}
-	mi := &file_gorag_proto_msgTypes[44]
+	mi := &file_gorag_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2929,7 +3113,7 @@ func (x *GetConfigRequest) String() string {
 func (*GetConfigRequest) ProtoMessage() {}
 
 func (x *GetConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[44]
+	mi := &file_gorag_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2942,7 +3126,7 @@ func (x *GetConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigRequest.ProtoReflect.Descriptor instead.
 func (*GetConfigRequest) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{44}
+	return file_gorag_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *GetConfigRequest) GetKey() string {
@@ -2961,7 +3145,7 @@ type GetConfigResponse struct {
 
 func (x *GetConfigResponse) Reset() {
 	*x = GetConfigResponse{}
-	mi := &file_gorag_proto_msgTypes[45]
+	mi := &file_gorag_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2973,7 +3157,7 @@ func (x *GetConfigResponse) String() string {
 func (*GetConfigResponse) ProtoMessage() {}
 
 func (x *GetConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[45]
+	mi := &file_gorag_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2986,7 +3170,7 @@ func (x *GetConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConfigResponse.ProtoReflect.Descriptor instead.
 func (*GetConfigResponse) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{45}
+	return file_gorag_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *GetConfigResponse) GetValues() map[string]string {
@@ -3006,7 +3190,7 @@ type SetConfigRequest struct {
 
 func (x *SetConfigRequest) Reset() {
 	*x = SetConfigRequest{}
-	mi := &file_gorag_proto_msgTypes[46]
+	mi := &file_gorag_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3018,7 +3202,7 @@ func (x *SetConfigRequest) String() string {
 func (*SetConfigRequest) ProtoMessage() {}
 
 func (x *SetConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[46]
+	mi := &file_gorag_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3031,7 +3215,7 @@ func (x *SetConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetConfigRequest.ProtoReflect.Descriptor instead.
 func (*SetConfigRequest) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{46}
+	return file_gorag_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *SetConfigRequest) GetKey() string {
@@ -3058,7 +3242,7 @@ type SetConfigResponse struct {
 
 func (x *SetConfigResponse) Reset() {
 	*x = SetConfigResponse{}
-	mi := &file_gorag_proto_msgTypes[47]
+	mi := &file_gorag_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3070,7 +3254,7 @@ func (x *SetConfigResponse) String() string {
 func (*SetConfigResponse) ProtoMessage() {}
 
 func (x *SetConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[47]
+	mi := &file_gorag_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3083,7 +3267,7 @@ func (x *SetConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetConfigResponse.ProtoReflect.Descriptor instead.
 func (*SetConfigResponse) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{47}
+	return file_gorag_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *SetConfigResponse) GetKey() string {
@@ -3108,7 +3292,7 @@ type ListVaultsRequest struct {
 
 func (x *ListVaultsRequest) Reset() {
 	*x = ListVaultsRequest{}
-	mi := &file_gorag_proto_msgTypes[48]
+	mi := &file_gorag_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3120,7 +3304,7 @@ func (x *ListVaultsRequest) String() string {
 func (*ListVaultsRequest) ProtoMessage() {}
 
 func (x *ListVaultsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[48]
+	mi := &file_gorag_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3133,7 +3317,7 @@ func (x *ListVaultsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListVaultsRequest.ProtoReflect.Descriptor instead.
 func (*ListVaultsRequest) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{48}
+	return file_gorag_proto_rawDescGZIP(), []int{50}
 }
 
 type VaultEntry struct {
@@ -3146,7 +3330,7 @@ type VaultEntry struct {
 
 func (x *VaultEntry) Reset() {
 	*x = VaultEntry{}
-	mi := &file_gorag_proto_msgTypes[49]
+	mi := &file_gorag_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3158,7 +3342,7 @@ func (x *VaultEntry) String() string {
 func (*VaultEntry) ProtoMessage() {}
 
 func (x *VaultEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[49]
+	mi := &file_gorag_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3171,7 +3355,7 @@ func (x *VaultEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VaultEntry.ProtoReflect.Descriptor instead.
 func (*VaultEntry) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{49}
+	return file_gorag_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *VaultEntry) GetName() string {
@@ -3197,7 +3381,7 @@ type ListVaultsResponse struct {
 
 func (x *ListVaultsResponse) Reset() {
 	*x = ListVaultsResponse{}
-	mi := &file_gorag_proto_msgTypes[50]
+	mi := &file_gorag_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3209,7 +3393,7 @@ func (x *ListVaultsResponse) String() string {
 func (*ListVaultsResponse) ProtoMessage() {}
 
 func (x *ListVaultsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[50]
+	mi := &file_gorag_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3222,7 +3406,7 @@ func (x *ListVaultsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListVaultsResponse.ProtoReflect.Descriptor instead.
 func (*ListVaultsResponse) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{50}
+	return file_gorag_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ListVaultsResponse) GetVaults() []*VaultEntry {
@@ -3240,7 +3424,7 @@ type HealthRequest struct {
 
 func (x *HealthRequest) Reset() {
 	*x = HealthRequest{}
-	mi := &file_gorag_proto_msgTypes[51]
+	mi := &file_gorag_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3252,7 +3436,7 @@ func (x *HealthRequest) String() string {
 func (*HealthRequest) ProtoMessage() {}
 
 func (x *HealthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[51]
+	mi := &file_gorag_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3265,7 +3449,7 @@ func (x *HealthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthRequest.ProtoReflect.Descriptor instead.
 func (*HealthRequest) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{51}
+	return file_gorag_proto_rawDescGZIP(), []int{53}
 }
 
 type HealthResponse struct {
@@ -3281,7 +3465,7 @@ type HealthResponse struct {
 
 func (x *HealthResponse) Reset() {
 	*x = HealthResponse{}
-	mi := &file_gorag_proto_msgTypes[52]
+	mi := &file_gorag_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3293,7 +3477,7 @@ func (x *HealthResponse) String() string {
 func (*HealthResponse) ProtoMessage() {}
 
 func (x *HealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gorag_proto_msgTypes[52]
+	mi := &file_gorag_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3306,7 +3490,7 @@ func (x *HealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthResponse.ProtoReflect.Descriptor instead.
 func (*HealthResponse) Descriptor() ([]byte, []int) {
-	return file_gorag_proto_rawDescGZIP(), []int{52}
+	return file_gorag_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *HealthResponse) GetOk() bool {
@@ -3447,7 +3631,18 @@ const file_gorag_proto_rawDesc = "" +
 	"\x06status\x18\x04 \x01(\tR\x06status\"r\n" +
 	"\x15ListDocumentsResponse\x121\n" +
 	"\tdocuments\x18\x01 \x03(\v2\x13.gorag.DocumentMetaR\tdocuments\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xc2\x04\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"&\n" +
+	"\fWatchRequest\x12\x16\n" +
+	"\x06cursor\x18\x01 \x01(\tR\x06cursor\"\xe5\x01\n" +
+	"\rDocumentEvent\x12,\n" +
+	"\x04type\x18\x01 \x01(\x0e2\x18.gorag.DocumentEventTypeR\x04type\x12\x1f\n" +
+	"\vdocument_id\x18\x02 \x01(\tR\n" +
+	"documentId\x12\x1f\n" +
+	"\vsource_path\x18\x03 \x01(\tR\n" +
+	"sourcePath\x12\x16\n" +
+	"\x06cursor\x18\x04 \x01(\tR\x06cursor\x12)\n" +
+	"\x05after\x18\x05 \x01(\v2\x13.gorag.DocumentMetaR\x05after\x12!\n" +
+	"\ftimestamp_ms\x18\x06 \x01(\x03R\vtimestampMs\"\xc2\x04\n" +
 	"\x05Chunk\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x1f\n" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +
@@ -3614,7 +3809,12 @@ const file_gorag_proto_rawDesc = "" +
 	"\fstorage_open\x18\x02 \x01(\bR\vstorageOpen\x12-\n" +
 	"\x12embedder_reachable\x18\x03 \x01(\bR\x11embedderReachable\x12\x14\n" +
 	"\x05ready\x18\x04 \x01(\bR\x05ready\x12#\n" +
-	"\rdrift_verdict\x18\x05 \x01(\tR\fdriftVerdict2\xba\n" +
+	"\rdrift_verdict\x18\x05 \x01(\tR\fdriftVerdict*M\n" +
+	"\x11DocumentEventType\x12\f\n" +
+	"\bINGESTED\x10\x00\x12\f\n" +
+	"\bEMBEDDED\x10\x01\x12\x0f\n" +
+	"\vRE_INGESTED\x10\x02\x12\v\n" +
+	"\aDELETED\x10\x032\xf9\n" +
 	"\n" +
 	"\x05Gorag\x122\n" +
 	"\x05Query\x12\x13.gorag.QueryRequest\x1a\x14.gorag.QueryResponse\x125\n" +
@@ -3639,7 +3839,8 @@ const file_gorag_proto_rawDesc = "" +
 	"\bGetChunk\x12\x16.gorag.GetChunkRequest\x1a\x17.gorag.GetChunkResponse\x12P\n" +
 	"\x0fGetChunkContext\x12\x1d.gorag.GetChunkContextRequest\x1a\x1e.gorag.GetChunkContextResponse\x12M\n" +
 	"\x0eBatchGetChunks\x12\x1c.gorag.BatchGetChunksRequest\x1a\x1d.gorag.BatchGetChunksResponse\x12J\n" +
-	"\rListDocuments\x12\x1b.gorag.ListDocumentsRequest\x1a\x1c.gorag.ListDocumentsResponseB0Z.github.com/madeinoz67/go-rag/proto/gen;goragpbb\x06proto3"
+	"\rListDocuments\x12\x1b.gorag.ListDocumentsRequest\x1a\x1c.gorag.ListDocumentsResponse\x12=\n" +
+	"\x0eWatchDocuments\x12\x13.gorag.WatchRequest\x1a\x14.gorag.DocumentEvent0\x01B0Z.github.com/madeinoz67/go-rag/proto/gen;goragpbb\x06proto3"
 
 var (
 	file_gorag_proto_rawDescOnce sync.Once
@@ -3653,135 +3854,143 @@ func file_gorag_proto_rawDescGZIP() []byte {
 	return file_gorag_proto_rawDescData
 }
 
-var file_gorag_proto_msgTypes = make([]protoimpl.MessageInfo, 54)
+var file_gorag_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_gorag_proto_msgTypes = make([]protoimpl.MessageInfo, 56)
 var file_gorag_proto_goTypes = []any{
-	(*QueryRequest)(nil),            // 0: gorag.QueryRequest
-	(*QueryHit)(nil),                // 1: gorag.QueryHit
-	(*NearDup)(nil),                 // 2: gorag.NearDup
-	(*Poisoning)(nil),               // 3: gorag.Poisoning
-	(*PoisoningSignals)(nil),        // 4: gorag.PoisoningSignals
-	(*ListPoisonedRequest)(nil),     // 5: gorag.ListPoisonedRequest
-	(*ListPoisonedResponse)(nil),    // 6: gorag.ListPoisonedResponse
-	(*PoisonedChunk)(nil),           // 7: gorag.PoisonedChunk
-	(*ReleaseChunkRequest)(nil),     // 8: gorag.ReleaseChunkRequest
-	(*ResetChunkRequest)(nil),       // 9: gorag.ResetChunkRequest
-	(*PoisonActionResponse)(nil),    // 10: gorag.PoisonActionResponse
-	(*RescanPoisoningRequest)(nil),  // 11: gorag.RescanPoisoningRequest
-	(*RescanPoisoningResponse)(nil), // 12: gorag.RescanPoisoningResponse
-	(*GetChunkRequest)(nil),         // 13: gorag.GetChunkRequest
-	(*GetChunkResponse)(nil),        // 14: gorag.GetChunkResponse
-	(*GetChunkContextRequest)(nil),  // 15: gorag.GetChunkContextRequest
-	(*GetChunkContextResponse)(nil), // 16: gorag.GetChunkContextResponse
-	(*BatchGetChunksRequest)(nil),   // 17: gorag.BatchGetChunksRequest
-	(*BatchGetChunksResult)(nil),    // 18: gorag.BatchGetChunksResult
-	(*BatchGetChunksResponse)(nil),  // 19: gorag.BatchGetChunksResponse
-	(*ListDocumentsRequest)(nil),    // 20: gorag.ListDocumentsRequest
-	(*ListDocumentsResponse)(nil),   // 21: gorag.ListDocumentsResponse
-	(*Chunk)(nil),                   // 22: gorag.Chunk
-	(*DocumentMeta)(nil),            // 23: gorag.DocumentMeta
-	(*QueryResponse)(nil),           // 24: gorag.QueryResponse
-	(*StatusRequest)(nil),           // 25: gorag.StatusRequest
-	(*StatusResponse)(nil),          // 26: gorag.StatusResponse
-	(*PoolUtilization)(nil),         // 27: gorag.PoolUtilization
-	(*AddRequest)(nil),              // 28: gorag.AddRequest
-	(*ScanRequest)(nil),             // 29: gorag.ScanRequest
-	(*ReprocessRequest)(nil),        // 30: gorag.ReprocessRequest
-	(*MigrateRequest)(nil),          // 31: gorag.MigrateRequest
-	(*MigratePlanRequest)(nil),      // 32: gorag.MigratePlanRequest
-	(*MigrationPlan)(nil),           // 33: gorag.MigrationPlan
-	(*ModelCount)(nil),              // 34: gorag.ModelCount
-	(*DimCount)(nil),                // 35: gorag.DimCount
-	(*Estimate)(nil),                // 36: gorag.Estimate
-	(*IngestSummary)(nil),           // 37: gorag.IngestSummary
-	(*FilesRequest)(nil),            // 38: gorag.FilesRequest
-	(*FileEntry)(nil),               // 39: gorag.FileEntry
-	(*FilesResponse)(nil),           // 40: gorag.FilesResponse
-	(*DirsRequest)(nil),             // 41: gorag.DirsRequest
-	(*DirEntry)(nil),                // 42: gorag.DirEntry
-	(*DirsResponse)(nil),            // 43: gorag.DirsResponse
-	(*GetConfigRequest)(nil),        // 44: gorag.GetConfigRequest
-	(*GetConfigResponse)(nil),       // 45: gorag.GetConfigResponse
-	(*SetConfigRequest)(nil),        // 46: gorag.SetConfigRequest
-	(*SetConfigResponse)(nil),       // 47: gorag.SetConfigResponse
-	(*ListVaultsRequest)(nil),       // 48: gorag.ListVaultsRequest
-	(*VaultEntry)(nil),              // 49: gorag.VaultEntry
-	(*ListVaultsResponse)(nil),      // 50: gorag.ListVaultsResponse
-	(*HealthRequest)(nil),           // 51: gorag.HealthRequest
-	(*HealthResponse)(nil),          // 52: gorag.HealthResponse
-	nil,                             // 53: gorag.GetConfigResponse.ValuesEntry
+	(DocumentEventType)(0),          // 0: gorag.DocumentEventType
+	(*QueryRequest)(nil),            // 1: gorag.QueryRequest
+	(*QueryHit)(nil),                // 2: gorag.QueryHit
+	(*NearDup)(nil),                 // 3: gorag.NearDup
+	(*Poisoning)(nil),               // 4: gorag.Poisoning
+	(*PoisoningSignals)(nil),        // 5: gorag.PoisoningSignals
+	(*ListPoisonedRequest)(nil),     // 6: gorag.ListPoisonedRequest
+	(*ListPoisonedResponse)(nil),    // 7: gorag.ListPoisonedResponse
+	(*PoisonedChunk)(nil),           // 8: gorag.PoisonedChunk
+	(*ReleaseChunkRequest)(nil),     // 9: gorag.ReleaseChunkRequest
+	(*ResetChunkRequest)(nil),       // 10: gorag.ResetChunkRequest
+	(*PoisonActionResponse)(nil),    // 11: gorag.PoisonActionResponse
+	(*RescanPoisoningRequest)(nil),  // 12: gorag.RescanPoisoningRequest
+	(*RescanPoisoningResponse)(nil), // 13: gorag.RescanPoisoningResponse
+	(*GetChunkRequest)(nil),         // 14: gorag.GetChunkRequest
+	(*GetChunkResponse)(nil),        // 15: gorag.GetChunkResponse
+	(*GetChunkContextRequest)(nil),  // 16: gorag.GetChunkContextRequest
+	(*GetChunkContextResponse)(nil), // 17: gorag.GetChunkContextResponse
+	(*BatchGetChunksRequest)(nil),   // 18: gorag.BatchGetChunksRequest
+	(*BatchGetChunksResult)(nil),    // 19: gorag.BatchGetChunksResult
+	(*BatchGetChunksResponse)(nil),  // 20: gorag.BatchGetChunksResponse
+	(*ListDocumentsRequest)(nil),    // 21: gorag.ListDocumentsRequest
+	(*ListDocumentsResponse)(nil),   // 22: gorag.ListDocumentsResponse
+	(*WatchRequest)(nil),            // 23: gorag.WatchRequest
+	(*DocumentEvent)(nil),           // 24: gorag.DocumentEvent
+	(*Chunk)(nil),                   // 25: gorag.Chunk
+	(*DocumentMeta)(nil),            // 26: gorag.DocumentMeta
+	(*QueryResponse)(nil),           // 27: gorag.QueryResponse
+	(*StatusRequest)(nil),           // 28: gorag.StatusRequest
+	(*StatusResponse)(nil),          // 29: gorag.StatusResponse
+	(*PoolUtilization)(nil),         // 30: gorag.PoolUtilization
+	(*AddRequest)(nil),              // 31: gorag.AddRequest
+	(*ScanRequest)(nil),             // 32: gorag.ScanRequest
+	(*ReprocessRequest)(nil),        // 33: gorag.ReprocessRequest
+	(*MigrateRequest)(nil),          // 34: gorag.MigrateRequest
+	(*MigratePlanRequest)(nil),      // 35: gorag.MigratePlanRequest
+	(*MigrationPlan)(nil),           // 36: gorag.MigrationPlan
+	(*ModelCount)(nil),              // 37: gorag.ModelCount
+	(*DimCount)(nil),                // 38: gorag.DimCount
+	(*Estimate)(nil),                // 39: gorag.Estimate
+	(*IngestSummary)(nil),           // 40: gorag.IngestSummary
+	(*FilesRequest)(nil),            // 41: gorag.FilesRequest
+	(*FileEntry)(nil),               // 42: gorag.FileEntry
+	(*FilesResponse)(nil),           // 43: gorag.FilesResponse
+	(*DirsRequest)(nil),             // 44: gorag.DirsRequest
+	(*DirEntry)(nil),                // 45: gorag.DirEntry
+	(*DirsResponse)(nil),            // 46: gorag.DirsResponse
+	(*GetConfigRequest)(nil),        // 47: gorag.GetConfigRequest
+	(*GetConfigResponse)(nil),       // 48: gorag.GetConfigResponse
+	(*SetConfigRequest)(nil),        // 49: gorag.SetConfigRequest
+	(*SetConfigResponse)(nil),       // 50: gorag.SetConfigResponse
+	(*ListVaultsRequest)(nil),       // 51: gorag.ListVaultsRequest
+	(*VaultEntry)(nil),              // 52: gorag.VaultEntry
+	(*ListVaultsResponse)(nil),      // 53: gorag.ListVaultsResponse
+	(*HealthRequest)(nil),           // 54: gorag.HealthRequest
+	(*HealthResponse)(nil),          // 55: gorag.HealthResponse
+	nil,                             // 56: gorag.GetConfigResponse.ValuesEntry
 }
 var file_gorag_proto_depIdxs = []int32{
-	3,  // 0: gorag.QueryHit.poisoning:type_name -> gorag.Poisoning
-	2,  // 1: gorag.QueryHit.near_dup:type_name -> gorag.NearDup
-	4,  // 2: gorag.Poisoning.signals:type_name -> gorag.PoisoningSignals
-	7,  // 3: gorag.ListPoisonedResponse.flagged:type_name -> gorag.PoisonedChunk
-	3,  // 4: gorag.PoisonedChunk.verdict:type_name -> gorag.Poisoning
-	22, // 5: gorag.GetChunkResponse.chunk:type_name -> gorag.Chunk
-	23, // 6: gorag.GetChunkResponse.document:type_name -> gorag.DocumentMeta
-	22, // 7: gorag.GetChunkContextResponse.chunks:type_name -> gorag.Chunk
-	23, // 8: gorag.GetChunkContextResponse.document:type_name -> gorag.DocumentMeta
-	22, // 9: gorag.BatchGetChunksResult.chunk:type_name -> gorag.Chunk
-	23, // 10: gorag.BatchGetChunksResult.document:type_name -> gorag.DocumentMeta
-	18, // 11: gorag.BatchGetChunksResponse.results:type_name -> gorag.BatchGetChunksResult
-	23, // 12: gorag.ListDocumentsResponse.documents:type_name -> gorag.DocumentMeta
-	3,  // 13: gorag.Chunk.poisoning:type_name -> gorag.Poisoning
-	2,  // 14: gorag.Chunk.near_dup:type_name -> gorag.NearDup
-	1,  // 15: gorag.QueryResponse.hits:type_name -> gorag.QueryHit
-	27, // 16: gorag.StatusResponse.pool_utilization:type_name -> gorag.PoolUtilization
-	34, // 17: gorag.MigrationPlan.sources:type_name -> gorag.ModelCount
-	35, // 18: gorag.MigrationPlan.dimensions:type_name -> gorag.DimCount
-	36, // 19: gorag.MigrationPlan.estimate:type_name -> gorag.Estimate
-	39, // 20: gorag.FilesResponse.files:type_name -> gorag.FileEntry
-	42, // 21: gorag.DirsResponse.dirs:type_name -> gorag.DirEntry
-	53, // 22: gorag.GetConfigResponse.values:type_name -> gorag.GetConfigResponse.ValuesEntry
-	49, // 23: gorag.ListVaultsResponse.vaults:type_name -> gorag.VaultEntry
-	0,  // 24: gorag.Gorag.Query:input_type -> gorag.QueryRequest
-	25, // 25: gorag.Gorag.Status:input_type -> gorag.StatusRequest
-	28, // 26: gorag.Gorag.Add:input_type -> gorag.AddRequest
-	29, // 27: gorag.Gorag.Scan:input_type -> gorag.ScanRequest
-	30, // 28: gorag.Gorag.Reprocess:input_type -> gorag.ReprocessRequest
-	31, // 29: gorag.Gorag.Migrate:input_type -> gorag.MigrateRequest
-	32, // 30: gorag.Gorag.MigratePlan:input_type -> gorag.MigratePlanRequest
-	38, // 31: gorag.Gorag.Files:input_type -> gorag.FilesRequest
-	41, // 32: gorag.Gorag.Dirs:input_type -> gorag.DirsRequest
-	44, // 33: gorag.Gorag.GetConfig:input_type -> gorag.GetConfigRequest
-	46, // 34: gorag.Gorag.SetConfig:input_type -> gorag.SetConfigRequest
-	48, // 35: gorag.Gorag.ListVaults:input_type -> gorag.ListVaultsRequest
-	51, // 36: gorag.Gorag.Health:input_type -> gorag.HealthRequest
-	5,  // 37: gorag.Gorag.ListPoisoned:input_type -> gorag.ListPoisonedRequest
-	8,  // 38: gorag.Gorag.ReleaseChunk:input_type -> gorag.ReleaseChunkRequest
-	9,  // 39: gorag.Gorag.ResetChunk:input_type -> gorag.ResetChunkRequest
-	11, // 40: gorag.Gorag.RescanPoisoning:input_type -> gorag.RescanPoisoningRequest
-	13, // 41: gorag.Gorag.GetChunk:input_type -> gorag.GetChunkRequest
-	15, // 42: gorag.Gorag.GetChunkContext:input_type -> gorag.GetChunkContextRequest
-	17, // 43: gorag.Gorag.BatchGetChunks:input_type -> gorag.BatchGetChunksRequest
-	20, // 44: gorag.Gorag.ListDocuments:input_type -> gorag.ListDocumentsRequest
-	24, // 45: gorag.Gorag.Query:output_type -> gorag.QueryResponse
-	26, // 46: gorag.Gorag.Status:output_type -> gorag.StatusResponse
-	37, // 47: gorag.Gorag.Add:output_type -> gorag.IngestSummary
-	37, // 48: gorag.Gorag.Scan:output_type -> gorag.IngestSummary
-	37, // 49: gorag.Gorag.Reprocess:output_type -> gorag.IngestSummary
-	37, // 50: gorag.Gorag.Migrate:output_type -> gorag.IngestSummary
-	33, // 51: gorag.Gorag.MigratePlan:output_type -> gorag.MigrationPlan
-	40, // 52: gorag.Gorag.Files:output_type -> gorag.FilesResponse
-	43, // 53: gorag.Gorag.Dirs:output_type -> gorag.DirsResponse
-	45, // 54: gorag.Gorag.GetConfig:output_type -> gorag.GetConfigResponse
-	47, // 55: gorag.Gorag.SetConfig:output_type -> gorag.SetConfigResponse
-	50, // 56: gorag.Gorag.ListVaults:output_type -> gorag.ListVaultsResponse
-	52, // 57: gorag.Gorag.Health:output_type -> gorag.HealthResponse
-	6,  // 58: gorag.Gorag.ListPoisoned:output_type -> gorag.ListPoisonedResponse
-	10, // 59: gorag.Gorag.ReleaseChunk:output_type -> gorag.PoisonActionResponse
-	10, // 60: gorag.Gorag.ResetChunk:output_type -> gorag.PoisonActionResponse
-	12, // 61: gorag.Gorag.RescanPoisoning:output_type -> gorag.RescanPoisoningResponse
-	14, // 62: gorag.Gorag.GetChunk:output_type -> gorag.GetChunkResponse
-	16, // 63: gorag.Gorag.GetChunkContext:output_type -> gorag.GetChunkContextResponse
-	19, // 64: gorag.Gorag.BatchGetChunks:output_type -> gorag.BatchGetChunksResponse
-	21, // 65: gorag.Gorag.ListDocuments:output_type -> gorag.ListDocumentsResponse
-	45, // [45:66] is the sub-list for method output_type
-	24, // [24:45] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	4,  // 0: gorag.QueryHit.poisoning:type_name -> gorag.Poisoning
+	3,  // 1: gorag.QueryHit.near_dup:type_name -> gorag.NearDup
+	5,  // 2: gorag.Poisoning.signals:type_name -> gorag.PoisoningSignals
+	8,  // 3: gorag.ListPoisonedResponse.flagged:type_name -> gorag.PoisonedChunk
+	4,  // 4: gorag.PoisonedChunk.verdict:type_name -> gorag.Poisoning
+	25, // 5: gorag.GetChunkResponse.chunk:type_name -> gorag.Chunk
+	26, // 6: gorag.GetChunkResponse.document:type_name -> gorag.DocumentMeta
+	25, // 7: gorag.GetChunkContextResponse.chunks:type_name -> gorag.Chunk
+	26, // 8: gorag.GetChunkContextResponse.document:type_name -> gorag.DocumentMeta
+	25, // 9: gorag.BatchGetChunksResult.chunk:type_name -> gorag.Chunk
+	26, // 10: gorag.BatchGetChunksResult.document:type_name -> gorag.DocumentMeta
+	19, // 11: gorag.BatchGetChunksResponse.results:type_name -> gorag.BatchGetChunksResult
+	26, // 12: gorag.ListDocumentsResponse.documents:type_name -> gorag.DocumentMeta
+	0,  // 13: gorag.DocumentEvent.type:type_name -> gorag.DocumentEventType
+	26, // 14: gorag.DocumentEvent.after:type_name -> gorag.DocumentMeta
+	4,  // 15: gorag.Chunk.poisoning:type_name -> gorag.Poisoning
+	3,  // 16: gorag.Chunk.near_dup:type_name -> gorag.NearDup
+	2,  // 17: gorag.QueryResponse.hits:type_name -> gorag.QueryHit
+	30, // 18: gorag.StatusResponse.pool_utilization:type_name -> gorag.PoolUtilization
+	37, // 19: gorag.MigrationPlan.sources:type_name -> gorag.ModelCount
+	38, // 20: gorag.MigrationPlan.dimensions:type_name -> gorag.DimCount
+	39, // 21: gorag.MigrationPlan.estimate:type_name -> gorag.Estimate
+	42, // 22: gorag.FilesResponse.files:type_name -> gorag.FileEntry
+	45, // 23: gorag.DirsResponse.dirs:type_name -> gorag.DirEntry
+	56, // 24: gorag.GetConfigResponse.values:type_name -> gorag.GetConfigResponse.ValuesEntry
+	52, // 25: gorag.ListVaultsResponse.vaults:type_name -> gorag.VaultEntry
+	1,  // 26: gorag.Gorag.Query:input_type -> gorag.QueryRequest
+	28, // 27: gorag.Gorag.Status:input_type -> gorag.StatusRequest
+	31, // 28: gorag.Gorag.Add:input_type -> gorag.AddRequest
+	32, // 29: gorag.Gorag.Scan:input_type -> gorag.ScanRequest
+	33, // 30: gorag.Gorag.Reprocess:input_type -> gorag.ReprocessRequest
+	34, // 31: gorag.Gorag.Migrate:input_type -> gorag.MigrateRequest
+	35, // 32: gorag.Gorag.MigratePlan:input_type -> gorag.MigratePlanRequest
+	41, // 33: gorag.Gorag.Files:input_type -> gorag.FilesRequest
+	44, // 34: gorag.Gorag.Dirs:input_type -> gorag.DirsRequest
+	47, // 35: gorag.Gorag.GetConfig:input_type -> gorag.GetConfigRequest
+	49, // 36: gorag.Gorag.SetConfig:input_type -> gorag.SetConfigRequest
+	51, // 37: gorag.Gorag.ListVaults:input_type -> gorag.ListVaultsRequest
+	54, // 38: gorag.Gorag.Health:input_type -> gorag.HealthRequest
+	6,  // 39: gorag.Gorag.ListPoisoned:input_type -> gorag.ListPoisonedRequest
+	9,  // 40: gorag.Gorag.ReleaseChunk:input_type -> gorag.ReleaseChunkRequest
+	10, // 41: gorag.Gorag.ResetChunk:input_type -> gorag.ResetChunkRequest
+	12, // 42: gorag.Gorag.RescanPoisoning:input_type -> gorag.RescanPoisoningRequest
+	14, // 43: gorag.Gorag.GetChunk:input_type -> gorag.GetChunkRequest
+	16, // 44: gorag.Gorag.GetChunkContext:input_type -> gorag.GetChunkContextRequest
+	18, // 45: gorag.Gorag.BatchGetChunks:input_type -> gorag.BatchGetChunksRequest
+	21, // 46: gorag.Gorag.ListDocuments:input_type -> gorag.ListDocumentsRequest
+	23, // 47: gorag.Gorag.WatchDocuments:input_type -> gorag.WatchRequest
+	27, // 48: gorag.Gorag.Query:output_type -> gorag.QueryResponse
+	29, // 49: gorag.Gorag.Status:output_type -> gorag.StatusResponse
+	40, // 50: gorag.Gorag.Add:output_type -> gorag.IngestSummary
+	40, // 51: gorag.Gorag.Scan:output_type -> gorag.IngestSummary
+	40, // 52: gorag.Gorag.Reprocess:output_type -> gorag.IngestSummary
+	40, // 53: gorag.Gorag.Migrate:output_type -> gorag.IngestSummary
+	36, // 54: gorag.Gorag.MigratePlan:output_type -> gorag.MigrationPlan
+	43, // 55: gorag.Gorag.Files:output_type -> gorag.FilesResponse
+	46, // 56: gorag.Gorag.Dirs:output_type -> gorag.DirsResponse
+	48, // 57: gorag.Gorag.GetConfig:output_type -> gorag.GetConfigResponse
+	50, // 58: gorag.Gorag.SetConfig:output_type -> gorag.SetConfigResponse
+	53, // 59: gorag.Gorag.ListVaults:output_type -> gorag.ListVaultsResponse
+	55, // 60: gorag.Gorag.Health:output_type -> gorag.HealthResponse
+	7,  // 61: gorag.Gorag.ListPoisoned:output_type -> gorag.ListPoisonedResponse
+	11, // 62: gorag.Gorag.ReleaseChunk:output_type -> gorag.PoisonActionResponse
+	11, // 63: gorag.Gorag.ResetChunk:output_type -> gorag.PoisonActionResponse
+	13, // 64: gorag.Gorag.RescanPoisoning:output_type -> gorag.RescanPoisoningResponse
+	15, // 65: gorag.Gorag.GetChunk:output_type -> gorag.GetChunkResponse
+	17, // 66: gorag.Gorag.GetChunkContext:output_type -> gorag.GetChunkContextResponse
+	20, // 67: gorag.Gorag.BatchGetChunks:output_type -> gorag.BatchGetChunksResponse
+	22, // 68: gorag.Gorag.ListDocuments:output_type -> gorag.ListDocumentsResponse
+	24, // 69: gorag.Gorag.WatchDocuments:output_type -> gorag.DocumentEvent
+	48, // [48:70] is the sub-list for method output_type
+	26, // [26:48] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_gorag_proto_init() }
@@ -3794,13 +4003,14 @@ func file_gorag_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gorag_proto_rawDesc), len(file_gorag_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   54,
+			NumEnums:      1,
+			NumMessages:   56,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_gorag_proto_goTypes,
 		DependencyIndexes: file_gorag_proto_depIdxs,
+		EnumInfos:         file_gorag_proto_enumTypes,
 		MessageInfos:      file_gorag_proto_msgTypes,
 	}.Build()
 	File_gorag_proto = out.File

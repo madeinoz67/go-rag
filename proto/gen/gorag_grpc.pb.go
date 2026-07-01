@@ -49,6 +49,7 @@ const (
 	Gorag_GetChunkContext_FullMethodName = "/gorag.Gorag/GetChunkContext"
 	Gorag_BatchGetChunks_FullMethodName  = "/gorag.Gorag/BatchGetChunks"
 	Gorag_ListDocuments_FullMethodName   = "/gorag.Gorag/ListDocuments"
+	Gorag_WatchDocuments_FullMethodName  = "/gorag.Gorag/WatchDocuments"
 )
 
 // GoragClient is the client API for Gorag service.
@@ -105,6 +106,10 @@ type GoragClient interface {
 	// filter + page_token pagination. → engine.ListDocuments (also REST
 	// GET /v1/documents, MCP go_rag_list_documents, CLI `go-rag documents list`).
 	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
+	// spec 040 (BL-008): long-lived server-stream of document lifecycle events
+	// (INGESTED/EMBEDDED/DELETED). → engine's event bus. gRPC-only — streaming has
+	// no unary equivalent (REST push = BL-011 webhook, separate).
+	WatchDocuments(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DocumentEvent], error)
 }
 
 type goragClient struct {
@@ -325,6 +330,25 @@ func (c *goragClient) ListDocuments(ctx context.Context, in *ListDocumentsReques
 	return out, nil
 }
 
+func (c *goragClient) WatchDocuments(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DocumentEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Gorag_ServiceDesc.Streams[0], Gorag_WatchDocuments_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchRequest, DocumentEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Gorag_WatchDocumentsClient = grpc.ServerStreamingClient[DocumentEvent]
+
 // GoragServer is the server API for Gorag service.
 // All implementations must embed UnimplementedGoragServer
 // for forward compatibility.
@@ -379,6 +403,10 @@ type GoragServer interface {
 	// filter + page_token pagination. → engine.ListDocuments (also REST
 	// GET /v1/documents, MCP go_rag_list_documents, CLI `go-rag documents list`).
 	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
+	// spec 040 (BL-008): long-lived server-stream of document lifecycle events
+	// (INGESTED/EMBEDDED/DELETED). → engine's event bus. gRPC-only — streaming has
+	// no unary equivalent (REST push = BL-011 webhook, separate).
+	WatchDocuments(*WatchRequest, grpc.ServerStreamingServer[DocumentEvent]) error
 	mustEmbedUnimplementedGoragServer()
 }
 
@@ -451,6 +479,9 @@ func (UnimplementedGoragServer) BatchGetChunks(context.Context, *BatchGetChunksR
 }
 func (UnimplementedGoragServer) ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListDocuments not implemented")
+}
+func (UnimplementedGoragServer) WatchDocuments(*WatchRequest, grpc.ServerStreamingServer[DocumentEvent]) error {
+	return status.Error(codes.Unimplemented, "method WatchDocuments not implemented")
 }
 func (UnimplementedGoragServer) mustEmbedUnimplementedGoragServer() {}
 func (UnimplementedGoragServer) testEmbeddedByValue()               {}
@@ -851,6 +882,17 @@ func _Gorag_ListDocuments_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Gorag_WatchDocuments_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GoragServer).WatchDocuments(m, &grpc.GenericServerStream[WatchRequest, DocumentEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Gorag_WatchDocumentsServer = grpc.ServerStreamingServer[DocumentEvent]
+
 // Gorag_ServiceDesc is the grpc.ServiceDesc for Gorag service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -943,6 +985,12 @@ var Gorag_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Gorag_ListDocuments_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchDocuments",
+			Handler:       _Gorag_WatchDocuments_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "gorag.proto",
 }

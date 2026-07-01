@@ -76,6 +76,10 @@ service Gorag {
   // filter + page_token pagination. → engine.ListDocuments (also REST
   // GET /v1/documents, MCP go_rag_list_documents, CLI `go-rag documents list`).
   rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
+  // spec 040 (BL-008): long-lived server-stream of document lifecycle events
+  // (INGESTED/EMBEDDED/DELETED). → engine's event bus. gRPC-only — streaming has
+  // no unary equivalent (REST push = BL-011 webhook, separate).
+  rpc WatchDocuments(WatchRequest) returns (stream DocumentEvent);
 }
 
 // ---- Query ----
@@ -225,6 +229,30 @@ message ListDocumentsRequest {
 message ListDocumentsResponse {
   repeated DocumentMeta documents       = 1; // ordered (ingested_at ASC, id ASC)
   string                next_page_token = 2; // empty ⇒ last page
+}
+
+// spec 040 (BL-008): document lifecycle event kinds. RE_INGESTED is reserved for
+// BL-010 (before/after delta) and is NOT emitted by the MVP.
+enum DocumentEventType {
+  INGESTED    = 0; // metadata durably committed; embedding may still be pending
+  EMBEDDED    = 1; // async embedding complete — safe to promote
+  RE_INGESTED = 2; // reserved (BL-010 — not emitted in the MVP)
+  DELETED     = 3;
+}
+
+// spec 040 (BL-008): open a long-lived stream; cursor resumes after a prior event.
+message WatchRequest {
+  string cursor = 1; // opaque resume token; empty = start from now (no replay)
+}
+
+// spec 040 (BL-008): one document lifecycle event on the WatchDocuments stream.
+message DocumentEvent {
+  DocumentEventType type         = 1;
+  string            document_id  = 2;
+  string            source_path  = 3;
+  string            cursor       = 4; // opaque; persist + pass on reconnect
+  DocumentMeta      after        = 5; // INGESTED/EMBEDDED: the document version
+  int64             timestamp_ms = 6;
 }
 
 // Chunk is the transport projection of model.Chunk for a point fetch (spec 035).
