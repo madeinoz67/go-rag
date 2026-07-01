@@ -12,6 +12,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/embedproc"
 	"github.com/madeinoz67/go-rag/internal/enrich"
+	"github.com/madeinoz67/go-rag/internal/events"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/redact"
@@ -92,6 +93,16 @@ type Engine struct {
 	// Status recomputes live.
 	drift driftCache
 
+	// bus (spec 040 / BL-008) is the in-process document lifecycle event bus —
+	// the pub-sub substrate for the WatchDocuments gRPC server-stream. The
+	// engine owns it (single instance, process-lifetime) and binds the
+	// pipeline's OnEvent hook to bus.Publish in pipeline() so INGESTED/EMBEDDED
+	// events flow without the pipeline importing the engine. In-memory only
+	// (no persisted state — the MVP default; a Pebble-backed follow-on would
+	// add cross-restart resume, migration-gated). nil only on a manually-
+	// constructed Engine that bypassed NewWithDB (defensive guards below).
+	bus *events.Bus
+
 	// poolUtil* (H22/spec 024) are the aggregate pool-utilization counters
 	// (atomic, process-lifetime). Recorded once per freshly-computed query (a
 	// cache hit reuses an already-counted result and is not double-counted) and
@@ -121,7 +132,7 @@ func newQueryCaches(cfg config.Config) (*LRU[string, *QueryResult], *LRU[string,
 // status, files) never start background workers.
 func NewWithDB(cfg config.Config, db *storage.DB) *Engine {
 	rc, ec, ep := newQueryCaches(cfg)
-	return &Engine{cfg: cfg, db: db, qTransformer: index.NormalizingTransformer{}, classifier: newClassifier(cfg), resultCache: rc, embedCache: ec, epoch: ep}
+	return &Engine{cfg: cfg, db: db, bus: events.New(), qTransformer: index.NormalizingTransformer{}, classifier: newClassifier(cfg), resultCache: rc, embedCache: ec, epoch: ep}
 }
 
 // newClassifier returns the default rule-based classifier when adaptive depth is
@@ -141,7 +152,7 @@ func newClassifier(cfg config.Config) index.QueryClassifier {
 // the embedder nil and falls back to Ollama — so this changes nothing for them.
 func NewWithEmbedder(cfg config.Config, db *storage.DB, em embed.Embedder) *Engine {
 	rc, ec, ep := newQueryCaches(cfg)
-	return &Engine{cfg: cfg, db: db, embedder: em, qTransformer: index.NormalizingTransformer{}, classifier: newClassifier(cfg), resultCache: rc, embedCache: ec, epoch: ep}
+	return &Engine{cfg: cfg, db: db, embedder: em, bus: events.New(), qTransformer: index.NormalizingTransformer{}, classifier: newClassifier(cfg), resultCache: rc, embedCache: ec, epoch: ep}
 }
 
 // embedderOrOllama returns the injected embedder when one is present, otherwise
@@ -164,6 +175,12 @@ func (e *Engine) Config() config.Config { return e.cfg }
 // DB returns the underlying storage handle (used by adapters that need direct
 // access, e.g. for prefix scans not yet wrapped here).
 func (e *Engine) DB() *storage.DB { return e.db }
+
+// Events returns the engine's document lifecycle event bus (spec 040 / BL-008).
+// The bus is the pub-sub substrate for the WatchDocuments gRPC server-stream.
+// Always non-nil for engines built via NewWithDB / NewWithEmbedder; a defensive
+// nil guard is here for engines assembled by hand in tests.
+func (e *Engine) Events() *events.Bus { return e.bus }
 
 // indexes returns the engine's shared in-memory search index (FTS + Vector),
 // seeding it once from the persisted corpus via LoadIndex on first access and
@@ -217,6 +234,16 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	e.pipe.OnChange = e.markIndexChanged
 	// H11/spec 017: persist the corpus baseline on first embed.
 	e.pipe.OnFirstEmbed = e.handleFirstEmbed
+	// spec 040 / BL-008: route the pipeline's lifecycle events (INGESTED after
+	// the durable storeDocument commit; EMBEDDED after the status write-back)
+	// onto the engine-owned bus, so the WatchDocuments gRPC stream receives
+	// them. The method-value matches func(events.DocumentEvent); Publish is
+	// non-blocking (T004), so this never enters the <10ms write-ACK path
+	// (Principle IV). Bound under pipeMu alongside the other hooks, before any
+	// job flows, so no event is missed.
+	if e.bus != nil {
+		e.pipe.OnEvent = e.bus.Publish
+	}
 	// H04/spec 019: bind the poisoning detector (default-on, Q2=A). nil when
 	// poisoning_enabled is false. The detector scores against the MERGED phrase
 	// list (built-in + managed sources, US4 FR-012/013) via poisonDetector().

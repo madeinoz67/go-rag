@@ -14,6 +14,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/caption"
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/enrich"
+	"github.com/madeinoz67/go-rag/internal/events"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/near"
 	"github.com/madeinoz67/go-rag/internal/reader"
@@ -280,7 +281,10 @@ func (p *Pipeline) setEnrichment(docID string, info *model.EnrichInfo) {
 }
 
 // markStatus reads a Document, updates its status, and writes it back. The pipeline
-// mutex serialises read-modify-write across concurrent workers.
+// mutex serialises read-modify-write across concurrent workers. When the new
+// status is "embedded" (spec 040 / BL-008, absorbing BL-009), it publishes an
+// EMBEDDED event AFTER the durable write-back so the `after` projection reflects
+// status=embedded (Principle IV — the event never precedes the commit).
 func (p *Pipeline) markStatus(docID, status string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -297,6 +301,14 @@ func (p *Pipeline) markStatus(docID, status string) {
 	doc.UpdatedAt = time.Now().UTC()
 	dbj, _ := json.Marshal(doc)
 	_ = p.db.SetWithPrefix(storage.PrefixDocument, []byte(docID), dbj)
+	// spec 040 / BL-008 (BL-009 absorbed): emit EMBEDDED after the status write-
+	// back. markStatus is also called for StatusError/StatusPending (e.g. on
+	// re-ingest); only the embedded transition fires the event — error/pending
+	// transitions are observable via ListDocuments. doc.FilePath is the original
+	// ingest path (carried on the doc record). Publish is non-blocking (T004).
+	if status == StatusEmbedded && p.OnEvent != nil {
+		p.OnEvent(events.DocumentEvent{Type: events.EventEmbedded, DocumentID: docID, SourcePath: doc.FilePath, After: doc})
+	}
 }
 
 // minNearDupTokens is the minimum chunk length (tokens) to fingerprint — below

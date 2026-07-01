@@ -25,6 +25,11 @@ func toStatusErr(err error) error {
 	return status.Error(codes.Internal, err.Error())
 }
 
+// errNoEventBus is returned by WatchDocuments when the engine has no event bus
+// wired (a hand-constructed Engine in a test that bypassed NewWithDB). Treated
+// as an Internal fault — production engines always have a bus (spec 040 T005).
+var errNoEventBus = status.Error(codes.Internal, "event bus not configured on this engine")
+
 // toIngestSummary maps an engine.IngestSummary to its proto projection.
 func toIngestSummary(s *engine.IngestSummary) *goragpb.IngestSummary {
 	if s == nil {

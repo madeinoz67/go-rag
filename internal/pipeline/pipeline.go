@@ -20,6 +20,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/enrich"
+	"github.com/madeinoz67/go-rag/internal/events"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/observe"
@@ -87,6 +88,15 @@ type Pipeline struct {
 	// records are durably stored (0x03 + 0x14), to wake the background embedder
 	// (spec 030). nil in tests (the embedder polls as a fallback).
 	OnNotifyEmbed func()
+
+	// OnEvent, if non-nil, is called for each document lifecycle event the
+	// pipeline emits (spec 040 / BL-008). INGESTED fires after the durable
+	// storeDocument commit (before the async queue push); EMBEDDED fires after
+	// the status write-back in markStatus. The Engine binds this to its
+	// events.Bus.Publish in pipeline() — Publish is non-blocking, so this hook
+	// never enters the <10ms write-ACK path (Principle IV). nil in tests that
+	// don't care about events (the bus is an opt-in observer).
+	OnEvent func(events.DocumentEvent)
 }
 
 // indexChanged fires the OnChange callback when set. Centralizing the nil guard
@@ -356,6 +366,14 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	// Synchronous, durable store -> the <10ms ACK (Principle IV).
 	if err := p.storeDocument(doc, chunks, ch); err != nil {
 		return "ERROR", err
+	}
+	// spec 040 / BL-008: publish INGESTED after the durable commit and before
+	// the async queue push. The doc record (status=pending) is fsync'd, so the
+	// event's `after` projection is the committed state. Publish is non-blocking
+	// (T004) — never enters the ACK path. SourcePath is the ingest input path
+	// (the event has no Source record — consistent with ListDocuments).
+	if p.OnEvent != nil {
+		p.OnEvent(events.DocumentEvent{Type: events.EventIngested, DocumentID: docID, SourcePath: path, After: doc})
 	}
 	// spec 030: notify the background embedder that work is queued (near-immediate
 	// embed start, vs waiting for the 3s poll).
