@@ -60,25 +60,47 @@ func (a *Adapter) WatchDocuments(req *goragpb.WatchRequest, stream goragpb.Gorag
 	}
 
 	ctx := stream.Context()
-	for {
-		select {
-		case ev, ok := <-ch:
-			if !ok {
-				// Bus closed the channel (engine shutdown). Clean exit.
-				return nil
-			}
+
+	// A sender goroutine owns stream.Send and is the sole reader of ch. This
+	// decouples Send — which can block indefinitely on HTTP/2 flow control when
+	// a client is connected but stops reading — from the ctx.Done select below.
+	// Without it, a Send blocked in the select's send-branch makes ctx.Done
+	// un-selectable for that iteration, wedging the handler + subscriber until
+	// grpc tears the stream down (spec 040 adversarial-audit follow-up #1).
+	// With Send on its own goroutine, ctx cancellation (client disconnect or
+	// engine shutdown via grpc stream-ctx cancel) always unwinds the handler
+	// promptly → defer unsub() runs → no leak.
+	//
+	// term is buffered (1) so the sender's terminal signal never blocks, even
+	// if the main select already exited via ctx.Done. The cursor / from-now
+	// filter (ev.Seq < startSeq) stays with the send.
+	term := make(chan error, 1)
+	go func() {
+		for ev := range ch {
 			if ev.Seq < startSeq {
-				continue // before the resume point — skip (cursor resume / from-now)
+				continue // before the resume point — skip (cursor / from-now)
 			}
 			if err := stream.Send(toEventProto(ev)); err != nil {
-				return err // transport error → terminal status
+				term <- err // transport error → terminal status
+				return
 			}
-		case <-ctx.Done():
-			// Client disconnected. defer unsub() tears down the subscription
-			// so the channel is closed + removed from the bus's subscriber map
-			// (no leak). Return nil — the client closed the stream, not a fault.
-			return nil
 		}
+		// range over ch exited → Engine.Close → Bus.Close closed the channel.
+		// Clean exit; nil preserves the OK terminal status.
+		term <- nil
+	}()
+
+	// Wait for cancellation (client disconnect / shutdown) or the sender
+	// finishing (bus-closed clean exit / Send error). Either way defer unsub()
+	// runs on return, closing the subscriber channel + removing it from the bus
+	// (no leak). The sender winds down on its own: unsub closes ch → the
+	// sender's next receive hits !ok → exit; or grpc cancels the stream ctx →
+	// the in-flight Send errors → exit. Bounded by grpc stream teardown.
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-term:
+		return err
 	}
 }
 
@@ -104,9 +126,9 @@ func toEventProto(ev events.DocumentEvent) *goragpb.DocumentEvent {
 // toEventTypePB maps the internal events.DocumentEventType to the proto enum.
 // Explicit switch (not a raw int32 cast) so RE_INGESTED handling is visible and
 // a future enum reorder on either side surfaces as a compile-time gap rather
-// than a silent mislabel. The MVP emits only INGESTED + EMBEDDED (DELETED is
-// deferred — the watcher is daemon-side; ListDocuments poll covers deletion);
-// the other values are mapped for completeness (a bus caller could publish them
+// than a silent mislabel. The MVP emits INGESTED + EMBEDDED + DELETED (DELETED
+// publishes from Pipeline.DeleteDoc — the shared deletion chokepoint); the
+// other values are mapped for completeness (a bus caller could publish them
 // before the gRPC handler grows a typed switch over them).
 func toEventTypePB(t events.DocumentEventType) goragpb.DocumentEventType {
 	switch t {

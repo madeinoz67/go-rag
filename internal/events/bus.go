@@ -56,6 +56,8 @@ type Bus struct {
 	next      atomic.Uint64
 	subs      map[uint64]*subscriber
 	nextSubID atomic.Uint64
+	closed    bool
+	closeOnce sync.Once
 }
 
 // New constructs an empty Bus.
@@ -71,6 +73,14 @@ func (b *Bus) Subscribe(buf int) (<-chan DocumentEvent, uint64, func()) {
 	id := b.nextSubID.Add(1)
 	sub := &subscriber{ch: make(chan DocumentEvent, buf)}
 	b.mu.Lock()
+	if b.closed {
+		// Close already ran: hand back an already-closed channel so the
+		// subscriber's !ok branch fires immediately (no event, no leak). The
+		// no-op unsub keeps the caller's defer-unsub pattern safe.
+		b.mu.Unlock()
+		close(sub.ch)
+		return sub.ch, b.next.Load() + 1, func() {}
+	}
 	b.subs[id] = sub
 	b.mu.Unlock()
 	var once sync.Once
@@ -110,6 +120,32 @@ func (b *Bus) Publish(ev DocumentEvent) {
 		}
 	}
 	b.mu.RUnlock()
+}
+
+// Close shuts the bus down: every live subscriber channel is closed (so a
+// blocked WatchDocuments handler unblocks via its !ok branch) and the map is
+// emptied, so subsequent Publish is a silent no-op and Subscribe returns an
+// already-closed channel. Idempotent (sync.Once).
+//
+// Used by Engine.Close so the documented "Bus closed the channel (engine
+// shutdown)" handler exit path is real — and so any in-process (non-gRPC)
+// subscriber unblocks on shutdown without relying on grpc.GracefulStop to
+// cancel stream contexts first. Spec 040 adversarial-audit follow-up #2.
+//
+// Race safety: Close takes the write Lock, which excludes Publish's RLock, so
+// the close(sub.ch) calls can never overlap a send (no send-on-closed). The
+// per-subscriber unsubscribe's own sync.Once + the `if s, ok := b.subs[id]; ok`
+// guard make a double-close impossible regardless of ordering.
+func (b *Bus) Close() {
+	b.closeOnce.Do(func() {
+		b.mu.Lock()
+		b.closed = true
+		for id, sub := range b.subs {
+			delete(b.subs, id)
+			close(sub.ch)
+		}
+		b.mu.Unlock()
+	})
 }
 
 // NextSeq returns the next sequence the bus will publish (the from-now baseline).

@@ -308,6 +308,13 @@ func (e *Engine) EnsureEmbedder() error {
 func (e *Engine) Close() {
 	e.pipeMu.Lock()
 	defer e.pipeMu.Unlock()
+	// Close the event bus first so any live WatchDocuments subscriber unblocks
+	// via its !ok branch (spec 040 audit follow-up #2). Harmless with no
+	// subscribers; idempotent. Done before stopping the embedder/pipeline so a
+	// handler never lingers past the rest of shutdown.
+	if e.bus != nil {
+		e.bus.Close()
+	}
 	if e.embedProc != nil {
 		e.embedProc.Stop() // spec 030: drain pending embeddings before the pipeline
 		e.embedProc = nil
