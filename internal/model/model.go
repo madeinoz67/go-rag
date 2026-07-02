@@ -108,6 +108,15 @@ type Chunk struct {
 	// neither document nor chunk identity changes. Surfaced on QueryHit across
 	// every transport (FR-004).
 	SectionContext []string `json:"section_context,omitempty"`
+	// SectionLevel is the heading LEVEL (1-6) of the governing (nearest/leaf)
+	// heading at the chunk's start position — the leaf of SectionContext. 0 when
+	// the chunk has no governing heading (preamble) or the source has no headings
+	// (spec 041 / BL-005). Lets a consumer reconstruct markdown markers ("## "
+	// for level 2) without re-scanning the text. Surfaced as section_depth on
+	// Chunk/QueryHit across every transport. A non-identity sidecar (like
+	// SectionContext): the chunk ID folds text+mime+{doc,idx} only. NOTE:
+	// len(SectionContext) is NOT this level — [h1, h3] has length 2, level 3.
+	SectionLevel int `json:"section_level,omitempty"`
 	// Wikilinks are the Obsidian [[wikilink]] targets whose link text falls
 	// inside this chunk's text range (spec 036 / BL-004), canonicalised by the
 	// reader's linkTarget (alias "|" and anchor "#heading"/"#^blockid" stripped;

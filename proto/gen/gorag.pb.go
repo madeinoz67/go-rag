@@ -247,6 +247,7 @@ type QueryHit struct {
 	Summary          string                 `protobuf:"bytes,11,opt,name=summary,proto3" json:"summary,omitempty"`                                           // spec 029: document summary (empty = unenriched)
 	EnrichmentStatus string                 `protobuf:"bytes,12,opt,name=enrichment_status,json=enrichmentStatus,proto3" json:"enrichment_status,omitempty"` // spec 029: enriched|failed|nothing-to-enrich (empty = unenriched)
 	Wikilinks        []string               `protobuf:"bytes,13,rep,name=wikilinks,proto3" json:"wikilinks,omitempty"`                                       // spec 036 / BL-004: [[wikilink]] targets in this chunk (empty = none/pre-feature)
+	SectionDepth     int32                  `protobuf:"varint,14,opt,name=section_depth,json=sectionDepth,proto3" json:"section_depth,omitempty"`            // spec 041 / BL-005: governing heading level (1-6; 0 = none/pre-feature)
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -370,6 +371,13 @@ func (x *QueryHit) GetWikilinks() []string {
 		return x.Wikilinks
 	}
 	return nil
+}
+
+func (x *QueryHit) GetSectionDepth() int32 {
+	if x != nil {
+		return x.SectionDepth
+	}
+	return 0
 }
 
 // NearDup is the per-chunk near-duplicate context (H20/spec 026). Mirrors
@@ -1585,10 +1593,11 @@ type Chunk struct {
 	NextChunkId     string                 `protobuf:"bytes,11,opt,name=next_chunk_id,json=nextChunkId,proto3" json:"next_chunk_id,omitempty"`
 	Poisoning       *Poisoning             `protobuf:"bytes,12,opt,name=poisoning,proto3" json:"poisoning,omitempty"` // nil = clean/unscored
 	SectionContext  []string               `protobuf:"bytes,13,rep,name=section_context,json=sectionContext,proto3" json:"section_context,omitempty"`
-	NearDup         *NearDup               `protobuf:"bytes,14,opt,name=near_dup,json=nearDup,proto3" json:"near_dup,omitempty"`       // nil = none
-	Kind            string                 `protobuf:"bytes,15,opt,name=kind,proto3" json:"kind,omitempty"`                            // e.g. "caption"; empty = ordinary text
-	CreatedAt       string                 `protobuf:"bytes,16,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // RFC3339; empty if unset
-	Wikilinks       []string               `protobuf:"bytes,17,rep,name=wikilinks,proto3" json:"wikilinks,omitempty"`                  // spec 036 / BL-004: [[wikilink]] targets in this chunk (empty = none/pre-feature)
+	NearDup         *NearDup               `protobuf:"bytes,14,opt,name=near_dup,json=nearDup,proto3" json:"near_dup,omitempty"`                 // nil = none
+	Kind            string                 `protobuf:"bytes,15,opt,name=kind,proto3" json:"kind,omitempty"`                                      // e.g. "caption"; empty = ordinary text
+	CreatedAt       string                 `protobuf:"bytes,16,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`           // RFC3339; empty if unset
+	Wikilinks       []string               `protobuf:"bytes,17,rep,name=wikilinks,proto3" json:"wikilinks,omitempty"`                            // spec 036 / BL-004: [[wikilink]] targets in this chunk (empty = none/pre-feature)
+	SectionDepth    int32                  `protobuf:"varint,18,opt,name=section_depth,json=sectionDepth,proto3" json:"section_depth,omitempty"` // spec 041 / BL-005: governing heading level (1-6; 0 = none/pre-feature)
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1740,6 +1749,13 @@ func (x *Chunk) GetWikilinks() []string {
 		return x.Wikilinks
 	}
 	return nil
+}
+
+func (x *Chunk) GetSectionDepth() int32 {
+	if x != nil {
+		return x.SectionDepth
+	}
+	return 0
 }
 
 // DocumentMeta is the transport projection of model.Document (+ spec-029
@@ -3548,7 +3564,7 @@ const file_gorag_proto_rawDesc = "" +
 	"\bno_cache\x18\v \x01(\bR\anoCache\x12/\n" +
 	"\x13include_quarantined\x18\f \x01(\bR\x12includeQuarantined\x12\x1b\n" +
 	"\tpool_size\x18\r \x01(\x05R\bpoolSize\x12\x14\n" +
-	"\x05dedup\x18\x0e \x01(\bR\x05dedup\"\xb1\x03\n" +
+	"\x05dedup\x18\x0e \x01(\bR\x05dedup\"\xd6\x03\n" +
 	"\bQueryHit\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x1f\n" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +
@@ -3565,7 +3581,8 @@ const file_gorag_proto_rawDesc = "" +
 	" \x01(\v2\x0e.gorag.NearDupR\anearDup\x12\x18\n" +
 	"\asummary\x18\v \x01(\tR\asummary\x12+\n" +
 	"\x11enrichment_status\x18\f \x01(\tR\x10enrichmentStatus\x12\x1c\n" +
-	"\twikilinks\x18\r \x03(\tR\twikilinks\"E\n" +
+	"\twikilinks\x18\r \x03(\tR\twikilinks\x12#\n" +
+	"\rsection_depth\x18\x0e \x01(\x05R\fsectionDepth\"E\n" +
 	"\aNearDup\x12\x1a\n" +
 	"\bsiblings\x18\x01 \x03(\tR\bsiblings\x12\x1e\n" +
 	"\n" +
@@ -3642,7 +3659,7 @@ const file_gorag_proto_rawDesc = "" +
 	"sourcePath\x12\x16\n" +
 	"\x06cursor\x18\x04 \x01(\tR\x06cursor\x12)\n" +
 	"\x05after\x18\x05 \x01(\v2\x13.gorag.DocumentMetaR\x05after\x12!\n" +
-	"\ftimestamp_ms\x18\x06 \x01(\x03R\vtimestampMs\"\xc2\x04\n" +
+	"\ftimestamp_ms\x18\x06 \x01(\x03R\vtimestampMs\"\xe7\x04\n" +
 	"\x05Chunk\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x1f\n" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +
@@ -3667,7 +3684,8 @@ const file_gorag_proto_rawDesc = "" +
 	"\x04kind\x18\x0f \x01(\tR\x04kind\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x10 \x01(\tR\tcreatedAt\x12\x1c\n" +
-	"\twikilinks\x18\x11 \x03(\tR\twikilinks\"\xb4\x04\n" +
+	"\twikilinks\x18\x11 \x03(\tR\twikilinks\x12#\n" +
+	"\rsection_depth\x18\x12 \x01(\x05R\fsectionDepth\"\xb4\x04\n" +
 	"\fDocumentMeta\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fcontent_hash\x18\x02 \x01(\tR\vcontentHash\x12\x1b\n" +

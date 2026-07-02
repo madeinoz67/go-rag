@@ -314,6 +314,7 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	chunks := make([]model.Chunk, len(segs))
 	for i, s := range segs {
 		cid := model.GenerateID(s.Text, doc.MimeType, map[string]any{"doc": docID, "idx": i})
+		bc, bcLevel := resolveBreadcrumb(spans, s.StartCharIdx, redEdits) // spec 041 / BL-005: breadcrumb + governing heading level
 		chunks[i] = model.Chunk{
 			ID:           cid,
 			DocumentID:   docID,
@@ -327,7 +328,8 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 			// H23/spec 025 (FR-001/FR-007): the heading breadcrumb active at the
 			// chunk's start position — non-identity sidecar. nil when the source has
 			// no headings (FR-006). Computed on the ACK path, no I/O (research R8).
-			SectionContext: resolveBreadcrumb(spans, s.StartCharIdx, redEdits),
+			SectionContext: bc,
+			SectionLevel:   bcLevel, // spec 041 / BL-005: governing heading level (0 = none)
 			// spec 036 / BL-004: the canonical [[wikilink]] targets located in this
 			// chunk's text range — non-identity sidecar, resolved by offset
 			// containment through the same redaction translation as SectionContext.

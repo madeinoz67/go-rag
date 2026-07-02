@@ -72,3 +72,26 @@ func TestChunk_SectionContext_RoundTrip(t *testing.T) {
 		t.Errorf("nil SectionContext should be omitted; got %s", empty)
 	}
 }
+
+// TestChunk_SectionLevel_RoundTrip (spec 041 / BL-005): a chunk with a
+// section_level round-trips through JSON, and a zero SectionLevel is omitted
+// (omitempty) so heading-less / preamble chunks serialize identically to the
+// pre-feature shape.
+func TestChunk_SectionLevel_RoundTrip(t *testing.T) {
+	c := Chunk{ID: "x", SectionLevel: 3}
+	b, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back Chunk
+	if err := json.Unmarshal(b, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back.SectionLevel != 3 {
+		t.Errorf("round-trip SectionLevel = %d, want 3", back.SectionLevel)
+	}
+	empty, _ := json.Marshal(Chunk{ID: "y"})
+	if strings.Contains(string(empty), "section_level") {
+		t.Errorf("zero SectionLevel should be omitted; got %s", empty)
+	}
+}

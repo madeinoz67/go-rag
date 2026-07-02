@@ -31,6 +31,7 @@ type queryHit struct {
 	ChunkIndex       int            `json:"chunk_index"`                 // H21/spec 023
 	Poisoning        *poisonVerdict `json:"poisoning,omitempty"`         // H04/spec 019
 	SectionContext   []string       `json:"section_context,omitempty"`   // H23/spec 025: heading breadcrumb (absent when nil)
+	SectionDepth     int            `json:"section_depth,omitempty"`     // spec 041 / BL-005: governing heading level (0 = none)
 	Wikilinks        []string       `json:"wikilinks,omitempty"`         // spec 036 / BL-004: chunk wikilink targets (absent when nil)
 	NearDup          *nearDupInfo   `json:"near_dup,omitempty"`          // H20/spec 026: near-dup context (absent when nil)
 	Summary          string         `json:"summary,omitempty"`           // spec 029: document summary (absent when unenriched)

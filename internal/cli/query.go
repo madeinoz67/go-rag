@@ -21,6 +21,7 @@ type queryResult struct {
 	Chunk          string            `json:"chunk"`
 	Poisoning      *poisonVerdictDTO `json:"poisoning,omitempty"`       // H04/spec 019
 	SectionContext []string          `json:"section_context,omitempty"` // H23/spec 025: heading breadcrumb (absent when nil)
+	SectionDepth   int               `json:"section_depth,omitempty"`   // spec 041 / BL-005: governing heading level (0 = none)
 	Wikilinks      []string          `json:"wikilinks,omitempty"`       // spec 036 / BL-004: chunk wikilink targets (absent when nil)
 	NearDup        *nearDupDTO       `json:"near_dup,omitempty"`        // H20/spec 026: near-dup context (absent when nil)
 	Summary        string            `json:"summary,omitempty"`         // spec 029: document summary (absent when unenriched)
@@ -112,6 +113,7 @@ func newQueryCmd() *cobra.Command {
 					Chunk:          h.Content,
 					Poisoning:      toPoisonDTO(h),
 					SectionContext: h.SectionContext, // H23/spec 025 (FR-004)
+					SectionDepth:   h.SectionLevel,   // spec 041 / BL-005: governing heading level
 					Wikilinks:      h.Wikilinks,      // spec 036 / BL-004 (FR-009)
 					Summary:        h.Summary,        // spec 029 (FR-010)
 					NearDup: func() *nearDupDTO {

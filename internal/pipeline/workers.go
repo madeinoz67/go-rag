@@ -194,7 +194,7 @@ func (p *Pipeline) captionImages(j job) string {
 	// page offsets threaded from the reader via the job.
 	if len(j.spans) > 0 && len(j.pageOffsets) > 0 && len(j.images) > 0 {
 		if off, ok := j.pageOffsets[j.images[0].PageNr]; ok {
-			cc.SectionContext = resolveBreadcrumb(j.spans, off, nil)
+			cc.SectionContext, cc.SectionLevel = resolveBreadcrumb(j.spans, off, nil) // spec 041 / BL-005
 		}
 	}
 

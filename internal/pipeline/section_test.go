@@ -36,17 +36,22 @@ func TestResolveBreadcrumb_Nesting(t *testing.T) {
 		{Level: 3, Text: "Retention", Offset: 20},
 	}
 	cases := []struct {
-		start int
-		want  []string
+		start     int
+		want      []string
+		wantLevel int
 	}{
-		{0, []string{"Ops"}},
-		{5, []string{"Ops"}}, // between H1 and H2, still under Ops
-		{10, []string{"Ops", "Backups"}},
-		{20, []string{"Ops", "Backups", "Retention"}},
+		{0, []string{"Ops"}, 1},
+		{5, []string{"Ops"}, 1}, // between H1 and H2, still under Ops
+		{10, []string{"Ops", "Backups"}, 2},
+		{20, []string{"Ops", "Backups", "Retention"}, 3},
 	}
 	for _, c := range cases {
-		if got := resolveBreadcrumb(spans, c.start, nil); !streq(got, c.want) {
+		got, lvl := resolveBreadcrumb(spans, c.start, nil)
+		if !streq(got, c.want) {
 			t.Errorf("start=%d: got %v want %v", c.start, got, c.want)
+		}
+		if lvl != c.wantLevel {
+			t.Errorf("start=%d: level %d want %d (section_depth)", c.start, lvl, c.wantLevel)
 		}
 	}
 }
@@ -58,8 +63,12 @@ func TestResolveBreadcrumb_SiblingReset(t *testing.T) {
 		{Level: 2, Text: "B", Offset: 10},
 		{Level: 1, Text: "C", Offset: 20},
 	}
-	if got := resolveBreadcrumb(spans, 25, nil); !streq(got, []string{"C"}) {
+	got, lvl := resolveBreadcrumb(spans, 25, nil)
+	if !streq(got, []string{"C"}) {
 		t.Errorf("after sibling top-level: got %v want [C]", got)
+	}
+	if lvl != 1 { // C is h1 — the governing (leaf) heading level
+		t.Errorf("after sibling top-level: level %d want 1", lvl)
 	}
 }
 
@@ -70,7 +79,8 @@ func TestResolveBreadcrumb_StraddleStartRule(t *testing.T) {
 		{Level: 1, Text: "A", Offset: 0},
 		{Level: 2, Text: "B", Offset: 50},
 	}
-	if got := resolveBreadcrumb(spans, 10, nil); !streq(got, []string{"A"}) {
+	got, _ := resolveBreadcrumb(spans, 10, nil)
+	if !streq(got, []string{"A"}) {
 		t.Errorf("straddling chunk should carry start heading A: got %v", got)
 	}
 }
@@ -79,11 +89,11 @@ func TestResolveBreadcrumb_StraddleStartRule(t *testing.T) {
 // the no-spans case, both yield nil (absent section context — FR-006).
 func TestResolveBreadcrumb_PreambleAndEmpty(t *testing.T) {
 	spans := []reader.HeadingSpan{{Level: 1, Text: "A", Offset: 20}}
-	if got := resolveBreadcrumb(spans, 5, nil); got != nil {
-		t.Errorf("preamble chunk should have nil context: got %v", got)
+	if got, lvl := resolveBreadcrumb(spans, 5, nil); got != nil || lvl != 0 {
+		t.Errorf("preamble chunk should have nil context + level 0: got %v, %d", got, lvl)
 	}
-	if got := resolveBreadcrumb(nil, 0, nil); got != nil {
-		t.Errorf("no spans should give nil: got %v", got)
+	if got, lvl := resolveBreadcrumb(nil, 0, nil); got != nil || lvl != 0 {
+		t.Errorf("no spans should give nil + level 0: got %v, %d", got, lvl)
 	}
 }
 
@@ -96,16 +106,16 @@ func TestResolveBreadcrumb_RedactionOffsetAlignment(t *testing.T) {
 	edits := []redact.Edit{{Pos: 0, RemovedLen: 5, InsertedLen: 15}}
 
 	// Without edits, heading A (offset 10) governs startIdx >= 10.
-	if got := resolveBreadcrumb(spans, 10, nil); !streq(got, []string{"A"}) {
-		t.Errorf("no edits, start=10: got %v want [A]", got)
+	if got, lvl := resolveBreadcrumb(spans, 10, nil); !streq(got, []string{"A"}) || lvl != 1 {
+		t.Errorf("no edits, start=10: got %v level %d want [A] level 1", got, lvl)
 	}
 	// With edits, the heading's effective offset becomes 20 — startIdx 10 is now
 	// preamble (the secret's expansion pushed the heading past it).
-	if got := resolveBreadcrumb(spans, 10, edits); got != nil {
-		t.Errorf("with edits, start=10 should be preamble (nil): got %v", got)
+	if got, lvl := resolveBreadcrumb(spans, 10, edits); got != nil || lvl != 0 {
+		t.Errorf("with edits, start=10 should be preamble (nil, level 0): got %v level %d", got, lvl)
 	}
-	if got := resolveBreadcrumb(spans, 20, edits); !streq(got, []string{"A"}) {
-		t.Errorf("with edits, start=20: got %v want [A]", got)
+	if got, lvl := resolveBreadcrumb(spans, 20, edits); !streq(got, []string{"A"}) || lvl != 1 {
+		t.Errorf("with edits, start=20: got %v level %d want [A] level 1", got, lvl)
 	}
 }
 

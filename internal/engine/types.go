@@ -75,6 +75,12 @@ type QueryHit struct {
 	// (heading-less source, or a chunk ingested before H23/spec 025). Surfaced
 	// 1:1 by every transport (FR-004).
 	SectionContext []string
+	// SectionLevel is the heading LEVEL (1-6) of the governing (leaf) heading
+	// — the leaf of SectionContext. 0 when no heading governs the position
+	// (preamble / heading-less source / pre-spec-041 chunk). Surfaced as
+	// section_depth 1:1 by every transport (spec 041 / BL-005). NOTE:
+	// len(SectionContext) is NOT this level — [h1, h3] has length 2, level 3.
+	SectionLevel int
 	// NearDup is this hit's near-duplicate context (audit H20 / spec 026):
 	// sibling chunkIDs (pairwise) and closest similarity. nil/absent for chunks
 	// with no near-dups or pre-feature. Surfaced 1:1 by every transport (FR-004);

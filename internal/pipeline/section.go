@@ -27,9 +27,9 @@ import (
 // offset ≤ startIdx: standard ancestor handling (push/pop by level), and a chunk
 // that straddles a heading boundary carries the heading active at its START
 // position (FR-007) — deterministic, not configurable per chunk.
-func resolveBreadcrumb(spans []reader.HeadingSpan, startIdx int, edits []redact.Edit) []string {
+func resolveBreadcrumb(spans []reader.HeadingSpan, startIdx int, edits []redact.Edit) ([]string, int) {
 	if len(spans) == 0 {
-		return nil
+		return nil, 0
 	}
 	type mark struct {
 		off   int
@@ -59,13 +59,17 @@ func resolveBreadcrumb(spans []reader.HeadingSpan, startIdx int, edits []redact.
 		stack = append(stack, m)
 	}
 	if len(stack) == 0 {
-		return nil
+		return nil, 0
 	}
 	out := make([]string, len(stack))
 	for i, m := range stack {
 		out[i] = m.text
 	}
-	return out
+	// Return the breadcrumb + the governing (leaf) heading's level (1-6), so
+	// the chunk carries section_depth (spec 041 / BL-005). 0 when no heading
+	// governs the position. NOTE: len(out) is NOT the level — a breadcrumb
+	// [h1, h3] has length 2 but the governing heading is level 3.
+	return out, stack[len(stack)-1].level
 }
 
 // resolveWikilinks returns the de-duplicated, first-occurrence-ordered canonical

@@ -75,6 +75,7 @@ func (a *Adapter) Query(ctx context.Context, req *goragpb.QueryRequest) (*goragp
 			Poisoning:        toPoisoningPB(h.Poisoning), // H04/spec 019
 			ChunkIndex:       int32(h.ChunkIndex),        // H21/spec 023
 			SectionContext:   h.SectionContext,           // H23/spec 025 (FR-004)
+			SectionDepth:     int32(h.SectionLevel),      // spec 041 / BL-005: governing heading level
 			NearDup:          toNearDupPB(h.NearDup),     // H20/spec 026 (FR-004)
 			Summary:          h.Summary,                  // spec 029 (FR-010)
 			EnrichmentStatus: h.EnrichmentStatus,         // spec 029 (FR-010)
@@ -151,7 +152,8 @@ func toChunkPB(c model.Chunk) *goragpb.Chunk {
 		NextChunkId:     c.NextChunkID,
 		Poisoning:       toPoisoningPB(c.Poisoning),
 		SectionContext:  c.SectionContext,
-		Wikilinks:       c.Wikilinks, // spec 036 / BL-004 (FR-009)
+		SectionDepth:    int32(c.SectionLevel), // spec 041 / BL-005: governing heading level (0 = none)
+		Wikilinks:       c.Wikilinks,           // spec 036 / BL-004 (FR-009)
 		NearDup:         toNearDupPB(c.NearDup),
 		Kind:            c.Kind,
 		CreatedAt:       created,
