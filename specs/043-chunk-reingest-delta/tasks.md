@@ -78,10 +78,10 @@ description: "Task list for spec 043 — Chunk Change Deltas on Re-Ingest (BL-01
 
 ### Implementation for User Story 2
 
-- [ ] T013 [US2] The embed-skip gate: reuse the `CorpusBaseline` drift verdict (`internal/engine/baseline.go`) to decide, per re-ingest, whether the embedding config (model/dim/convention) is unchanged since the old chunks were embedded; expose the verdict to `processFile`/the worker. (depends US1's diff — needs to know which chunks are `UNCHANGED`) [research R3; FR-006/007]
-- [ ] T014 [US2] Preserve the embedding for `UNCHANGED`+baseline-unchanged chunks: copy the old `PrefixEmbedding` record to the new `cid` — a single direct-key KV write, synchronous in `processFile` BEFORE the async worker dequeues the job (no race); mark the job "embedding present — skip Ollama". (depends T013) [research R3 — closes the red-team "async race" hole]
-- [ ] T015 [US2] The async worker (`internal/pipeline/workers.go` `processJob`) skips the Ollama embed call when the embedding is already present for a chunk; it STILL re-indexes FTS + re-clusters NearDup normally under the new `cid` (no inverted-index rewiring). (depends T014) [FR-006; "recompute FTS + NearDup normally"]
-- [ ] T016 [US2] Tests (`internal/pipeline/*_test.go`): (a) re-ingest with unchanged baseline → `UNCHANGED` chunks' embeddings copied (not re-embedded), `ADDED` chunks embedded; (b) baseline drift → ALL chunks re-embedded (stale vectors not reused). Under `-race`. (depends T015) [quickstart Scenarios 3+4; FR-007]
+- [x] T013 [US2] The embed-skip gate: reuse the `CorpusBaseline` drift verdict (`internal/engine/baseline.go`) to decide, per re-ingest, whether the embedding config (model/dim/convention) is unchanged since the old chunks were embedded; expose the verdict to `processFile`/the worker. (depends US1's diff — needs to know which chunks are `UNCHANGED`) [research R3; FR-006/007]
+- [x] T014 [US2] Preserve the embedding for `UNCHANGED`+baseline-unchanged chunks: copy the old `PrefixEmbedding` record to the new `cid` — a single direct-key KV write, synchronous in `processFile` BEFORE the async worker dequeues the job (no race); mark the job "embedding present — skip Ollama". (depends T013) [research R3 — closes the red-team "async race" hole]
+- [x] T015 [US2] The async worker (`internal/pipeline/workers.go` `processJob`) skips the Ollama embed call when the embedding is already present for a chunk; it STILL re-indexes FTS + re-clusters NearDup normally under the new `cid` (no inverted-index rewiring). (depends T014) [FR-006; "recompute FTS + NearDup normally"]
+- [x] T016 [US2] Tests (`internal/pipeline/*_test.go`): (a) re-ingest with unchanged baseline → `UNCHANGED` chunks' embeddings copied (not re-embedded), `ADDED` chunks embedded; (b) baseline drift → ALL chunks re-embedded (stale vectors not reused). Under `-race`. (depends T015) [quickstart Scenarios 3+4; FR-007]
 
 **Checkpoint**: US2 — the embed-skip optimization, gated + race-free.
 
