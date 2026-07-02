@@ -38,6 +38,11 @@ Backlog items required for effective integration between go-rag and MuninnDB via
 **Size key**: S = hours–1 day · M = 2–5 days · L = 1–2 weeks  
 **Priority key**: P1 = blocks bridge core · P2 = replaces polling with push · P3 = query quality & feedback · P4 = full lifecycle
 
+> **Phase 2 scoping (2026-07-02, post-v0.3.0):** a code-grounded reassessment of the Phase 2 candidates found **all three are "later," not do-next** — the bridge ships a credible v1 on the current surface (gRPC stream + INGESTED/EMBEDDED/DELETED + static Hebbian edges). Revisit when real bridge traffic justifies. Findings (so the next picker doesn't re-discover them):
+> - **BL-010 RE_INGESTED — effort L (not M), gated by a chunk-identity fork.** Chunk IDs are NOT stable across an edit: `docID` is folded into every chunk hash (`GenerateID(text, mime, {doc, idx})`), so any doc change flips every chunk ID — naive diffing marks 100% ADDED/REMOVED, defeating the ~90% UNCHANGED payoff. Resolve via **option (b): a stored per-chunk `ContentHash` field + a spec-034 migration** (additive, safe) rather than changing the chunk-ID formula (option a — breaks re-ingest dedup, linked-list, near-dup, FTS keys). Related: BL-018 (P4) is the same diff.
+> - **BL-011 webhook — effort M, genuinely unbuilt.** The event-bus half is free (spec 040); the HTTP delivery half (dispatcher + HMAC + retry + registry persistence) is the work. Needed only when a non-gRPC consumer materializes. **Prefix collision:** the spec's `0x11` is `PrefixPoisonQuar` (spec 019) — use **0x16**.
+> - **BL-013 RecordUsage — effort M (not S), greenfield.** Three spec corrections: prefix `0x12` is `PrefixThreatSrc` (spec 019) → use **0x14**; REST path is `/v1/usage` (no `/api/`, no per-vault segment, no `vault` proto field — single-vault); surface `use_count`/`avg_quality` as **dedicated sidecar fields**, not `metadata[...]` (Chunk has no metadata map — the spec 036/041/042 precedent).
+
 ---
 
 ## Phase 1 — Unblock the bridge core

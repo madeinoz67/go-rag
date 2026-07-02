@@ -113,7 +113,7 @@ The bridge splits cleanly. Neither blocks the other.
 3. ✅ **[ours] DONE** — BL-004/005/006 (the wikilink → `Link` pipeline inputs) all shipped. The Hebbian-edge wiring itself is bridge-consumer work (the `go-rag-muninn-bridge` repo), now unblocked by go-rag's Phase 1 surface.
 4. **[RFC]** ✅ Applied 2026-07-02 — the §6 stale-list diff applied to `bridge-muninn.md` (mapper `stability: 30.0` + `embedding: nil` invariant, Hebbian weights 0.6–0.8 / 0.1–0.2, MBP deferral, Q3/Q5 upstream annotations). `muninndb-bridge-backlog.md` already reflects post-review SHIPPED status.
 
-**Next:** Phase 2 (BL-010 `RE_INGESTED` deltas, BL-011 REST webhook, BL-013 `RecordUsage`) or the v1.0.0 release tag.
+**Next:** ✅ v0.3.0 shipped 2026-07-02 (Phase 1 complete). Phase 2 (BL-010/011/013) code-grounded scoping puts all three at **"later"** (see the callout in `go-rag-bridge-backlog.md`) — revisit when real bridge traffic justifies. No v1.0.0 yet (0.3.x continues).
 
 ---
 
