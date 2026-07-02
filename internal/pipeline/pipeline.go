@@ -68,7 +68,8 @@ type Pipeline struct {
 	// spec 043 / BL-010: old chunks captured per-path by Reprocess BEFORE DeleteDoc,
 	// consumed by processFile to emit RE_INGESTED (replacing INGESTED). Transient —
 	// empty outside a re-ingest run (Reprocess precedes Ingest sequentially).
-	reingest map[string][]model.Chunk
+	reingest     map[string][]model.Chunk
+	reingestDocs map[string]bool // spec 043 / BL-010 FR-005: docIDs being re-ingested (suppress DeleteDoc's DELETED)
 
 	// OnProgress, if non-nil, is called after each file is processed during
 	// Ingest/Reprocess/ReprocessAll (enables a CLI progress bar).

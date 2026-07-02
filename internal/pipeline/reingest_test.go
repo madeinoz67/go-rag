@@ -59,3 +59,49 @@ func TestReingest_EmitsReingestedWithDelta(t *testing.T) {
 		}
 	}
 }
+
+// TestReingest_SuppressesDeleted (spec 043 / BL-010, FR-005): a Reprocess must
+// NOT emit a DELETED event — RE_INGESTED replaces the INGESTED+DELETED pair so
+// the consumer doesn't double-count (promote ADDED twice / tag UNCHANGED as
+// superseded).
+func TestReingest_SuppressesDeleted(t *testing.T) {
+	p, cleanup := newTestPipeline(t, 0)
+	defer cleanup()
+
+	var mu sync.Mutex
+	var deleted, reingested int
+	p.OnEvent = func(ev events.DocumentEvent) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch ev.Type {
+		case events.EventDeleted:
+			deleted++
+		case events.EventReingested:
+			reingested++
+		}
+	}
+
+	dir := t.TempDir()
+	content := ""
+	for i := 0; i < 60; i++ {
+		content += "the quick brown fox jumps over the lazy dog. "
+	}
+	writeFile(t, filepath.Join(dir, "doc.txt"), content)
+	p.Ingest(context.Background(), dir, "*")
+
+	// Reset counters — we only care about the Reprocess events.
+	mu.Lock()
+	deleted, reingested = 0, 0
+	mu.Unlock()
+
+	p.Reprocess(context.Background(), dir, "*")
+
+	mu.Lock()
+	defer mu.Unlock()
+	if reingested != 1 {
+		t.Errorf("RE_INGESTED count = %d, want 1", reingested)
+	}
+	if deleted != 0 {
+		t.Errorf("DELETED count = %d, want 0 (FR-005: RE_INGESTED replaces INGESTED+DELETED)", deleted)
+	}
+}

@@ -59,6 +59,11 @@ func (p *Pipeline) DeleteDoc(docID string) error {
 	// DeleteDocs for the same ID cannot both emit DELETED.
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	// spec 043 / BL-010 FR-005: if this delete is part of a re-ingest (captureReingest marked the docID), suppress the DELETED event — the re-ingest's processFile emits RE_INGESTED instead.
+	_, suppressDeleted := p.reingestDocs[docID]
+	if suppressDeleted {
+		delete(p.reingestDocs, docID)
+	}
 
 	// Capture the file path (the DELETED event's SourcePath) + whether a record
 	// existed, before the durable delete. Gated on existence so a no-op delete
@@ -85,7 +90,7 @@ func (p *Pipeline) DeleteDoc(docID string) error {
 	// path (Principle IV); lock order p.mu→bus.mu is acyclic (markStatus already
 	// holds it). `after` is intentionally zero for DELETED (the contract scopes
 	// it to INGESTED/EMBEDDED); document_id is the authoritative key.
-	if existed && p.OnEvent != nil {
+	if existed && p.OnEvent != nil && !suppressDeleted {
 		p.OnEvent(events.DocumentEvent{Type: events.EventDeleted, DocumentID: docID, SourcePath: filePath})
 	}
 	return nil

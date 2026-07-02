@@ -22,8 +22,10 @@ func (p *Pipeline) captureReingest(path, docID string) {
 	defer p.mu.Unlock()
 	if p.reingest == nil {
 		p.reingest = map[string][]model.Chunk{}
+		p.reingestDocs = map[string]bool{}
 	}
 	p.reingest[filepath.Clean(path)] = old
+	p.reingestDocs[docID] = true // spec 043 / BL-010 FR-005: suppress DELETED for this re-ingest
 }
 
 // takeReingest pops + returns the old chunk set for a path (if captured) + an
