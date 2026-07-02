@@ -6,12 +6,14 @@ package grpc
 
 import (
 	"context"
+	"time"
 
 	"github.com/madeinoz67/go-rag/internal/audit"
 	"github.com/madeinoz67/go-rag/internal/engine"
 	goragpb "github.com/madeinoz67/go-rag/proto/gen"
 	grpcc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
@@ -26,10 +28,34 @@ type Adapter struct {
 // New returns a GoragServer adapter backed by eng.
 func New(eng *engine.Engine) *Adapter { return &Adapter{eng: eng} }
 
-// NewServer builds a *grpc.Server with bearer auth (when token != "") and the
-// Gorag service registered. The caller owns Serve/GracefulStop.
+// grpcKeepaliveParams probes idle connections so a stalled-but-connected
+// WatchDocuments client (connected but not reading — its HTTP/2 flow-control
+// window stays closed) is detected + dropped within Time+Timeout. Its stream
+// ctx then cancels and the handler's defer unsub() runs (spec 040 audit: bounds
+// the wedge the Send-decouple can't self-heal — without this the server never
+// probes idle connections, so a non-reading client would hold the subscriber
+// indefinitely). Tunable constants.
+var grpcKeepaliveParams = keepalive.ServerParameters{
+	Time:    30 * time.Second, // PING an idle connection after 30s
+	Timeout: 10 * time.Second, // close it if no PONG within 10s (stalled client)
+}
+
+// grpcKeepalivePolicy guards against abusive client PING frequency while
+// permitting keepalive without an open stream (the bridge's long-lived watch).
+var grpcKeepalivePolicy = keepalive.EnforcementPolicy{
+	MinTime:             10 * time.Second,
+	PermitWithoutStream: true,
+}
+
+// NewServer builds a *grpc.Server with bearer auth (when token != ""), gRPC
+// keepalive enforcement (spec 040 audit follow-up), and the Gorag service
+// registered. The caller owns Serve/GracefulStop.
 func NewServer(eng *engine.Engine, token string) *grpcc.Server {
-	srv := grpcc.NewServer(grpcc.UnaryInterceptor(bearerInterceptor(token)))
+	srv := grpcc.NewServer(
+		grpcc.KeepaliveParams(grpcKeepaliveParams),
+		grpcc.KeepaliveEnforcementPolicy(grpcKeepalivePolicy),
+		grpcc.UnaryInterceptor(bearerInterceptor(token)),
+	)
 	goragpb.RegisterGoragServer(srv, New(eng))
 	return srv
 }
