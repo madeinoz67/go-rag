@@ -8,7 +8,7 @@
 
 ## TL;DR
 
-The maintainer **approved** the bridge and confirmed the complementary axis — *go-rag retrieves, MuninnDB remembers*. The scope is **smaller than the RFC planned**: six MuninnDB RPCs we assumed we'd have to request are already shipped. The one real upstream dependency (**UPSERT**, #556) is blocked behind a wiring bug (#560) but **does not gate us** — the bridge is buildable now on the RFC's local state-store + `FindByMetadata` fallback. **All go-rag-side work (BL-001..007) is fully unblocked and independent of the upstream timeline.**
+The maintainer **approved** the bridge and confirmed the complementary axis — *go-rag retrieves, MuninnDB remembers*. The scope is **smaller than the RFC planned**: six MuninnDB RPCs we assumed we'd have to request are already shipped. The one real upstream dependency (**UPSERT**, #556) had its prerequisite wiring bug (#560) **resolved upstream** — #556 is no longer prerequisite-blocked (still awaiting the maintainer's UPSERT implementation). **Does not gate us** — the bridge is buildable now on the RFC's local state-store + `FindByMetadata` fallback. **All go-rag-side work (BL-001..007) is fully unblocked and independent of the upstream timeline.**
 
 ---
 
@@ -35,13 +35,13 @@ The maintainer filed these for the real remaining gaps (2026-06-30). None are br
 
 | Issue | RFC item | What | Ordering / status |
 |---|---|---|---|
-| **#560** | (cross-cutting) | **BUG:** `idempotent_id` exists in the MBP types but is **not wired through the gRPC or REST engine paths** — only MCP uses it | **MUST FIX FIRST** |
-| **#556** | MB-003 | **UPSERT** write mode on `Write`/`BatchWrite` | bridge's **#1 blocker**; depends on #560 |
+| **#560** | (cross-cutting) | `idempotent_id` wiring through the gRPC/REST engine paths (was MBP-only) | ✅ **SHIPPED upstream** — the gate below #556 is lifted |
+| **#556** | MB-003 | **UPSERT** write mode on `Write`/`BatchWrite` | bridge's **#1 blocker**; prerequisite #560 ✅ cleared — now a single self-contained change, awaiting maintainer |
 | #557 | ~MB-008 (batch half) | `BatchForget` on gRPC | open |
 | #558 | MB-006 (ListVaults half) | `ListVaults` on gRPC | open |
 | #559 | MB-010 | `AdjustConfidence` with contradiction signaling | open |
 
-**Why #560 gates #556:** the field we want UPSERT to key on (`idempotency_key` / `idempotent_id`) already exists in the MBP type system but is dead in the gRPC/REST engine. Wiring it through is prerequisite to building UPSERT on top of it. Our #556 proto comment (**posted 2026-06-30**; v2 at `draft-issue-556-upsert-v2.md`, v1 at `draft-issue-556-upsert.md`) is written to match the existing MBP field so #560 + #556 converge on one consistent key.
+**Why #560 gated #556 (resolved upstream):** the field UPSERT keys on (`idempotency_key` / `idempotent_id`) existed in the MBP type system but was dead in the gRPC/REST engine. #560 wired it through — the prerequisite is cleared, so #556 can now be a single self-contained UPSERT change. Our #556 proto comment (**posted 2026-06-30**; v2 at `draft-issue-556-upsert-v2.md`, v1 at `draft-issue-556-upsert.md`) was written to match the existing MBP field so #560 + #556 converge on one consistent key.
 
 ---
 
@@ -71,7 +71,7 @@ Re-maps RFC § Integration patterns against what's now shipped.
 | Semantic trigger → go-rag query (reverse/push) | ✅ **Unblocked** | `Subscribe` (shipped) |
 | Knowledge-gap detection | ⚠️ Partial | `ListEngrams` needs #557/#558-class work |
 | Contradiction detection | ❌ Blocked | `AdjustConfidence` → #559 |
-| Batch UPSERT idempotency | ❌ Blocked (has fallback) | UPSERT → #556, behind #560. **Fallback:** local `0x21` state store + `FindByMetadata` |
+| Batch UPSERT idempotency | ❌ Blocked (has fallback) | UPSERT → #556 only (#560 prerequisite cleared). **Fallback:** local `0x21` state store + `FindByMetadata` |
 | Vault management | ⚠️ Partial | auto-create works; `ListVaults` → #558 |
 | Bulk orphan cleanup | ⚠️ Partial | `Forget` works; `BatchForget` → #557 |
 
@@ -86,7 +86,7 @@ The bridge splits cleanly. Neither blocks the other.
 - **BL-004 / BL-005 / BL-006** expose wikilinks / `section_heading` / `extraction_quality` in `Chunk.metadata`. These feed the prioritized wikilink → `Link` pipeline (BL-004 is the unblocker for the maintainer's "best idea").
 - BL-002/003 (`GetChunkContext`, `BatchGetChunks`) build on BL-001.
 
-**Stream B — MuninnDB coordination (their repo).** #560 (idempotent_id wiring) → #556 (UPSERT) → lets the bridge drop its local `0x21` state store for correctness (it becomes a perf cache). Blocked behind their fixes. **Our move:** ✅ done — proto comment posted to #556 on 2026-06-30 (`draft-issue-556-upsert-v2.md`); now awaiting maintainer response (blocked behind #560).
+**Stream B — MuninnDB coordination (their repo).** #556 (UPSERT) → lets the bridge drop its local `0x21` state store for correctness (it becomes a perf cache). #560 (the idempotent_id wiring prerequisite) ✅ landed upstream; blocked on #556 only. **Our move:** ✅ done — proto comment posted to #556 on 2026-06-30 (`draft-issue-556-upsert-v2.md`); awaiting maintainer response.
 
 ---
 
@@ -109,7 +109,7 @@ The bridge splits cleanly. Neither blocks the other.
 > **Update 2026-07-02: Phase 1 is complete.** BL-001/002/003 (`GetChunk` / `GetChunkContext` / `BatchGetChunks`, specs 035/037/038), BL-004 (Wikilinks, spec 036), BL-005 (`section_depth`, spec 041), and BL-006 (`extraction_quality`, spec 042) all shipped to `main`. The original items below are retained for history.
 
 1. ✅ **[ours] DONE** — Stream A Phase 1 complete (BL-001 through BL-006; specs 035/036/037/038/041/042).
-2. **[ours → upstream]** ✅ DONE 2026-06-30 — #556 proto comment posted (v2: `draft-issue-556-upsert-v2.md`). **Still awaiting maintainer response** (blocked behind [#560](https://github.com/scrypster/muninndb/issues/560)).
+2. **[ours → upstream]** ✅ DONE 2026-06-30 — #556 proto comment posted (v2: `draft-issue-556-upsert-v2.md`). [#560](https://github.com/scrypster/muninndb/issues/560) prerequisite ✅ cleared upstream — **awaiting maintainer response on #556 itself**.
 3. ✅ **[ours] DONE** — BL-004/005/006 (the wikilink → `Link` pipeline inputs) all shipped. The Hebbian-edge wiring itself is bridge-consumer work (the `go-rag-muninn-bridge` repo), now unblocked by go-rag's Phase 1 surface.
 4. **[RFC]** ✅ Applied 2026-07-02 — the §6 stale-list diff applied to `bridge-muninn.md` (mapper `stability: 30.0` + `embedding: nil` invariant, Hebbian weights 0.6–0.8 / 0.1–0.2, MBP deferral, Q3/Q5 upstream annotations). `muninndb-bridge-backlog.md` already reflects post-review SHIPPED status.
 

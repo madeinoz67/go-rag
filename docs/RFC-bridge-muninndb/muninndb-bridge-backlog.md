@@ -6,7 +6,7 @@
 > **Source**: Derived from bridge PRD, feature brief, and integration pattern analysis  
 > **Labels**: `api` `grpc` `bridge` `idempotency` `streaming` `feat` `enhancement`
 
-> **POST-REVIEW UPDATE (2026-06-30):** The MuninnDB maintainer reviewed the bridge and confirmed **MB-001 / MB-006 (EnsureVault) / MB-008 / MB-009 / MB-011 / MB-012 are already shipped** (as `Read`, auto-create-on-write, `Forget`, `Link`, `Hello`, `Subscribe` respectively) — treat them as resolved, do not rebuild. The real remaining upstream gaps are filed as GitHub **#556** (UPSERT, = MB-003, our #1 blocker), **#557** (BatchForget), **#558** (ListVaults), **#559** (AdjustConfidence+contradiction); **#560** (the `idempotent_id` wiring bug) must land first and #556 depends on it. Per-item status + issue links are now in the **Summary** tables below. **#556:** the UPSERT proto comment was [posted](https://github.com/scrypster/muninndb/issues/556) on 2026-06-30 — draft v2 at [`draft-issue-556-upsert-v2.md`](./draft-issue-556-upsert-v2.md), v1 at [`draft-issue-556-upsert.md`](./draft-issue-556-upsert.md). Full mapping + write invariants: [`bridge-map-post-review.md`](./bridge-map-post-review.md).
+> **POST-REVIEW UPDATE (2026-06-30):** The MuninnDB maintainer reviewed the bridge and confirmed **MB-001 / MB-006 (EnsureVault) / MB-008 / MB-009 / MB-011 / MB-012 are already shipped** (as `Read`, auto-create-on-write, `Forget`, `Link`, `Hello`, `Subscribe` respectively) — treat them as resolved, do not rebuild. The real remaining upstream gaps are filed as GitHub **#556** (UPSERT, = MB-003, our #1 blocker), **#557** (BatchForget), **#558** (ListVaults), **#559** (AdjustConfidence+contradiction); **#560** (the `idempotent_id` wiring bug) ✅ **landed upstream** — #556 is no longer prerequisite-blocked, awaiting the maintainer's UPSERT implementation. Per-item status + issue links are now in the **Summary** tables below. **#556:** the UPSERT proto comment was [posted](https://github.com/scrypster/muninndb/issues/556) on 2026-06-30 — draft v2 at [`draft-issue-556-upsert-v2.md`](./draft-issue-556-upsert-v2.md), v1 at [`draft-issue-556-upsert.md`](./draft-issue-556-upsert.md). Full mapping + write invariants: [`bridge-map-post-review.md`](./bridge-map-post-review.md).
 
 Two backlogs in one document because MuninnDB changes and bridge changes are tightly coupled — each MB- item has a corresponding BR- consumer. Both must land together for a pattern to work.
 
@@ -35,7 +35,7 @@ Every integration pattern beyond basic sync requires MuninnDB API surface that d
 |---|---|---|---|---|---|
 | [MB-001](#mb-001) | `GetEngram` by ID | P1 | S | 1 | ✅ Shipped — `Read` (gRPC) |
 | [MB-002](#mb-002) | `FindByMetadata` — look up engrams by arbitrary metadata KV | P1 | M | 1 | ❓ Open — not confirmed in review (bridge idempotency fallback depends on this; verify availability) |
-| [MB-003](#mb-003) | `BatchRemember` upsert mode with idempotency key | P1 | M | 1 | 🔧 [#556](https://github.com/scrypster/muninndb/issues/556) — proto comment **posted 2026-06-30**; blocked behind [#560](https://github.com/scrypster/muninndb/issues/560) |
+| [MB-003](#mb-003) | `BatchRemember` upsert mode with idempotency key | P1 | M | 1 | 🔧 [#556](https://github.com/scrypster/muninndb/issues/556) — proto comment **posted 2026-06-30**; prereq [#560](https://github.com/scrypster/muninndb/issues/560) ✅ cleared, awaiting maintainer |
 | [MB-004](#mb-004) | `PatchEngram` — update tags, metadata, confidence on existing engram | P1 | S | 1 | ❓ Open — not confirmed in review |
 | [MB-005](#mb-005) | gRPC `Health` / `Ping` RPC | P1 | S | 1 | ❓ Open — not confirmed in review (may overlap gRPC standard health; verify) |
 | [MB-006](#mb-006) | `ListVaults` + `EnsureVault` — vault management over gRPC | P2 | S | 2 | 🔸 Split — `EnsureVault` shipped (auto-create on write, idempotent); `ListVaults` → [#558](https://github.com/scrypster/muninndb/issues/558) |
@@ -48,7 +48,7 @@ Every integration pattern beyond basic sync requires MuninnDB API surface that d
 | [MB-013](#mb-013) | `GetPredictedNext` — expose predictive activation output | P3 | S | 3 | ❓ Open — not confirmed in review |
 | [MB-014](#mb-014) | `BatchPatch` — bulk tag/confidence update across many engrams | P3 | S | 3 | ❓ Open — not confirmed in review |
 
-**Post-review legend:** ✅ = already shipped (do not rebuild). 🔧 = GitHub issue filed, open upstream. 🔸 = partially shipped (item splits across shipped + open). ❓ = not addressed in the 2026-06-30 review — availability unconfirmed, treat as open until verified. Cross-cutting prerequisite: [#560](https://github.com/scrypster/muninndb/issues/560) (`idempotent_id` exists in MBP types but not wired through gRPC/REST engine — only MCP) must land before #556. Full mapping + write invariants + revised pattern enablement: [`bridge-map-post-review.md`](./bridge-map-post-review.md).
+**Post-review legend:** ✅ = already shipped (do not rebuild). 🔧 = GitHub issue filed, open upstream. 🔸 = partially shipped (item splits across shipped + open). ❓ = not addressed in the 2026-06-30 review — availability unconfirmed, treat as open until verified. Cross-cutting prerequisite: [#560](https://github.com/scrypster/muninndb/issues/560) (`idempotent_id` wired through the gRPC/REST engine, was MBP-only) ✅ **SHIPPED upstream** — cleared; #556 is unblocked at the prerequisite level and awaits the maintainer's implementation. Full mapping + write invariants + revised pattern enablement: [`bridge-map-post-review.md`](./bridge-map-post-review.md).
 
 ### Bridge onboarding items (go in the `go-rag-muninn-bridge` repo)
 
@@ -59,7 +59,7 @@ Every integration pattern beyond basic sync requires MuninnDB API surface that d
 | [BR-003](#br-003) | MuninnDB capability negotiation on startup | P2 | S | 2 | Open — capability surface now ships via `Hello` (MB-011) |
 | [BR-004](#br-004) | Max engram content size discovery and chunk splitting | P2 | S | 2 | Open |
 | [BR-005](#br-005) | Rate-limit-aware `BatchRemember` with adaptive backoff | P2 | S | 2 | Open |
-| [BR-006](#br-006) | Bridge state store → MuninnDB idempotency migration path | P3 | M | 3 | ⏸ Blocked behind [#556](https://github.com/scrypster/muninndb/issues/556) / [#560](https://github.com/scrypster/muninndb/issues/560) — idempotency migration needs UPSERT |
+| [BR-006](#br-006) | Bridge state store → MuninnDB idempotency migration path | P3 | M | 3 | ⏸ Blocked behind [#556](https://github.com/scrypster/muninndb/issues/556) only ([#560](https://github.com/scrypster/muninndb/issues/560) cleared) — idempotency migration needs UPSERT |
 | [BR-007](#br-007) | MuninnDB vault pre-flight checks and auto-create | P3 | S | 3 | 🔸 Simplified — `EnsureVault` ships (auto-create on write); pre-flight checks still useful |
 
 **Size key**: S = hours–1 day · M = 2–5 days · L = 1–2 weeks
