@@ -179,6 +179,7 @@ func (p *Pipeline) captionImages(j job) string {
 		ID:          captionID,
 		DocumentID:  j.docID,
 		Content:     captionsText,
+		ContentHash: model.ContentHash([]byte(captionsText)), // spec 043 / BL-010
 		ChunkIndex:  len(j.chunks),
 		TotalChunks: len(j.chunks) + 1, // v1 known display inconsistency: original chunks keep their old TotalChunks (updating N is N RMWs, not worth it)
 		CreatedAt:   now,

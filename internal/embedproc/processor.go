@@ -168,9 +168,10 @@ func (p *Processor) processBatch(ctx context.Context) {
 				var rec embedRecord
 				if json.Unmarshal(embRaw, &rec) == nil && len(rec.Vector) > 0 {
 					p.vec.Add(chunkID, rec.Vector)
+					_ = p.db.DeleteEmbedQueue(chunkID)
+					return true
 				}
-				_ = p.db.DeleteEmbedQueue(chunkID)
-				return true
+				// Malformed/empty vector — fall through to normal embed.
 			}
 			batch = append(batch, pending{chunkID, c.Content})
 			return true

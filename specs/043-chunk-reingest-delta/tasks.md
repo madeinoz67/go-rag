@@ -108,7 +108,7 @@ description: "Task list for spec 043 — Chunk Change Deltas on Re-Ingest (BL-01
 - [ ] T020 The UNCHANGED-ratio measurement (`research.md` R6): instrument a re-ingest over a representative vault (or fixture corpus); record the `UNCHANGED`/`ADDED`/`REMOVED` distribution + the `PrefixEmbedding`-copy vs Ollama-call cost. **Exit criterion**: if the real ratio ≪80%, re-scope/defer the embed-skip (the delta event ships regardless). [SC-001; research R6]
 - [ ] T021 Run `quickstart.md` Scenarios 1–5 end-to-end on an isolated DB (non-default `--db-path`/ports per project CLAUDE.md).
 - [ ] T022 Mark BL-010 resolved in `docs/RFC-bridge-muninndb/go-rag-bridge-backlog.md`; affirm constitution compliance in the commit (ContentHash non-identity sidecar; v2 migration ExpectedVersion 1→2, no new prefix; `RE_INGESTED` gRPC-only justified; pure Go, no new deps).
-- [ ] T023 Schedule the **mandatory adversarial review** (Forge/Cato) for the concurrency-heavy code — the re-ingest reorder (T008) + the `PrefixEmbedding` copy (T014) + the worker skip (T015): races, torn-write, the synchronous-before-worker invariant, the <10ms budget. Do NOT merge before this review. [mirrors spec 040's mandatory review; the red teams' focus area]
+- [x] T023 Schedule the **mandatory adversarial review** (Forge/Cato) for the concurrency-heavy code — the re-ingest reorder (T008) + the `PrefixEmbedding` copy (T014) + the worker skip (T015): races, torn-write, the synchronous-before-worker invariant, the <10ms budget. Do NOT merge before this review. [mirrors spec 040's mandatory review; the red teams' focus area]
 
 ---
 
