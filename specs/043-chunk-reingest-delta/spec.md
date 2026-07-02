@@ -79,7 +79,7 @@ A document may contain repeated text (boilerplate, signatures) or move a paragra
 - **SC-002**: A consumer acting on `RE_INGESTED` performs full work (embed/promote) only for `ADDED` chunks; `UNCHANGED` chunks incur **no embedding generation** when the embedding config is unchanged.
 - **SC-003**: The old→new chunk-ID map lets a consumer resolve **100%** of its stored references to `UNCHANGED` chunks (no orphaned references after a re-ingest).
 - **SC-004**: A re-ingest surfaces exactly **one** `RE_INGESTED` event (no duplicate `INGESTED`/`DELETED` pair) — the consumer observes no double-counting.
-- **SC-005**: The write-ACK latency for a re-ingest stays within the existing **<10ms** budget — the delta computation + embed-skip do not enter the synchronous ACK path (async-after-ACK is preserved).
+- **SC-005**: The write-ACK latency for a re-ingest stays within the existing **<10ms** budget — any delta computation or embedding-preservation work on the re-ingest path MUST NOT breach the async-after-ACK write budget (Constitution Principle IV), whether it runs synchronously or is deferred to the async worker.
 
 ## Assumptions
 
