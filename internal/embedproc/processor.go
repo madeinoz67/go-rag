@@ -161,6 +161,17 @@ func (p *Processor) processBatch(ctx context.Context) {
 			if json.Unmarshal(raw, &c) != nil {
 				return true
 			}
+			// spec 043 / BL-010 US2: if PrefixEmbedding already exists (copied from
+			// a prior version on re-ingest), skip the Ollama call — vec.Add the
+			// existing vector + dequeue.
+			if embRaw, ok, _ := p.db.GetWithPrefix(storage.PrefixEmbedding, []byte(chunkID)); ok {
+				var rec embedRecord
+				if json.Unmarshal(embRaw, &rec) == nil && len(rec.Vector) > 0 {
+					p.vec.Add(chunkID, rec.Vector)
+				}
+				_ = p.db.DeleteEmbedQueue(chunkID)
+				return true
+			}
 			batch = append(batch, pending{chunkID, c.Content})
 			return true
 		})

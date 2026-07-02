@@ -2,52 +2,61 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 
 	"github.com/madeinoz67/go-rag/internal/model"
+	"github.com/madeinoz67/go-rag/internal/storage"
 )
 
-// reingest.go threads the OLD chunk set from Reprocess/ReprocessAll (which delete
-// then re-ingest) into processFile, so a re-ingest can emit RE_INGESTED with the
-// chunk delta instead of INGESTED+DELETED (spec 043 / BL-010). The map is
-// transient — populated by Reprocess before DeleteDoc, drained by processFile.
-// Reprocess fully precedes Ingest, so populate/consume are sequential; p.mu
-// guards the map for safety against future concurrent-ingest changes.
+// reingest.go threads the OLD chunk set + their PrefixEmbedding records from
+// Reprocess/ReprocessAll/ReingestPath (which delete then re-ingest) into
+// processFile, so a re-ingest can emit RE_INGESTED with the chunk delta +
+// preserve embeddings for UNCHANGED chunks (spec 043 / BL-010).
 
-// captureReingest stores the old chunk set for a path before DeleteDoc runs.
-// Called by Reprocess/ReprocessAll. The chunksOfDoc scan happens outside the
-// lock (I/O); only the map write is under p.mu.
+// reingestCapture holds the old chunk set + their raw PrefixEmbedding JSON,
+// captured before DeleteDoc, consumed by processFile.
+type reingestCapture struct {
+	chunks []model.Chunk
+	embeds map[string][]byte // old chunk ID → raw PrefixEmbedding JSON (for copy)
+}
+
+// captureReingest stores the old chunks + embeddings for a path before
+// DeleteDoc. Called by Reprocess/ReprocessAll + ReingestPath; consumed by
+// processFile via takeReingest.
 func (p *Pipeline) captureReingest(path, docID string) {
-	old := p.chunksOfDoc(docID)
+	chunks := p.chunksOfDoc(docID)
+	embeds := map[string][]byte{}
+	for _, c := range chunks {
+		if raw, ok, _ := p.db.GetWithPrefix(storage.PrefixEmbedding, []byte(c.ID)); ok {
+			embeds[c.ID] = raw
+		}
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.reingest == nil {
-		p.reingest = map[string][]model.Chunk{}
+		p.reingest = map[string]reingestCapture{}
 		p.reingestDocs = map[string]bool{}
 	}
-	p.reingest[filepath.Clean(path)] = old
-	p.reingestDocs[docID] = true // spec 043 / BL-010 FR-005: suppress DELETED for this re-ingest
+	p.reingest[filepath.Clean(path)] = reingestCapture{chunks: chunks, embeds: embeds}
+	p.reingestDocs[docID] = true
 }
 
-// takeReingest pops + returns the old chunk set for a path (if captured) + an
-// "is a re-ingest" flag. Called once at the top of processFile so the entry is
-// drained even on an early return (SKIPPED/UNSUPPORTED/ERROR). The two-value
-// lookup distinguishes "path not in map" (first ingest → INGESTED) from "in map,
-// empty old set" (re-ingest of a doc that had no chunks → RE_INGESTED).
-func (p *Pipeline) takeReingest(path string) ([]model.Chunk, bool) {
+// takeReingest pops + returns the capture for a path (if any) + "is reingest" flag.
+func (p *Pipeline) takeReingest(path string) (reingestCapture, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	key := filepath.Clean(path)
-	old, ok := p.reingest[key]
+	capt, ok := p.reingest[key]
 	if ok {
 		delete(p.reingest, key)
 	}
-	return old, ok
+	return capt, ok
 }
 
-// ReingestPath captures the old chunks, deletes the old doc, and re-ingests — the
-// single-file re-ingest path (spec 043 / BL-010). Used by the watcher for
-// MODIFIED files. Emits RE_INGESTED (with the delta) instead of INGESTED+DELETED.
+// ReingestPath captures the old chunks + embeddings, deletes the old doc, and
+// re-ingests — the single-file re-ingest path (spec 043 / BL-010). Used by the
+// watcher for MODIFIED files.
 func (p *Pipeline) ReingestPath(ctx context.Context, path, docID string) error {
 	p.captureReingest(path, docID)
 	if err := p.DeleteDoc(docID); err != nil {
@@ -55,4 +64,29 @@ func (p *Pipeline) ReingestPath(ctx context.Context, path, docID string) error {
 	}
 	_, err := p.Ingest(ctx, path, "*")
 	return err
+}
+
+// preserveEmbeds copies old PrefixEmbedding records to the new chunk IDs for
+// UNCHANGED chunks whose embedding model matches the current embedder (spec 043
+// / BL-010 US2, T013+T014). The embedder (T015) finds the copied record →
+// vec.Add + skip the Ollama call. If the model drifted or there's no old
+// embedding, the chunk is left for normal embedding.
+func (p *Pipeline) preserveEmbeds(oldEmbeds map[string][]byte, remap map[string]string) {
+	curModel := ""
+	if p.embed != nil {
+		curModel = p.embed.Model()
+	}
+	for oldCID, newCID := range remap {
+		raw, ok := oldEmbeds[oldCID]
+		if !ok {
+			continue // no old embedding → normal embed
+		}
+		// Gate (T013): only copy if the model matches (no stale vectors).
+		var rec struct{ Model string }
+		if json.Unmarshal(raw, &rec) != nil || rec.Model != curModel {
+			continue // model drifted → normal embed
+		}
+		// Copy the PrefixEmbedding record (includes the vector JSON) to the new cid.
+		_ = p.db.SetWithPrefix(storage.PrefixEmbedding, []byte(newCID), raw)
+	}
 }

@@ -68,7 +68,7 @@ type Pipeline struct {
 	// spec 043 / BL-010: old chunks captured per-path by Reprocess BEFORE DeleteDoc,
 	// consumed by processFile to emit RE_INGESTED (replacing INGESTED). Transient —
 	// empty outside a re-ingest run (Reprocess precedes Ingest sequentially).
-	reingest     map[string][]model.Chunk
+	reingest     map[string]reingestCapture
 	reingestDocs map[string]bool // spec 043 / BL-010 FR-005: docIDs being re-ingested (suppress DeleteDoc's DELETED)
 
 	// OnProgress, if non-nil, is called after each file is processed during
@@ -246,7 +246,7 @@ func (p *Pipeline) countFiles(root, glob string) int {
 func (p *Pipeline) processFile(ctx context.Context, path string) (string, error) {
 	// spec 043 / BL-010: consume the re-ingest capture early so the map entry is
 	// drained even if processFile returns early (SKIPPED/UNSUPPORTED/ERROR).
-	oldChunks, isReingest := p.takeReingest(path)
+	oldCapture, isReingest := p.takeReingest(path)
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return "ERROR", err
@@ -400,7 +400,10 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	// record (status=pending) is fsync'd; Publish is non-blocking (never enters
 	// the ACK path). SourcePath is the ingest input path.
 	if isReingest {
-		deltas, _ := diffChunks(oldChunks, chunks)
+		deltas, remap := diffChunks(oldCapture.chunks, chunks)
+		// spec 043 / BL-010 US2: preserve embeddings for UNCHANGED chunks whose
+		// model matches the current embedder (skip the Ollama call on re-embed).
+		p.preserveEmbeds(oldCapture.embeds, remap)
 		if p.OnEvent != nil {
 			p.OnEvent(events.DocumentEvent{Type: events.EventReingested, DocumentID: docID, SourcePath: path, After: doc, Deltas: deltas})
 		}
