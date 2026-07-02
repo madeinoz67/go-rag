@@ -30,6 +30,23 @@ const (
 	EventDeleted    DocumentEventType = 3 // scan-detected deletion
 )
 
+// ChunkChange is the change classification of a single chunk in a RE_INGESTED
+// event (spec 043 / BL-010).
+type ChunkChange int
+
+const (
+	ChangeAdded     ChunkChange = 0 // new-version chunk, no content-match in old
+	ChangeRemoved   ChunkChange = 1 // old-version chunk, no content-match in new
+	ChangeUnchanged ChunkChange = 2 // content-match; PrevChunkID -> NewChunkID remap
+)
+
+// ChunkDelta is one chunk's change in a RE_INGESTED event (spec 043 / BL-010).
+type ChunkDelta struct {
+	Change      ChunkChange
+	NewChunkID  string // populated for ADDED + UNCHANGED
+	PrevChunkID string // populated for UNCHANGED + REMOVED
+}
+
 // DocumentEvent is one lifecycle event on the bus. Seq is the internal monotonic
 // position (encoded into the wire cursor); the proto projection drops it.
 type DocumentEvent struct {
@@ -39,6 +56,7 @@ type DocumentEvent struct {
 	Seq         uint64
 	After       model.Document
 	TimestampMs int64
+	Deltas      []ChunkDelta // spec 043 / BL-010: populated on RE_INGESTED (nil otherwise)
 }
 
 // DefaultSubscriberBuffer is the per-subscriber channel capacity (spec 040 R2).
