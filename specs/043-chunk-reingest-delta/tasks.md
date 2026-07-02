@@ -95,7 +95,7 @@ description: "Task list for spec 043 — Chunk Change Deltas on Re-Ingest (BL-01
 
 ### Tests for User Story 3
 
-- [ ] T017 [US3] Delta-correctness tests (`internal/pipeline/delta_test.go`): (a) a paragraph repeated 3×→2× yields 2 `UNCHANGED` + 1 `REMOVED` (multiset, not set); (b) a paragraph moved (same text, new position) = `UNCHANGED` (content identity, not positional); (c) preamble/no-change edge cases; (d) the cid-map stability (the `UNCHANGED` old→new pairing). Harden `diffChunks` (T006) if any test surfaces a bug. [research R2; FR-003/008; quickstart Scenario 5]
+- [x] T017 [US3] Delta-correctness tests (`internal/pipeline/delta_test.go`): (a) a paragraph repeated 3×→2× yields 2 `UNCHANGED` + 1 `REMOVED` (multiset, not set); (b) a paragraph moved (same text, new position) = `UNCHANGED` (content identity, not positional); (c) preamble/no-change edge cases; (d) the cid-map stability (the `UNCHANGED` old→new pairing). Harden `diffChunks` (T006) if any test surfaces a bug. [research R2; FR-003/008; quickstart Scenario 5]
 
 **Checkpoint**: the diff is correct under edge cases.
 
