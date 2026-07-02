@@ -250,21 +250,23 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 			}
 		}
 		out = append(out, QueryHit{
-			ChunkID:          h.ChunkID,
-			DocumentID:       c.DocumentID,
-			Score:            h.Score,
-			ChunkIndex:       c.ChunkIndex, // H21/spec 023: citation ordinal
-			Content:          c.Content,
-			FilePath:         filePath,
-			Page:             c.PageNumber,
-			Preview:          preview(c.Content, 160),
-			Poisoning:        c.Poisoning,      // H04/spec 019: verdict surfaced on every hit (FR-005)
-			SectionContext:   c.SectionContext, // H23/spec 025: breadcrumb surfaced on every hit (FR-004)
-			SectionLevel:     c.SectionLevel,   // spec 041 / BL-005: governing heading level (section_depth)
-			Wikilinks:        c.Wikilinks,      // spec 036 / BL-004: chunk wikilink targets surfaced on every hit (FR-009)
-			NearDup:          c.NearDup,        // H20/spec 026: near-dup context surfaced on every hit (FR-004)
-			Summary:          summary,          // spec 029: doc summary surfaced on every hit (FR-010)
-			EnrichmentStatus: enrichStatus,     // spec 029: doc enrichment status (FR-010)
+			ChunkID:           h.ChunkID,
+			DocumentID:        c.DocumentID,
+			Score:             h.Score,
+			ChunkIndex:        c.ChunkIndex, // H21/spec 023: citation ordinal
+			Content:           c.Content,
+			FilePath:          filePath,
+			Page:              c.PageNumber,
+			Preview:           preview(c.Content, 160),
+			Poisoning:         c.Poisoning,         // H04/spec 019: verdict surfaced on every hit (FR-005)
+			SectionContext:    c.SectionContext,    // H23/spec 025: breadcrumb surfaced on every hit (FR-004)
+			SectionLevel:      c.SectionLevel,      // spec 041 / BL-005: governing heading level (section_depth)
+			ExtractionMethod:  c.ExtractionMethod,  // spec 042 / BL-006
+			ExtractionQuality: c.ExtractionQuality, // spec 042 / BL-006
+			Wikilinks:         c.Wikilinks,         // spec 036 / BL-004: chunk wikilink targets surfaced on every hit (FR-009)
+			NearDup:           c.NearDup,           // H20/spec 026: near-dup context surfaced on every hit (FR-004)
+			Summary:           summary,             // spec 029: doc summary surfaced on every hit (FR-010)
+			EnrichmentStatus:  enrichStatus,        // spec 029: doc enrichment status (FR-010)
 		})
 	}
 	// H21/spec 023: normalize scores to [0,1] within the result set (top = 1.0).

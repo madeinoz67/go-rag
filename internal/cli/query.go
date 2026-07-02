@@ -14,17 +14,19 @@ import (
 )
 
 type queryResult struct {
-	Source         string            `json:"source"`
-	Page           int               `json:"page"`
-	ChunkIndex     int               `json:"chunk_index"` // H21/spec 023
-	Score          float64           `json:"score"`
-	Chunk          string            `json:"chunk"`
-	Poisoning      *poisonVerdictDTO `json:"poisoning,omitempty"`       // H04/spec 019
-	SectionContext []string          `json:"section_context,omitempty"` // H23/spec 025: heading breadcrumb (absent when nil)
-	SectionDepth   int               `json:"section_depth,omitempty"`   // spec 041 / BL-005: governing heading level (0 = none)
-	Wikilinks      []string          `json:"wikilinks,omitempty"`       // spec 036 / BL-004: chunk wikilink targets (absent when nil)
-	NearDup        *nearDupDTO       `json:"near_dup,omitempty"`        // H20/spec 026: near-dup context (absent when nil)
-	Summary        string            `json:"summary,omitempty"`         // spec 029: document summary (absent when unenriched)
+	Source            string            `json:"source"`
+	Page              int               `json:"page"`
+	ChunkIndex        int               `json:"chunk_index"` // H21/spec 023
+	Score             float64           `json:"score"`
+	Chunk             string            `json:"chunk"`
+	Poisoning         *poisonVerdictDTO `json:"poisoning,omitempty"`          // H04/spec 019
+	SectionContext    []string          `json:"section_context,omitempty"`    // H23/spec 025: heading breadcrumb (absent when nil)
+	SectionDepth      int               `json:"section_depth,omitempty"`      // spec 041 / BL-005: governing heading level (0 = none)
+	ExtractionQuality float64           `json:"extraction_quality,omitempty"` // spec 042 / BL-006
+	ExtractionMethod  string            `json:"extraction_method,omitempty"`  // spec 042 / BL-006
+	Wikilinks         []string          `json:"wikilinks,omitempty"`          // spec 036 / BL-004: chunk wikilink targets (absent when nil)
+	NearDup           *nearDupDTO       `json:"near_dup,omitempty"`           // H20/spec 026: near-dup context (absent when nil)
+	Summary           string            `json:"summary,omitempty"`            // spec 029: document summary (absent when unenriched)
 }
 
 // poisonVerdictDTO is the CLI/JSON projection of a hit's poisoning verdict
@@ -106,16 +108,18 @@ func newQueryCmd() *cobra.Command {
 			results := make([]queryResult, 0, len(res.Hits))
 			for _, h := range res.Hits {
 				results = append(results, queryResult{
-					Source:         filepath.Base(h.FilePath),
-					Page:           h.Page,
-					ChunkIndex:     h.ChunkIndex, // H21/spec 023
-					Score:          h.Score,
-					Chunk:          h.Content,
-					Poisoning:      toPoisonDTO(h),
-					SectionContext: h.SectionContext, // H23/spec 025 (FR-004)
-					SectionDepth:   h.SectionLevel,   // spec 041 / BL-005: governing heading level
-					Wikilinks:      h.Wikilinks,      // spec 036 / BL-004 (FR-009)
-					Summary:        h.Summary,        // spec 029 (FR-010)
+					Source:            filepath.Base(h.FilePath),
+					Page:              h.Page,
+					ChunkIndex:        h.ChunkIndex, // H21/spec 023
+					Score:             h.Score,
+					Chunk:             h.Content,
+					Poisoning:         toPoisonDTO(h),
+					SectionContext:    h.SectionContext,    // H23/spec 025 (FR-004)
+					SectionDepth:      h.SectionLevel,      // spec 041 / BL-005: governing heading level
+					ExtractionQuality: h.ExtractionQuality, // spec 042 / BL-006
+					ExtractionMethod:  h.ExtractionMethod,  // spec 042 / BL-006
+					Wikilinks:         h.Wikilinks,         // spec 036 / BL-004 (FR-009)
+					Summary:           h.Summary,           // spec 029 (FR-010)
 					NearDup: func() *nearDupDTO {
 						if h.NearDup == nil {
 							return nil

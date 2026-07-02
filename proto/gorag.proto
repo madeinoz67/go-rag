@@ -115,6 +115,8 @@ message QueryHit {
   string enrichment_status = 12; // spec 029: enriched|failed|nothing-to-enrich (empty = unenriched)
   repeated string wikilinks         = 13; // spec 036 / BL-004: [[wikilink]] targets in this chunk (empty = none/pre-feature)
   int32 section_depth = 14; // spec 041 / BL-005: governing heading level (1-6; 0 = none/pre-feature)
+  double extraction_quality = 15; // spec 042 / BL-006: 0-1 coverage confidence
+  string extraction_method = 16; // spec 042 / BL-006: native|mixed|image
 }
 
 // NearDup is the per-chunk near-duplicate context (H20/spec 026). Mirrors
@@ -278,6 +280,8 @@ message Chunk {
   string          created_at        = 16;  // RFC3339; empty if unset
   repeated string wikilinks         = 17;  // spec 036 / BL-004: [[wikilink]] targets in this chunk (empty = none/pre-feature)
   int32           section_depth     = 18;  // spec 041 / BL-005: governing heading level (1-6; 0 = none/pre-feature)
+  double          extraction_quality  = 19;  // spec 042 / BL-006: 0-1 coverage confidence (1.0 = clean text; lower = sparse/image)
+  string          extraction_method   = 20;  // spec 042 / BL-006: native|mixed|image ("" = pre-feature/default native)
 }
 
 // DocumentMeta is the transport projection of model.Document (+ spec-029

@@ -233,23 +233,25 @@ func (x *QueryRequest) GetDedup() bool {
 }
 
 type QueryHit struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	ChunkId          string                 `protobuf:"bytes,1,opt,name=chunk_id,json=chunkId,proto3" json:"chunk_id,omitempty"`
-	DocumentId       string                 `protobuf:"bytes,2,opt,name=document_id,json=documentId,proto3" json:"document_id,omitempty"`
-	Score            float64                `protobuf:"fixed64,3,opt,name=score,proto3" json:"score,omitempty"`
-	Content          string                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"` // full chunk text
-	FilePath         string                 `protobuf:"bytes,5,opt,name=file_path,json=filePath,proto3" json:"file_path,omitempty"`
-	Page             int32                  `protobuf:"varint,6,opt,name=page,proto3" json:"page,omitempty"`                                                 // 0 if not paginated
-	Poisoning        *Poisoning             `protobuf:"bytes,7,opt,name=poisoning,proto3" json:"poisoning,omitempty"`                                        // H04/spec 019: per-chunk injection verdict (nil = clean/unscored)
-	ChunkIndex       int32                  `protobuf:"varint,8,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`                   // H21/spec 023: 0-based ordinal within the source document
-	SectionContext   []string               `protobuf:"bytes,9,rep,name=section_context,json=sectionContext,proto3" json:"section_context,omitempty"`        // H23/spec 025: heading breadcrumb at the chunk's start (empty = none)
-	NearDup          *NearDup               `protobuf:"bytes,10,opt,name=near_dup,json=nearDup,proto3" json:"near_dup,omitempty"`                            // H20/spec 026: near-duplicate context (nil = none/pre-feature)
-	Summary          string                 `protobuf:"bytes,11,opt,name=summary,proto3" json:"summary,omitempty"`                                           // spec 029: document summary (empty = unenriched)
-	EnrichmentStatus string                 `protobuf:"bytes,12,opt,name=enrichment_status,json=enrichmentStatus,proto3" json:"enrichment_status,omitempty"` // spec 029: enriched|failed|nothing-to-enrich (empty = unenriched)
-	Wikilinks        []string               `protobuf:"bytes,13,rep,name=wikilinks,proto3" json:"wikilinks,omitempty"`                                       // spec 036 / BL-004: [[wikilink]] targets in this chunk (empty = none/pre-feature)
-	SectionDepth     int32                  `protobuf:"varint,14,opt,name=section_depth,json=sectionDepth,proto3" json:"section_depth,omitempty"`            // spec 041 / BL-005: governing heading level (1-6; 0 = none/pre-feature)
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	ChunkId           string                 `protobuf:"bytes,1,opt,name=chunk_id,json=chunkId,proto3" json:"chunk_id,omitempty"`
+	DocumentId        string                 `protobuf:"bytes,2,opt,name=document_id,json=documentId,proto3" json:"document_id,omitempty"`
+	Score             float64                `protobuf:"fixed64,3,opt,name=score,proto3" json:"score,omitempty"`
+	Content           string                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"` // full chunk text
+	FilePath          string                 `protobuf:"bytes,5,opt,name=file_path,json=filePath,proto3" json:"file_path,omitempty"`
+	Page              int32                  `protobuf:"varint,6,opt,name=page,proto3" json:"page,omitempty"`                                                      // 0 if not paginated
+	Poisoning         *Poisoning             `protobuf:"bytes,7,opt,name=poisoning,proto3" json:"poisoning,omitempty"`                                             // H04/spec 019: per-chunk injection verdict (nil = clean/unscored)
+	ChunkIndex        int32                  `protobuf:"varint,8,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`                        // H21/spec 023: 0-based ordinal within the source document
+	SectionContext    []string               `protobuf:"bytes,9,rep,name=section_context,json=sectionContext,proto3" json:"section_context,omitempty"`             // H23/spec 025: heading breadcrumb at the chunk's start (empty = none)
+	NearDup           *NearDup               `protobuf:"bytes,10,opt,name=near_dup,json=nearDup,proto3" json:"near_dup,omitempty"`                                 // H20/spec 026: near-duplicate context (nil = none/pre-feature)
+	Summary           string                 `protobuf:"bytes,11,opt,name=summary,proto3" json:"summary,omitempty"`                                                // spec 029: document summary (empty = unenriched)
+	EnrichmentStatus  string                 `protobuf:"bytes,12,opt,name=enrichment_status,json=enrichmentStatus,proto3" json:"enrichment_status,omitempty"`      // spec 029: enriched|failed|nothing-to-enrich (empty = unenriched)
+	Wikilinks         []string               `protobuf:"bytes,13,rep,name=wikilinks,proto3" json:"wikilinks,omitempty"`                                            // spec 036 / BL-004: [[wikilink]] targets in this chunk (empty = none/pre-feature)
+	SectionDepth      int32                  `protobuf:"varint,14,opt,name=section_depth,json=sectionDepth,proto3" json:"section_depth,omitempty"`                 // spec 041 / BL-005: governing heading level (1-6; 0 = none/pre-feature)
+	ExtractionQuality float64                `protobuf:"fixed64,15,opt,name=extraction_quality,json=extractionQuality,proto3" json:"extraction_quality,omitempty"` // spec 042 / BL-006: 0-1 coverage confidence
+	ExtractionMethod  string                 `protobuf:"bytes,16,opt,name=extraction_method,json=extractionMethod,proto3" json:"extraction_method,omitempty"`      // spec 042 / BL-006: native|mixed|image
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *QueryHit) Reset() {
@@ -378,6 +380,20 @@ func (x *QueryHit) GetSectionDepth() int32 {
 		return x.SectionDepth
 	}
 	return 0
+}
+
+func (x *QueryHit) GetExtractionQuality() float64 {
+	if x != nil {
+		return x.ExtractionQuality
+	}
+	return 0
+}
+
+func (x *QueryHit) GetExtractionMethod() string {
+	if x != nil {
+		return x.ExtractionMethod
+	}
+	return ""
 }
 
 // NearDup is the per-chunk near-duplicate context (H20/spec 026). Mirrors
@@ -1579,27 +1595,29 @@ func (x *DocumentEvent) GetTimestampMs() int64 {
 // Mirrors the QueryHit field set plus the full position / linked-list span a
 // debug or bridge caller needs. Poisoning / NearDup reuse the existing messages.
 type Chunk struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	ChunkId         string                 `protobuf:"bytes,1,opt,name=chunk_id,json=chunkId,proto3" json:"chunk_id,omitempty"`
-	DocumentId      string                 `protobuf:"bytes,2,opt,name=document_id,json=documentId,proto3" json:"document_id,omitempty"`
-	Content         string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
-	ChunkIndex      int32                  `protobuf:"varint,4,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`
-	TotalChunks     int32                  `protobuf:"varint,5,opt,name=total_chunks,json=totalChunks,proto3" json:"total_chunks,omitempty"`
-	PageNumber      int32                  `protobuf:"varint,6,opt,name=page_number,json=pageNumber,proto3" json:"page_number,omitempty"` // 0 = not paginated
-	StartChar       int32                  `protobuf:"varint,7,opt,name=start_char,json=startChar,proto3" json:"start_char,omitempty"`
-	EndChar         int32                  `protobuf:"varint,8,opt,name=end_char,json=endChar,proto3" json:"end_char,omitempty"`
-	TokenCount      int32                  `protobuf:"varint,9,opt,name=token_count,json=tokenCount,proto3" json:"token_count,omitempty"`
-	PreviousChunkId string                 `protobuf:"bytes,10,opt,name=previous_chunk_id,json=previousChunkId,proto3" json:"previous_chunk_id,omitempty"`
-	NextChunkId     string                 `protobuf:"bytes,11,opt,name=next_chunk_id,json=nextChunkId,proto3" json:"next_chunk_id,omitempty"`
-	Poisoning       *Poisoning             `protobuf:"bytes,12,opt,name=poisoning,proto3" json:"poisoning,omitempty"` // nil = clean/unscored
-	SectionContext  []string               `protobuf:"bytes,13,rep,name=section_context,json=sectionContext,proto3" json:"section_context,omitempty"`
-	NearDup         *NearDup               `protobuf:"bytes,14,opt,name=near_dup,json=nearDup,proto3" json:"near_dup,omitempty"`                 // nil = none
-	Kind            string                 `protobuf:"bytes,15,opt,name=kind,proto3" json:"kind,omitempty"`                                      // e.g. "caption"; empty = ordinary text
-	CreatedAt       string                 `protobuf:"bytes,16,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`           // RFC3339; empty if unset
-	Wikilinks       []string               `protobuf:"bytes,17,rep,name=wikilinks,proto3" json:"wikilinks,omitempty"`                            // spec 036 / BL-004: [[wikilink]] targets in this chunk (empty = none/pre-feature)
-	SectionDepth    int32                  `protobuf:"varint,18,opt,name=section_depth,json=sectionDepth,proto3" json:"section_depth,omitempty"` // spec 041 / BL-005: governing heading level (1-6; 0 = none/pre-feature)
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	ChunkId           string                 `protobuf:"bytes,1,opt,name=chunk_id,json=chunkId,proto3" json:"chunk_id,omitempty"`
+	DocumentId        string                 `protobuf:"bytes,2,opt,name=document_id,json=documentId,proto3" json:"document_id,omitempty"`
+	Content           string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	ChunkIndex        int32                  `protobuf:"varint,4,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`
+	TotalChunks       int32                  `protobuf:"varint,5,opt,name=total_chunks,json=totalChunks,proto3" json:"total_chunks,omitempty"`
+	PageNumber        int32                  `protobuf:"varint,6,opt,name=page_number,json=pageNumber,proto3" json:"page_number,omitempty"` // 0 = not paginated
+	StartChar         int32                  `protobuf:"varint,7,opt,name=start_char,json=startChar,proto3" json:"start_char,omitempty"`
+	EndChar           int32                  `protobuf:"varint,8,opt,name=end_char,json=endChar,proto3" json:"end_char,omitempty"`
+	TokenCount        int32                  `protobuf:"varint,9,opt,name=token_count,json=tokenCount,proto3" json:"token_count,omitempty"`
+	PreviousChunkId   string                 `protobuf:"bytes,10,opt,name=previous_chunk_id,json=previousChunkId,proto3" json:"previous_chunk_id,omitempty"`
+	NextChunkId       string                 `protobuf:"bytes,11,opt,name=next_chunk_id,json=nextChunkId,proto3" json:"next_chunk_id,omitempty"`
+	Poisoning         *Poisoning             `protobuf:"bytes,12,opt,name=poisoning,proto3" json:"poisoning,omitempty"` // nil = clean/unscored
+	SectionContext    []string               `protobuf:"bytes,13,rep,name=section_context,json=sectionContext,proto3" json:"section_context,omitempty"`
+	NearDup           *NearDup               `protobuf:"bytes,14,opt,name=near_dup,json=nearDup,proto3" json:"near_dup,omitempty"`                                 // nil = none
+	Kind              string                 `protobuf:"bytes,15,opt,name=kind,proto3" json:"kind,omitempty"`                                                      // e.g. "caption"; empty = ordinary text
+	CreatedAt         string                 `protobuf:"bytes,16,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`                           // RFC3339; empty if unset
+	Wikilinks         []string               `protobuf:"bytes,17,rep,name=wikilinks,proto3" json:"wikilinks,omitempty"`                                            // spec 036 / BL-004: [[wikilink]] targets in this chunk (empty = none/pre-feature)
+	SectionDepth      int32                  `protobuf:"varint,18,opt,name=section_depth,json=sectionDepth,proto3" json:"section_depth,omitempty"`                 // spec 041 / BL-005: governing heading level (1-6; 0 = none/pre-feature)
+	ExtractionQuality float64                `protobuf:"fixed64,19,opt,name=extraction_quality,json=extractionQuality,proto3" json:"extraction_quality,omitempty"` // spec 042 / BL-006: 0-1 coverage confidence (1.0 = clean text; lower = sparse/image)
+	ExtractionMethod  string                 `protobuf:"bytes,20,opt,name=extraction_method,json=extractionMethod,proto3" json:"extraction_method,omitempty"`      // spec 042 / BL-006: native|mixed|image ("" = pre-feature/default native)
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *Chunk) Reset() {
@@ -1756,6 +1774,20 @@ func (x *Chunk) GetSectionDepth() int32 {
 		return x.SectionDepth
 	}
 	return 0
+}
+
+func (x *Chunk) GetExtractionQuality() float64 {
+	if x != nil {
+		return x.ExtractionQuality
+	}
+	return 0
+}
+
+func (x *Chunk) GetExtractionMethod() string {
+	if x != nil {
+		return x.ExtractionMethod
+	}
+	return ""
 }
 
 // DocumentMeta is the transport projection of model.Document (+ spec-029
@@ -3564,7 +3596,7 @@ const file_gorag_proto_rawDesc = "" +
 	"\bno_cache\x18\v \x01(\bR\anoCache\x12/\n" +
 	"\x13include_quarantined\x18\f \x01(\bR\x12includeQuarantined\x12\x1b\n" +
 	"\tpool_size\x18\r \x01(\x05R\bpoolSize\x12\x14\n" +
-	"\x05dedup\x18\x0e \x01(\bR\x05dedup\"\xd6\x03\n" +
+	"\x05dedup\x18\x0e \x01(\bR\x05dedup\"\xb2\x04\n" +
 	"\bQueryHit\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x1f\n" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +
@@ -3582,7 +3614,9 @@ const file_gorag_proto_rawDesc = "" +
 	"\asummary\x18\v \x01(\tR\asummary\x12+\n" +
 	"\x11enrichment_status\x18\f \x01(\tR\x10enrichmentStatus\x12\x1c\n" +
 	"\twikilinks\x18\r \x03(\tR\twikilinks\x12#\n" +
-	"\rsection_depth\x18\x0e \x01(\x05R\fsectionDepth\"E\n" +
+	"\rsection_depth\x18\x0e \x01(\x05R\fsectionDepth\x12-\n" +
+	"\x12extraction_quality\x18\x0f \x01(\x01R\x11extractionQuality\x12+\n" +
+	"\x11extraction_method\x18\x10 \x01(\tR\x10extractionMethod\"E\n" +
 	"\aNearDup\x12\x1a\n" +
 	"\bsiblings\x18\x01 \x03(\tR\bsiblings\x12\x1e\n" +
 	"\n" +
@@ -3659,7 +3693,7 @@ const file_gorag_proto_rawDesc = "" +
 	"sourcePath\x12\x16\n" +
 	"\x06cursor\x18\x04 \x01(\tR\x06cursor\x12)\n" +
 	"\x05after\x18\x05 \x01(\v2\x13.gorag.DocumentMetaR\x05after\x12!\n" +
-	"\ftimestamp_ms\x18\x06 \x01(\x03R\vtimestampMs\"\xe7\x04\n" +
+	"\ftimestamp_ms\x18\x06 \x01(\x03R\vtimestampMs\"\xc3\x05\n" +
 	"\x05Chunk\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x1f\n" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +
@@ -3685,7 +3719,9 @@ const file_gorag_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x10 \x01(\tR\tcreatedAt\x12\x1c\n" +
 	"\twikilinks\x18\x11 \x03(\tR\twikilinks\x12#\n" +
-	"\rsection_depth\x18\x12 \x01(\x05R\fsectionDepth\"\xb4\x04\n" +
+	"\rsection_depth\x18\x12 \x01(\x05R\fsectionDepth\x12-\n" +
+	"\x12extraction_quality\x18\x13 \x01(\x01R\x11extractionQuality\x12+\n" +
+	"\x11extraction_method\x18\x14 \x01(\tR\x10extractionMethod\"\xb4\x04\n" +
 	"\fDocumentMeta\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fcontent_hash\x18\x02 \x01(\tR\vcontentHash\x12\x1b\n" +

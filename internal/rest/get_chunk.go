@@ -22,24 +22,26 @@ func rfc3339(t time.Time) string {
 
 // chunkDTO is the REST projection of model.Chunk for GetChunk (spec 035).
 type chunkDTO struct {
-	ChunkID         string         `json:"chunk_id"`
-	DocumentID      string         `json:"document_id"`
-	Content         string         `json:"content"`
-	ChunkIndex      int            `json:"chunk_index"`
-	TotalChunks     int            `json:"total_chunks"`
-	PageNumber      int            `json:"page_number"`
-	StartChar       int            `json:"start_char"`
-	EndChar         int            `json:"end_char"`
-	TokenCount      int            `json:"token_count"`
-	PreviousChunkID string         `json:"previous_chunk_id,omitempty"`
-	NextChunkID     string         `json:"next_chunk_id,omitempty"`
-	Poisoning       *poisonVerdict `json:"poisoning,omitempty"`
-	SectionContext  []string       `json:"section_context,omitempty"`
-	SectionDepth    int            `json:"section_depth,omitempty"` // spec 041 / BL-005
-	Wikilinks       []string       `json:"wikilinks,omitempty"`     // spec 036 / BL-004
-	NearDup         *nearDupInfo   `json:"near_dup,omitempty"`
-	Kind            string         `json:"kind,omitempty"`
-	CreatedAt       string         `json:"created_at,omitempty"`
+	ChunkID           string         `json:"chunk_id"`
+	DocumentID        string         `json:"document_id"`
+	Content           string         `json:"content"`
+	ChunkIndex        int            `json:"chunk_index"`
+	TotalChunks       int            `json:"total_chunks"`
+	PageNumber        int            `json:"page_number"`
+	StartChar         int            `json:"start_char"`
+	EndChar           int            `json:"end_char"`
+	TokenCount        int            `json:"token_count"`
+	PreviousChunkID   string         `json:"previous_chunk_id,omitempty"`
+	NextChunkID       string         `json:"next_chunk_id,omitempty"`
+	Poisoning         *poisonVerdict `json:"poisoning,omitempty"`
+	SectionContext    []string       `json:"section_context,omitempty"`
+	SectionDepth      int            `json:"section_depth,omitempty"`      // spec 041 / BL-005
+	ExtractionQuality float64        `json:"extraction_quality,omitempty"` // spec 042 / BL-006
+	ExtractionMethod  string         `json:"extraction_method,omitempty"`  // spec 042 / BL-006
+	Wikilinks         []string       `json:"wikilinks,omitempty"`          // spec 036 / BL-004
+	NearDup           *nearDupInfo   `json:"near_dup,omitempty"`
+	Kind              string         `json:"kind,omitempty"`
+	CreatedAt         string         `json:"created_at,omitempty"`
 }
 
 // documentMetaDTO is the REST projection of model.Document (+ spec-029 EnrichInfo
@@ -96,24 +98,26 @@ func toNearDupDTO(nd *model.NearDupInfo) *nearDupInfo {
 
 func toChunkDTO(c model.Chunk) chunkDTO {
 	return chunkDTO{
-		ChunkID:         c.ID,
-		DocumentID:      c.DocumentID,
-		Content:         c.Content,
-		ChunkIndex:      c.ChunkIndex,
-		TotalChunks:     c.TotalChunks,
-		PageNumber:      c.PageNumber,
-		StartChar:       c.StartCharIdx,
-		EndChar:         c.EndCharIdx,
-		TokenCount:      c.TokenCount,
-		PreviousChunkID: c.PreviousChunkID,
-		NextChunkID:     c.NextChunkID,
-		Poisoning:       toPoisonVerdictDTO(c.Poisoning),
-		SectionContext:  c.SectionContext,
-		SectionDepth:    c.SectionLevel, // spec 041 / BL-005
-		Wikilinks:       c.Wikilinks,    // spec 036 / BL-004
-		NearDup:         toNearDupDTO(c.NearDup),
-		Kind:            c.Kind,
-		CreatedAt:       rfc3339(c.CreatedAt),
+		ChunkID:           c.ID,
+		DocumentID:        c.DocumentID,
+		Content:           c.Content,
+		ChunkIndex:        c.ChunkIndex,
+		TotalChunks:       c.TotalChunks,
+		PageNumber:        c.PageNumber,
+		StartChar:         c.StartCharIdx,
+		EndChar:           c.EndCharIdx,
+		TokenCount:        c.TokenCount,
+		PreviousChunkID:   c.PreviousChunkID,
+		NextChunkID:       c.NextChunkID,
+		Poisoning:         toPoisonVerdictDTO(c.Poisoning),
+		SectionContext:    c.SectionContext,
+		SectionDepth:      c.SectionLevel,      // spec 041 / BL-005
+		ExtractionQuality: c.ExtractionQuality, // spec 042 / BL-006
+		ExtractionMethod:  c.ExtractionMethod,  // spec 042 / BL-006
+		Wikilinks:         c.Wikilinks,         // spec 036 / BL-004
+		NearDup:           toNearDupDTO(c.NearDup),
+		Kind:              c.Kind,
+		CreatedAt:         rfc3339(c.CreatedAt),
 	}
 }
 

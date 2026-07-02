@@ -81,6 +81,12 @@ type QueryHit struct {
 	// section_depth 1:1 by every transport (spec 041 / BL-005). NOTE:
 	// len(SectionContext) is NOT this level — [h1, h3] has length 2, level 3.
 	SectionLevel int
+	// ExtractionMethod / ExtractionQuality (spec 042 / BL-006): coverage-
+	// confidence signal from the PDF reader. Default native/1.0; lower for
+	// sparse / image-only pages. Not an OCR verdict (go-rag doesn't OCR).
+	// Surfaced 1:1 by every transport.
+	ExtractionMethod  string
+	ExtractionQuality float64
 	// NearDup is this hit's near-duplicate context (audit H20 / spec 026):
 	// sibling chunkIDs (pairwise) and closest similarity. nil/absent for chunks
 	// with no near-dups or pre-feature. Surfaced 1:1 by every transport (FR-004);

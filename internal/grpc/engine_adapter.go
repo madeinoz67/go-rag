@@ -66,20 +66,22 @@ func (a *Adapter) Query(ctx context.Context, req *goragpb.QueryRequest) (*goragp
 	hits := make([]*goragpb.QueryHit, len(res.Hits))
 	for i, h := range res.Hits {
 		hits[i] = &goragpb.QueryHit{
-			ChunkId:          h.ChunkID,
-			DocumentId:       h.DocumentID,
-			Score:            h.Score,
-			Content:          h.Content,
-			FilePath:         h.FilePath,
-			Page:             int32(h.Page),
-			Poisoning:        toPoisoningPB(h.Poisoning), // H04/spec 019
-			ChunkIndex:       int32(h.ChunkIndex),        // H21/spec 023
-			SectionContext:   h.SectionContext,           // H23/spec 025 (FR-004)
-			SectionDepth:     int32(h.SectionLevel),      // spec 041 / BL-005: governing heading level
-			NearDup:          toNearDupPB(h.NearDup),     // H20/spec 026 (FR-004)
-			Summary:          h.Summary,                  // spec 029 (FR-010)
-			EnrichmentStatus: h.EnrichmentStatus,         // spec 029 (FR-010)
-			Wikilinks:        h.Wikilinks,                // spec 036 / BL-004 (FR-009)
+			ChunkId:           h.ChunkID,
+			DocumentId:        h.DocumentID,
+			Score:             h.Score,
+			Content:           h.Content,
+			FilePath:          h.FilePath,
+			Page:              int32(h.Page),
+			Poisoning:         toPoisoningPB(h.Poisoning), // H04/spec 019
+			ChunkIndex:        int32(h.ChunkIndex),        // H21/spec 023
+			SectionContext:    h.SectionContext,           // H23/spec 025 (FR-004)
+			SectionDepth:      int32(h.SectionLevel),      // spec 041 / BL-005: governing heading level
+			ExtractionQuality: h.ExtractionQuality,        // spec 042 / BL-006
+			ExtractionMethod:  h.ExtractionMethod,         // spec 042 / BL-006
+			NearDup:           toNearDupPB(h.NearDup),     // H20/spec 026 (FR-004)
+			Summary:           h.Summary,                  // spec 029 (FR-010)
+			EnrichmentStatus:  h.EnrichmentStatus,         // spec 029 (FR-010)
+			Wikilinks:         h.Wikilinks,                // spec 036 / BL-004 (FR-009)
 		}
 	}
 	return &goragpb.QueryResponse{Hits: hits, RerankFailed: res.RerankFailed,
@@ -139,24 +141,26 @@ func toChunkPB(c model.Chunk) *goragpb.Chunk {
 		created = c.CreatedAt.UTC().Format(time.RFC3339)
 	}
 	return &goragpb.Chunk{
-		ChunkId:         c.ID,
-		DocumentId:      c.DocumentID,
-		Content:         c.Content,
-		ChunkIndex:      int32(c.ChunkIndex),
-		TotalChunks:     int32(c.TotalChunks),
-		PageNumber:      int32(c.PageNumber),
-		StartChar:       int32(c.StartCharIdx),
-		EndChar:         int32(c.EndCharIdx),
-		TokenCount:      int32(c.TokenCount),
-		PreviousChunkId: c.PreviousChunkID,
-		NextChunkId:     c.NextChunkID,
-		Poisoning:       toPoisoningPB(c.Poisoning),
-		SectionContext:  c.SectionContext,
-		SectionDepth:    int32(c.SectionLevel), // spec 041 / BL-005: governing heading level (0 = none)
-		Wikilinks:       c.Wikilinks,           // spec 036 / BL-004 (FR-009)
-		NearDup:         toNearDupPB(c.NearDup),
-		Kind:            c.Kind,
-		CreatedAt:       created,
+		ChunkId:           c.ID,
+		DocumentId:        c.DocumentID,
+		Content:           c.Content,
+		ChunkIndex:        int32(c.ChunkIndex),
+		TotalChunks:       int32(c.TotalChunks),
+		PageNumber:        int32(c.PageNumber),
+		StartChar:         int32(c.StartCharIdx),
+		EndChar:           int32(c.EndCharIdx),
+		TokenCount:        int32(c.TokenCount),
+		PreviousChunkId:   c.PreviousChunkID,
+		NextChunkId:       c.NextChunkID,
+		Poisoning:         toPoisoningPB(c.Poisoning),
+		SectionContext:    c.SectionContext,
+		SectionDepth:      int32(c.SectionLevel), // spec 041 / BL-005: governing heading level (0 = none)
+		ExtractionQuality: c.ExtractionQuality,   // spec 042 / BL-006
+		ExtractionMethod:  c.ExtractionMethod,    // spec 042 / BL-006
+		Wikilinks:         c.Wikilinks,           // spec 036 / BL-004 (FR-009)
+		NearDup:           toNearDupPB(c.NearDup),
+		Kind:              c.Kind,
+		CreatedAt:         created,
 	}
 }
 

@@ -88,6 +88,19 @@ func (r *PDFReader) Read(_ context.Context, data []byte, _ string) (string, map[
 	if len(pageOffsets) > 0 {
 		md["page_offsets"] = pageOffsets // spec 031: transient; pipeline strips before identity + threads to worker for caption SectionContext
 	}
+	// spec 042 / BL-006: per-document extraction coverage → method + quality.
+	// Transient (the pipeline strips both before identity, like the spans/offsets
+	// above); defaults to native/1.0 for non-PDF readers that don't set them.
+	pagesWithText, totalChars := 0, 0
+	for _, t := range pageText {
+		totalChars += len(t)
+		if len(t) > 0 {
+			pagesWithText++
+		}
+	}
+	method, quality := classifyExtraction(len(pageOffsets), pagesWithText, totalChars)
+	md["extraction_method"] = method
+	md["extraction_quality"] = quality
 	return text, md, nil
 }
 

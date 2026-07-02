@@ -23,24 +23,26 @@ import (
 // (cross-transport parity, spec 035 US3). The Poisoning / NearDup sidecars reuse
 // the model types directly (their JSON tags already match the proto messages).
 type chunkOut struct {
-	ChunkID         string               `json:"chunk_id"`
-	DocumentID      string               `json:"document_id"`
-	Content         string               `json:"content"`
-	ChunkIndex      int                  `json:"chunk_index"`
-	TotalChunks     int                  `json:"total_chunks"`
-	PageNumber      int                  `json:"page_number"`
-	StartChar       int                  `json:"start_char"`
-	EndChar         int                  `json:"end_char"`
-	TokenCount      int                  `json:"token_count"`
-	PreviousChunkID string               `json:"previous_chunk_id"`
-	NextChunkID     string               `json:"next_chunk_id"`
-	Poisoning       *model.PoisonVerdict `json:"poisoning,omitempty"`
-	SectionContext  []string             `json:"section_context,omitempty"`
-	SectionDepth    int                  `json:"section_depth,omitempty"` // spec 041 / BL-005
-	Wikilinks       []string             `json:"wikilinks,omitempty"`     // spec 036 / BL-004
-	NearDup         *model.NearDupInfo   `json:"near_dup,omitempty"`
-	Kind            string               `json:"kind,omitempty"`
-	CreatedAt       string               `json:"created_at,omitempty"`
+	ChunkID           string               `json:"chunk_id"`
+	DocumentID        string               `json:"document_id"`
+	Content           string               `json:"content"`
+	ChunkIndex        int                  `json:"chunk_index"`
+	TotalChunks       int                  `json:"total_chunks"`
+	PageNumber        int                  `json:"page_number"`
+	StartChar         int                  `json:"start_char"`
+	EndChar           int                  `json:"end_char"`
+	TokenCount        int                  `json:"token_count"`
+	PreviousChunkID   string               `json:"previous_chunk_id"`
+	NextChunkID       string               `json:"next_chunk_id"`
+	Poisoning         *model.PoisonVerdict `json:"poisoning,omitempty"`
+	SectionContext    []string             `json:"section_context,omitempty"`
+	SectionDepth      int                  `json:"section_depth,omitempty"`      // spec 041 / BL-005
+	ExtractionQuality float64              `json:"extraction_quality,omitempty"` // spec 042 / BL-006
+	ExtractionMethod  string               `json:"extraction_method,omitempty"`  // spec 042 / BL-006
+	Wikilinks         []string             `json:"wikilinks,omitempty"`          // spec 036 / BL-004
+	NearDup           *model.NearDupInfo   `json:"near_dup,omitempty"`
+	Kind              string               `json:"kind,omitempty"`
+	CreatedAt         string               `json:"created_at,omitempty"`
 }
 
 func newChunkCmd() *cobra.Command {
@@ -96,24 +98,26 @@ func toChunkOut(c model.Chunk) chunkOut {
 		created = c.CreatedAt.UTC().Format(time.RFC3339)
 	}
 	return chunkOut{
-		ChunkID:         c.ID,
-		DocumentID:      c.DocumentID,
-		Content:         c.Content,
-		ChunkIndex:      c.ChunkIndex,
-		TotalChunks:     c.TotalChunks,
-		PageNumber:      c.PageNumber,
-		StartChar:       c.StartCharIdx,
-		EndChar:         c.EndCharIdx,
-		TokenCount:      c.TokenCount,
-		PreviousChunkID: c.PreviousChunkID,
-		NextChunkID:     c.NextChunkID,
-		Poisoning:       c.Poisoning,
-		SectionContext:  c.SectionContext,
-		SectionDepth:    c.SectionLevel, // spec 041 / BL-005
-		Wikilinks:       c.Wikilinks,    // spec 036 / BL-004
-		NearDup:         c.NearDup,
-		Kind:            c.Kind,
-		CreatedAt:       created,
+		ChunkID:           c.ID,
+		DocumentID:        c.DocumentID,
+		Content:           c.Content,
+		ChunkIndex:        c.ChunkIndex,
+		TotalChunks:       c.TotalChunks,
+		PageNumber:        c.PageNumber,
+		StartChar:         c.StartCharIdx,
+		EndChar:           c.EndCharIdx,
+		TokenCount:        c.TokenCount,
+		PreviousChunkID:   c.PreviousChunkID,
+		NextChunkID:       c.NextChunkID,
+		Poisoning:         c.Poisoning,
+		SectionContext:    c.SectionContext,
+		SectionDepth:      c.SectionLevel,      // spec 041 / BL-005
+		ExtractionQuality: c.ExtractionQuality, // spec 042 / BL-006
+		ExtractionMethod:  c.ExtractionMethod,  // spec 042 / BL-006
+		Wikilinks:         c.Wikilinks,         // spec 036 / BL-004
+		NearDup:           c.NearDup,
+		Kind:              c.Kind,
+		CreatedAt:         created,
 	}
 }
 

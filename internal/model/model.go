@@ -117,6 +117,15 @@ type Chunk struct {
 	// SectionContext): the chunk ID folds text+mime+{doc,idx} only. NOTE:
 	// len(SectionContext) is NOT this level — [h1, h3] has length 2, level 3.
 	SectionLevel int `json:"section_level,omitempty"`
+	// ExtractionMethod / ExtractionQuality (spec 042 / BL-006): a coverage-
+	// confidence signal from the PDF reader — method ∈ native|mixed|image,
+	// quality ∈ 0..1. Default native/1.0 (clean text extraction); lower for
+	// sparse / image-only PDF pages. NOT an OCR-quality verdict — go-rag does
+	// not OCR, so a scanned PDF with a text layer reads as native. Non-identity
+	// sidecar (stripped from metadata before GenerateID). Surfaced on Chunk +
+	// QueryHit across every transport.
+	ExtractionMethod  string  `json:"extraction_method,omitempty"`
+	ExtractionQuality float64 `json:"extraction_quality,omitempty"`
 	// Wikilinks are the Obsidian [[wikilink]] targets whose link text falls
 	// inside this chunk's text range (spec 036 / BL-004), canonicalised by the
 	// reader's linkTarget (alias "|" and anchor "#heading"/"#^blockid" stripped;

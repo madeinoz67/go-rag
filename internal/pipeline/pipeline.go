@@ -283,6 +283,19 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	// the worker to compute caption SectionContext). Stripped before identity.
 	pageOffsets, _ := metadata["page_offsets"].(map[int]int)
 	delete(metadata, "page_offsets")
+	// spec 042 / BL-006: extraction method + quality (the PDF reader's coverage
+	// signal). Stripped before identity (Constitution II). Default native/1.0 for
+	// readers that don't set them (markdown/docx/text — clean text extraction).
+	extMethod := "native"
+	extQuality := 1.0
+	if v, ok := metadata["extraction_method"].(string); ok && v != "" {
+		extMethod = v
+	}
+	delete(metadata, "extraction_method")
+	if v, ok := metadata["extraction_quality"].(float64); ok {
+		extQuality = v
+	}
+	delete(metadata, "extraction_quality")
 
 	docID := model.GenerateID(content, mimeType(ext), metadata)
 	// H19/spec 022: redact secrets/PII AFTER identity (docID over original content —
@@ -328,8 +341,10 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 			// H23/spec 025 (FR-001/FR-007): the heading breadcrumb active at the
 			// chunk's start position — non-identity sidecar. nil when the source has
 			// no headings (FR-006). Computed on the ACK path, no I/O (research R8).
-			SectionContext: bc,
-			SectionLevel:   bcLevel, // spec 041 / BL-005: governing heading level (0 = none)
+			SectionContext:    bc,
+			SectionLevel:      bcLevel,    // spec 041 / BL-005: governing heading level (0 = none)
+			ExtractionMethod:  extMethod,  // spec 042 / BL-006: native|mixed|image (coverage signal)
+			ExtractionQuality: extQuality, // spec 042 / BL-006: 0-1 coverage confidence
 			// spec 036 / BL-004: the canonical [[wikilink]] targets located in this
 			// chunk's text range — non-identity sidecar, resolved by offset
 			// containment through the same redaction translation as SectionContext.

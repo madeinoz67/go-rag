@@ -22,20 +22,22 @@ type queryRequest struct {
 }
 
 type queryHit struct {
-	ChunkID          string         `json:"chunk_id"`
-	DocumentID       string         `json:"document_id"`
-	Score            float64        `json:"score"`
-	Content          string         `json:"content"`
-	FilePath         string         `json:"file_path"`
-	Page             int            `json:"page"`
-	ChunkIndex       int            `json:"chunk_index"`                 // H21/spec 023
-	Poisoning        *poisonVerdict `json:"poisoning,omitempty"`         // H04/spec 019
-	SectionContext   []string       `json:"section_context,omitempty"`   // H23/spec 025: heading breadcrumb (absent when nil)
-	SectionDepth     int            `json:"section_depth,omitempty"`     // spec 041 / BL-005: governing heading level (0 = none)
-	Wikilinks        []string       `json:"wikilinks,omitempty"`         // spec 036 / BL-004: chunk wikilink targets (absent when nil)
-	NearDup          *nearDupInfo   `json:"near_dup,omitempty"`          // H20/spec 026: near-dup context (absent when nil)
-	Summary          string         `json:"summary,omitempty"`           // spec 029: document summary (absent when unenriched)
-	EnrichmentStatus string         `json:"enrichment_status,omitempty"` // spec 029: enriched|failed|nothing-to-enrich
+	ChunkID           string         `json:"chunk_id"`
+	DocumentID        string         `json:"document_id"`
+	Score             float64        `json:"score"`
+	Content           string         `json:"content"`
+	FilePath          string         `json:"file_path"`
+	Page              int            `json:"page"`
+	ChunkIndex        int            `json:"chunk_index"`                  // H21/spec 023
+	Poisoning         *poisonVerdict `json:"poisoning,omitempty"`          // H04/spec 019
+	SectionContext    []string       `json:"section_context,omitempty"`    // H23/spec 025: heading breadcrumb (absent when nil)
+	SectionDepth      int            `json:"section_depth,omitempty"`      // spec 041 / BL-005: governing heading level (0 = none)
+	ExtractionQuality float64        `json:"extraction_quality,omitempty"` // spec 042 / BL-006
+	ExtractionMethod  string         `json:"extraction_method,omitempty"`  // spec 042 / BL-006
+	Wikilinks         []string       `json:"wikilinks,omitempty"`          // spec 036 / BL-004: chunk wikilink targets (absent when nil)
+	NearDup           *nearDupInfo   `json:"near_dup,omitempty"`           // H20/spec 026: near-dup context (absent when nil)
+	Summary           string         `json:"summary,omitempty"`            // spec 029: document summary (absent when unenriched)
+	EnrichmentStatus  string         `json:"enrichment_status,omitempty"`  // spec 029: enriched|failed|nothing-to-enrich
 }
 
 // nearDupInfo is the REST projection of model.NearDupInfo (H20/spec 026).

@@ -59,20 +59,22 @@ func toQueryHits(hits []engine.QueryHit) []queryHit {
 			nd = &nearDupInfo{Siblings: h.NearDup.Siblings, Similarity: h.NearDup.Similarity}
 		}
 		out[i] = queryHit{
-			ChunkID:          h.ChunkID,
-			DocumentID:       h.DocumentID,
-			Score:            h.Score,
-			Content:          h.Content,
-			FilePath:         h.FilePath,
-			Page:             h.Page,
-			ChunkIndex:       h.ChunkIndex, // H21/spec 023
-			Poisoning:        pv,
-			SectionContext:   h.SectionContext,   // H23/spec 025 (FR-004)
-			SectionDepth:     h.SectionLevel,     // spec 041 / BL-005: governing heading level
-			Wikilinks:        h.Wikilinks,        // spec 036 / BL-004 (FR-009)
-			NearDup:          nd,                 // H20/spec 026 (FR-004)
-			Summary:          h.Summary,          // spec 029 (FR-010)
-			EnrichmentStatus: h.EnrichmentStatus, // spec 029 (FR-010)
+			ChunkID:           h.ChunkID,
+			DocumentID:        h.DocumentID,
+			Score:             h.Score,
+			Content:           h.Content,
+			FilePath:          h.FilePath,
+			Page:              h.Page,
+			ChunkIndex:        h.ChunkIndex, // H21/spec 023
+			Poisoning:         pv,
+			SectionContext:    h.SectionContext,    // H23/spec 025 (FR-004)
+			SectionDepth:      h.SectionLevel,      // spec 041 / BL-005: governing heading level
+			ExtractionQuality: h.ExtractionQuality, // spec 042 / BL-006
+			ExtractionMethod:  h.ExtractionMethod,  // spec 042 / BL-006
+			Wikilinks:         h.Wikilinks,         // spec 036 / BL-004 (FR-009)
+			NearDup:           nd,                  // H20/spec 026 (FR-004)
+			Summary:           h.Summary,           // spec 029 (FR-010)
+			EnrichmentStatus:  h.EnrichmentStatus,  // spec 029 (FR-010)
 		}
 	}
 	return out

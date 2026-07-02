@@ -95,3 +95,25 @@ func TestChunk_SectionLevel_RoundTrip(t *testing.T) {
 		t.Errorf("zero SectionLevel should be omitted; got %s", empty)
 	}
 }
+
+// TestChunk_ExtractionQuality_RoundTrip (spec 042 / BL-006): method + quality
+// round-trip through JSON; zero values are omitted (omitempty) so pre-feature
+// chunks serialize identically to the pre-feature shape.
+func TestChunk_ExtractionQuality_RoundTrip(t *testing.T) {
+	c := Chunk{ID: "x", ExtractionMethod: "mixed", ExtractionQuality: 0.55}
+	b, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back Chunk
+	if err := json.Unmarshal(b, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back.ExtractionMethod != "mixed" || back.ExtractionQuality != 0.55 {
+		t.Errorf("round-trip = %q / %v, want mixed / 0.55", back.ExtractionMethod, back.ExtractionQuality)
+	}
+	empty, _ := json.Marshal(Chunk{ID: "y"})
+	if strings.Contains(string(empty), "extraction_") {
+		t.Errorf("zero extraction fields should be omitted; got %s", empty)
+	}
+}
