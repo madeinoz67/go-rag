@@ -25,7 +25,7 @@ Backlog items required for effective integration between go-rag and MuninnDB via
 | [BL-007](#bl-007) | `ListDocuments` — reliable `ingested_at` cursor + `status` filter | P1 | S | 1 | ✅ done (spec 039) — new operation (go-rag had `Files` not `ListDocuments`); `after` cursor + `status` filter + `page_token` pagination; all four transports; no `vault` field; pure read, no migration |
 | [BL-008](#bl-008) | `WatchDocuments` — gRPC server-streaming document event stream | P2 | M | 2 | ✅ done (spec 040) — INGESTED+EMBEDDED+DELETED streaming shipped (DELETED publishes from the `Pipeline.DeleteDoc` chokepoint — covers watcher + reprocess); in-memory event bus (no migration); drop-behind resume is lossy (Pebble-bus follow-on is migration-gated); BL-009 absorbed |
 | [BL-009](#bl-009) | `EMBEDDED` event type — distinct from `INGESTED` | P2 | S | 2 | open |
-| [BL-010](#bl-010) | Chunk delta in `RE_INGESTED` events | P2 | M | 2 | open |
+| [BL-010](#bl-010) | Chunk delta in `RE_INGESTED` events | P2 | M | 2 | ✅ done (spec 043) — `RE_INGESTED` with chunk deltas (ADDED/REMOVED/UNCHANGED via `ContentHash` multiset diff) + embed-skip for UNCHANGED chunks (model-gated `PrefixEmbedding` copy); replaces `INGESTED`+`DELETED` for re-ingests |
 | [BL-011](#bl-011) | REST webhook registration for document lifecycle events | P2 | M | 2 | open |
 | [BL-012](#bl-012) | `QueryStream` — gRPC streaming query results | P3 | M | 3 | open |
 | [BL-013](#bl-013) | `RecordUsage` RPC — chunk usage feedback | P3 | S | 3 | open |

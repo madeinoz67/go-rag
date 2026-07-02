@@ -103,7 +103,7 @@ description: "Task list for spec 043 — Chunk Change Deltas on Re-Ingest (BL-01
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T018 Run `make lint` (golangci-lint — the `ci.yml` gate) + resolve every finding; run `go test -race ./...` full green.
+- [x] T018 Run `make lint` (golangci-lint — the `ci.yml` gate) + resolve every finding; run `go test -race ./...` full green.
 - [ ] T019 Verify the <10ms ACK budget (Constitution IV): benchmark/profile the re-ingest path with the diff + `PrefixEmbedding` copy in place; confirm the ACK stays <10ms — or move the diff/copy post-ACK if profiling shows pressure. [plan Constitution Check IV; SC-005]
 - [ ] T020 The UNCHANGED-ratio measurement (`research.md` R6): instrument a re-ingest over a representative vault (or fixture corpus); record the `UNCHANGED`/`ADDED`/`REMOVED` distribution + the `PrefixEmbedding`-copy vs Ollama-call cost. **Exit criterion**: if the real ratio ≪80%, re-scope/defer the embed-skip (the delta event ships regardless). [SC-001; research R6]
 - [ ] T021 Run `quickstart.md` Scenarios 1–5 end-to-end on an isolated DB (non-default `--db-path`/ports per project CLAUDE.md).
