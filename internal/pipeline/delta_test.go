@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/madeinoz67/go-rag/internal/events"
@@ -67,5 +68,28 @@ func TestDiffChunks_EmptyHashIsAlwaysChanged(t *testing.T) {
 	}
 	if len(remap) != 0 {
 		t.Errorf("empty-hash remap = %v, want empty", remap)
+	}
+}
+
+// BenchmarkDiffChunks (spec 043 / BL-010, T019): the multiset diff is the new
+// ACK-path overhead. A 50-chunk doc with 10% changed should be sub-millisecond
+// (well within the <10ms Constitution Principle IV budget). The PrefixEmbedding
+// copy (preserveEmbeds) is N Pebble SetWithPrefix calls (~µs each) — also
+// bounded; this benchmark isolates the pure-function diff (the CPU-bound part).
+func BenchmarkDiffChunks(b *testing.B) {
+	old := make([]model.Chunk, 50)
+	newChunks := make([]model.Chunk, 50)
+	for i := 0; i < 50; i++ {
+		h := fmt.Sprintf("hash-%d", i)
+		old[i] = model.Chunk{ID: fmt.Sprintf("o-%d", i), ContentHash: h}
+		newChunks[i] = model.Chunk{ID: fmt.Sprintf("n-%d", i), ContentHash: h}
+	}
+	// Simulate a 10% edit: change 5 of 50 hashes.
+	for i := 45; i < 50; i++ {
+		newChunks[i].ContentHash = fmt.Sprintf("changed-%d", i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		diffChunks(old, newChunks)
 	}
 }
