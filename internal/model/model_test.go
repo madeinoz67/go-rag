@@ -117,3 +117,25 @@ func TestChunk_ExtractionQuality_RoundTrip(t *testing.T) {
 		t.Errorf("zero extraction fields should be omitted; got %s", empty)
 	}
 }
+
+// TestChunk_ContentHash_RoundTrip (spec 043 / BL-010): ContentHash round-trips
+// through JSON; a zero ContentHash is omitted (omitempty) so pre-feature chunks
+// serialize identically to the pre-feature shape.
+func TestChunk_ContentHash_RoundTrip(t *testing.T) {
+	c := Chunk{ID: "x", Content: "hi", ContentHash: ContentHash([]byte("hi"))}
+	b, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back Chunk
+	if err := json.Unmarshal(b, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back.ContentHash != c.ContentHash {
+		t.Errorf("round-trip ContentHash = %q, want %q", back.ContentHash, c.ContentHash)
+	}
+	empty, _ := json.Marshal(Chunk{ID: "y"})
+	if strings.Contains(string(empty), "content_hash") {
+		t.Errorf("zero ContentHash should be omitted; got %s", empty)
+	}
+}

@@ -33,7 +33,7 @@ description: "Task list for spec 043 — Chunk Change Deltas on Re-Ingest (BL-01
 
 **Purpose**: confirm a green baseline. No new deps (the diff is stdlib `crypto/sha256` + maps; the event extends the existing grpc-go stream).
 
-- [ ] T001 Verify baseline `make build && make vet && make test` is green on `main` before starting.
+- [x] T001 Verify baseline `make build && make vet && make test` is green on `main` before starting.
 
 ---
 
@@ -41,10 +41,10 @@ description: "Task list for spec 043 — Chunk Change Deltas on Re-Ingest (BL-01
 
 **Purpose**: the `ContentHash` sidecar + its backfill + the proto wire — the substrate every user story needs. **No story work begins until this phase is green.**
 
-- [ ] T002 [P] Add the `ContentHash` non-identity sidecar to `model.Chunk` (`internal/model/model.go`) — `ContentHash string \`json:"content_hash,omitempty"\``, doc comment matching the sidecar idiom (Poisoning/SectionContext); add a JSON round-trip + omitempty test. [Constitution II; data-model.md]
-- [ ] T003 Add the v2 migration `internal/storage/migrate/v2_content_hash.go` — scan `PrefixChunk`, unmarshal each chunk, set `ContentHash = model.ContentHash([]byte(c.Content))`, re-marshal, write back; register `{Version: 2, ...}`; bump `migrate.ExpectedVersion` 1→2; idempotent (unconditional re-write). Test idempotency + the nil-sidecar round-trip (a chunk whose sidecar was nil MUST round-trip to nil, not a zero-value drift — RedTeam caveat). (depends T002) [Constitution: schema evolution; research R5]
-- [ ] T004 Compute `ContentHash` in `processFile` next to `cid` (`internal/pipeline/pipeline.go`) — `ContentHash: model.ContentHash([]byte(s.Text))` on each chunk (the redacted text). (depends T002) [research R1; data-model.md]
-- [ ] T005 [P] Add the proto wire (`proto/gorag.proto`): the `ChunkDelta` message (`change_type` enum ADDED/REMOVED/UNCHANGED; `chunk_id`; `prev_chunk_id`) + `repeated ChunkDelta chunk_deltas = 7` on `DocumentEvent`; regenerate `proto/gen`. (`DocumentEventType_RE_INGESTED = 2` is already reserved.) [contracts/api.md]
+- [x] T002 [P] Add the `ContentHash` non-identity sidecar to `model.Chunk` (`internal/model/model.go`) — `ContentHash string \`json:"content_hash,omitempty"\``, doc comment matching the sidecar idiom (Poisoning/SectionContext); add a JSON round-trip + omitempty test. [Constitution II; data-model.md]
+- [x] T003 Add the v2 migration `internal/storage/migrate/v2_content_hash.go` — scan `PrefixChunk`, unmarshal each chunk, set `ContentHash = model.ContentHash([]byte(c.Content))`, re-marshal, write back; register `{Version: 2, ...}`; bump `migrate.ExpectedVersion` 1→2; idempotent (unconditional re-write). Test idempotency + the nil-sidecar round-trip (a chunk whose sidecar was nil MUST round-trip to nil, not a zero-value drift — RedTeam caveat). (depends T002) [Constitution: schema evolution; research R5]
+- [x] T004 Compute `ContentHash` in `processFile` next to `cid` (`internal/pipeline/pipeline.go`) — `ContentHash: model.ContentHash([]byte(s.Text))` on each chunk (the redacted text). (depends T002) [research R1; data-model.md]
+- [x] T005 [P] Add the proto wire (`proto/gorag.proto`): the `ChunkDelta` message (`change_type` enum ADDED/REMOVED/UNCHANGED; `chunk_id`; `prev_chunk_id`) + `repeated ChunkDelta chunk_deltas = 7` on `DocumentEvent`; regenerate `proto/gen`. (`DocumentEventType_RE_INGESTED = 2` is already reserved.) [contracts/api.md]
 
 **Checkpoint**: the sidecar + migration + computation + wire exist + compile green. Story work can begin.
 

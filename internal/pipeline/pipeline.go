@@ -342,9 +342,10 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 			// chunk's start position — non-identity sidecar. nil when the source has
 			// no headings (FR-006). Computed on the ACK path, no I/O (research R8).
 			SectionContext:    bc,
-			SectionLevel:      bcLevel,    // spec 041 / BL-005: governing heading level (0 = none)
-			ExtractionMethod:  extMethod,  // spec 042 / BL-006: native|mixed|image (coverage signal)
-			ExtractionQuality: extQuality, // spec 042 / BL-006: 0-1 coverage confidence
+			SectionLevel:      bcLevel,                           // spec 041 / BL-005: governing heading level (0 = none)
+			ExtractionMethod:  extMethod,                         // spec 042 / BL-006: native|mixed|image (coverage signal)
+			ExtractionQuality: extQuality,                        // spec 042 / BL-006: 0-1 coverage confidence
+			ContentHash:       model.ContentHash([]byte(s.Text)), // spec 043 / BL-010: SHA-256 of the (redacted) chunk text — diff key
 			// spec 036 / BL-004: the canonical [[wikilink]] targets located in this
 			// chunk's text range — non-identity sidecar, resolved by offset
 			// containment through the same redaction translation as SectionContext.

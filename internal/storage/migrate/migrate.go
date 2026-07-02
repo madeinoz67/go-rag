@@ -20,7 +20,7 @@ var schemaVersionKey = []byte{0xFF, 's', 'c', 'h', 'e', 'm', 'a', '_', 'v', 'e',
 // ExpectedVersion is the schema version this binary understands. Stores below
 // this are migrated up on open; stores above this are refused (FR-015/R9 — no
 // silent misread, no auto-downgrade). Bump this when adding a new migration.
-const ExpectedVersion uint64 = 1
+const ExpectedVersion uint64 = 2
 
 // Migration is a single, idempotent schema transform over the Pebble store.
 type Migration struct {
@@ -36,6 +36,7 @@ type Migration struct {
 // per-step fsync, per research R8; no backup copy is required).
 var defaultMigrations = []Migration{
 	{Version: 1, Description: "introduce schema-version key (v0→v1 bootstrap)", Up: v1Bootstrap},
+	{Version: 2, Description: "backfill per-chunk ContentHash sidecar (spec 043 / BL-010)", Up: v2ContentHash},
 }
 
 // Run applies every migration in ms whose Version is greater than the store's

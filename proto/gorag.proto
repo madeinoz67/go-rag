@@ -256,6 +256,22 @@ message DocumentEvent {
   string            cursor       = 4; // opaque; persist + pass on reconnect
   DocumentMeta      after        = 5; // INGESTED/EMBEDDED: the document version
   int64             timestamp_ms = 6;
+  // spec 043 / BL-010: the per-chunk delta. Present only on RE_INGESTED events
+  // (empty for INGESTED/EMBEDDED/DELETED). Consumers use prev_chunk_id of
+  // UNCHANGED/REMOVED entries to remap stored chunk_id references.
+  repeated ChunkDelta chunk_deltas = 7;
+}
+
+// ChunkDelta is one chunk's change in a RE_INGESTED event (spec 043 / BL-010).
+message ChunkDelta {
+  enum ChangeType {
+    ADDED     = 0; // new-version chunk with no content-match in the old
+    REMOVED   = 1; // old-version chunk with no content-match in the new
+    UNCHANGED = 2; // content-match; prev_chunk_id -> chunk_id is the remap
+  }
+  ChangeType change_type   = 1;
+  string     chunk_id      = 2; // the NEW chunk's id (ADDED + UNCHANGED)
+  string     prev_chunk_id = 3; // the OLD chunk's id (UNCHANGED + REMOVED)
 }
 
 // Chunk is the transport projection of model.Chunk for a point fetch (spec 035).

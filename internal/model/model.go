@@ -126,6 +126,12 @@ type Chunk struct {
 	// QueryHit across every transport.
 	ExtractionMethod  string  `json:"extraction_method,omitempty"`
 	ExtractionQuality float64 `json:"extraction_quality,omitempty"`
+	// ContentHash is SHA-256 of the chunk's REDACTED text (spec 043 / BL-010) —
+	// a non-identity sidecar (like ExtractionQuality): GenerateID folds
+	// text+mime+{doc,idx} only, so this never enters identity. A COMPARISON key
+	// for re-ingest diffing (NOT a storage key); cross-doc collisions are
+	// harmless (the diff is per-doc). Backfilled by the v2 migration.
+	ContentHash string `json:"content_hash,omitempty"`
 	// Wikilinks are the Obsidian [[wikilink]] targets whose link text falls
 	// inside this chunk's text range (spec 036 / BL-004), canonicalised by the
 	// reader's linkTarget (alias "|" and anchor "#heading"/"#^blockid" stripped;
