@@ -120,6 +120,38 @@ func toEventProto(ev events.DocumentEvent) *goragpb.DocumentEvent {
 		Cursor:      events.EncodeCursor(ev.Seq),
 		After:       toDocumentMetaPB(ev.After, model.Source{}),
 		TimestampMs: ev.TimestampMs,
+		ChunkDeltas: toChunkDeltasPB(ev.Deltas), // spec 043 / BL-010
+	}
+}
+
+// toChunkDeltasPB projects the internal ChunkDelta slice to the proto. nil/empty
+// → nil (the field is absent on non-RE_INGESTED events).
+func toChunkDeltasPB(deltas []events.ChunkDelta) []*goragpb.ChunkDelta {
+	if len(deltas) == 0 {
+		return nil
+	}
+	out := make([]*goragpb.ChunkDelta, len(deltas))
+	for i, d := range deltas {
+		out[i] = &goragpb.ChunkDelta{
+			ChangeType:  toChangeTypePB(d.Change),
+			ChunkId:     d.NewChunkID,
+			PrevChunkId: d.PrevChunkID,
+		}
+	}
+	return out
+}
+
+// toChangeTypePB maps the internal ChunkChange to the proto ChunkDelta.ChangeType.
+func toChangeTypePB(c events.ChunkChange) goragpb.ChunkDelta_ChangeType {
+	switch c {
+	case events.ChangeAdded:
+		return goragpb.ChunkDelta_ADDED
+	case events.ChangeRemoved:
+		return goragpb.ChunkDelta_REMOVED
+	case events.ChangeUnchanged:
+		return goragpb.ChunkDelta_UNCHANGED
+	default:
+		return goragpb.ChunkDelta_ADDED
 	}
 }
 

@@ -90,3 +90,18 @@ func (p *Pipeline) DeleteDoc(docID string) error {
 	}
 	return nil
 }
+
+// chunksOfDoc returns the chunk records belonging to docID (read-only — used by
+// the re-ingest delta, spec 043 / BL-010, to capture the old chunk set before
+// DeleteDoc). Mirrors DeleteDoc's PrefixChunk scan but does not mutate.
+func (p *Pipeline) chunksOfDoc(docID string) []model.Chunk {
+	var chunks []model.Chunk
+	_ = p.db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
+		var c model.Chunk
+		if json.Unmarshal(val, &c) == nil && c.DocumentID == docID {
+			chunks = append(chunks, c)
+		}
+		return true
+	})
+	return chunks
+}

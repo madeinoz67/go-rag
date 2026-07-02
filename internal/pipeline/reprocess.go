@@ -22,6 +22,7 @@ func (p *Pipeline) Reprocess(ctx context.Context, root, glob string) (Result, er
 		if !isUnder(path, root) {
 			return true
 		}
+		p.captureReingest(path, string(val)) // spec 043 / BL-010: capture old chunks before delete
 		_ = p.DeleteDoc(string(val))
 		return true
 	})
@@ -37,10 +38,11 @@ func (p *Pipeline) ReprocessAll(ctx context.Context) (Result, error) {
 	type entry struct{ path, docID string }
 	var entries []entry
 	_ = p.db.PrefixScanByte(storage.PrefixPathDoc, func(key, val []byte) bool {
-		entries = append(entries, entry{path: string(key[1:]), docID: string(val)})
+		entries = append(entries, entry{path: filepath.Clean(string(key[1:])), docID: string(val)})
 		return true
 	})
 	for _, e := range entries {
+		p.captureReingest(e.path, e.docID) // spec 043 / BL-010
 		_ = p.DeleteDoc(e.docID)
 	}
 	// Suppress per-file Ingest progress; ReprocessAll renders one bar across all files.

@@ -64,7 +64,11 @@ type Pipeline struct {
 
 	queue chan job
 	wg    sync.WaitGroup
-	mu    sync.Mutex // guards markStatus read-modify-write
+	mu    sync.Mutex // guards markStatus read-modify-write + reingest map
+	// spec 043 / BL-010: old chunks captured per-path by Reprocess BEFORE DeleteDoc,
+	// consumed by processFile to emit RE_INGESTED (replacing INGESTED). Transient —
+	// empty outside a re-ingest run (Reprocess precedes Ingest sequentially).
+	reingest map[string][]model.Chunk
 
 	// OnProgress, if non-nil, is called after each file is processed during
 	// Ingest/Reprocess/ReprocessAll (enables a CLI progress bar).
@@ -239,6 +243,9 @@ func (p *Pipeline) countFiles(root, glob string) int {
 // processFile reads, dedups by content hash, chunks, stores synchronously, then
 // enqueues chunks for async embedding+indexing. Returns NEW/SKIPPED/ERROR.
 func (p *Pipeline) processFile(ctx context.Context, path string) (string, error) {
+	// spec 043 / BL-010: consume the re-ingest capture early so the map entry is
+	// drained even if processFile returns early (SKIPPED/UNSUPPORTED/ERROR).
+	oldChunks, isReingest := p.takeReingest(path)
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return "ERROR", err
@@ -385,12 +392,18 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	if err := p.storeDocument(doc, chunks, ch); err != nil {
 		return "ERROR", err
 	}
-	// spec 040 / BL-008: publish INGESTED after the durable commit and before
-	// the async queue push. The doc record (status=pending) is fsync'd, so the
-	// event's `after` projection is the committed state. Publish is non-blocking
-	// (T004) — never enters the ACK path. SourcePath is the ingest input path
-	// (the event has no Source record — consistent with ListDocuments).
-	if p.OnEvent != nil {
+	// spec 040 / BL-008 + spec 043 / BL-010: publish the lifecycle event after
+	// the durable commit + before the async queue push. A re-ingest (old chunks
+	// were captured before delete) emits RE_INGESTED with the chunk delta,
+	// replacing the INGESTED+DELETED pair; a first ingest emits INGESTED. The doc
+	// record (status=pending) is fsync'd; Publish is non-blocking (never enters
+	// the ACK path). SourcePath is the ingest input path.
+	if isReingest {
+		deltas, _ := diffChunks(oldChunks, chunks)
+		if p.OnEvent != nil {
+			p.OnEvent(events.DocumentEvent{Type: events.EventReingested, DocumentID: docID, SourcePath: path, After: doc, Deltas: deltas})
+		}
+	} else if p.OnEvent != nil {
 		p.OnEvent(events.DocumentEvent{Type: events.EventIngested, DocumentID: docID, SourcePath: path, After: doc})
 	}
 	// spec 030: notify the background embedder that work is queued (near-immediate
