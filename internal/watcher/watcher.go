@@ -93,8 +93,7 @@ func (cd *ChangeDetector) ScanOnce(ctx context.Context, root, glob string) ([]Ch
 			cd.ingest(ctx, path)
 			changes = append(changes, Change{Path: path, Kind: "NEW"})
 		case tr.hash != h:
-			_ = cd.pl.DeleteDoc(tr.docID)
-			cd.ingest(ctx, path)
+			_ = cd.pl.ReingestPath(ctx, path, tr.docID) // spec 043 / BL-010: capture + delete + re-ingest -> RE_INGESTED
 			changes = append(changes, Change{Path: path, Kind: "MODIFIED"})
 		default:
 			changes = append(changes, Change{Path: path, Kind: "SKIPPED"})

@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"path/filepath"
 
 	"github.com/madeinoz67/go-rag/internal/model"
@@ -42,4 +43,16 @@ func (p *Pipeline) takeReingest(path string) ([]model.Chunk, bool) {
 		delete(p.reingest, key)
 	}
 	return old, ok
+}
+
+// ReingestPath captures the old chunks, deletes the old doc, and re-ingests — the
+// single-file re-ingest path (spec 043 / BL-010). Used by the watcher for
+// MODIFIED files. Emits RE_INGESTED (with the delta) instead of INGESTED+DELETED.
+func (p *Pipeline) ReingestPath(ctx context.Context, path, docID string) error {
+	p.captureReingest(path, docID)
+	if err := p.DeleteDoc(docID); err != nil {
+		return err
+	}
+	_, err := p.Ingest(ctx, path, "*")
+	return err
 }
