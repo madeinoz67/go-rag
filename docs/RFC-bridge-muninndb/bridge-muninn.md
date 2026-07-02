@@ -233,6 +233,8 @@ Translates a `model.Chunk` and its parent `model.DocumentMeta` into a `RememberI
 |---|---|---|
 | `concept` | Concept extractor | See above |
 | `content` | `chunk.Content` | Raw chunk text |
+| `embedding` | `nil` | **Invariant (2026-06-30 review)** — go-rag sends NO vector; MuninnDB embeds via its own pipeline (a second vector would double storage + diverge from MuninnDB's model) |
+| `stability` | `30.0` | Fixed (maintainer invariant) — the Ebbinghaus anchor for promoted knowledge |
 | `idempotency_key` | `"chunk:" + chunk.ChunkID` | Scoped to vault |
 | `write_mode` | `UPSERT` | Requires MB-003 |
 | `tags[0]` | `"go-rag"` | Fixed provenance tag |
@@ -254,6 +256,8 @@ Translates a `model.Chunk` and its parent `model.DocumentMeta` into a `RememberI
 | `metadata["sync_mode"]` | `"change_event"` · `"on_query"` · `"full_sync"` | Audit trail |
 
 Tags are additive on re-promotion — the mapper does not remove tags MuninnDB may have assigned between syncs.
+
+**Hebbian edge weights (maintainer guidance, 2026-06-30 review):** explicit wikilink/backlink edges (`writeWikilinkEdges` → `Link`) are written at **0.6–0.8**; on-query co-retrieval edges (the on-query hook) are written at **0.1–0.2**. The asymmetry reflects that wikilinks are editorial intent (strong) while co-retrieval is a weak correlation signal.
 
 **Sub-chunking for oversized content**: if `len(chunk.Content) > caps.MaxEngramContentBytes`, the mapper splits at the sentence boundary nearest to the limit. Sub-chunks share the parent concept with `[a]`, `[b]`, `[c]` suffixes appended to the position indicator. Both sub-chunk engram IDs are stored under the parent `chunk_id` in the `0x21` state store.
 
@@ -358,6 +362,8 @@ Standard protobuf-over-HTTP/2. All management operations (`GetServerCapabilities
 Proto stubs live at `proto/muninn/muninn.proto` and are compiled into go-rag as a client stub only — go-rag never serves MuninnDB RPCs.
 
 ### MBP (opt-in, `:8474`)
+
+> **Deferred (2026-06-30 maintainer review):** gRPC is the v1 transport. MBP is **deferred until MuninnDB publishes its frame types as a public package** — until then `transport: "grpc"` is the only supported value. The design below is the intended future path, retained for when frame types land.
 
 MuninnDB's native binary protocol with pipelining support. When `bridge.muninn.transport = "mbp"` is set, write-path operations (`BatchRemember`, `BatchPatch`) use MBP. All other operations remain on gRPC.
 
@@ -566,11 +572,11 @@ The bridge does not fail on missing capabilities; it degrades. The patterns that
 
 **Q2**: What is MuninnDB's current maximum content size per engram? This determines whether sub-chunking is needed in practice, and what the typical split rate will be for PDF-heavy vaults.
 
-**Q3**: When `UPSERT` updates an existing engram, does it reset the `access_count` or accumulate it? The bridge assumes accumulation (re-promotion counts as an access for Hebbian weight purposes).
+**Q3**: When `UPSERT` updates an existing engram, does it reset the `access_count` or accumulate it? The bridge assumes accumulation (re-promotion counts as an access for Hebbian weight purposes). **→ raised upstream in [#556](https://github.com/scrypster/muninndb/issues/556) (2026-06-30); awaiting maintainer.**
 
 **Q4**: The on-query hook fires on every query, including queries that return no relevant results. Should it only fire when at least one result exceeds `score_threshold`? Current design: yes, threshold-filtered, so zero-result queries produce zero promotions regardless.
 
-**Q5**: `FindByMetadata` requires a secondary index on `metadata["chunk_id"]` in MuninnDB's Pebble store to be viable at scale. Without the index, idempotency fallback (layer 2 without MB-003) degrades to a full vault scan. The bridge should detect this and warn if `FindByMetadata` is slow.
+**Q5**: `FindByMetadata` requires a secondary index on `metadata["chunk_id"]` in MuninnDB's Pebble store to be viable at scale. Without the index, idempotency fallback (layer 2 without MB-003) degrades to a full vault scan. The bridge should detect this and warn if `FindByMetadata` is slow. **→ tracked as MB-002 (❓ availability unconfirmed in the 2026-06-30 review); bridge idempotency fallback depends on it.**
 
 ---
 

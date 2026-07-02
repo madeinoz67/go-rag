@@ -106,10 +106,14 @@ The bridge splits cleanly. Neither blocks the other.
 
 ## 7. Next actions (ordered)
 
-1. **[ours]** Pick the Stream A entry. Recommendation: **BL-001 (`035-get-chunk-rpc`)** — already specified, unblocked, the reverse-lookup primitive every pattern needs. Run `/speckit-plan` to unblock `/speckit-tasks`.
-2. **[ours → upstream]** ✅ DONE 2026-06-30 — #556 proto comment posted (v2: `draft-issue-556-upsert-v2.md`). Next: await maintainer response; proceed with Stream A (BL-001) in parallel.
-3. **[ours, later]** BL-004 → BL-005/006 → wire the wikilink → `Link` pipeline (the maintainer's priority pick).
-4. **[RFC]** When ready, apply the §6 stale-list edits to `bridge-muninn.md` and the two backlogs.
+> **Update 2026-07-02: Phase 1 is complete.** BL-001/002/003 (`GetChunk` / `GetChunkContext` / `BatchGetChunks`, specs 035/037/038), BL-004 (Wikilinks, spec 036), BL-005 (`section_depth`, spec 041), and BL-006 (`extraction_quality`, spec 042) all shipped to `main`. The original items below are retained for history.
+
+1. ✅ **[ours] DONE** — Stream A Phase 1 complete (BL-001 through BL-006; specs 035/036/037/038/041/042).
+2. **[ours → upstream]** ✅ DONE 2026-06-30 — #556 proto comment posted (v2: `draft-issue-556-upsert-v2.md`). **Still awaiting maintainer response** (blocked behind [#560](https://github.com/scrypster/muninndb/issues/560)).
+3. ✅ **[ours] DONE** — BL-004/005/006 (the wikilink → `Link` pipeline inputs) all shipped. The Hebbian-edge wiring itself is bridge-consumer work (the `go-rag-muninn-bridge` repo), now unblocked by go-rag's Phase 1 surface.
+4. **[RFC]** ✅ Applied 2026-07-02 — the §6 stale-list diff applied to `bridge-muninn.md` (mapper `stability: 30.0` + `embedding: nil` invariant, Hebbian weights 0.6–0.8 / 0.1–0.2, MBP deferral, Q3/Q5 upstream annotations). `muninndb-bridge-backlog.md` already reflects post-review SHIPPED status.
+
+**Next:** Phase 2 (BL-010 `RE_INGESTED` deltas, BL-011 REST webhook, BL-013 `RecordUsage`) or the v1.0.0 release tag.
 
 ---
 
