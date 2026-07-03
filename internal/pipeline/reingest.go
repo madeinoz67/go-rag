@@ -59,8 +59,10 @@ func (p *Pipeline) takeReingest(path string) (reingestCapture, bool) {
 // re-ingests — the single-file re-ingest path (spec 043 / BL-010). Used by the
 // watcher for MODIFIED files.
 func (p *Pipeline) ReingestPath(ctx context.Context, path, docID string) error {
+	unlock := p.docLock(docID) // spec 044: serialize the full capture+delete+ingest critical section
+	defer unlock()
 	p.captureReingest(path, docID)
-	if err := p.DeleteDoc(docID); err != nil {
+	if err := p.deleteDocLocked(docID); err != nil { // already holding the docLock
 		return err
 	}
 	_, err := p.Ingest(ctx, path, "*")

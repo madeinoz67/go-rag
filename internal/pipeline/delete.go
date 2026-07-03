@@ -15,6 +15,15 @@ import (
 // is live, not rebuilt per query, so deletes must update it in place or the next
 // query would serve phantom hits.
 func (p *Pipeline) DeleteDoc(docID string) error {
+	unlock := p.docLock(docID) // spec 044: serialize same-docID operations
+	defer unlock()
+	return p.deleteDocLocked(docID)
+}
+
+// deleteDocLocked is the DeleteDoc body without the docLock. Callers that
+// already hold the docLock (Reprocess, ReprocessAll, ReingestPath) call
+// this directly to avoid the non-reentrant deadlock.
+func (p *Pipeline) deleteDocLocked(docID string) error {
 	db := p.db
 	// Save chunkID + content during the scan — the Pebble-backed FTS.Delete
 	// needs the content to re-tokenize (recover terms for key construction).

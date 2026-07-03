@@ -70,6 +70,8 @@ type Pipeline struct {
 	// empty outside a re-ingest run (Reprocess precedes Ingest sequentially).
 	reingest     map[string]reingestCapture
 	reingestDocs map[string]bool // spec 043 / BL-010 FR-005: docIDs being re-ingested (suppress DeleteDoc's DELETED)
+	docLocks     sync.Map        // spec 044: docID → *sync.Mutex — per-document serialization
+	done         chan struct{}   // spec 044: closed in Close() to release parked detached senders
 
 	// OnProgress, if non-nil, is called after each file is processed during
 	// Ingest/Reprocess/ReprocessAll (enables a CLI progress bar).
@@ -117,6 +119,18 @@ func (p *Pipeline) indexChanged() {
 // drain pending work before exit. pre is the instruction-prefix resolver (audit
 // H07); pass a no-op prefixer (e.g. from Config.Prefixer()) so documents are
 // embedded with the model's document-role prefix. nil disables prefixing.
+// docLock (spec 044) acquires the per-document mutex for docID and returns an
+// unlock closure. Serializes same-docID operations (DeleteDoc, ReingestPath,
+// Reprocess) so the reingestDocs suppression flag can't be consumed by the
+// wrong DeleteDoc. Lock ordering: docLock is ALWAYS outermost (docLock →
+// p.mu → bus.mu). Close does NOT take doc-locks → no deadlock.
+func (p *Pipeline) docLock(docID string) func() {
+	actual, _ := p.docLocks.LoadOrStore(docID, &sync.Mutex{})
+	mu := actual.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
 func New(db *storage.DB, sp *chunk.Splitter, em embed.Embedder, fts *index.FTS, vec *index.Vector, pre *embed.Prefixer) *Pipeline {
 	p := &Pipeline{
 		db:       db,
@@ -126,6 +140,7 @@ func New(db *storage.DB, sp *chunk.Splitter, em embed.Embedder, fts *index.FTS, 
 		fts:      fts,
 		vec:      vec,
 		queue:    make(chan job, 64),
+		done:     make(chan struct{}),
 	}
 	const numWorkers = 2
 	for i := 0; i < numWorkers; i++ {
@@ -162,6 +177,7 @@ func (p *Pipeline) SetCaptioner(c caption.Captioner) { p.captioner = c }
 
 // Close drains the async queue and stops workers.
 func (p *Pipeline) Close() {
+	close(p.done) // spec 044: release parked detached-sender goroutines first
 	close(p.queue)
 	p.wg.Wait()
 }
@@ -429,7 +445,20 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	}
 
 	// Async FTS index + near-dup + enrich after the ACK (embed is now the embedder's job).
-	p.queue <- job{docID: docID, chunks: chunks, images: images, mimeType: mimeType(ext), spans: spans, pageOffsets: pageOffsets}
+	// spec 044: non-blocking queue push — never block the ACK path (the caller
+	// may hold a doc-lock). A full queue spawns a detached sender that parks
+	// on the send until a worker drains. Zero job loss (the goroutine delivers
+	// it); the embedder reads 0x14 independently.
+	select {
+	case p.queue <- job{docID: docID, chunks: chunks, images: images, mimeType: mimeType(ext), spans: spans, pageOffsets: pageOffsets}:
+	default:
+		go func(j job) {
+			select {
+			case p.queue <- j:
+			case <-p.done:
+			}
+		}(job{docID: docID, chunks: chunks, images: images, mimeType: mimeType(ext), spans: spans, pageOffsets: pageOffsets})
+	}
 	return "NEW", nil
 }
 

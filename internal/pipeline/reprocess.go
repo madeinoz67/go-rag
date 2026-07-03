@@ -22,8 +22,10 @@ func (p *Pipeline) Reprocess(ctx context.Context, root, glob string) (Result, er
 		if !isUnder(path, root) {
 			return true
 		}
+		unlock := p.docLock(string(val))     // spec 044: per-doc serialization
 		p.captureReingest(path, string(val)) // spec 043 / BL-010: capture old chunks before delete
-		_ = p.DeleteDoc(string(val))
+		_ = p.deleteDocLocked(string(val))   // already holding the docLock
+		unlock()
 		return true
 	})
 	// Re-ingest: with the old content-hash entries gone, unchanged files are
@@ -42,8 +44,10 @@ func (p *Pipeline) ReprocessAll(ctx context.Context) (Result, error) {
 		return true
 	})
 	for _, e := range entries {
+		unlock := p.docLock(e.docID)       // spec 044: per-doc serialization
 		p.captureReingest(e.path, e.docID) // spec 043 / BL-010
-		_ = p.DeleteDoc(e.docID)
+		_ = p.deleteDocLocked(e.docID)     // already holding the docLock
+		unlock()
 	}
 	// Suppress per-file Ingest progress; ReprocessAll renders one bar across all files.
 	saved := p.OnProgress
