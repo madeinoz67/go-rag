@@ -32,7 +32,7 @@ description: "Task list for spec 044 — Engine Write-Operation Serialization"
 
 **Purpose**: confirm a green baseline. No new deps (stdlib `sync` only).
 
-- [ ] T001 Verify baseline `make build && make vet && make test` is green on `main` before starting.
+- [x] T001 Verify baseline `make build && make vet && make test` is green on `main` before starting.
 
 ---
 
@@ -40,7 +40,7 @@ description: "Task list for spec 044 — Engine Write-Operation Serialization"
 
 **Purpose**: the `docLocks` map + the `docLock` helper that both stories depend on. **No story work begins until this phase is green.**
 
-- [ ] T002 Add the `docLocks sync.Map` field to the Pipeline struct + a `docLock(docID string) func()` helper that `LoadOrStore`s a `*sync.Mutex`, locks it, and returns an unlock closure (`internal/pipeline/pipeline.go`). [Constitution: pure stdlib, no CGo]
+- [x] T002 Add the `docLocks sync.Map` field to the Pipeline struct + a `docLock(docID string) func()` helper that `LoadOrStore`s a `*sync.Mutex`, locks it, and returns an unlock closure (`internal/pipeline/pipeline.go`). [Constitution: pure stdlib, no CGo]
 
 **Checkpoint**: the docLock primitive exists + compiles. Story work can begin.
 
@@ -54,11 +54,11 @@ description: "Task list for spec 044 — Engine Write-Operation Serialization"
 
 ### Implementation for User Story 2
 
-- [ ] T003 [US2] Replace the bare `p.queue <- job{...}` at the end of `processFile` with `select { case p.queue <- job{...}: default: go func(j job) { p.queue <- j }(job{...}) }` (`internal/pipeline/pipeline.go`). The detached goroutine parks on the blocking send; the caller returns immediately. [research R3; FR-002, FR-007]
+- [x] T003 [US2] Replace the bare `p.queue <- job{...}` at the end of `processFile` with `select { case p.queue <- job{...}: default: go func(j job) { p.queue <- j }(job{...}) }` (`internal/pipeline/pipeline.go`). The detached goroutine parks on the blocking send; the caller returns immediately. [research R3; FR-002, FR-007]
 
 ### Tests for User Story 2
 
-- [ ] T004 [US2] Test: fill the cap-64 queue (ingest 65+ docs without workers draining, or pre-fill the channel), then call `processFile`; assert it returns within the normal ACK latency (<10ms, Principle IV). The job lands in the queue via the detached goroutine. Run under `-race`. (`internal/pipeline/serialization_test.go`) [quickstart Scenario 2; SC-002]
+- [x] T004 [US2] Test: fill the cap-64 queue (ingest 65+ docs without workers draining, or pre-fill the channel), then call `processFile`; assert it returns within the normal ACK latency (<10ms, Principle IV). The job lands in the queue via the detached goroutine. Run under `-race`. (`internal/pipeline/serialization_test.go`) [quickstart Scenario 2; SC-002]
 
 **Checkpoint**: `processFile` never blocks on a full queue. US1 can proceed safely.
 
@@ -72,13 +72,13 @@ description: "Task list for spec 044 — Engine Write-Operation Serialization"
 
 ### Implementation for User Story 1
 
-- [ ] T005 [P] [US1] Acquire the docLock in `DeleteDoc` for the entire body — so any concurrent reingest's `DeleteDoc` waits (`internal/pipeline/delete.go`). Lock ordering: `docLock → p.mu` (DeleteDoc takes docLock first, then its existing `p.mu.Lock()`). [FR-001, FR-004, FR-008]
-- [ ] T006 [US1] Acquire the docLock in `ReingestPath` across the full critical section (`captureReingest + DeleteDoc + Ingest`) (`internal/pipeline/reingest.go`). The non-blocking push (T003) ensures `Ingest → processFile` never stalls under the lock. [FR-003]
-- [ ] T007 [US1] Acquire the docLock in `Reprocess`/`ReprocessAll` around the `captureReingest + DeleteDoc` pair inside the scan loop (`internal/pipeline/reprocess.go`). The lock covers capture+delete per-docID; the Ingest is batched after the loop. [FR-001]
+- [x] T005 [P] [US1] Acquire the docLock in `DeleteDoc` for the entire body — so any concurrent reingest's `DeleteDoc` waits (`internal/pipeline/delete.go`). Lock ordering: `docLock → p.mu` (DeleteDoc takes docLock first, then its existing `p.mu.Lock()`). [FR-001, FR-004, FR-008]
+- [x] T006 [US1] Acquire the docLock in `ReingestPath` across the full critical section (`captureReingest + DeleteDoc + Ingest`) (`internal/pipeline/reingest.go`). The non-blocking push (T003) ensures `Ingest → processFile` never stalls under the lock. [FR-003]
+- [x] T007 [US1] Acquire the docLock in `Reprocess`/`ReprocessAll` around the `captureReingest + DeleteDoc` pair inside the scan loop (`internal/pipeline/reprocess.go`). The lock covers capture+delete per-docID; the Ingest is batched after the loop. [FR-001]
 
 ### Tests for User Story 1
 
-- [ ] T008 [US1] Test: two concurrent goroutines on the same docID (one `Reprocess`, one `DeleteDoc`) — assert exactly one event fires (no DELETED + RE_INGESTED double). Also: two concurrent `Reprocess` calls on the same doc — one emits RE_INGESTED, the other no-ops or INGESTED. Run under `-race`. (`internal/pipeline/serialization_test.go`) [quickstart Scenario 1; SC-001]
+- [x] T008 [US1] Test: two concurrent goroutines on the same docID (one `Reprocess`, one `DeleteDoc`) — assert exactly one event fires (no DELETED + RE_INGESTED double). Also: two concurrent `Reprocess` calls on the same doc — one emits RE_INGESTED, the other no-ops or INGESTED. Run under `-race`. (`internal/pipeline/serialization_test.go`) [quickstart Scenario 1; SC-001]
 
 **Checkpoint**: the concurrent-DeleteDoc race is closed; distinct-docID concurrency preserved.
 
@@ -86,7 +86,7 @@ description: "Task list for spec 044 — Engine Write-Operation Serialization"
 
 ## Phase 5: Polish & Cross-Cutting
 
-- [ ] T009 Run `make lint` (golangci-lint) + `go test -race ./...` full repo green; confirm the existing `TestConcurrent_AddQuery_NoCorruption` still passes (distinct-doc concurrency preserved, SC-004); affirm constitution compliance in the commit (pure stdlib, no migration, no proto, lock ordering acyclic, Close never contends).
+- [x] T009 Run `make lint` (golangci-lint) + `go test -race ./...` full repo green; confirm the existing `TestConcurrent_AddQuery_NoCorruption` still passes (distinct-doc concurrency preserved, SC-004); affirm constitution compliance in the commit (pure stdlib, no migration, no proto, lock ordering acyclic, Close never contends).
 
 ---
 
