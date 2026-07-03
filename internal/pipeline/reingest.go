@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 
+	"github.com/madeinoz67/go-rag/internal/events"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
 )
@@ -89,4 +90,26 @@ func (p *Pipeline) preserveEmbeds(oldEmbeds map[string][]byte, remap map[string]
 		// Copy the PrefixEmbedding record (includes the vector JSON) to the new cid.
 		_ = p.db.SetWithPrefix(storage.PrefixEmbedding, []byte(newCID), raw)
 	}
+}
+
+// reingestEarlyReturn emits a RE_INGESTED with all-REMOVED deltas when a
+// re-ingest's processFile returns early (SKIPPED/UNSUPPORTED/ERROR). The old
+// doc was already deleted by DeleteDoc (with DELETED suppressed via
+// reingestDocs), so without this the doc silently vanishes from a WatchDocuments
+// consumer's mirror. The old chunks (captured before delete) are all REMOVED
+// (no new chunks were created). (spec 043 adversarial-review finding.)
+func (p *Pipeline) reingestEarlyReturn(capture reingestCapture, path string) {
+	if len(capture.chunks) == 0 || p.OnEvent == nil {
+		return
+	}
+	deltas := make([]events.ChunkDelta, len(capture.chunks))
+	for i, c := range capture.chunks {
+		deltas[i] = events.ChunkDelta{Change: events.ChangeRemoved, PrevChunkID: c.ID}
+	}
+	p.OnEvent(events.DocumentEvent{
+		Type:       events.EventReingested,
+		DocumentID: capture.chunks[0].DocumentID,
+		SourcePath: path,
+		Deltas:     deltas,
+	})
 }

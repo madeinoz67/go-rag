@@ -249,22 +249,34 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	oldCapture, isReingest := p.takeReingest(path)
 	raw, err := os.ReadFile(path)
 	if err != nil {
+		if isReingest {
+			p.reingestEarlyReturn(oldCapture, path)
+		}
 		return "ERROR", err
 	}
 	ch := model.ContentHash(raw)
 
 	// Idempotent dedup: content hash already ingested -> skip (Principle II).
 	if _, ok, _ := p.db.GetWithPrefix(storage.PrefixContentHash, []byte(ch)); ok {
+		if isReingest {
+			p.reingestEarlyReturn(oldCapture, path)
+		}
 		return "SKIPPED", nil
 	}
 
 	ext := strings.ToLower(filepath.Ext(path))
 	rd, ok := reader.Get(ext)
 	if !ok {
+		if isReingest {
+			p.reingestEarlyReturn(oldCapture, path)
+		}
 		return "UNSUPPORTED", nil // no reader for this file type — skip, not an error
 	}
 	content, metadata, err := rd.Read(ctx, raw, path)
 	if err != nil {
+		if isReingest {
+			p.reingestEarlyReturn(oldCapture, path)
+		}
 		return "ERROR", err
 	}
 
