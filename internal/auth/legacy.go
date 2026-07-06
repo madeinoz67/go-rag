@@ -64,11 +64,16 @@ func importLegacyTokenValue(s *Store, tok, label string) (bool, error) {
 		return false, nil
 	}
 	hash := hash16([]byte(tok))
+	// Spec 045 red-team (MED): stamp a finite expiry so a leaked pre-upgrade
+	// mcp.token sunsets automatically instead of authenticating as admin
+	// forever. 90 days gives scripts time to migrate to a gorag_ key.
+	expiry := time.Now().UTC().Add(90 * 24 * time.Hour)
 	key := APIKey{
 		ID:          apikeyPrefix + id8([]byte(tok)),
 		Label:       label,
 		Mode:        ModeAdmin,
 		CreatedAt:   time.Now().UTC(),
+		ExpiresAt:   &expiry,
 		Enabled:     true,
 		StorageHash: hash,
 	}

@@ -155,8 +155,8 @@ func TestAuth_SessionList_AdminOnly(t *testing.T) {
 		t.Fatalf("GET session (read key): %v", err)
 	}
 	resp.Body.Close()
-	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("read-key session list status = %d, want 403", resp.StatusCode)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("read-key session list status = %d, want 401 (collapsed, no key-validity oracle)", resp.StatusCode)
 	}
 
 	// An admin API key reaches it.

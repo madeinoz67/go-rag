@@ -91,8 +91,11 @@ func sessionSecretBytes(bearer string) ([]byte, error) {
 
 // ValidateSession resolves a presented bearer to its stored Session. A Get hit
 // on SHA-256(token)[:16] IS the match — no token-string comparison. Expired
-// sessions return ErrUnknownSession (lazy expiry — the record is left in place
-// for the audit trail; a future sweeper can reap it).
+// sessions are eagerly deleted (collapsing expired into absent so the two are
+// not timing-distinguishable, spec 045 red-team finding LOW). The LastSeen
+// bump is serialized against RevokeSession/RevokeSessionByHash with a re-Get
+// under the lock so a concurrent revoke cannot be clobbered (HIGH — would
+// resurrect the revoked session on the next validate).
 func ValidateSession(s *Store, bearer string) (Session, error) {
 	secret, err := sessionSecretBytes(bearer)
 	if err != nil {
@@ -108,20 +111,41 @@ func ValidateSession(s *Store, bearer string) (Session, error) {
 		return Session{}, ErrUnknownSession
 	}
 	if time.Now().UTC().After(sess.ExpiresAt) {
+		// Eager expiry: collapse expired into absent (reaped now, not later).
+		_ = s.db.DeleteWithPrefix(storage.PrefixAuthSession, tokenHash)
 		return Session{}, ErrUnknownSession
 	}
-	// Best-effort last-seen bump: never fail a valid session on a write error.
-	sess.LastSeen = time.Now().UTC()
-	if b, mErr := json.Marshal(sess); mErr == nil {
+
+	// LastSeen bump — serialized against revoke; re-Get under the lock so a
+	// RevokeSession/RevokeSessionByHash that landed between the read above and
+	// here is observed (bail without writing back, which would resurrect it).
+	now := time.Now().UTC()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	val2, ok2, err2 := s.db.GetWithPrefix(storage.PrefixAuthSession, tokenHash)
+	if err2 != nil || !ok2 {
+		return Session{}, ErrUnknownSession
+	}
+	var fresh Session
+	if json.Unmarshal(val2, &fresh) != nil || time.Now().UTC().After(fresh.ExpiresAt) {
+		_ = s.db.DeleteWithPrefix(storage.PrefixAuthSession, tokenHash)
+		return Session{}, ErrUnknownSession
+	}
+	fresh.LastSeen = now
+	if b, mErr := json.Marshal(fresh); mErr == nil {
 		_ = s.db.SetWithPrefix(storage.PrefixAuthSession, tokenHash, b)
 	}
-	return sess, nil
+	return fresh, nil
 }
 
 // RevokeSessionByHash deletes the session whose TokenHash equals hash (the
 // admin session-revoke path takes a hash, not the raw token). A missing session
-// is a no-op success (idempotent).
+// is a no-op success (idempotent). Serialized against ValidateSession's LastSeen
+// write so the two cannot cross (a validate write-back could otherwise resurrect
+// a just-deleted session).
 func RevokeSessionByHash(s *Store, hash []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.db.DeleteWithPrefix(storage.PrefixAuthSession, hash)
 }
 
@@ -132,6 +156,8 @@ func RevokeSession(s *Store, bearer string) error {
 	if err != nil {
 		return nil // nothing to revoke
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.db.DeleteWithPrefix(storage.PrefixAuthSession, hash16(secret))
 }
 

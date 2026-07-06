@@ -59,11 +59,13 @@ func (s *Server) mountAuth(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/auth/session/{hash}", s.withAdmin(s.handleSessionRevoke))
 }
 
-// withPrincipal wraps a handler that needs an authenticated caller. The
-// Principal is passed to the inner handler. 401 + audit on any failure.
+// withPrincipal wraps a handler that needs an authenticated caller. Uses
+// ValidateStrict (no loopback bypass) — the /api/auth/* management surface
+// requires a real credential even locally. The Principal is passed to the inner
+// handler. 401 + audit on any failure.
 func (s *Server) withPrincipal(h func(http.ResponseWriter, *http.Request, auth.Principal)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		p, err := s.store.Validate(r)
+		p, err := s.store.ValidateStrict(r)
 		if err != nil {
 			audit.Log(audit.AuthFailEvent("rest", "missing or invalid bearer"))
 			writeError(w, http.StatusUnauthorized, "unauthorized")
@@ -74,12 +76,14 @@ func (s *Server) withPrincipal(h func(http.ResponseWriter, *http.Request, auth.P
 }
 
 // withAdmin is withPrincipal plus an admin-mode check (an admin API key or any
-// session — sessions are always admin). Non-admin → 403.
+// session — sessions are always admin). Non-admin collapses to 401, NOT 403,
+// so a probe cannot confirm a candidate credential is recognized-but-low-scope
+// via a status-code oracle (spec 045 red-team finding LOW).
 func (s *Server) withAdmin(h func(http.ResponseWriter, *http.Request, auth.Principal)) http.HandlerFunc {
 	return s.withPrincipal(func(w http.ResponseWriter, r *http.Request, p auth.Principal) {
 		if p.Mode != auth.ModeAdmin {
 			audit.Log(audit.AuthFailEvent("rest", "non-admin attempted admin op"))
-			writeError(w, http.StatusForbidden, "forbidden")
+			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 		h(w, r, p)

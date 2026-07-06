@@ -108,6 +108,14 @@ func (s *Store) ValidateTokenOrBypass(token string, loopback bool) (Principal, e
 	return Principal{}, ErrNoCredential
 }
 
+// ValidateStrict validates the Bearer credential WITHOUT the loopback bypass.
+// Used by the /api/auth/* management surface, where a real credential is
+// required even on loopback (the bypass is for the data API's "local just
+// works", not for administering credentials).
+func (s *Store) ValidateStrict(r *http.Request) (Principal, error) {
+	return s.ValidateToken(bearerFromHeader(r))
+}
+
 // bearerFromHeader extracts the opaque token from the Authorization header
 // (case-insensitive scheme). Returns "" when absent or malformed.
 func bearerFromHeader(r *http.Request) string {

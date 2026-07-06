@@ -38,7 +38,9 @@ type APIKey struct {
 // string. It accepts both the canonical printed form `gorag_<id8>.<secret>`
 // and a bare `gorag_<secret>` (doc.go format). The id8 segment is display-only
 // and never participates in validation, so anything before the final '.' is
-// discarded.
+// discarded. The decoded secret MUST be exactly 32 bytes — the only length
+// CreateAPIKey ever mints — so malformed-shape bearers are rejected at parse
+// before any hash/DB work (spec 045 red-team finding, LOW).
 func secretBytesFromBearer(bearer string) ([]byte, error) {
 	if len(bearer) < len(apikeyPrefix)+1 || bearer[:len(apikeyPrefix)] != apikeyPrefix {
 		return nil, fmt.Errorf("missing %q prefix", apikeyPrefix)
@@ -54,6 +56,9 @@ func secretBytesFromBearer(bearer string) ([]byte, error) {
 	b, err := base64.RawURLEncoding.DecodeString(rest)
 	if err != nil {
 		return nil, fmt.Errorf("bad base64url secret: %w", err)
+	}
+	if len(b) != 32 {
+		return nil, fmt.Errorf("secret must be 32 bytes, got %d", len(b))
 	}
 	return b, nil
 }
@@ -97,33 +102,70 @@ func CreateAPIKey(s *Store, label, mode string, expiresAt *time.Time) (display s
 // ValidateAPIKey resolves a presented bearer to its stored APIKey. A Get hit on
 // SHA-256(secret)[:16] IS the match — there is no secret-string comparison.
 // Returns ErrUnknownAPIKey when the key is absent, disabled, or expired.
+//
+// All failure paths execute equal work (a dummy unmarshal + enabled/expiry
+// checks on the miss path) so an attacker cannot timing-distinguish "no such
+// key" from "disabled" or "expired" (spec 045 red-team finding, LOW). The
+// LastSeen bump is serialized against RevokeAPIKey and re-checked under the
+// lock so a concurrent revoke cannot be clobbered (HIGH — would resurrect the
+// revoked key on the next validate).
 func ValidateAPIKey(s *Store, bearer string) (APIKey, error) {
 	secret, err := secretBytesFromBearer(bearer)
 	if err != nil {
+		padAPIKeyFailure()
 		return APIKey{}, ErrUnknownAPIKey
 	}
 	storageHash := hash16(secret)
 	val, ok, err := s.db.GetWithPrefix(storage.PrefixAuthAPIKey, storageHash)
 	if err != nil || !ok {
+		padAPIKeyFailure()
 		return APIKey{}, ErrUnknownAPIKey
 	}
 	var key APIKey
 	if err := json.Unmarshal(val, &key); err != nil {
 		return APIKey{}, ErrUnknownAPIKey
 	}
-	if !key.Enabled {
+	if !key.Enabled || (key.ExpiresAt != nil && time.Now().UTC().After(*key.ExpiresAt)) {
 		return APIKey{}, ErrUnknownAPIKey
 	}
-	if key.ExpiresAt != nil && time.Now().UTC().After(*key.ExpiresAt) {
+
+	// LastSeen bump — serialized against RevokeAPIKey; re-Get under the lock so a
+	// revoke that landed between the read above and here is observed (bail without
+	// writing back, which would resurrect the key).
+	now := time.Now().UTC()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	val2, ok2, err2 := s.db.GetWithPrefix(storage.PrefixAuthAPIKey, storageHash)
+	if err2 != nil || !ok2 {
 		return APIKey{}, ErrUnknownAPIKey
 	}
-	// Best-effort last-seen bump: never fail a valid login on a write error.
-	key.LastSeen = time.Now().UTC()
-	if b, mErr := json.Marshal(key); mErr == nil {
+	var fresh APIKey
+	if json.Unmarshal(val2, &fresh) != nil ||
+		!fresh.Enabled ||
+		(fresh.ExpiresAt != nil && time.Now().UTC().After(*fresh.ExpiresAt)) {
+		return APIKey{}, ErrUnknownAPIKey
+	}
+	fresh.LastSeen = now
+	if b, mErr := json.Marshal(fresh); mErr == nil {
 		_ = s.db.SetWithPrefix(storage.PrefixAuthAPIKey, storageHash, b)
 	}
-	return key, nil
+	return fresh, nil
 }
+
+// padAPIKeyFailure does the same CPU work a Get-hit-then-disabled/expired path
+// does (unmarshal + enabled/expiry checks) so the Get-miss path is not timing-
+// distinguishable. No functional effect.
+func padAPIKeyFailure() {
+	var k APIKey
+	_ = json.Unmarshal(decoyAPIKeyJSON, &k)
+	_ = k.Enabled
+	if k.ExpiresAt != nil {
+		_ = time.Now().UTC().After(*k.ExpiresAt)
+	}
+}
+
+// decoyAPIKeyJSON is a valid APIKey JSON used only to pad the miss path.
+var decoyAPIKeyJSON = []byte(`{"id":"","label":"","mode":"read","created_at":"2026-01-01T00:00:00Z","enabled":true,"expires_at":"2026-01-02T00:00:00Z","storage_hash":""}`)
 
 // ListAPIKeys returns every stored APIKey (never the raw secret — it is not
 // persisted). Order is Pebble scan order (by storage hash).
@@ -149,6 +191,10 @@ func ListAPIKeys(s *Store) ([]APIKey, error) {
 // SetWithPrefix prepends the prefix again — using the scan key would
 // double-prefix and silently miss the real record.
 func RevokeAPIKey(s *Store, id string) error {
+	// Serialize against ValidateAPIKey's LastSeen write so the two cannot cross
+	// (a validate write-back racing this revoke could resurrect the key).
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	var storageHash []byte
 	var ak APIKey
 	found := false
@@ -186,20 +232,19 @@ func validMode(m string) bool {
 // looked up directly. Returns ErrUnknownAPIKey when absent, disabled, or expired.
 func ValidateAPIKeyRaw(s *Store, rawSecret string) (APIKey, error) {
 	if rawSecret == "" {
+		padAPIKeyFailure()
 		return APIKey{}, ErrUnknownAPIKey
 	}
 	val, ok, err := s.db.GetWithPrefix(storage.PrefixAuthAPIKey, hash16([]byte(rawSecret)))
 	if err != nil || !ok {
+		padAPIKeyFailure()
 		return APIKey{}, ErrUnknownAPIKey
 	}
 	var key APIKey
 	if err := json.Unmarshal(val, &key); err != nil {
 		return APIKey{}, ErrUnknownAPIKey
 	}
-	if !key.Enabled {
-		return APIKey{}, ErrUnknownAPIKey
-	}
-	if key.ExpiresAt != nil && time.Now().UTC().After(*key.ExpiresAt) {
+	if !key.Enabled || (key.ExpiresAt != nil && time.Now().UTC().After(*key.ExpiresAt)) {
 		return APIKey{}, ErrUnknownAPIKey
 	}
 	return key, nil

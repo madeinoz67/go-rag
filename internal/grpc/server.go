@@ -94,14 +94,18 @@ func authInterceptor(store *auth.Store) grpcc.UnaryServerInterceptor {
 // "authorization" or "x-api-key" value (legacy clients); the bare form is then
 // tried via the legacy raw-hash lookup path in ValidateToken.
 func bearerFromGRPCMetadata(ctx context.Context) string {
+	const scheme = "Bearer "
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return ""
 	}
 	if vals := md.Get("authorization"); len(vals) > 0 {
 		v := vals[0]
-		if strings.HasPrefix(v, "Bearer ") {
-			return strings.TrimSpace(v[len("Bearer "):])
+		// Case-insensitive scheme match — aligns with REST/MCP (spec 045 red-team
+		// finding LOW: a lowercase "bearer " was being treated as a bare legacy
+		// value and misrouted to ValidateAPIKeyRaw).
+		if len(v) >= len(scheme) && strings.EqualFold(v[:len(scheme)], scheme) {
+			return strings.TrimSpace(v[len(scheme):])
 		}
 		return v // bare token (legacy)
 	}

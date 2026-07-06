@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func writeTokenFile(t *testing.T, value string) string {
@@ -125,5 +126,29 @@ func TestImportLegacyToken_LegacyRevokeWorks(t *testing.T) {
 	}
 	if _, err := s.ValidateToken("legacy-value"); err != ErrUnknownCredential {
 		t.Fatalf("revoked legacy still authenticates: %v", err)
+	}
+}
+
+// TestImportLegacyToken_StampedExpiry (spec 045 red-team MED): the imported
+// legacy key must carry a finite ExpiresAt (≈90 days) so a leaked pre-upgrade
+// mcp.token sunsets automatically.
+func TestImportLegacyToken_StampedExpiry(t *testing.T) {
+	s := newTestStore(t)
+	path := writeTokenFile(t, "legacy-value")
+	if _, err := ImportLegacyTokenFromFile(s, path, ""); err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	list, _ := ListAPIKeys(s)
+	if len(list) != 1 {
+		t.Fatalf("len = %d", len(list))
+	}
+	if list[0].ExpiresAt == nil {
+		t.Fatal("imported legacy key has no expiry (would authenticate forever)")
+	}
+	if list[0].ExpiresAt.Before(time.Now().UTC().Add(24 * time.Hour)) {
+		t.Fatalf("legacy expiry too soon: %v", list[0].ExpiresAt)
+	}
+	if list[0].ExpiresAt.After(time.Now().UTC().Add(180 * 24 * time.Hour)) {
+		t.Fatalf("legacy expiry too far out (>180d): %v", list[0].ExpiresAt)
 	}
 }

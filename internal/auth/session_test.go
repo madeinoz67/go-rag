@@ -127,3 +127,78 @@ func TestListSessions(t *testing.T) {
 		t.Fatalf("len(list) = %d, want 2", len(list))
 	}
 }
+
+// TestValidateSession_NoResurrectUnderConcurrentRevoke (spec 045 red-team
+// HIGH): a ValidateSession LastSeen write must not resurrect a session a
+// concurrent RevokeSession just deleted. The fix is a per-Store mutex + re-Get
+// under the lock. This stress test hammers both paths; after the revoke
+// goroutine is done + we sync, the session MUST be gone (validate returns
+// ErrUnknownSession). Run with -race to also catch the underlying data race.
+func TestValidateSession_NoResurrectUnderConcurrentRevoke(t *testing.T) {
+	s := newTestStore(t)
+	tok, _, err := MintSession(s, "admin", "127.0.0.1", time.Hour)
+	if err != nil {
+		t.Fatalf("MintSession: %v", err)
+	}
+	done := make(chan struct{})
+	// Validator hammer.
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				_, _ = ValidateSession(s, tok) // result varies; ignore
+			}
+		}
+	}()
+	// Revoke repeatedly, then we'll confirm it sticks.
+	for i := 0; i < 50; i++ {
+		_ = RevokeSession(s, tok)
+	}
+	close(done)
+	// After revoke settled, the session must NOT validate.
+	if _, err := ValidateSession(s, tok); err != ErrUnknownSession {
+		t.Fatalf("session resurrected after revoke: err=%v", err)
+	}
+}
+
+// TestValidateAPIKey_NoResurrectUnderConcurrentRevoke mirrors the session race
+// for API keys (same read-modify-write-LastSeen pattern).
+func TestValidateAPIKey_NoResurrectUnderConcurrentRevoke(t *testing.T) {
+	s := newTestStore(t)
+	display, _, err := CreateAPIKey(s, "ci", ModeAdmin, nil)
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	id := id8of(display)
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				_, _ = ValidateAPIKey(s, display)
+			}
+		}
+	}()
+	for i := 0; i < 50; i++ {
+		_ = RevokeAPIKey(s, id)
+	}
+	close(done)
+	// Revoked key must not authenticate.
+	if _, err := ValidateAPIKey(s, display); err != ErrUnknownAPIKey {
+		t.Fatalf("api key resurrected after revoke: err=%v", err)
+	}
+}
+
+// id8of extracts "gorag_<id8>" from a full display string.
+func id8of(display string) string {
+	for i := 0; i < len(display); i++ {
+		if display[i] == '.' {
+			return display[:i]
+		}
+	}
+	return display
+}

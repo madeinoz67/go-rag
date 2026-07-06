@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/base64"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -171,5 +172,20 @@ func TestCreate_RejectsBadMode(t *testing.T) {
 	s := newTestStore(t)
 	if _, _, err := CreateAPIKey(s, "x", "superuser", nil); err == nil {
 		t.Fatal("expected error for invalid mode")
+	}
+}
+
+// TestSecretBytesFromBearer_RejectsNon32Byte (spec 045 red-team finding LOW):
+// a gorag_-prefixed bearer whose secret decodes to !=32 bytes is rejected at
+// parse, before any hash/DB work.
+func TestSecretBytesFromBearer_RejectsNon32Byte(t *testing.T) {
+	s := newTestStore(t)
+	// Valid prefix + valid base64url, but decodes to 16 bytes, not 32.
+	short := "gorag_" + base64.RawURLEncoding.EncodeToString(make([]byte, 16))
+	if _, err := ValidateAPIKey(s, short); err != ErrUnknownAPIKey {
+		t.Fatalf("non-32-byte secret: want ErrUnknownAPIKey, got %v", err)
+	}
+	if _, err := secretBytesFromBearer(short); err == nil {
+		t.Fatal("non-32-byte secret accepted by secretBytesFromBearer")
 	}
 }

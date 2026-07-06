@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"sync"
 
 	"github.com/madeinoz67/go-rag/internal/storage"
 )
@@ -14,8 +15,14 @@ import (
 //
 // Every credential is keyed by SHA-256(secret)[:16]; the raw secret is never
 // persisted, and a Get hit IS the match (no secret-string comparison).
+//
+// mu guards the read-modify-write of credential records (Validate's LastSeen
+// bump vs Revoke). Without it, a Validate that read a record just before a
+// Revoke could write the record back (Enabled or present) and resurrect the
+// revoked credential on the next validate (spec 045 red-team finding, HIGH).
 type Store struct {
 	db *storage.DB
+	mu sync.Mutex
 }
 
 // NewStore wraps an open *storage.DB for credential storage.

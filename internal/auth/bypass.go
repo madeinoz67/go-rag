@@ -19,20 +19,20 @@ import (
 // local quickstart. After it, even loopback must present a credential (an
 // exposed port forwarded from elsewhere must not silently bypass).
 
-// storesEmpty reports whether no API key and no admin user have been created.
-// Sessions are minted only by login (which needs an admin), so they cannot
-// exist when the admin store is empty — they are not scanned separately.
+// storesEmpty reports whether the operator has not yet minted a credential that
+// signals "enforce auth". Per spec 045 US5, that signal is an API key — the
+// bootstrap admin alone does NOT disable the loopback bypass: the admin is a
+// login identity for remote/UI access, while local loopback stays frictionless
+// for the operator until they explicitly mint a key. Sessions are minted only
+// by login (which needs the admin) and don't by themselves signal enforcement,
+// so they are not scanned either. A non-loopback peer is fail-closed
+// regardless of this result (see ValidateTokenOrBypass).
 func (s *Store) storesEmpty() bool {
 	if s == nil || s.db == nil {
 		return true
 	}
-	if has, err := anyKey(s, storage.PrefixAuthAPIKey); err == nil && has {
-		return false
-	}
-	if has, err := anyKey(s, storage.PrefixAuthAdmin); err == nil && has {
-		return false
-	}
-	return true
+	has, err := anyKey(s, storage.PrefixAuthAPIKey)
+	return err != nil || !has
 }
 
 // anyKey reports whether at least one record exists under prefix (stops at the

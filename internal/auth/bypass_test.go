@@ -36,25 +36,27 @@ func TestBypass_NonLoopback_FailClosed(t *testing.T) {
 
 func TestBypass_LoopbackNonEmptyStores_Disabled(t *testing.T) {
 	s := newTestStore(t)
-	// Mint one credential — the operator signalled intent to enforce auth.
+	// Mint one API key — the enforcement signal. Bypass now disabled on loopback.
 	if _, _, err := CreateAPIKey(s, "first", ModeRead, nil); err != nil {
 		t.Fatalf("CreateAPIKey: %v", err)
 	}
 	r := mustNewRequest(t, "GET", "/v1/query")
 	r.RemoteAddr = "127.0.0.1:1234"
 	if _, err := s.Validate(r); err != ErrNoCredential {
-		t.Fatalf("loopback+non-empty: want ErrNoCredential (bypass off), got %v", err)
+		t.Fatalf("loopback+api-key: want ErrNoCredential (bypass off), got %v", err)
 	}
 
-	// Admin presence also disables bypass.
+	// The bootstrap admin alone does NOT disable the bypass — it is a login
+	// identity, not an enforcement signal. Local loopback stays frictionless
+	// until an API key is minted.
 	s2 := newTestStore(t)
 	if _, err := CreateAdmin(s2, DefaultAdminUsername, "pw"); err != nil {
 		t.Fatalf("CreateAdmin: %v", err)
 	}
 	r2 := mustNewRequest(t, "GET", "/v1/query")
 	r2.RemoteAddr = "127.0.0.1:1234"
-	if _, err := s2.Validate(r2); err != ErrNoCredential {
-		t.Fatalf("loopback+admin-present: want ErrNoCredential, got %v", err)
+	if _, err := s2.Validate(r2); err != nil {
+		t.Fatalf("loopback+admin-only: bypass should still apply, got %v", err)
 	}
 }
 
