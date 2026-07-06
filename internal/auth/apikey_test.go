@@ -97,9 +97,9 @@ func TestValidate_SecretNeverPersisted(t *testing.T) {
 func TestValidate_RejectsGarbageAndUnknown(t *testing.T) {
 	s := newTestStore(t)
 	cases := map[string]string{
-		"empty":         "",
-		"wrong prefix":  "deadbeef.abcdef",
-		"bad base64":    "gorag_!!!!",
+		"empty":        "",
+		"wrong prefix": "deadbeef.abcdef",
+		"bad base64":   "gorag_!!!!",
 		"unknown secret": "gorag_AAAAAAAABBBBBBBBCCCCCCCCDDDDDDDD" +
 			"EEEEEEEEFFFFFFFFGGGGGGGGHHHHHHHH", // valid b64u, not in store
 	}

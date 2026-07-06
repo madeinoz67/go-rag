@@ -124,7 +124,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request, p auth.Pri
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) handleSessionList(w http.ResponseWriter, r *http.Request, _ auth.Principal) {
+func (s *Server) handleSessionList(w http.ResponseWriter, _ *http.Request, _ auth.Principal) {
 	list, err := auth.ListSessions(s.store)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

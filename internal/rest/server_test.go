@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+
+	"github.com/madeinoz67/go-rag/internal/auth"
 	"strings"
 	"testing"
 	"time"
@@ -121,11 +123,17 @@ func TestREST_Query_HappyPath(t *testing.T) {
 
 func TestREST_Query_Unauthorized_MissingToken(t *testing.T) {
 	eng := newEngineWithCorpus(t, "hello world")
-	srv := httptest.NewServer(New(eng, "secret").Handler())
-	defer srv.Close()
+	srv := New(eng, "")
+	// Minting a credential disables the loopback bypass, so a missing bearer
+	// is now genuinely rejected (spec 045 US2/US5).
+	if _, _, err := auth.CreateAPIKey(srv.store, "test", auth.ModeAdmin, nil); err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
 
 	body, _ := json.Marshal(map[string]any{"query": "hello", "mode": "keyword"})
-	resp, err := http.Post(srv.URL+"/v1/query", "application/json", bytes.NewReader(body))
+	resp, err := http.Post(ts.URL+"/v1/query", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}
@@ -137,12 +145,16 @@ func TestREST_Query_Unauthorized_MissingToken(t *testing.T) {
 
 func TestREST_Query_Unauthorized_WrongToken(t *testing.T) {
 	eng := newEngineWithCorpus(t, "hello world")
-	srv := httptest.NewServer(New(eng, "secret").Handler())
-	defer srv.Close()
+	srv := New(eng, "")
+	if _, _, err := auth.CreateAPIKey(srv.store, "test", auth.ModeAdmin, nil); err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
 
 	body, _ := json.Marshal(map[string]any{"query": "hello", "mode": "keyword"})
-	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/v1/query", bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer nope")
+	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/v1/query", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer gorag_nope.nope")
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -156,12 +168,17 @@ func TestREST_Query_Unauthorized_WrongToken(t *testing.T) {
 
 func TestREST_Query_Authorized(t *testing.T) {
 	eng := newEngineWithCorpus(t, "the server performs keyword retrieval over documents")
-	srv := httptest.NewServer(New(eng, "secret").Handler())
-	defer srv.Close()
+	srv := New(eng, "")
+	display, _, err := auth.CreateAPIKey(srv.store, "test", auth.ModeAdmin, nil)
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
 
 	body, _ := json.Marshal(map[string]any{"query": "retrieval", "mode": "keyword"})
-	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/v1/query", bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer secret")
+	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/v1/query", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+display)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

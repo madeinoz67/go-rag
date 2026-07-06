@@ -5515,22 +5515,6 @@ graph LR
     go_rag_internal_config_config_go_Save_process_8 --> go_rag_stdlib_encoding_json_MarshalIndent_process_8
     go_rag_stdlib_path_filepath_Dir_process_8["Dir"]
     go_rag_internal_config_config_go_Save_process_8 --> go_rag_stdlib_path_filepath_Dir_process_8
-    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8["bootstrapAdmin"]
-    go_rag_internal_cli_init_go_newInitCmd_process_8 --> go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8
-    go_rag_internal_auth_store_go_NewStore_process_8["NewStore"]
-    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> go_rag_internal_auth_store_go_NewStore_process_8
-    go_rag_internal_auth_admin_go_AdminExists_process_8["AdminExists"]
-    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> go_rag_internal_auth_admin_go_AdminExists_process_8
-    go_rag_internal_auth_admin_go_CreateAdmin_process_8["CreateAdmin"]
-    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> go_rag_internal_auth_admin_go_CreateAdmin_process_8
-    external_call_dep_golang_org_x_crypto_bcrypt_process_8["golang.org/x/crypto/bcrypt"]
-    go_rag_internal_auth_admin_go_CreateAdmin_process_8 --> external_call_dep_golang_org_x_crypto_bcrypt_process_8
-    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_8["generatedPassword"]
-    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_8
-    go_rag_stdlib_crypto_rand_Read_process_8["Read"]
-    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_8 --> go_rag_stdlib_crypto_rand_Read_process_8
-    unresolved___EncodeToString_process_8["unresolved::*.EncodeToString"]
-    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_8 --> unresolved___EncodeToString_process_8
     go_rag_stdlib_testing_Testing_process_8["Testing"]
     go_rag_internal_cli_init_go_newInitCmd_process_8 --> go_rag_stdlib_testing_Testing_process_8
     go_rag_internal_embed_modelbundle_bundle_go_EnsureModel_process_8["EnsureModel"]
@@ -5573,6 +5557,42 @@ graph LR
     go_rag_internal_embed_modelbundle_bundle_go_IsPresent_process_8 --> go_rag_internal_embed_modelbundle_bundle_go_ModelPath_process_8
     go_rag_stdlib_os_Stat_process_8["Stat"]
     go_rag_internal_embed_modelbundle_bundle_go_IsPresent_process_8 --> go_rag_stdlib_os_Stat_process_8
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8["bootstrapAdmin"]
+    go_rag_internal_cli_init_go_newInitCmd_process_8 --> go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8
+    go_rag_internal_auth_store_go_NewStore_process_8["NewStore"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> go_rag_internal_auth_store_go_NewStore_process_8
+    go_rag_internal_auth_legacy_go_ImportLegacyTokenFromFile_process_8["ImportLegacyTokenFromFile"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> go_rag_internal_auth_legacy_go_ImportLegacyTokenFromFile_process_8
+    go_rag_internal_auth_legacy_go_trimSpaceASCII_process_8["trimSpaceASCII"]
+    go_rag_internal_auth_legacy_go_ImportLegacyTokenFromFile_process_8 --> go_rag_internal_auth_legacy_go_trimSpaceASCII_process_8
+    go_rag_internal_auth_legacy_go_isASCIISpace_process_8["isASCIISpace"]
+    go_rag_internal_auth_legacy_go_trimSpaceASCII_process_8 --> go_rag_internal_auth_legacy_go_isASCIISpace_process_8
+    go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_8["importLegacyTokenValue"]
+    go_rag_internal_auth_legacy_go_ImportLegacyTokenFromFile_process_8 --> go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_8
+    go_rag_internal_auth_bypass_go_anyKey_process_8["anyKey"]
+    go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_8 --> go_rag_internal_auth_bypass_go_anyKey_process_8
+    unresolved___GetWithPrefix_process_8["unresolved::*.GetWithPrefix"]
+    go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_8 --> unresolved___GetWithPrefix_process_8
+    go_rag_internal_auth_store_go_hash16_process_8["hash16"]
+    go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_8 --> go_rag_internal_auth_store_go_hash16_process_8
+    go_rag_internal_auth_store_go_id8_process_8["id8"]
+    go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_8 --> go_rag_internal_auth_store_go_id8_process_8
+    unresolved___EncodeToString_process_8["unresolved::*.EncodeToString"]
+    go_rag_internal_auth_store_go_id8_process_8 --> unresolved___EncodeToString_process_8
+    unresolved___SetWithPrefix_process_8["unresolved::*.SetWithPrefix"]
+    go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_8 --> unresolved___SetWithPrefix_process_8
+    unresolved_extern_github_com_madeinoz67_go_rag_internal_daemon_TokenPath_process_8["unresolved::extern::github.com/madeinoz67/go-rag/internal/daemon::TokenPath"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> unresolved_extern_github_com_madeinoz67_go_rag_internal_daemon_TokenPath_process_8
+    go_rag_internal_auth_admin_go_AdminExists_process_8["AdminExists"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> go_rag_internal_auth_admin_go_AdminExists_process_8
+    go_rag_internal_auth_admin_go_CreateAdmin_process_8["CreateAdmin"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> go_rag_internal_auth_admin_go_CreateAdmin_process_8
+    external_call_dep_golang_org_x_crypto_bcrypt_process_8["golang.org/x/crypto/bcrypt"]
+    go_rag_internal_auth_admin_go_CreateAdmin_process_8 --> external_call_dep_golang_org_x_crypto_bcrypt_process_8
+    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_8["generatedPassword"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_8
+    go_rag_stdlib_crypto_rand_Read_process_8["Read"]
+    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_8 --> go_rag_stdlib_crypto_rand_Read_process_8
   end
   subgraph p_process_9 [Embed flow]
     go_rag_internal_embed_openai_go_OpenAI_Embed_process_9["Embed"]
@@ -7814,22 +7834,6 @@ graph LR
     go_rag_internal_config_config_go_Save_process_11 --> go_rag_stdlib_encoding_json_MarshalIndent_process_11
     go_rag_stdlib_path_filepath_Dir_process_11["Dir"]
     go_rag_internal_config_config_go_Save_process_11 --> go_rag_stdlib_path_filepath_Dir_process_11
-    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11["bootstrapAdmin"]
-    go_rag_internal_cli_init_go_newInitCmd_process_11 --> go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11
-    go_rag_internal_auth_store_go_NewStore_process_11["NewStore"]
-    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> go_rag_internal_auth_store_go_NewStore_process_11
-    go_rag_internal_auth_admin_go_AdminExists_process_11["AdminExists"]
-    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> go_rag_internal_auth_admin_go_AdminExists_process_11
-    go_rag_internal_auth_admin_go_CreateAdmin_process_11["CreateAdmin"]
-    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> go_rag_internal_auth_admin_go_CreateAdmin_process_11
-    external_call_dep_golang_org_x_crypto_bcrypt_process_11["golang.org/x/crypto/bcrypt"]
-    go_rag_internal_auth_admin_go_CreateAdmin_process_11 --> external_call_dep_golang_org_x_crypto_bcrypt_process_11
-    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_11["generatedPassword"]
-    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_11
-    go_rag_stdlib_crypto_rand_Read_process_11["Read"]
-    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_11 --> go_rag_stdlib_crypto_rand_Read_process_11
-    unresolved___EncodeToString_process_11["unresolved::*.EncodeToString"]
-    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_11 --> unresolved___EncodeToString_process_11
     go_rag_stdlib_testing_Testing_process_11["Testing"]
     go_rag_internal_cli_init_go_newInitCmd_process_11 --> go_rag_stdlib_testing_Testing_process_11
     go_rag_internal_embed_modelbundle_bundle_go_EnsureModel_process_11["EnsureModel"]
@@ -7874,4 +7878,40 @@ graph LR
     go_rag_internal_embed_modelbundle_bundle_go_IsPresent_process_11 --> go_rag_stdlib_os_Stat_process_11
     unresolved___Int_process_11["unresolved::*.Int"]
     go_rag_internal_cli_init_go_newInitCmd_process_11 --> unresolved___Int_process_11
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11["bootstrapAdmin"]
+    go_rag_internal_cli_init_go_newInitCmd_process_11 --> go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11
+    go_rag_internal_auth_store_go_NewStore_process_11["NewStore"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> go_rag_internal_auth_store_go_NewStore_process_11
+    go_rag_internal_auth_legacy_go_ImportLegacyTokenFromFile_process_11["ImportLegacyTokenFromFile"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> go_rag_internal_auth_legacy_go_ImportLegacyTokenFromFile_process_11
+    go_rag_internal_auth_legacy_go_trimSpaceASCII_process_11["trimSpaceASCII"]
+    go_rag_internal_auth_legacy_go_ImportLegacyTokenFromFile_process_11 --> go_rag_internal_auth_legacy_go_trimSpaceASCII_process_11
+    go_rag_internal_auth_legacy_go_isASCIISpace_process_11["isASCIISpace"]
+    go_rag_internal_auth_legacy_go_trimSpaceASCII_process_11 --> go_rag_internal_auth_legacy_go_isASCIISpace_process_11
+    go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_11["importLegacyTokenValue"]
+    go_rag_internal_auth_legacy_go_ImportLegacyTokenFromFile_process_11 --> go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_11
+    go_rag_internal_auth_bypass_go_anyKey_process_11["anyKey"]
+    go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_11 --> go_rag_internal_auth_bypass_go_anyKey_process_11
+    unresolved___GetWithPrefix_process_11["unresolved::*.GetWithPrefix"]
+    go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_11 --> unresolved___GetWithPrefix_process_11
+    go_rag_internal_auth_store_go_hash16_process_11["hash16"]
+    go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_11 --> go_rag_internal_auth_store_go_hash16_process_11
+    go_rag_internal_auth_store_go_id8_process_11["id8"]
+    go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_11 --> go_rag_internal_auth_store_go_id8_process_11
+    unresolved___EncodeToString_process_11["unresolved::*.EncodeToString"]
+    go_rag_internal_auth_store_go_id8_process_11 --> unresolved___EncodeToString_process_11
+    unresolved___SetWithPrefix_process_11["unresolved::*.SetWithPrefix"]
+    go_rag_internal_auth_legacy_go_importLegacyTokenValue_process_11 --> unresolved___SetWithPrefix_process_11
+    unresolved_extern_github_com_madeinoz67_go_rag_internal_daemon_TokenPath_process_11["unresolved::extern::github.com/madeinoz67/go-rag/internal/daemon::TokenPath"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> unresolved_extern_github_com_madeinoz67_go_rag_internal_daemon_TokenPath_process_11
+    go_rag_internal_auth_admin_go_AdminExists_process_11["AdminExists"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> go_rag_internal_auth_admin_go_AdminExists_process_11
+    go_rag_internal_auth_admin_go_CreateAdmin_process_11["CreateAdmin"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> go_rag_internal_auth_admin_go_CreateAdmin_process_11
+    external_call_dep_golang_org_x_crypto_bcrypt_process_11["golang.org/x/crypto/bcrypt"]
+    go_rag_internal_auth_admin_go_CreateAdmin_process_11 --> external_call_dep_golang_org_x_crypto_bcrypt_process_11
+    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_11["generatedPassword"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_11
+    go_rag_stdlib_crypto_rand_Read_process_11["Read"]
+    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_11 --> go_rag_stdlib_crypto_rand_Read_process_11
   end

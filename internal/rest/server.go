@@ -6,11 +6,11 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/audit"
 	"github.com/madeinoz67/go-rag/internal/auth"
@@ -21,8 +21,8 @@ import (
 // Server is the REST transport adapter over the engine facade.
 type Server struct {
 	eng   *engine.Engine
-	token string         // empty => auth disabled (local development)
-	store *auth.Store    // spec 045: credential store for /api/auth/* + unified Validate
+	token string      // empty => auth disabled (local development)
+	store *auth.Store // spec 045: credential store for /api/auth/* + unified Validate
 }
 
 // New returns a REST adapter backed by eng. token enables bearer auth (matching
@@ -31,8 +31,10 @@ type Server struct {
 // sessions and verify the admin password.
 func New(eng *engine.Engine, token string) *Server {
 	s := &Server{eng: eng, token: token}
-	if db := eng.DB(); db != nil {
-		s.store = auth.NewStore(db)
+	if eng != nil {
+		if db := eng.DB(); db != nil {
+			s.store = auth.NewStore(db)
+		}
 	}
 	return s
 }
@@ -144,15 +146,36 @@ func (s *Server) handlerFor(method, path string) http.HandlerFunc {
 	return nil
 }
 
-// guard wraps a handler with bearer-token auth (skipped when token is empty).
+// principalCtxKey is the context key under which guard stores the authenticated
+// Principal. Handlers read it via PrincipalFromContext to enforce Mode.
+type principalCtxKey struct{}
+
+// PrincipalFromContext returns the authenticated Principal guard placed on the
+// request context. ok is false when no Principal is present (e.g. an
+// unauthenticated route).
+func PrincipalFromContext(ctx context.Context) (auth.Principal, bool) {
+	p, ok := ctx.Value(principalCtxKey{}).(auth.Principal)
+	return p, ok
+}
+
+// guard wraps a handler with unified bearer auth (spec 045 US2). All transports
+// delegate to the single auth.Validate so a key works identically on
+// REST/gRPC/MCP and a revoke propagates to all three. The loopback bypass
+// (US5) is handled inside Validate: local dev with no credentials minted just
+// works; the moment a credential exists, every request must present it.
 func (s *Server) guard(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.token != "" && !checkBearer(r, s.token) {
+		if s.store == nil { // test-only: engine without a backing DB
+			h(w, r)
+			return
+		}
+		p, err := s.store.Validate(r)
+		if err != nil {
 			audit.Log(audit.AuthFailEvent("rest", "missing or invalid bearer")) // H18 audit
 			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
-		h(w, r)
+		h(w, r.WithContext(context.WithValue(r.Context(), principalCtxKey{}, p)))
 	}
 }
 
@@ -214,12 +237,5 @@ func writeEngineErr(w http.ResponseWriter, err error) {
 	writeError(w, http.StatusInternalServerError, err.Error())
 }
 
-// checkBearer reports whether the request carries the expected bearer token.
-func checkBearer(r *http.Request, token string) bool {
-	v := r.Header.Get("Authorization")
-	const prefix = "Bearer "
-	if !strings.HasPrefix(v, prefix) {
-		return false
-	}
-	return strings.TrimSpace(v[len(prefix):]) == token
-}
+// checkBearer was the bespoke per-transport bearer check deleted in spec 045
+// US2 — every transport now delegates to auth.Validate. (Symbol removed.)

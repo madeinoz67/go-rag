@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/madeinoz67/go-rag/internal/audit"
+	"github.com/madeinoz67/go-rag/internal/auth"
 	"github.com/madeinoz67/go-rag/internal/daemon"
 	"github.com/madeinoz67/go-rag/internal/engine"
 	goraggrpc "github.com/madeinoz67/go-rag/internal/grpc"
@@ -59,6 +60,10 @@ func newServeCmd() *cobra.Command {
 
 			token := daemon.ReadToken(dbPath)
 			eng := engine.NewWithDB(cfg, db)
+			// Spec 045: bootstrap admin + import any legacy mcp.token against the
+			// already-open store (serve owns the single Pebble lock — it cannot
+			// re-open). Idempotent; runs before any transport accepts a request.
+			bootstrapAuth(auth.NewStore(db), dbPath)
 			// spec 030: start the embedder eagerly so the startup scan recovers any
 			// pending 0x14 embeddings from a previous crash.
 			if err := eng.EnsureEmbedder(); err != nil {

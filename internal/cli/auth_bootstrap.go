@@ -25,19 +25,27 @@ import (
 
 const adminPasswordEnv = "GORAG_ADMIN_PASSWORD"
 
-// bootstrapAdmin ensures the admin user exists at dbPath. Safe to call on every
-// init/start — it only acts when there is no admin, or when the operator sets
-// GORAG_ADMIN_PASSWORD to (re)set the password. It also imports any legacy
-// mcp.token as a `legacy-mcp` admin API key (spec 045 US4) so pre-upgrade
-// scripts keep authenticating through the new validator.
+// bootstrapAdmin ensures the admin user exists at dbPath. It opens the store
+// itself (the init path, where no Pebble lock is held yet), then delegates to
+// bootstrapAuth. Safe to call on every init — idempotent.
 func bootstrapAdmin(dbPath string) error {
 	_, db, err := openDB(dbPath)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
-	store := auth.NewStore(db)
+	bootstrapAuth(auth.NewStore(db), dbPath)
+	return nil
+}
 
+// bootstrapAuth runs the legacy-token import + admin bootstrap against an
+// ALREADY-OPEN store. Used by the daemon serve path, which owns the single
+// Pebble file lock for its lifetime and so cannot re-open the store.
+//
+// Errors are reported to stderr but never abort the caller: a daemon start must
+// not fail the whole process because admin bootstrap hit a transient issue —
+// the operator can still use API keys, and the next start retries.
+func bootstrapAuth(store *auth.Store, dbPath string) {
 	// Spec 045 US4: zero-break upgrade — import a pre-existing mcp.token as a
 	// real API key before the daemon ever validates a request. One-shot +
 	// idempotent; no-op when the file is absent or the store already holds keys.
@@ -48,35 +56,36 @@ func bootstrapAdmin(dbPath string) error {
 	envPw := os.Getenv(adminPasswordEnv)
 	exists, err := auth.AdminExists(store, auth.DefaultAdminUsername)
 	if err != nil {
-		return err
+		fmt.Fprintf(os.Stderr, "  warning: admin check failed: %v\n", err)
+		return
 	}
 
 	switch {
 	case envPw != "":
 		if _, err := auth.CreateAdmin(store, auth.DefaultAdminUsername, envPw); err != nil {
-			return err
+			fmt.Fprintf(os.Stderr, "  warning: admin create failed: %v\n", err)
+			return
 		}
 		if exists {
 			fmt.Println("Admin password rotated (GORAG_ADMIN_PASSWORD).")
 		} else {
 			fmt.Println("Admin user created (GORAG_ADMIN_PASSWORD).")
 		}
-		return nil
 	case exists:
 		// Already bootstrapped and no rotation requested — nothing to do.
-		return nil
 	default:
 		// No admin, no env: generate a password and surface it exactly once.
 		pw, err := generatedPassword()
 		if err != nil {
-			return err
+			fmt.Fprintf(os.Stderr, "  warning: password generation failed: %v\n", err)
+			return
 		}
 		if _, err := auth.CreateAdmin(store, auth.DefaultAdminUsername, pw); err != nil {
-			return err
+			fmt.Fprintf(os.Stderr, "  warning: admin create failed: %v\n", err)
+			return
 		}
 		fmt.Println("Generated admin password — copy it now, it will not be shown again:")
 		fmt.Println("  " + pw)
-		return nil
 	}
 }
 

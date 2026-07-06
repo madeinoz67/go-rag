@@ -73,9 +73,9 @@ func TestValidateToken_RejectsFailures(t *testing.T) {
 	}
 
 	cases := map[string]string{
-		"empty":          "",
-		"garbage":        "not-a-token",
-		"unknown prefix": "deadbeef_xyz",
+		"empty":           "",
+		"garbage":         "not-a-token",
+		"unknown prefix":  "deadbeef_xyz",
 		"disabled apikey": display,
 	}
 	for name, tok := range cases {

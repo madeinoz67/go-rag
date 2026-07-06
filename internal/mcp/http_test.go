@@ -5,9 +5,31 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/madeinoz67/go-rag/internal/auth"
+	"github.com/madeinoz67/go-rag/internal/config"
+	"github.com/madeinoz67/go-rag/internal/storage"
 )
+
+// newAuthMCPServer stands up an MCP HTTP server backed by a real Pebble store
+// (daemon mode), so spec 045 auth.Validate runs on /mcp. Returns the test
+// server and the store (the caller mints credentials into it).
+func newAuthMCPServer(t *testing.T) (*httptest.Server, *auth.Store) {
+	t.Helper()
+	dbPath := filepath.Join(t.TempDir(), "db")
+	db, err := storage.Open(dbPath)
+	if err != nil {
+		t.Fatalf("storage.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := auth.NewStore(db)
+	ts := httptest.NewServer(NewWithDB(dbPath, db, config.Default()).HTTPHandler(""))
+	t.Cleanup(ts.Close)
+	return ts, store
+}
 
 func TestHTTPHealth(t *testing.T) {
 	ts := httptest.NewServer(New(t.TempDir()).HTTPHandler(""))
@@ -48,10 +70,15 @@ func TestHTTPToolsList(t *testing.T) {
 }
 
 func TestHTTPBearerAuth(t *testing.T) {
-	ts := httptest.NewServer(New(t.TempDir()).HTTPHandler("secret"))
-	defer ts.Close()
+	ts, store := newAuthMCPServer(t)
+	// Minting a credential disables the loopback bypass, so /mcp now requires a
+	// valid bearer (spec 045 US2/US5).
+	display, _, err := auth.CreateAPIKey(store, "test", auth.ModeAdmin, nil)
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
 
-	// No token -> 401.
+	// No bearer -> 401.
 	resp, err := http.Post(ts.URL+"/mcp", "application/json",
 		strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
 	if err != nil {
@@ -59,33 +86,33 @@ func TestHTTPBearerAuth(t *testing.T) {
 	}
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("without token: want 401, got %d", resp.StatusCode)
+		t.Fatalf("without bearer: want 401, got %d", resp.StatusCode)
 	}
 
-	// Wrong token -> 401.
+	// Wrong bearer -> 401.
 	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/mcp",
 		strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
-	req.Header.Set("Authorization", "Bearer wrong")
+	req.Header.Set("Authorization", "Bearer gorag_nope.nope")
 	resp2, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	resp2.Body.Close()
 	if resp2.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("wrong token: want 401, got %d", resp2.StatusCode)
+		t.Fatalf("wrong bearer: want 401, got %d", resp2.StatusCode)
 	}
 
-	// Correct token -> 200.
+	// Valid key -> 200.
 	req, _ = http.NewRequest(http.MethodPost, ts.URL+"/mcp",
 		strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
-	req.Header.Set("Authorization", "Bearer secret")
+	req.Header.Set("Authorization", "Bearer "+display)
 	resp3, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp3.Body.Close()
 	if resp3.StatusCode != http.StatusOK {
-		t.Fatalf("correct token: want 200, got %d", resp3.StatusCode)
+		t.Fatalf("valid key: want 200, got %d", resp3.StatusCode)
 	}
 	body, _ := io.ReadAll(resp3.Body)
 	if !strings.Contains(string(body), "tools") {

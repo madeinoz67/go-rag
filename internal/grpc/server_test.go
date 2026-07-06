@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/madeinoz67/go-rag/internal/auth"
 	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/embed"
@@ -120,7 +121,12 @@ func TestGRPC_Query_HappyPath(t *testing.T) {
 
 func TestGRPC_Query_BearerMissing_Rejected(t *testing.T) {
 	eng := newEngineWithCorpus(t, "hello world")
-	client, cleanup := dialBuf(t, NewServer(eng, "secret"))
+	// Minting a credential disables the loopback bypass, so a missing bearer is
+	// genuinely rejected (spec 045 US2/US5).
+	if _, _, err := auth.CreateAPIKey(auth.NewStore(eng.DB()), "test", auth.ModeAdmin, nil); err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	client, cleanup := dialBuf(t, NewServer(eng, ""))
 	defer cleanup()
 
 	_, err := client.Query(context.Background(), &goragpb.QueryRequest{Query: "hello", Mode: "keyword"})
@@ -134,10 +140,13 @@ func TestGRPC_Query_BearerMissing_Rejected(t *testing.T) {
 
 func TestGRPC_Query_BearerWrong_Rejected(t *testing.T) {
 	eng := newEngineWithCorpus(t, "hello world")
-	client, cleanup := dialBuf(t, NewServer(eng, "secret"))
+	if _, _, err := auth.CreateAPIKey(auth.NewStore(eng.DB()), "test", auth.ModeAdmin, nil); err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	client, cleanup := dialBuf(t, NewServer(eng, ""))
 	defer cleanup()
 
-	ctx := metadata.AppendToOutgoingContext(context.Background(), "authorization", "Bearer nope")
+	ctx := metadata.AppendToOutgoingContext(context.Background(), "authorization", "Bearer gorag_nope.nope")
 	_, err := client.Query(ctx, &goragpb.QueryRequest{Query: "hello", Mode: "keyword"})
 	if got := status.Code(err); got != codes.Unauthenticated {
 		t.Fatalf("expected Unauthenticated for wrong bearer, got %v (%v)", got, err)
@@ -146,10 +155,14 @@ func TestGRPC_Query_BearerWrong_Rejected(t *testing.T) {
 
 func TestGRPC_Query_BearerValid_Accepted(t *testing.T) {
 	eng := newEngineWithCorpus(t, "the server performs keyword retrieval over documents")
-	client, cleanup := dialBuf(t, NewServer(eng, "secret"))
+	display, _, err := auth.CreateAPIKey(auth.NewStore(eng.DB()), "test", auth.ModeAdmin, nil)
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	client, cleanup := dialBuf(t, NewServer(eng, ""))
 	defer cleanup()
 
-	ctx := metadata.AppendToOutgoingContext(context.Background(), "authorization", "Bearer secret")
+	ctx := metadata.AppendToOutgoingContext(context.Background(), "authorization", "Bearer "+display)
 	resp, err := client.Query(ctx, &goragpb.QueryRequest{Query: "retrieval", Mode: "keyword"})
 	if err != nil {
 		t.Fatalf("Query with valid bearer: %v", err)

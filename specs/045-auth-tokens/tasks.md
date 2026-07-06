@@ -103,10 +103,10 @@
 ### Implementation
 
 - [x] T020 [US2] Implement `Validate(r)` + `ValidateToken(token)` in `internal/auth/auth.go` — prefix dispatch (`gorag_`→APIKey, `gorags_`→Session), length cap 4096, hash-lookup, `Enabled`/`ExpiresAt` checks, return `Principal`; emit `AuthFailEvent` on any failure
-- [ ] T021 [US2] REST — delete `checkBearer` in `internal/rest/server.go`; route every `/api/*` through an `auth.Validate` middleware that puts `Principal` in `context.Context`
-- [ ] T022 [US2] gRPC — delete `bearerInterceptor`+`hasBearer` in `internal/grpc/server.go`; replace with an interceptor calling `auth.ValidateToken`, propagating `Principal` via context (mirrors MuninnDB's context-key pattern)
-- [ ] T023 [US2] MCP — delete `checkBearer` in `internal/mcp/http.go`; delegate to `auth.Validate`
-- [ ] T024 [US2] Tests — `internal/auth/auth_test.go` (dispatch; reject absent/expired/disabled/garbage-prefix; audit fires) + update `TestHTTPBearerAuth`, `TestGRPC_Query_Bearer*_Rejected`, and the MCP bearer test to exercise `auth.Validate`
+- [x] T021 [US2] REST — delete `checkBearer` in `internal/rest/server.go`; route every `/api/*` through an `auth.Validate` middleware that puts `Principal` in `context.Context`
+- [x] T022 [US2] gRPC — delete `bearerInterceptor`+`hasBearer` in `internal/grpc/server.go`; replace with an interceptor calling `auth.ValidateToken`, propagating `Principal` via context (mirrors MuninnDB's context-key pattern)
+- [x] T023 [US2] MCP — delete `checkBearer` in `internal/mcp/http.go`; delegate to `auth.Validate`
+- [x] T024 [US2] Tests — `internal/auth/auth_test.go` (dispatch; reject absent/expired/disabled/garbage-prefix; audit fires) + update `TestHTTPBearerAuth`, `TestGRPC_Query_Bearer*_Rejected`, and the MCP bearer test to exercise `auth.Validate`
 
 **Checkpoint**: all three transports delegate to the single validator; the bespoke checks are gone.
 

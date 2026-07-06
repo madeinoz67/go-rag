@@ -37,7 +37,7 @@ const maxBearerLen = 4096
 // Errors from Validate. Transports collapse all of these into an identical 401
 // + audit.AuthFailEvent so a probe cannot distinguish the failure reason.
 var (
-	ErrNoCredential    = errors.New("no bearer credential")
+	ErrNoCredential      = errors.New("no bearer credential")
 	ErrUnknownCredential = errors.New("invalid bearer credential")
 )
 

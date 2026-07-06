@@ -24,10 +24,10 @@ const bcryptCost = 12
 // audit.AuthFailEvent so a probe cannot distinguish "no such user" from "wrong
 // password" (no username enumeration).
 var (
-	ErrUnknownAdmin  = errors.New("unknown admin user")
-	ErrBadPassword   = errors.New("bad password")
-	ErrAdminExists   = errors.New("admin user already exists")
-	ErrNoAdmin       = errors.New("no admin user is bootstrapped")
+	ErrUnknownAdmin = errors.New("unknown admin user")
+	ErrBadPassword  = errors.New("bad password")
+	ErrAdminExists  = errors.New("admin user already exists")
+	ErrNoAdmin      = errors.New("no admin user is bootstrapped")
 )
 
 // AdminUser is the bootstrap administrator. The password is never stored in

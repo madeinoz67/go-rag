@@ -97,7 +97,7 @@ func newAuthSessionRevokeCmd() *cobra.Command {
 		Use:   "revoke <hash>",
 		Short: "Revoke a session by its hash (from `auth session list`)",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			hash, err := hex.DecodeString(args[0])
 			if err != nil {
 				return fmt.Errorf("--hash: not hex: %w", err)
@@ -206,8 +206,8 @@ func newAuthCreateCmd() *cobra.Command {
 			// captured) and to stderr's attention line.
 			if asJSON {
 				out := struct {
-					Secret string     `json:"secret"`
-					Key    apiKeyOut  `json:"key"`
+					Secret string    `json:"secret"`
+					Key    apiKeyOut `json:"key"`
 				}{Secret: display, Key: toAPIKeyOut(key)}
 				return json.NewEncoder(os.Stdout).Encode(out)
 			}
@@ -262,7 +262,7 @@ func newAuthRevokeCmd() *cobra.Command {
 		Use:   "revoke <id>",
 		Short: "Disable an API key by its id (gorag_<id8>)",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			_, db, err := openDB(dbPath)
 			if err != nil {
 				return err

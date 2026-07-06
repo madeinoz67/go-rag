@@ -52,7 +52,7 @@ func TestValidateSession_RejectsGarbageAndUnknown(t *testing.T) {
 		"wrong prefix": "gorag_abcd",
 		"apikey form":  "gorag_something",
 		"bad base64":   "gorags_!!!!",
-		"unknown":      "gorags_AAAAAAAABBBBBBBBCCCCCCCCDDDDDDDD" +
+		"unknown": "gorags_AAAAAAAABBBBBBBBCCCCCCCCDDDDDDDD" +
 			"EEEEEEEEFFFFFFFFGGGGGGGGHHHHHHHH",
 	}
 	for name, tok := range cases {
