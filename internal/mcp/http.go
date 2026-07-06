@@ -48,7 +48,16 @@ func (s *Server) HTTPHandler(token string) http.Handler {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
-		resp := s.handle(req)
+		// Resolve the Principal once here (Validate re-runs; the cost is one hash
+		// lookup) so the admin-gated auth tools can enforce scope. Empty/zero on
+		// the bypass path (admin) and when auth is disabled.
+		var p auth.Principal
+		if store != nil {
+			if got, err := store.Validate(r); err == nil {
+				p = got
+			}
+		}
+		resp := s.handle(req, p)
 		if resp == nil {
 			// Notification (no id) — no response body per MCP.
 			w.WriteHeader(http.StatusAccepted)

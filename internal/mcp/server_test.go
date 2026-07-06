@@ -202,8 +202,8 @@ func TestMCP_ToolsListCount(t *testing.T) {
 	var resp map[string]any
 	_ = json.Unmarshal(bytes.TrimSpace(out.Bytes()), &resp)
 	tools := resp["result"].(map[string]any)["tools"].([]any)
-	if len(tools) != 23 { // spec 035/037/038/039
-		t.Fatalf("expected 23 tools, got %d", len(tools))
+	if len(tools) != 28 { // spec 035/037/038/039 + spec 045 (5 auth tools)
+		t.Fatalf("expected 28 tools, got %d", len(tools))
 	}
 	names := map[string]bool{}
 	for _, tc := range tools {

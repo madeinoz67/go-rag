@@ -64,8 +64,8 @@ func TestHTTPToolsList(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 		t.Fatal(err)
 	}
-	if len(env.Result.Tools) != 23 { // spec 039 added go_rag_list_documents
-		t.Fatalf("want 23 tools, got %d", len(env.Result.Tools))
+	if len(env.Result.Tools) != 28 { // spec 045 added 5 auth-management tools
+		t.Fatalf("want 28 tools, got %d", len(env.Result.Tools))
 	}
 }
 
@@ -117,6 +117,63 @@ func TestHTTPBearerAuth(t *testing.T) {
 	body, _ := io.ReadAll(resp3.Body)
 	if !strings.Contains(string(body), "tools") {
 		t.Fatalf("expected tools in response: %s", body)
+	}
+}
+
+func TestMCP_AuthTools_AdminGated(t *testing.T) {
+	ts, store := newAuthMCPServer(t)
+	adminKey, _, err := auth.CreateAPIKey(store, "root", auth.ModeAdmin, nil)
+	if err != nil {
+		t.Fatalf("CreateAPIKey admin: %v", err)
+	}
+	readKey, _, err := auth.CreateAPIKey(store, "reader", auth.ModeRead, nil)
+	if err != nil {
+		t.Fatalf("CreateAPIKey read: %v", err)
+	}
+
+	call := func(bearer, method string, params string) (int, string) {
+		body := `{"jsonrpc":"2.0","id":1,"method":"` + method + `","params":` + params + `}`
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/mcp", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+bearer)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("call: %v", err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+
+	// Read-mode key is rejected on the admin auth tool (-32603).
+	_, body := call(readKey, "tools/call", `{"name":"go_rag_auth_list","arguments":{}}`)
+	if !strings.Contains(body, "admin scope required") {
+		t.Fatalf("read key on auth_list should be denied: %s", body)
+	}
+
+	// Admin key lists keys (no secrets).
+	_, body = call(adminKey, "tools/call", `{"name":"go_rag_auth_list","arguments":{}}`)
+	if !strings.Contains(body, "root") || strings.Contains(body, adminKey) {
+		t.Fatalf("auth_list body wrong (leaked secret?): %s", body)
+	}
+
+	// Admin creates a key — secret returned once.
+	_, body = call(adminKey, "tools/call", `{"name":"go_rag_auth_create","arguments":{"label":"mcp","mode":"read"}}`)
+	if !strings.Contains(body, "gorag_") || !strings.Contains(body, "shown once") {
+		t.Fatalf("auth_create body wrong: %s", body)
+	}
+
+	// Admin revokes by id — extract the read key's id from a fresh list.
+	list, _ := auth.ListAPIKeys(store)
+	var readerID string
+	for _, k := range list {
+		if k.Label == "reader" {
+			readerID = k.ID
+		}
+	}
+	_, body = call(adminKey, "tools/call", `{"name":"go_rag_auth_revoke","arguments":{"id":"`+readerID+`"}}`)
+	if !strings.Contains(body, "revoked") {
+		t.Fatalf("auth_revoke body wrong: %s", body)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/madeinoz67/go-rag/internal/auth"
+	"github.com/madeinoz67/go-rag/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -66,12 +67,11 @@ func newAuthSessionListCmd() *cobra.Command {
 		Short: "List active admin-login sessions (no tokens)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			asJSON, _ := cmd.Flags().GetBool("json")
-			_, db, err := openDB(dbPath)
+			store, closeStore, err := openAuthStore(dbPath)
 			if err != nil {
 				return err
 			}
-			defer db.Close()
-			store := auth.NewStore(db)
+			defer closeStore()
 
 			list, err := auth.ListSessions(store)
 			if err != nil {
@@ -102,12 +102,11 @@ func newAuthSessionRevokeCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("--hash: not hex: %w", err)
 			}
-			_, db, err := openDB(dbPath)
+			store, closeStore, err := openAuthStore(dbPath)
 			if err != nil {
 				return err
 			}
-			defer db.Close()
-			store := auth.NewStore(db)
+			defer closeStore()
 
 			if err := auth.RevokeSessionByHash(store, hash); err != nil {
 				return err
@@ -164,6 +163,22 @@ type apiKeyOut struct {
 	Enabled   bool       `json:"enabled"`
 }
 
+// openAuthStore opens the vault's auth store for a CLI management command. The
+// Pebble file lock is exclusive, so when the daemon is running the open fails
+// with a cryptic "resource temporarily unavailable". Detect that case up front
+// and tell the operator exactly what to do (stop the daemon, or manage keys via
+// the MCP auth tools while it runs).
+func openAuthStore(path string) (*auth.Store, func(), error) {
+	if running, _, _ := daemon.Status(path); running {
+		return nil, nil, fmt.Errorf("daemon is running on this vault (it holds the Pebble write lock); stop it first (go-rag stop --db-path %s) or manage credentials via the go_rag_auth_* MCP tools", path)
+	}
+	_, db, err := openDB(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return auth.NewStore(db), func() { _ = db.Close() }, nil
+}
+
 func toAPIKeyOut(k auth.APIKey) apiKeyOut {
 	return apiKeyOut{
 		ID: k.ID, Label: k.Label, Mode: k.Mode,
@@ -191,12 +206,11 @@ func newAuthCreateCmd() *cobra.Command {
 				expiresAt = &t
 			}
 
-			_, db, err := openDB(dbPath)
+			store, closeStore, err := openAuthStore(dbPath)
 			if err != nil {
 				return err
 			}
-			defer db.Close()
-			store := auth.NewStore(db)
+			defer closeStore()
 
 			display, key, err := auth.CreateAPIKey(store, label, mode, expiresAt)
 			if err != nil {
@@ -231,12 +245,11 @@ func newAuthListCmd() *cobra.Command {
 		Short: "List API keys (no secrets)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			asJSON, _ := cmd.Flags().GetBool("json")
-			_, db, err := openDB(dbPath)
+			store, closeStore, err := openAuthStore(dbPath)
 			if err != nil {
 				return err
 			}
-			defer db.Close()
-			store := auth.NewStore(db)
+			defer closeStore()
 
 			keys, err := auth.ListAPIKeys(store)
 			if err != nil {
@@ -263,12 +276,11 @@ func newAuthRevokeCmd() *cobra.Command {
 		Short: "Disable an API key by its id (gorag_<id8>)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			_, db, err := openDB(dbPath)
+			store, closeStore, err := openAuthStore(dbPath)
 			if err != nil {
 				return err
 			}
-			defer db.Close()
-			store := auth.NewStore(db)
+			defer closeStore()
 
 			if err := auth.RevokeAPIKey(store, args[0]); err != nil {
 				return err

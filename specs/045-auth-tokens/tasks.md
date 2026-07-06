@@ -147,12 +147,12 @@
 
 **Purpose**: MCP-first exposure, PRD amendments, end-to-end validation.
 
-- [ ] T030 [P] Expose MCP auth tools in `internal/mcp` — `auth.list`, `auth.create`, `auth.revoke`, `auth.session.list`, `auth.session.revoke` (admin-gated; `auth.bootstrap` stays CLI-only per research R6)
+- [x] T030 [P] Expose MCP auth tools in `internal/mcp` — `auth.list`, `auth.create`, `auth.revoke`, `auth.session.list`, `auth.session.revoke` (admin-gated; `auth.bootstrap` stays CLI-only per research R6)
 - [x] T031 [P] Update `PRD_RAG_Database.md` §6.7 — add the three new prefix rows (Storage-discipline compliance)
 - [x] T032 [P] Amend `PRD_RAG_Database.md` §2.2 — distinguish single-operator auth (now in scope) from multi-user (still out), same pattern as spec 029/032
 - [x] T033 [P] Update `ISA.md` with the auth capability + schema-version note (ExpectedVersion now 3)
-- [ ] T034 Run `quickstart.md` end-to-end (all six scenarios) on an isolated vault; capture outputs
-- [ ] T035 `make lint && make vet && make test` clean (SC-006/007) — `golangci-lint` is the strict CI gate
+- [x] T034 Run `quickstart.md` end-to-end (all six scenarios) on an isolated vault; capture outputs
+- [x] T035 `make lint && make vet && make test` clean (SC-006/007) — `golangci-lint` is the strict CI gate
 
 ---
 

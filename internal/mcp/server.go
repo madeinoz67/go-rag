@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/madeinoz67/go-rag/internal/auth"
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/embed/modelbundle"
 	"github.com/madeinoz67/go-rag/internal/engine"
@@ -71,7 +72,7 @@ func (s *Server) Serve(in io.Reader, out io.Writer) error {
 			}
 			return err
 		}
-		if resp := s.handle(req); resp != nil {
+		if resp := s.handle(req, auth.Principal{}); resp != nil {
 			if err := enc.Encode(resp); err != nil {
 				return err
 			}
@@ -79,7 +80,7 @@ func (s *Server) Serve(in io.Reader, out io.Writer) error {
 	}
 }
 
-func (s *Server) handle(req rpcReq) any {
+func (s *Server) handle(req rpcReq, p auth.Principal) any {
 	switch req.Method {
 	case "initialize":
 		return ok(req.ID, map[string]any{
@@ -92,15 +93,15 @@ func (s *Server) handle(req rpcReq) any {
 	case "tools/list":
 		return ok(req.ID, map[string]any{"tools": toolDefs()})
 	case "tools/call":
-		return s.callTool(req)
+		return s.callTool(req, p)
 	}
 	return errResp(req.ID, -32601, "method not found: "+req.Method)
 }
 
-func (s *Server) callTool(req rpcReq) any {
+func (s *Server) callTool(req rpcReq, p auth.Principal) any {
 	name, _ := req.Params["name"].(string)
 	args, _ := req.Params["arguments"].(map[string]any)
-	out, err := s.dispatch(name, args)
+	out, err := s.dispatch(name, args, p)
 	if err != nil {
 		if errors.Is(err, engine.ErrNotFound) { // spec 035: a missing chunk_id is a normal client outcome → -32001 (not -32603 Internal)
 			return errResp(req.ID, -32001, err.Error())
@@ -117,8 +118,14 @@ func (s *Server) callTool(req rpcReq) any {
 // specific vault's DB. The rest require an existing database and are rendered
 // from the shared engine facade. In daemon mode the shared DB is reused; in
 // stdio mode it is opened (and closed) per call.
-func (s *Server) dispatch(name string, args map[string]any) (string, error) {
+func (s *Server) dispatch(name string, args map[string]any, p auth.Principal) (string, error) {
+	// Auth-management tools (spec 045 US2/R6) are admin-gated and never reach
+	// the engine; route them first. They use the daemon's shared DB when present
+	// and open the vault's DB per call in stdio mode.
 	switch name {
+	case "go_rag_auth_list", "go_rag_auth_create", "go_rag_auth_revoke",
+		"go_rag_auth_session_list", "go_rag_auth_session_revoke":
+		return s.dispatchAuth(name, args, p)
 	case "go_rag_init":
 		return s.initTool(args)
 	case "go_rag_vault_list":
@@ -148,6 +155,54 @@ func (s *Server) dispatch(name string, args map[string]any) (string, error) {
 	}
 	defer db.Close()
 	return s.dispatchDB(engine.NewWithDB(cfg, db), name, args, true)
+}
+
+// dispatchAuth serves the spec 045 auth-management MCP tools. All are admin-
+// gated: a caller over HTTP needs an admin credential (read/write keys get
+// -32603); stdio (p.Source == "", the operator's local terminal) is trusted.
+// go_rag_auth_create returns the new key's id only — the secret is printed once
+// by the CLI and is never surfaced over MCP.
+func (s *Server) dispatchAuth(name string, args map[string]any, p auth.Principal) (string, error) {
+	if p.Source != "" && p.Mode != auth.ModeAdmin {
+		return "", fmt.Errorf("admin scope required for %s", name)
+	}
+	store, closeStore, err := s.authStoreOrOpen()
+	if err != nil {
+		return "", err
+	}
+	if closeStore != nil {
+		defer closeStore()
+	}
+	switch name {
+	case "go_rag_auth_list":
+		return s.renderAuthList(store)
+	case "go_rag_auth_create":
+		return s.renderAuthCreate(store, args)
+	case "go_rag_auth_revoke":
+		return s.renderAuthRevoke(store, args)
+	case "go_rag_auth_session_list":
+		return s.renderAuthSessionList(store)
+	case "go_rag_auth_session_revoke":
+		return s.renderAuthSessionRevoke(store, args)
+	}
+	return "", fmt.Errorf("unknown auth tool: %s", name)
+}
+
+// authStoreOrOpen returns the credential store from the shared engine/DB when
+// present (daemon mode), or opens the vault's DB per call (stdio). The returned
+// closer is non-nil in the stdio/per-call case so the caller can release it.
+func (s *Server) authStoreOrOpen() (*auth.Store, func(), error) {
+	if store := s.authStore(); store != nil {
+		return store, nil, nil
+	}
+	if s.dbPath == "" {
+		return nil, nil, fmt.Errorf("auth store unavailable")
+	}
+	_, db, err := engine.Open(s.dbPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	return auth.NewStore(db), func() { _ = db.Close() }, nil
 }
 
 func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any, closeAfter bool) (string, error) {
@@ -1062,6 +1117,48 @@ func toolDefs() []map[string]any {
 					"mode":   map[string]any{"type": "string", "enum": []string{"hybrid", "semantic", "keyword"}, "default": "hybrid"},
 					"k":      map[string]any{"type": "integer", "default": 10},
 				},
+			},
+		},
+		// --- spec 045 auth-management tools (admin-gated) ---
+		{
+			"name":        "go_rag_auth_list",
+			"description": "List API keys (ids + labels + modes only; never the secret). Admin scope required.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "go_rag_auth_create",
+			"description": "Create a labelled API key. The full secret (gorag_<id8>.<secret>) is returned ONCE in the response — capture it now; it is never persisted or re-displayable. Admin scope required.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"label":   map[string]any{"type": "string"},
+					"mode":    map[string]any{"type": "string", "enum": []string{"read", "write", "admin"}, "default": "read"},
+					"expires": map[string]any{"type": "string", "description": "lifetime duration e.g. \"720h\"; empty = never expires"},
+				},
+				"required": []string{"label"},
+			},
+		},
+		{
+			"name":        "go_rag_auth_revoke",
+			"description": "Disable an API key by its id (gorag_<id8>). Admin scope required.",
+			"inputSchema": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"id": map[string]any{"type": "string"}},
+				"required":   []string{"id"},
+			},
+		},
+		{
+			"name":        "go_rag_auth_session_list",
+			"description": "List active admin-login sessions (hash, user, expires, last_seen, ip; never the token). Admin scope required.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "go_rag_auth_session_revoke",
+			"description": "Revoke a session by its hash (from go_rag_auth_session_list). Admin scope required.",
+			"inputSchema": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"hash": map[string]any{"type": "string"}},
+				"required":   []string{"hash"},
 			},
 		},
 	}
