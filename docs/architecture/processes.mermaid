@@ -1045,24 +1045,14 @@ graph LR
     go_rag_internal_rest_server_test_go_TestREST_MetricsEndpoint_process_2 --> go_rag_internal_storage_db_go_quietLogger_Fatalf_process_2
     go_rag_stdlib_fmt_Fprintf_process_2["Fprintf"]
     go_rag_internal_storage_db_go_quietLogger_Fatalf_process_2 --> go_rag_stdlib_fmt_Fprintf_process_2
-    go_rag_internal_rest_server_go_Server_Handler_process_2["Handler"]
-    go_rag_internal_rest_server_test_go_TestREST_MetricsEndpoint_process_2 --> go_rag_internal_rest_server_go_Server_Handler_process_2
-    unresolved___HandleFunc_process_2["unresolved::*.HandleFunc"]
-    go_rag_internal_rest_server_go_Server_Handler_process_2 --> unresolved___HandleFunc_process_2
-    go_rag_internal_rest_server_go_Server_guard_process_2["guard"]
-    go_rag_internal_rest_server_go_Server_Handler_process_2 --> go_rag_internal_rest_server_go_Server_guard_process_2
-    unresolved_h_process_2["unresolved::h"]
-    go_rag_internal_rest_server_go_Server_guard_process_2 --> unresolved_h_process_2
-    go_rag_internal_rest_server_go_checkBearer_process_2["checkBearer"]
-    go_rag_internal_rest_server_go_Server_guard_process_2 --> go_rag_internal_rest_server_go_checkBearer_process_2
-    go_rag_internal_engine_cache_go_V]_Get_process_2["Get"]
-    go_rag_internal_rest_server_go_checkBearer_process_2 --> go_rag_internal_engine_cache_go_V]_Get_process_2
-    unresolved___MoveToFront_process_2["unresolved::*.MoveToFront"]
-    go_rag_internal_engine_cache_go_V]_Get_process_2 --> unresolved___MoveToFront_process_2
-    go_rag_internal_engine_ingest_go_Engine_Add_process_2["Add"]
-    go_rag_internal_engine_cache_go_V]_Get_process_2 --> go_rag_internal_engine_ingest_go_Engine_Add_process_2
+    go_rag_internal_engine_query_go_Engine_Query_process_2["Query"]
+    go_rag_internal_rest_server_test_go_TestREST_MetricsEndpoint_process_2 --> go_rag_internal_engine_query_go_Engine_Query_process_2
     unresolved___End_process_2["unresolved::*.End"]
-    go_rag_internal_engine_ingest_go_Engine_Add_process_2 --> unresolved___End_process_2
+    go_rag_internal_engine_query_go_Engine_Query_process_2 --> unresolved___End_process_2
+    unresolved___Prefixer_process_2["unresolved::*.Prefixer"]
+    go_rag_internal_engine_query_go_Engine_Query_process_2 --> unresolved___Prefixer_process_2
+    go_rag_internal_engine_ingest_go_Engine_Add_process_2["Add"]
+    go_rag_internal_engine_query_go_Engine_Query_process_2 --> go_rag_internal_engine_ingest_go_Engine_Add_process_2
     go_rag_internal_pipeline_pipeline_go_Pipeline_Ingest_process_2["Ingest"]
     go_rag_internal_engine_ingest_go_Engine_Add_process_2 --> go_rag_internal_pipeline_pipeline_go_Pipeline_Ingest_process_2
     unresolved___IsDir_process_2["unresolved::*.IsDir"]
@@ -1615,34 +1605,6 @@ graph LR
     go_rag_internal_engine_ingest_go_Engine_Add_process_2 --> go_rag_internal_audit_event_go_IngestEvent_process_2
     go_rag_internal_audit_event_go_statusOf_process_2["statusOf"]
     go_rag_internal_audit_event_go_IngestEvent_process_2 --> go_rag_internal_audit_event_go_statusOf_process_2
-    go_rag_internal_engine_cache_go_V]_Enabled_process_2["Enabled"]
-    go_rag_internal_engine_cache_go_V]_Get_process_2 --> go_rag_internal_engine_cache_go_V]_Enabled_process_2
-    go_rag_internal_rest_server_go_writeError_process_2["writeError"]
-    go_rag_internal_rest_server_go_Server_guard_process_2 --> go_rag_internal_rest_server_go_writeError_process_2
-    go_rag_internal_rest_server_go_writeJSON_process_2["writeJSON"]
-    go_rag_internal_rest_server_go_writeError_process_2 --> go_rag_internal_rest_server_go_writeJSON_process_2
-    unresolved___Encode_process_2["unresolved::*.Encode"]
-    go_rag_internal_rest_server_go_writeJSON_process_2 --> unresolved___Encode_process_2
-    unresolved___Header_process_2["unresolved::*.Header"]
-    go_rag_internal_rest_server_go_writeJSON_process_2 --> unresolved___Header_process_2
-    unresolved___WriteHeader_process_2["unresolved::*.WriteHeader"]
-    go_rag_internal_rest_server_go_writeJSON_process_2 --> unresolved___WriteHeader_process_2
-    go_rag_stdlib_encoding_json_NewEncoder_process_2["NewEncoder"]
-    go_rag_internal_rest_server_go_writeJSON_process_2 --> go_rag_stdlib_encoding_json_NewEncoder_process_2
-    unresolved___Set_process_2["unresolved::*.Set"]
-    go_rag_internal_rest_server_go_writeJSON_process_2 --> unresolved___Set_process_2
-    go_rag_internal_audit_event_go_AuthFailEvent_process_2["AuthFailEvent"]
-    go_rag_internal_rest_server_go_Server_guard_process_2 --> go_rag_internal_audit_event_go_AuthFailEvent_process_2
-    go_rag_internal_rest_server_go_Server_handlerFor_process_2["handlerFor"]
-    go_rag_internal_rest_server_go_Server_Handler_process_2 --> go_rag_internal_rest_server_go_Server_handlerFor_process_2
-    go_rag_stdlib_net_http_NewServeMux_process_2["NewServeMux"]
-    go_rag_internal_rest_server_go_Server_Handler_process_2 --> go_rag_stdlib_net_http_NewServeMux_process_2
-    go_rag_builtin_go_panic_process_2["panic"]
-    go_rag_internal_rest_server_go_Server_Handler_process_2 --> go_rag_builtin_go_panic_process_2
-    go_rag_internal_engine_query_go_Engine_Query_process_2["Query"]
-    go_rag_internal_rest_server_test_go_TestREST_MetricsEndpoint_process_2 --> go_rag_internal_engine_query_go_Engine_Query_process_2
-    unresolved___Prefixer_process_2["unresolved::*.Prefixer"]
-    go_rag_internal_engine_query_go_Engine_Query_process_2 --> unresolved___Prefixer_process_2
     go_rag_internal_index_classify_go_RuleBasedClassifier_Classify_process_2["Classify"]
     go_rag_internal_engine_query_go_Engine_Query_process_2 --> go_rag_internal_index_classify_go_RuleBasedClassifier_Classify_process_2
     unresolved_temporal_executor_QueryClassification_Rationale_process_2["unresolved::temporal-executor::QueryClassification::Rationale"]
@@ -1655,6 +1617,12 @@ graph LR
     go_rag_internal_engine_query_go_Engine_Query_process_2 --> go_rag_internal_index_filter_go_Filter_Empty_process_2
     go_rag_internal_index_retrieval_go_Retrieval_EnableRerankRetry_process_2["EnableRerankRetry"]
     go_rag_internal_engine_query_go_Engine_Query_process_2 --> go_rag_internal_index_retrieval_go_Retrieval_EnableRerankRetry_process_2
+    go_rag_internal_engine_cache_go_V]_Enabled_process_2["Enabled"]
+    go_rag_internal_engine_query_go_Engine_Query_process_2 --> go_rag_internal_engine_cache_go_V]_Enabled_process_2
+    go_rag_internal_engine_cache_go_V]_Get_process_2["Get"]
+    go_rag_internal_engine_query_go_Engine_Query_process_2 --> go_rag_internal_engine_cache_go_V]_Get_process_2
+    unresolved___MoveToFront_process_2["unresolved::*.MoveToFront"]
+    go_rag_internal_engine_cache_go_V]_Get_process_2 --> unresolved___MoveToFront_process_2
     go_rag_internal_index_filter_go_Filter_Matches_process_2["Matches"]
     go_rag_internal_engine_query_go_Engine_Query_process_2 --> go_rag_internal_index_filter_go_Filter_Matches_process_2
     go_rag_stdlib_strings_EqualFold_process_2["EqualFold"]
@@ -1813,8 +1781,6 @@ graph LR
     go_rag_internal_engine_query_go_Engine_Query_process_2 --> go_rag_internal_audit_event_go_QueryEvent_process_2
     go_rag_internal_audit_event_go_QueryHash_process_2["QueryHash"]
     go_rag_internal_audit_event_go_QueryEvent_process_2 --> go_rag_internal_audit_event_go_QueryHash_process_2
-    go_rag_internal_rest_server_go_New_process_2["New"]
-    go_rag_internal_rest_server_test_go_TestREST_MetricsEndpoint_process_2 --> go_rag_internal_rest_server_go_New_process_2
     go_rag_internal_config_config_go_Default_process_2["Default"]
     go_rag_internal_rest_server_test_go_TestREST_MetricsEndpoint_process_2 --> go_rag_internal_config_config_go_Default_process_2
     unresolved_temporal_executor_Config_DBPath_process_2["unresolved::temporal-executor::Config::DBPath"]
@@ -1887,6 +1853,46 @@ graph LR
     go_rag_internal_rest_server_test_go_newEngineWithCorpus_process_2 --> go_rag_stdlib_os_WriteFile_process_2
     go_rag_stdlib_path_filepath_Join_process_2["Join"]
     go_rag_internal_rest_server_test_go_newEngineWithCorpus_process_2 --> go_rag_stdlib_path_filepath_Join_process_2
+    go_rag_internal_rest_server_go_New_process_2["New"]
+    go_rag_internal_rest_server_test_go_TestREST_MetricsEndpoint_process_2 --> go_rag_internal_rest_server_go_New_process_2
+    go_rag_internal_engine_engine_go_Engine_DB_process_2["DB"]
+    go_rag_internal_rest_server_go_New_process_2 --> go_rag_internal_engine_engine_go_Engine_DB_process_2
+    go_rag_internal_auth_store_go_NewStore_process_2["NewStore"]
+    go_rag_internal_rest_server_go_New_process_2 --> go_rag_internal_auth_store_go_NewStore_process_2
+    go_rag_internal_rest_server_go_Server_Handler_process_2["Handler"]
+    go_rag_internal_rest_server_test_go_TestREST_MetricsEndpoint_process_2 --> go_rag_internal_rest_server_go_Server_Handler_process_2
+    go_rag_stdlib_net_http_NewServeMux_process_2["NewServeMux"]
+    go_rag_internal_rest_server_go_Server_Handler_process_2 --> go_rag_stdlib_net_http_NewServeMux_process_2
+    go_rag_internal_rest_server_go_Server_handlerFor_process_2["handlerFor"]
+    go_rag_internal_rest_server_go_Server_Handler_process_2 --> go_rag_internal_rest_server_go_Server_handlerFor_process_2
+    go_rag_builtin_go_panic_process_2["panic"]
+    go_rag_internal_rest_server_go_Server_Handler_process_2 --> go_rag_builtin_go_panic_process_2
+    go_rag_internal_rest_server_go_Server_guard_process_2["guard"]
+    go_rag_internal_rest_server_go_Server_Handler_process_2 --> go_rag_internal_rest_server_go_Server_guard_process_2
+    go_rag_internal_rest_server_go_checkBearer_process_2["checkBearer"]
+    go_rag_internal_rest_server_go_Server_guard_process_2 --> go_rag_internal_rest_server_go_checkBearer_process_2
+    go_rag_internal_audit_event_go_AuthFailEvent_process_2["AuthFailEvent"]
+    go_rag_internal_rest_server_go_Server_guard_process_2 --> go_rag_internal_audit_event_go_AuthFailEvent_process_2
+    go_rag_internal_rest_server_go_writeError_process_2["writeError"]
+    go_rag_internal_rest_server_go_Server_guard_process_2 --> go_rag_internal_rest_server_go_writeError_process_2
+    go_rag_internal_rest_server_go_writeJSON_process_2["writeJSON"]
+    go_rag_internal_rest_server_go_writeError_process_2 --> go_rag_internal_rest_server_go_writeJSON_process_2
+    unresolved___Header_process_2["unresolved::*.Header"]
+    go_rag_internal_rest_server_go_writeJSON_process_2 --> unresolved___Header_process_2
+    unresolved___Set_process_2["unresolved::*.Set"]
+    go_rag_internal_rest_server_go_writeJSON_process_2 --> unresolved___Set_process_2
+    unresolved___WriteHeader_process_2["unresolved::*.WriteHeader"]
+    go_rag_internal_rest_server_go_writeJSON_process_2 --> unresolved___WriteHeader_process_2
+    go_rag_stdlib_encoding_json_NewEncoder_process_2["NewEncoder"]
+    go_rag_internal_rest_server_go_writeJSON_process_2 --> go_rag_stdlib_encoding_json_NewEncoder_process_2
+    unresolved___Encode_process_2["unresolved::*.Encode"]
+    go_rag_internal_rest_server_go_writeJSON_process_2 --> unresolved___Encode_process_2
+    unresolved_h_process_2["unresolved::h"]
+    go_rag_internal_rest_server_go_Server_guard_process_2 --> unresolved_h_process_2
+    unresolved___HandleFunc_process_2["unresolved::*.HandleFunc"]
+    go_rag_internal_rest_server_go_Server_Handler_process_2 --> unresolved___HandleFunc_process_2
+    unresolved___mountAuth_process_2["unresolved::*.mountAuth"]
+    go_rag_internal_rest_server_go_Server_Handler_process_2 --> unresolved___mountAuth_process_2
   end
   subgraph p_process_3 [Enrich flow]
     go_rag_internal_enrich_openai_go_OpenAI_Enrich_process_3["Enrich"]
@@ -3149,24 +3155,6 @@ graph LR
     go_rag_internal_mcp_http_go_Server_HTTPHandler_process_4 --> go_rag_stdlib_net_http_NewServeMux_process_4
     unresolved___Set_process_4["unresolved::*.Set"]
     go_rag_internal_mcp_http_go_Server_HTTPHandler_process_4 --> unresolved___Set_process_4
-    go_rag_internal_rest_server_go_Server_Handler_process_4["Handler"]
-    go_rag_internal_engine_parity_test_go_TestCrossTransport_BatchGetChunksParity_process_4 --> go_rag_internal_rest_server_go_Server_Handler_process_4
-    go_rag_internal_rest_server_go_Server_guard_process_4["guard"]
-    go_rag_internal_rest_server_go_Server_Handler_process_4 --> go_rag_internal_rest_server_go_Server_guard_process_4
-    unresolved_h_process_4["unresolved::h"]
-    go_rag_internal_rest_server_go_Server_guard_process_4 --> unresolved_h_process_4
-    go_rag_internal_rest_server_go_checkBearer_process_4["checkBearer"]
-    go_rag_internal_rest_server_go_Server_guard_process_4 --> go_rag_internal_rest_server_go_checkBearer_process_4
-    go_rag_internal_rest_server_go_writeError_process_4["writeError"]
-    go_rag_internal_rest_server_go_Server_guard_process_4 --> go_rag_internal_rest_server_go_writeError_process_4
-    go_rag_internal_rest_server_go_writeJSON_process_4["writeJSON"]
-    go_rag_internal_rest_server_go_writeError_process_4 --> go_rag_internal_rest_server_go_writeJSON_process_4
-    go_rag_internal_audit_event_go_AuthFailEvent_process_4["AuthFailEvent"]
-    go_rag_internal_rest_server_go_Server_guard_process_4 --> go_rag_internal_audit_event_go_AuthFailEvent_process_4
-    go_rag_internal_rest_server_go_Server_handlerFor_process_4["handlerFor"]
-    go_rag_internal_rest_server_go_Server_Handler_process_4 --> go_rag_internal_rest_server_go_Server_handlerFor_process_4
-    go_rag_builtin_go_panic_process_4["panic"]
-    go_rag_internal_rest_server_go_Server_Handler_process_4 --> go_rag_builtin_go_panic_process_4
     go_rag_internal_engine_parity_test_go_dialGRPC_process_4["dialGRPC"]
     go_rag_internal_engine_parity_test_go_TestCrossTransport_BatchGetChunksParity_process_4 --> go_rag_internal_engine_parity_test_go_dialGRPC_process_4
     unresolved___Cleanup_process_4["unresolved::*.Cleanup"]
@@ -3193,6 +3181,8 @@ graph LR
     go_rag_internal_grpc_server_go_hasBearer_process_4 --> external_call_dep_google_golang_org_grpc_metadata_process_4
     external_call_dep_google_golang_org_grpc_status_process_4["google.golang.org/grpc/status"]
     go_rag_internal_grpc_server_go_bearerInterceptor_process_4 --> external_call_dep_google_golang_org_grpc_status_process_4
+    go_rag_internal_audit_event_go_AuthFailEvent_process_4["AuthFailEvent"]
+    go_rag_internal_grpc_server_go_bearerInterceptor_process_4 --> go_rag_internal_audit_event_go_AuthFailEvent_process_4
     go_rag_proto_gen_gorag_grpc_pb_go_RegisterGoragServer_process_4["RegisterGoragServer"]
     go_rag_internal_grpc_server_go_NewServer_process_4 --> go_rag_proto_gen_gorag_grpc_pb_go_RegisterGoragServer_process_4
     unresolved___RegisterService_process_4["unresolved::*.RegisterService"]
@@ -3209,8 +3199,6 @@ graph LR
     go_rag_internal_engine_parity_test_go_dialGRPC_process_4 --> external_call_dep_google_golang_org_grpc_test_bufconn_process_4
     go_rag_internal_mcp_server_go_NewWithEngine_process_4["NewWithEngine"]
     go_rag_internal_engine_parity_test_go_TestCrossTransport_BatchGetChunksParity_process_4 --> go_rag_internal_mcp_server_go_NewWithEngine_process_4
-    go_rag_internal_rest_server_go_New_process_4["New"]
-    go_rag_internal_engine_parity_test_go_TestCrossTransport_BatchGetChunksParity_process_4 --> go_rag_internal_rest_server_go_New_process_4
     go_rag_stdlib_net_http_httptest_NewServer_process_4["NewServer"]
     go_rag_internal_engine_parity_test_go_TestCrossTransport_BatchGetChunksParity_process_4 --> go_rag_stdlib_net_http_httptest_NewServer_process_4
     go_rag_stdlib_net_http_Post_process_4["Post"]
@@ -3223,6 +3211,26 @@ graph LR
     go_rag_internal_engine_parity_test_go_TestCrossTransport_BatchGetChunksParity_process_4 --> go_rag_internal_engine_parity_test_go_sharedEngine_process_4
     unresolved___TempDir_process_4["unresolved::*.TempDir"]
     go_rag_internal_engine_parity_test_go_sharedEngine_process_4 --> unresolved___TempDir_process_4
+    go_rag_internal_rest_server_go_Server_Handler_process_4["Handler"]
+    go_rag_internal_engine_parity_test_go_TestCrossTransport_BatchGetChunksParity_process_4 --> go_rag_internal_rest_server_go_Server_Handler_process_4
+    go_rag_internal_rest_server_go_Server_handlerFor_process_4["handlerFor"]
+    go_rag_internal_rest_server_go_Server_Handler_process_4 --> go_rag_internal_rest_server_go_Server_handlerFor_process_4
+    go_rag_builtin_go_panic_process_4["panic"]
+    go_rag_internal_rest_server_go_Server_Handler_process_4 --> go_rag_builtin_go_panic_process_4
+    go_rag_internal_rest_server_go_Server_guard_process_4["guard"]
+    go_rag_internal_rest_server_go_Server_Handler_process_4 --> go_rag_internal_rest_server_go_Server_guard_process_4
+    go_rag_internal_rest_server_go_checkBearer_process_4["checkBearer"]
+    go_rag_internal_rest_server_go_Server_guard_process_4 --> go_rag_internal_rest_server_go_checkBearer_process_4
+    go_rag_internal_rest_server_go_writeError_process_4["writeError"]
+    go_rag_internal_rest_server_go_Server_guard_process_4 --> go_rag_internal_rest_server_go_writeError_process_4
+    go_rag_internal_rest_server_go_writeJSON_process_4["writeJSON"]
+    go_rag_internal_rest_server_go_writeError_process_4 --> go_rag_internal_rest_server_go_writeJSON_process_4
+    unresolved_h_process_4["unresolved::h"]
+    go_rag_internal_rest_server_go_Server_guard_process_4 --> unresolved_h_process_4
+    unresolved___mountAuth_process_4["unresolved::*.mountAuth"]
+    go_rag_internal_rest_server_go_Server_Handler_process_4 --> unresolved___mountAuth_process_4
+    unresolved_New_process_4["unresolved::New"]
+    go_rag_internal_engine_parity_test_go_TestCrossTransport_BatchGetChunksParity_process_4 --> unresolved_New_process_4
   end
   subgraph p_process_5 [Score flow]
     go_rag_internal_rerank_rerank_go_OllamaReranker_Score_process_5["Score"]
@@ -4481,24 +4489,6 @@ graph LR
     go_rag_internal_mcp_http_go_Server_HTTPHandler_process_6 --> go_rag_stdlib_net_http_NewServeMux_process_6
     unresolved___Set_process_6["unresolved::*.Set"]
     go_rag_internal_mcp_http_go_Server_HTTPHandler_process_6 --> unresolved___Set_process_6
-    go_rag_internal_rest_server_go_Server_Handler_process_6["Handler"]
-    go_rag_internal_engine_parity_test_go_TestCrossTransport_GetChunkContextParity_process_6 --> go_rag_internal_rest_server_go_Server_Handler_process_6
-    go_rag_internal_rest_server_go_Server_guard_process_6["guard"]
-    go_rag_internal_rest_server_go_Server_Handler_process_6 --> go_rag_internal_rest_server_go_Server_guard_process_6
-    unresolved_h_process_6["unresolved::h"]
-    go_rag_internal_rest_server_go_Server_guard_process_6 --> unresolved_h_process_6
-    go_rag_internal_rest_server_go_checkBearer_process_6["checkBearer"]
-    go_rag_internal_rest_server_go_Server_guard_process_6 --> go_rag_internal_rest_server_go_checkBearer_process_6
-    go_rag_internal_rest_server_go_writeError_process_6["writeError"]
-    go_rag_internal_rest_server_go_Server_guard_process_6 --> go_rag_internal_rest_server_go_writeError_process_6
-    go_rag_internal_rest_server_go_writeJSON_process_6["writeJSON"]
-    go_rag_internal_rest_server_go_writeError_process_6 --> go_rag_internal_rest_server_go_writeJSON_process_6
-    go_rag_internal_audit_event_go_AuthFailEvent_process_6["AuthFailEvent"]
-    go_rag_internal_rest_server_go_Server_guard_process_6 --> go_rag_internal_audit_event_go_AuthFailEvent_process_6
-    go_rag_internal_rest_server_go_Server_handlerFor_process_6["handlerFor"]
-    go_rag_internal_rest_server_go_Server_Handler_process_6 --> go_rag_internal_rest_server_go_Server_handlerFor_process_6
-    go_rag_builtin_go_panic_process_6["panic"]
-    go_rag_internal_rest_server_go_Server_Handler_process_6 --> go_rag_builtin_go_panic_process_6
     go_rag_internal_engine_parity_test_go_assertContextEqual_process_6["assertContextEqual"]
     go_rag_internal_engine_parity_test_go_TestCrossTransport_GetChunkContextParity_process_6 --> go_rag_internal_engine_parity_test_go_assertContextEqual_process_6
     unresolved___Helper_process_6["unresolved::*.Helper"]
@@ -4529,6 +4519,8 @@ graph LR
     go_rag_internal_grpc_server_go_hasBearer_process_6 --> external_call_dep_google_golang_org_grpc_metadata_process_6
     external_call_dep_google_golang_org_grpc_status_process_6["google.golang.org/grpc/status"]
     go_rag_internal_grpc_server_go_bearerInterceptor_process_6 --> external_call_dep_google_golang_org_grpc_status_process_6
+    go_rag_internal_audit_event_go_AuthFailEvent_process_6["AuthFailEvent"]
+    go_rag_internal_grpc_server_go_bearerInterceptor_process_6 --> go_rag_internal_audit_event_go_AuthFailEvent_process_6
     go_rag_proto_gen_gorag_grpc_pb_go_RegisterGoragServer_process_6["RegisterGoragServer"]
     go_rag_internal_grpc_server_go_NewServer_process_6 --> go_rag_proto_gen_gorag_grpc_pb_go_RegisterGoragServer_process_6
     unresolved___RegisterService_process_6["unresolved::*.RegisterService"]
@@ -4545,8 +4537,6 @@ graph LR
     go_rag_internal_engine_parity_test_go_dialGRPC_process_6 --> external_call_dep_google_golang_org_grpc_test_bufconn_process_6
     go_rag_internal_mcp_server_go_NewWithEngine_process_6["NewWithEngine"]
     go_rag_internal_engine_parity_test_go_TestCrossTransport_GetChunkContextParity_process_6 --> go_rag_internal_mcp_server_go_NewWithEngine_process_6
-    go_rag_internal_rest_server_go_New_process_6["New"]
-    go_rag_internal_engine_parity_test_go_TestCrossTransport_GetChunkContextParity_process_6 --> go_rag_internal_rest_server_go_New_process_6
     go_rag_stdlib_net_http_httptest_NewServer_process_6["NewServer"]
     go_rag_internal_engine_parity_test_go_TestCrossTransport_GetChunkContextParity_process_6 --> go_rag_stdlib_net_http_httptest_NewServer_process_6
     go_rag_stdlib_strings_Repeat_process_6["Repeat"]
@@ -4563,6 +4553,26 @@ graph LR
     go_rag_internal_engine_parity_test_go_TestCrossTransport_GetChunkContextParity_process_6 --> go_rag_internal_engine_parity_test_go_sharedEngine_process_6
     unresolved___TempDir_process_6["unresolved::*.TempDir"]
     go_rag_internal_engine_parity_test_go_sharedEngine_process_6 --> unresolved___TempDir_process_6
+    go_rag_internal_rest_server_go_Server_Handler_process_6["Handler"]
+    go_rag_internal_engine_parity_test_go_TestCrossTransport_GetChunkContextParity_process_6 --> go_rag_internal_rest_server_go_Server_Handler_process_6
+    go_rag_internal_rest_server_go_Server_handlerFor_process_6["handlerFor"]
+    go_rag_internal_rest_server_go_Server_Handler_process_6 --> go_rag_internal_rest_server_go_Server_handlerFor_process_6
+    go_rag_builtin_go_panic_process_6["panic"]
+    go_rag_internal_rest_server_go_Server_Handler_process_6 --> go_rag_builtin_go_panic_process_6
+    go_rag_internal_rest_server_go_Server_guard_process_6["guard"]
+    go_rag_internal_rest_server_go_Server_Handler_process_6 --> go_rag_internal_rest_server_go_Server_guard_process_6
+    go_rag_internal_rest_server_go_checkBearer_process_6["checkBearer"]
+    go_rag_internal_rest_server_go_Server_guard_process_6 --> go_rag_internal_rest_server_go_checkBearer_process_6
+    go_rag_internal_rest_server_go_writeError_process_6["writeError"]
+    go_rag_internal_rest_server_go_Server_guard_process_6 --> go_rag_internal_rest_server_go_writeError_process_6
+    go_rag_internal_rest_server_go_writeJSON_process_6["writeJSON"]
+    go_rag_internal_rest_server_go_writeError_process_6 --> go_rag_internal_rest_server_go_writeJSON_process_6
+    unresolved_h_process_6["unresolved::h"]
+    go_rag_internal_rest_server_go_Server_guard_process_6 --> unresolved_h_process_6
+    unresolved___mountAuth_process_6["unresolved::*.mountAuth"]
+    go_rag_internal_rest_server_go_Server_Handler_process_6 --> unresolved___mountAuth_process_6
+    unresolved_New_process_6["unresolved::New"]
+    go_rag_internal_engine_parity_test_go_TestCrossTransport_GetChunkContextParity_process_6 --> unresolved_New_process_6
   end
   subgraph p_process_7 [resolve_template flow]
     go_rag__specify_scripts_bash_common_sh_resolve_template_process_7["resolve_template"]
@@ -6217,38 +6227,6 @@ graph LR
     go_rag_internal_engine_parity_test_go_TestCrossTransport_FullSurfaceParity_process_10 --> go_rag_proto_gen_gorag_pb_go_GetConfigResponse_GetValues_process_10
     go_rag_proto_gen_gorag_pb_go_ListVaultsResponse_GetVaults_process_10["GetVaults"]
     go_rag_internal_engine_parity_test_go_TestCrossTransport_FullSurfaceParity_process_10 --> go_rag_proto_gen_gorag_pb_go_ListVaultsResponse_GetVaults_process_10
-    go_rag_internal_rest_server_go_Server_Handler_process_10["Handler"]
-    go_rag_internal_engine_parity_test_go_TestCrossTransport_FullSurfaceParity_process_10 --> go_rag_internal_rest_server_go_Server_Handler_process_10
-    unresolved___HandleFunc_process_10["unresolved::*.HandleFunc"]
-    go_rag_internal_rest_server_go_Server_Handler_process_10 --> unresolved___HandleFunc_process_10
-    go_rag_internal_rest_server_go_Server_guard_process_10["guard"]
-    go_rag_internal_rest_server_go_Server_Handler_process_10 --> go_rag_internal_rest_server_go_Server_guard_process_10
-    unresolved_h_process_10["unresolved::h"]
-    go_rag_internal_rest_server_go_Server_guard_process_10 --> unresolved_h_process_10
-    go_rag_internal_rest_server_go_checkBearer_process_10["checkBearer"]
-    go_rag_internal_rest_server_go_Server_guard_process_10 --> go_rag_internal_rest_server_go_checkBearer_process_10
-    go_rag_internal_rest_server_go_writeError_process_10["writeError"]
-    go_rag_internal_rest_server_go_Server_guard_process_10 --> go_rag_internal_rest_server_go_writeError_process_10
-    go_rag_internal_rest_server_go_writeJSON_process_10["writeJSON"]
-    go_rag_internal_rest_server_go_writeError_process_10 --> go_rag_internal_rest_server_go_writeJSON_process_10
-    unresolved___Encode_process_10["unresolved::*.Encode"]
-    go_rag_internal_rest_server_go_writeJSON_process_10 --> unresolved___Encode_process_10
-    unresolved___Header_process_10["unresolved::*.Header"]
-    go_rag_internal_rest_server_go_writeJSON_process_10 --> unresolved___Header_process_10
-    unresolved___WriteHeader_process_10["unresolved::*.WriteHeader"]
-    go_rag_internal_rest_server_go_writeJSON_process_10 --> unresolved___WriteHeader_process_10
-    go_rag_stdlib_encoding_json_NewEncoder_process_10["NewEncoder"]
-    go_rag_internal_rest_server_go_writeJSON_process_10 --> go_rag_stdlib_encoding_json_NewEncoder_process_10
-    unresolved___Set_process_10["unresolved::*.Set"]
-    go_rag_internal_rest_server_go_writeJSON_process_10 --> unresolved___Set_process_10
-    go_rag_internal_audit_event_go_AuthFailEvent_process_10["AuthFailEvent"]
-    go_rag_internal_rest_server_go_Server_guard_process_10 --> go_rag_internal_audit_event_go_AuthFailEvent_process_10
-    go_rag_internal_rest_server_go_Server_handlerFor_process_10["handlerFor"]
-    go_rag_internal_rest_server_go_Server_Handler_process_10 --> go_rag_internal_rest_server_go_Server_handlerFor_process_10
-    go_rag_stdlib_net_http_NewServeMux_process_10["NewServeMux"]
-    go_rag_internal_rest_server_go_Server_Handler_process_10 --> go_rag_stdlib_net_http_NewServeMux_process_10
-    go_rag_builtin_go_panic_process_10["panic"]
-    go_rag_internal_rest_server_go_Server_Handler_process_10 --> go_rag_builtin_go_panic_process_10
     go_rag_internal_engine_config_go_Engine_ListVaults_process_10["ListVaults"]
     go_rag_internal_engine_parity_test_go_TestCrossTransport_FullSurfaceParity_process_10 --> go_rag_internal_engine_config_go_Engine_ListVaults_process_10
     go_rag_internal_engine_helpers_go_Open_process_10["Open"]
@@ -6365,6 +6343,8 @@ graph LR
     go_rag_internal_engine_parity_test_go_dialGRPC_process_10 --> unresolved___Helper_process_10
     go_rag_internal_mcp_server_go_Server_Serve_process_10["Serve"]
     go_rag_internal_engine_parity_test_go_dialGRPC_process_10 --> go_rag_internal_mcp_server_go_Server_Serve_process_10
+    unresolved___Encode_process_10["unresolved::*.Encode"]
+    go_rag_internal_mcp_server_go_Server_Serve_process_10 --> unresolved___Encode_process_10
     go_rag_internal_mcp_server_go_Server_handle_process_10["handle"]
     go_rag_internal_mcp_server_go_Server_Serve_process_10 --> go_rag_internal_mcp_server_go_Server_handle_process_10
     go_rag_internal_mcp_server_go_Server_callTool_process_10["callTool"]
@@ -6839,6 +6819,8 @@ graph LR
     go_rag_internal_mcp_server_go_Server_callTool_process_10 --> go_rag_internal_mcp_server_go_ok_process_10
     go_rag_internal_mcp_server_go_toolDefs_process_10["toolDefs"]
     go_rag_internal_mcp_server_go_Server_handle_process_10 --> go_rag_internal_mcp_server_go_toolDefs_process_10
+    go_rag_stdlib_encoding_json_NewEncoder_process_10["NewEncoder"]
+    go_rag_internal_mcp_server_go_Server_Serve_process_10 --> go_rag_stdlib_encoding_json_NewEncoder_process_10
     go_rag_internal_grpc_server_go_NewServer_process_10["NewServer"]
     go_rag_internal_engine_parity_test_go_dialGRPC_process_10 --> go_rag_internal_grpc_server_go_NewServer_process_10
     go_rag_internal_grpc_server_go_New_process_10["New"]
@@ -6853,6 +6835,8 @@ graph LR
     go_rag_internal_grpc_server_go_hasBearer_process_10 --> external_call_dep_google_golang_org_grpc_metadata_process_10
     external_call_dep_google_golang_org_grpc_status_process_10["google.golang.org/grpc/status"]
     go_rag_internal_grpc_server_go_bearerInterceptor_process_10 --> external_call_dep_google_golang_org_grpc_status_process_10
+    go_rag_internal_audit_event_go_AuthFailEvent_process_10["AuthFailEvent"]
+    go_rag_internal_grpc_server_go_bearerInterceptor_process_10 --> go_rag_internal_audit_event_go_AuthFailEvent_process_10
     go_rag_proto_gen_gorag_grpc_pb_go_RegisterGoragServer_process_10["RegisterGoragServer"]
     go_rag_internal_grpc_server_go_NewServer_process_10 --> go_rag_proto_gen_gorag_grpc_pb_go_RegisterGoragServer_process_10
     unresolved___RegisterService_process_10["unresolved::*.RegisterService"]
@@ -6867,8 +6851,6 @@ graph LR
     go_rag_internal_engine_parity_test_go_dialGRPC_process_10 --> external_call_dep_google_golang_org_grpc_credentials_insecure_process_10
     external_call_dep_google_golang_org_grpc_test_bufconn_process_10["google.golang.org/grpc/test/bufconn"]
     go_rag_internal_engine_parity_test_go_dialGRPC_process_10 --> external_call_dep_google_golang_org_grpc_test_bufconn_process_10
-    go_rag_internal_rest_server_go_New_process_10["New"]
-    go_rag_internal_engine_parity_test_go_TestCrossTransport_FullSurfaceParity_process_10 --> go_rag_internal_rest_server_go_New_process_10
     go_rag_stdlib_net_http_httptest_NewServer_process_10["NewServer"]
     go_rag_internal_engine_parity_test_go_TestCrossTransport_FullSurfaceParity_process_10 --> go_rag_stdlib_net_http_httptest_NewServer_process_10
     go_rag_stdlib_reflect_DeepEqual_process_10["DeepEqual"]
@@ -6881,6 +6863,36 @@ graph LR
     go_rag_internal_engine_parity_test_go_TestCrossTransport_FullSurfaceParity_process_10 --> go_rag_internal_engine_parity_test_go_sharedEngine_process_10
     unresolved___TempDir_process_10["unresolved::*.TempDir"]
     go_rag_internal_engine_parity_test_go_sharedEngine_process_10 --> unresolved___TempDir_process_10
+    go_rag_internal_rest_server_go_Server_Handler_process_10["Handler"]
+    go_rag_internal_engine_parity_test_go_TestCrossTransport_FullSurfaceParity_process_10 --> go_rag_internal_rest_server_go_Server_Handler_process_10
+    go_rag_stdlib_net_http_NewServeMux_process_10["NewServeMux"]
+    go_rag_internal_rest_server_go_Server_Handler_process_10 --> go_rag_stdlib_net_http_NewServeMux_process_10
+    go_rag_internal_rest_server_go_Server_handlerFor_process_10["handlerFor"]
+    go_rag_internal_rest_server_go_Server_Handler_process_10 --> go_rag_internal_rest_server_go_Server_handlerFor_process_10
+    go_rag_builtin_go_panic_process_10["panic"]
+    go_rag_internal_rest_server_go_Server_Handler_process_10 --> go_rag_builtin_go_panic_process_10
+    go_rag_internal_rest_server_go_Server_guard_process_10["guard"]
+    go_rag_internal_rest_server_go_Server_Handler_process_10 --> go_rag_internal_rest_server_go_Server_guard_process_10
+    go_rag_internal_rest_server_go_checkBearer_process_10["checkBearer"]
+    go_rag_internal_rest_server_go_Server_guard_process_10 --> go_rag_internal_rest_server_go_checkBearer_process_10
+    go_rag_internal_rest_server_go_writeError_process_10["writeError"]
+    go_rag_internal_rest_server_go_Server_guard_process_10 --> go_rag_internal_rest_server_go_writeError_process_10
+    go_rag_internal_rest_server_go_writeJSON_process_10["writeJSON"]
+    go_rag_internal_rest_server_go_writeError_process_10 --> go_rag_internal_rest_server_go_writeJSON_process_10
+    unresolved___Header_process_10["unresolved::*.Header"]
+    go_rag_internal_rest_server_go_writeJSON_process_10 --> unresolved___Header_process_10
+    unresolved___Set_process_10["unresolved::*.Set"]
+    go_rag_internal_rest_server_go_writeJSON_process_10 --> unresolved___Set_process_10
+    unresolved___WriteHeader_process_10["unresolved::*.WriteHeader"]
+    go_rag_internal_rest_server_go_writeJSON_process_10 --> unresolved___WriteHeader_process_10
+    unresolved_h_process_10["unresolved::h"]
+    go_rag_internal_rest_server_go_Server_guard_process_10 --> unresolved_h_process_10
+    unresolved___HandleFunc_process_10["unresolved::*.HandleFunc"]
+    go_rag_internal_rest_server_go_Server_Handler_process_10 --> unresolved___HandleFunc_process_10
+    unresolved___mountAuth_process_10["unresolved::*.mountAuth"]
+    go_rag_internal_rest_server_go_Server_Handler_process_10 --> unresolved___mountAuth_process_10
+    unresolved_New_process_10["unresolved::New"]
+    go_rag_internal_engine_parity_test_go_TestCrossTransport_FullSurfaceParity_process_10 --> unresolved_New_process_10
   end
   subgraph p_process_11 [TestCLI_ChunkBatch]
     go_rag_internal_cli_chunk_batch_test_go_TestCLI_ChunkBatch_process_11["TestCLI_ChunkBatch"]

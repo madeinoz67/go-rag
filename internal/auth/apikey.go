@@ -179,3 +179,28 @@ func RevokeAPIKey(s *Store, id string) error {
 func validMode(m string) bool {
 	return m == ModeRead || m == ModeWrite || m == ModeAdmin
 }
+
+// ValidateAPIKeyRaw matches a presented secret WITHOUT prefix-stripping or
+// base64url decoding — the legacy mcp.token compat path (spec 045 US4). A
+// pre-upgrade bearer carries no gorag_ prefix; its raw bytes are hashed and
+// looked up directly. Returns ErrUnknownAPIKey when absent, disabled, or expired.
+func ValidateAPIKeyRaw(s *Store, rawSecret string) (APIKey, error) {
+	if rawSecret == "" {
+		return APIKey{}, ErrUnknownAPIKey
+	}
+	val, ok, err := s.db.GetWithPrefix(storage.PrefixAuthAPIKey, hash16([]byte(rawSecret)))
+	if err != nil || !ok {
+		return APIKey{}, ErrUnknownAPIKey
+	}
+	var key APIKey
+	if err := json.Unmarshal(val, &key); err != nil {
+		return APIKey{}, ErrUnknownAPIKey
+	}
+	if !key.Enabled {
+		return APIKey{}, ErrUnknownAPIKey
+	}
+	if key.ExpiresAt != nil && time.Now().UTC().After(*key.ExpiresAt) {
+		return APIKey{}, ErrUnknownAPIKey
+	}
+	return key, nil
+}

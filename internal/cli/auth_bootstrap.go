@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/madeinoz67/go-rag/internal/auth"
+	"github.com/madeinoz67/go-rag/internal/daemon"
 )
 
 // auth_bootstrap.go implements the spec 045 US6 first-run escape hatch: ensure
@@ -26,7 +27,9 @@ const adminPasswordEnv = "GORAG_ADMIN_PASSWORD"
 
 // bootstrapAdmin ensures the admin user exists at dbPath. Safe to call on every
 // init/start — it only acts when there is no admin, or when the operator sets
-// GORAG_ADMIN_PASSWORD to (re)set the password.
+// GORAG_ADMIN_PASSWORD to (re)set the password. It also imports any legacy
+// mcp.token as a `legacy-mcp` admin API key (spec 045 US4) so pre-upgrade
+// scripts keep authenticating through the new validator.
 func bootstrapAdmin(dbPath string) error {
 	_, db, err := openDB(dbPath)
 	if err != nil {
@@ -34,6 +37,13 @@ func bootstrapAdmin(dbPath string) error {
 	}
 	defer db.Close()
 	store := auth.NewStore(db)
+
+	// Spec 045 US4: zero-break upgrade — import a pre-existing mcp.token as a
+	// real API key before the daemon ever validates a request. One-shot +
+	// idempotent; no-op when the file is absent or the store already holds keys.
+	if _, err := auth.ImportLegacyTokenFromFile(store, daemon.TokenPath(dbPath), ""); err != nil {
+		fmt.Fprintf(os.Stderr, "  warning: legacy token import failed: %v\n", err)
+	}
 
 	envPw := os.Getenv(adminPasswordEnv)
 	exists, err := auth.AdminExists(store, auth.DefaultAdminUsername)

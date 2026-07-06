@@ -120,8 +120,8 @@
 
 ### Implementation
 
-- [ ] T025 [US4] Migration import in `internal/auth/legacy.go` (called from `internal/cli/init.go`/store-open) — if `<vault>/mcp.token` exists and the key store is empty, import its value as an API key (`label=legacy-mcp`, `mode=admin`, `StorageHash=SHA-256(value)[:16]`); emit a deprecation log; skip when the store is non-empty
-- [ ] T026 [US4] Tests in `internal/auth/legacy_test.go` — `mcp.token` → `legacy-mcp` key; the old value authenticates via the SHA-256 path; skipped when keys already exist; idempotent on re-run
+- [x] T025 [US4] Migration import in `internal/auth/legacy.go` (called from `internal/cli/init.go`/store-open) — if `<vault>/mcp.token` exists and the key store is empty, import its value as an API key (`label=legacy-mcp`, `mode=admin`, `StorageHash=SHA-256(value)[:16]`); emit a deprecation log; skip when the store is non-empty
+- [x] T026 [US4] Tests in `internal/auth/legacy_test.go` — `mcp.token` → `legacy-mcp` key; the old value authenticates via the SHA-256 path; skipped when keys already exist; idempotent on re-run
 
 **Checkpoint**: existing scripts keep working through the upgrade.
 
@@ -135,9 +135,9 @@
 
 ### Implementation
 
-- [ ] T027 [US5] Bypass logic in `internal/auth/bypass.go` — `isLoopback(r)`, `storesEmpty()`, return `Principal{Source:"bypass"}` when both hold; fail-closed otherwise
-- [ ] T028 [US5] Wire bypass into `auth.Validate` in `internal/auth/auth.go` — no Bearer + loopback + empty stores → bypass; no Bearer + non-loopback → 401 (even with empty stores)
-- [ ] T029 [US5] Tests in `internal/auth/bypass_test.go` — loopback+empty → `Source=bypass`; LAN IP → 401; non-empty stores disable bypass even on loopback
+- [x] T027 [US5] Bypass logic in `internal/auth/bypass.go` — `isLoopback(r)`, `storesEmpty()`, return `Principal{Source:"bypass"}` when both hold; fail-closed otherwise
+- [x] T028 [US5] Wire bypass into `auth.Validate` in `internal/auth/auth.go` — no Bearer + loopback + empty stores → bypass; no Bearer + non-loopback → 401 (even with empty stores)
+- [x] T029 [US5] Tests in `internal/auth/bypass_test.go` — loopback+empty → `Source=bypass`; LAN IP → 401; non-empty stores disable bypass even on loopback
 
 **Checkpoint**: local UX preserved; network exposure fail-closed.
 

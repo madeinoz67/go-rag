@@ -71,16 +71,41 @@ func (s *Store) ValidateToken(token string) (Principal, error) {
 		}
 		return Principal{Subject: key.ID, Mode: key.Mode, Source: SourceAPIKey}, nil
 	}
+	// Legacy fallback (spec 045 US4): a no-prefix bearer may be a pre-upgrade
+	// mcp.token imported verbatim as an admin API key. Hash the raw token and
+	// look it up — the unchanged old value then authenticates through the new
+	// validator. Dormant once scripts migrate to gorag_ keys.
+	if key, err := ValidateAPIKeyRaw(s, token); err == nil {
+		return Principal{Subject: key.ID, Mode: key.Mode, Source: SourceAPIKey}, nil
+	}
 	return Principal{}, ErrUnknownCredential
 }
 
 // Validate parses the Bearer credential off r's Authorization header and
 // resolves it to a Principal. It performs NO body parsing (DoS guard). On
 // failure the caller MUST emit audit.AuthFailEvent(transport, detail) and
-// return 401. The loopback-bypass path (spec 045 US5) is added in Phase 8;
-// until then Validate is fail-closed: no Bearer → ErrNoCredential.
+// return 401.
+//
+// Loopback bypass (spec 045 US5): a request from the loopback peer with no
+// Bearer, when no credentials have ever been minted, authenticates as a bypass
+// Principal. The moment any credential exists, or the peer is non-loopback,
+// the bypass is off — fail-closed.
 func (s *Store) Validate(r *http.Request) (Principal, error) {
-	return s.ValidateToken(bearerFromHeader(r))
+	return s.ValidateTokenOrBypass(bearerFromHeader(r), isLoopback(r))
+}
+
+// ValidateTokenOrBypass is the transport-agnostic entry point both REST (via
+// Validate) and gRPC (via its interceptor, which extracts the token from
+// metadata and the loopback flag from the peer) route through. A presented
+// token always wins; an absent token bypasses only on loopback + empty stores.
+func (s *Store) ValidateTokenOrBypass(token string, loopback bool) (Principal, error) {
+	if token != "" {
+		return s.ValidateToken(token)
+	}
+	if loopback && s.storesEmpty() {
+		return bypassPrincipal(), nil
+	}
+	return Principal{}, ErrNoCredential
 }
 
 // bearerFromHeader extracts the opaque token from the Authorization header
