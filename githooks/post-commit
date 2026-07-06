@@ -1,0 +1,10 @@
+#!/bin/sh
+# Installed by `gortex githook install post-commit`.
+# Marker block below is regenerated on each install/uninstall;
+# add your own commands outside the markers and they will be preserved.
+
+# gortex-managed:post-commit:begin
+# Auto-regenerate gortex artefacts on post-commit.
+# Failures are tolerated so the hook always completes.
+(gortex export --format mermaid --scope all --out-dir "docs/architecture/" --on-commit) >/dev/null 2>&1 || true
+# gortex-managed:post-commit:end

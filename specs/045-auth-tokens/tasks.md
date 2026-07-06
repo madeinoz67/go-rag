@@ -49,10 +49,10 @@
 
 ### Implementation
 
-- [ ] T008 [P] [US1] `APIKey` entity + storage in `internal/auth/apikey.go` — `CreateAPIKey` (32-byte random, `gorag_`+base64url, SHA-256[:16] storageHash, [:8] ID), `ValidateAPIKey`, `ListAPIKeys`, `RevokeAPIKey`
-- [ ] T009 [US1] `go-rag auth create/list/revoke` CLI in `internal/cli/auth.go` (cobra) — `create --label --mode read|write|admin [--expires]` prints `gorag_<id>.<secret>` once; `list` table (no secrets); `revoke <id>`
-- [ ] T010 [US1] Register the `auth` parent command in `cmd/go-rag/main.go`
-- [ ] T011 [US1] Tests in `internal/auth/apikey_test.go` — create→validate→list→revoke; secret absent from store; SHA-256 key correctness; expiry enforcement; `go test -race` clean
+- [x] T008 [P] [US1] `APIKey` entity + storage in `internal/auth/apikey.go` — `CreateAPIKey` (32-byte random, `gorag_`+base64url, SHA-256[:16] storageHash, [:8] ID), `ValidateAPIKey`, `ListAPIKeys`, `RevokeAPIKey`
+- [x] T009 [US1] `go-rag auth create/list/revoke` CLI in `internal/cli/auth.go` (cobra) — `create --label --mode read|write|admin [--expires]` prints `gorag_<id>.<secret>` once; `list` table (no secrets); `revoke <id>`
+- [x] T010 [US1] Register the `auth` parent command in `cmd/go-rag/main.go`
+- [x] T011 [US1] Tests in `internal/auth/apikey_test.go` — create→validate→list→revoke; secret absent from store; SHA-256 key correctness; expiry enforcement; `go test -race` clean
 
 **Checkpoint**: API keys fully manageable via CLI (not yet enforced on transports — that is US2).
 
