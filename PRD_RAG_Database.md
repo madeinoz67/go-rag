@@ -62,7 +62,7 @@
 | # | Non-Goal | Rationale |
 |---|----------|-----------|
 | N1 | Cloud/hosted service | Local-only. A separate product could add sync later. |
-| N2 | Multi-user / auth | Single-user local tool. No login, no RBAC. |
+| N2 | Multi-user auth / RBAC | Single-operator local tool. **Single-operator auth IS in scope as of spec 045** — labelled API keys (`gorag_`), an admin user (bcrypt), and opaque Bearer sessions (`gorags_`) gate every transport, with a loopback bypass for local "just works" when no credential has been minted. **Multi-user** auth (per-user accounts, RBAC, tenancy) remains out of scope for v1. The same single-operator carve-out pattern as spec 029 (enrichment) / spec 032 (bundled embedder). |
 | N3 | Real-time collaboration | Single-process. Concurrency is for background workers, not multiple users. |
 | N4 | LLM inference (except background local enrichment) | go-rag stores and retrieves documents and does **not** run models at query time (no answer synthesis / generation on the retrieval path) and does **not** call cloud LLMs. Narrow exception: a background, opt-in, local-only **document enrichment** step (spec 029) may call the bundled Ollama for per-document auto-tagging + summary, strictly after the durable ingest ACK and off the query path. Query-time generation and cloud providers remain out of scope. |
 | N5 | Audio/video ingestion | Out of scope for v1. Extension interface supports future addition. |
@@ -692,6 +692,9 @@ Represents the searchable indexes (FTS and vector). Not a stored entity per se �
 | `0x0D` | Content hash index (for dedup) | Global |
 | `0x0E` | Change detection state | Global |
 | `0x0F` | Idempotency receipts | Global |
+| `0x17` | Auth — API-key record: `SHA-256(secret)[:16]` → `APIKey` JSON (spec 045). Raw secret never persisted. | Global |
+| `0x18` | Auth — admin-user record: `username` → `AdminUser` JSON with bcrypt hash (spec 045) | Global |
+| `0x19` | Auth — session record: `SHA-256(token)[:16]` → `Session` JSON (spec 045). Opaque token returned once at login. | Global |
 | `0xFF` | Store metadata — schema-version key (spec 034; global, outside the data range) | Global |
 
 ---
