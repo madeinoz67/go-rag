@@ -5467,20 +5467,12 @@ graph LR
     go_rag_internal_cli_chunk_go_newChunkContextCmd_process_8 --> go_rag_internal_cli_chunk_go_toDocumentOut_process_8
     go_rag_internal_cli_chunk_go_fmtRFC3339_process_8["fmtRFC3339"]
     go_rag_internal_cli_chunk_go_toDocumentOut_process_8 --> go_rag_internal_cli_chunk_go_fmtRFC3339_process_8
+    unresolved___Fatalf_process_8["unresolved::*.Fatalf"]
+    go_rag_internal_cli_chunk_context_test_go_TestCLI_ChunkContext_process_8 --> unresolved___Fatalf_process_8
+    unresolved___Set_process_8["unresolved::*.Set"]
+    go_rag_internal_cli_chunk_context_test_go_TestCLI_ChunkContext_process_8 --> unresolved___Set_process_8
     go_rag_internal_cli_init_go_newInitCmd_process_8["newInitCmd"]
     go_rag_internal_cli_chunk_context_test_go_TestCLI_ChunkContext_process_8 --> go_rag_internal_cli_init_go_newInitCmd_process_8
-    go_rag_internal_config_config_go_Config_Validate_process_8["Validate"]
-    go_rag_internal_cli_init_go_newInitCmd_process_8 --> go_rag_internal_config_config_go_Config_Validate_process_8
-    go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_8["EffectiveOTelExport"]
-    go_rag_internal_config_config_go_Config_Validate_process_8 --> go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_8
-    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_8["EffectivePoisonThresholdQuarantine"]
-    go_rag_internal_config_config_go_Config_Validate_process_8 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_8
-    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_8["EffectivePoisonThresholdSuspicious"]
-    go_rag_internal_config_config_go_Config_Validate_process_8 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_8
-    go_rag_stdlib_net_url_Parse_process_8["Parse"]
-    go_rag_internal_config_config_go_Config_Validate_process_8 --> go_rag_stdlib_net_url_Parse_process_8
-    go_rag_stdlib_net_SplitHostPort_process_8["SplitHostPort"]
-    go_rag_internal_config_config_go_Config_Validate_process_8 --> go_rag_stdlib_net_SplitHostPort_process_8
     go_rag_internal_config_config_go_Default_process_8["Default"]
     go_rag_internal_cli_init_go_newInitCmd_process_8 --> go_rag_internal_config_config_go_Default_process_8
     unresolved_temporal_executor_Config_DBPath_process_8["unresolved::temporal-executor::Config::DBPath"]
@@ -5493,14 +5485,44 @@ graph LR
     go_rag_internal_config_config_go_Default_process_8 --> unresolved_temporal_executor_Config_MCPAddr_process_8
     unresolved_temporal_executor_Config_OllamaURL_process_8["unresolved::temporal-executor::Config::OllamaURL"]
     go_rag_internal_config_config_go_Default_process_8 --> unresolved_temporal_executor_Config_OllamaURL_process_8
+    go_rag_internal_config_config_go_Config_Validate_process_8["Validate"]
+    go_rag_internal_cli_init_go_newInitCmd_process_8 --> go_rag_internal_config_config_go_Config_Validate_process_8
+    go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_8["EffectiveOTelExport"]
+    go_rag_internal_config_config_go_Config_Validate_process_8 --> go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_8
+    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_8["EffectivePoisonThresholdQuarantine"]
+    go_rag_internal_config_config_go_Config_Validate_process_8 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_8
+    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_8["EffectivePoisonThresholdSuspicious"]
+    go_rag_internal_config_config_go_Config_Validate_process_8 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_8
+    go_rag_stdlib_net_url_Parse_process_8["Parse"]
+    go_rag_internal_config_config_go_Config_Validate_process_8 --> go_rag_stdlib_net_url_Parse_process_8
+    go_rag_stdlib_net_SplitHostPort_process_8["SplitHostPort"]
+    go_rag_internal_config_config_go_Config_Validate_process_8 --> go_rag_stdlib_net_SplitHostPort_process_8
+    go_rag_stdlib_os_MkdirAll_process_8["MkdirAll"]
+    go_rag_internal_cli_init_go_newInitCmd_process_8 --> go_rag_stdlib_os_MkdirAll_process_8
     go_rag_internal_config_config_go_Save_process_8["Save"]
     go_rag_internal_cli_init_go_newInitCmd_process_8 --> go_rag_internal_config_config_go_Save_process_8
     go_rag_stdlib_encoding_json_MarshalIndent_process_8["MarshalIndent"]
     go_rag_internal_config_config_go_Save_process_8 --> go_rag_stdlib_encoding_json_MarshalIndent_process_8
-    go_rag_stdlib_os_MkdirAll_process_8["MkdirAll"]
-    go_rag_internal_config_config_go_Save_process_8 --> go_rag_stdlib_os_MkdirAll_process_8
     go_rag_stdlib_path_filepath_Dir_process_8["Dir"]
     go_rag_internal_config_config_go_Save_process_8 --> go_rag_stdlib_path_filepath_Dir_process_8
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8["bootstrapAdmin"]
+    go_rag_internal_cli_init_go_newInitCmd_process_8 --> go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8
+    go_rag_internal_auth_store_go_NewStore_process_8["NewStore"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> go_rag_internal_auth_store_go_NewStore_process_8
+    go_rag_internal_auth_admin_go_AdminExists_process_8["AdminExists"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> go_rag_internal_auth_admin_go_AdminExists_process_8
+    go_rag_internal_auth_admin_go_CreateAdmin_process_8["CreateAdmin"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> go_rag_internal_auth_admin_go_CreateAdmin_process_8
+    external_call_dep_golang_org_x_crypto_bcrypt_process_8["golang.org/x/crypto/bcrypt"]
+    go_rag_internal_auth_admin_go_CreateAdmin_process_8 --> external_call_dep_golang_org_x_crypto_bcrypt_process_8
+    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_8["generatedPassword"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_8 --> go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_8
+    go_rag_stdlib_crypto_rand_Read_process_8["Read"]
+    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_8 --> go_rag_stdlib_crypto_rand_Read_process_8
+    unresolved___EncodeToString_process_8["unresolved::*.EncodeToString"]
+    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_8 --> unresolved___EncodeToString_process_8
+    go_rag_stdlib_testing_Testing_process_8["Testing"]
+    go_rag_internal_cli_init_go_newInitCmd_process_8 --> go_rag_stdlib_testing_Testing_process_8
     go_rag_internal_embed_modelbundle_bundle_go_EnsureModel_process_8["EnsureModel"]
     go_rag_internal_cli_init_go_newInitCmd_process_8 --> go_rag_internal_embed_modelbundle_bundle_go_EnsureModel_process_8
     go_rag_internal_embed_modelbundle_bundle_go_Download_process_8["Download"]
@@ -5541,12 +5563,6 @@ graph LR
     go_rag_internal_embed_modelbundle_bundle_go_IsPresent_process_8 --> go_rag_internal_embed_modelbundle_bundle_go_ModelPath_process_8
     go_rag_stdlib_os_Stat_process_8["Stat"]
     go_rag_internal_embed_modelbundle_bundle_go_IsPresent_process_8 --> go_rag_stdlib_os_Stat_process_8
-    go_rag_stdlib_testing_Testing_process_8["Testing"]
-    go_rag_internal_cli_init_go_newInitCmd_process_8 --> go_rag_stdlib_testing_Testing_process_8
-    unresolved___Fatalf_process_8["unresolved::*.Fatalf"]
-    go_rag_internal_cli_chunk_context_test_go_TestCLI_ChunkContext_process_8 --> unresolved___Fatalf_process_8
-    unresolved___Set_process_8["unresolved::*.Set"]
-    go_rag_internal_cli_chunk_context_test_go_TestCLI_ChunkContext_process_8 --> unresolved___Set_process_8
   end
   subgraph p_process_9 [Embed flow]
     go_rag_internal_embed_openai_go_OpenAI_Embed_process_9["Embed"]
@@ -7746,24 +7762,14 @@ graph LR
     go_rag_internal_cli_chunk_go_newChunkBatchCmd_process_11 --> go_rag_internal_cli_chunk_go_toDocumentOut_process_11
     go_rag_internal_cli_chunk_go_fmtRFC3339_process_11["fmtRFC3339"]
     go_rag_internal_cli_chunk_go_toDocumentOut_process_11 --> go_rag_internal_cli_chunk_go_fmtRFC3339_process_11
+    unresolved___Fatalf_process_11["unresolved::*.Fatalf"]
+    go_rag_internal_cli_chunk_batch_test_go_TestCLI_ChunkBatch_process_11 --> unresolved___Fatalf_process_11
+    unresolved___Set_process_11["unresolved::*.Set"]
+    go_rag_internal_cli_chunk_batch_test_go_TestCLI_ChunkBatch_process_11 --> unresolved___Set_process_11
     go_rag_internal_cli_init_go_newInitCmd_process_11["newInitCmd"]
     go_rag_internal_cli_chunk_batch_test_go_TestCLI_ChunkBatch_process_11 --> go_rag_internal_cli_init_go_newInitCmd_process_11
     unresolved___GetInt_process_11["unresolved::*.GetInt"]
     go_rag_internal_cli_init_go_newInitCmd_process_11 --> unresolved___GetInt_process_11
-    unresolved___Int_process_11["unresolved::*.Int"]
-    go_rag_internal_cli_init_go_newInitCmd_process_11 --> unresolved___Int_process_11
-    go_rag_internal_config_config_go_Config_Validate_process_11["Validate"]
-    go_rag_internal_cli_init_go_newInitCmd_process_11 --> go_rag_internal_config_config_go_Config_Validate_process_11
-    go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_11["EffectiveOTelExport"]
-    go_rag_internal_config_config_go_Config_Validate_process_11 --> go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_11
-    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_11["EffectivePoisonThresholdQuarantine"]
-    go_rag_internal_config_config_go_Config_Validate_process_11 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_11
-    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_11["EffectivePoisonThresholdSuspicious"]
-    go_rag_internal_config_config_go_Config_Validate_process_11 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_11
-    go_rag_stdlib_net_url_Parse_process_11["Parse"]
-    go_rag_internal_config_config_go_Config_Validate_process_11 --> go_rag_stdlib_net_url_Parse_process_11
-    go_rag_stdlib_net_SplitHostPort_process_11["SplitHostPort"]
-    go_rag_internal_config_config_go_Config_Validate_process_11 --> go_rag_stdlib_net_SplitHostPort_process_11
     go_rag_internal_config_config_go_Default_process_11["Default"]
     go_rag_internal_cli_init_go_newInitCmd_process_11 --> go_rag_internal_config_config_go_Default_process_11
     unresolved_temporal_executor_Config_DBPath_process_11["unresolved::temporal-executor::Config::DBPath"]
@@ -7776,14 +7782,44 @@ graph LR
     go_rag_internal_config_config_go_Default_process_11 --> unresolved_temporal_executor_Config_MCPAddr_process_11
     unresolved_temporal_executor_Config_OllamaURL_process_11["unresolved::temporal-executor::Config::OllamaURL"]
     go_rag_internal_config_config_go_Default_process_11 --> unresolved_temporal_executor_Config_OllamaURL_process_11
+    go_rag_internal_config_config_go_Config_Validate_process_11["Validate"]
+    go_rag_internal_cli_init_go_newInitCmd_process_11 --> go_rag_internal_config_config_go_Config_Validate_process_11
+    go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_11["EffectiveOTelExport"]
+    go_rag_internal_config_config_go_Config_Validate_process_11 --> go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_11
+    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_11["EffectivePoisonThresholdQuarantine"]
+    go_rag_internal_config_config_go_Config_Validate_process_11 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_11
+    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_11["EffectivePoisonThresholdSuspicious"]
+    go_rag_internal_config_config_go_Config_Validate_process_11 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_11
+    go_rag_stdlib_net_url_Parse_process_11["Parse"]
+    go_rag_internal_config_config_go_Config_Validate_process_11 --> go_rag_stdlib_net_url_Parse_process_11
+    go_rag_stdlib_net_SplitHostPort_process_11["SplitHostPort"]
+    go_rag_internal_config_config_go_Config_Validate_process_11 --> go_rag_stdlib_net_SplitHostPort_process_11
+    go_rag_stdlib_os_MkdirAll_process_11["MkdirAll"]
+    go_rag_internal_cli_init_go_newInitCmd_process_11 --> go_rag_stdlib_os_MkdirAll_process_11
     go_rag_internal_config_config_go_Save_process_11["Save"]
     go_rag_internal_cli_init_go_newInitCmd_process_11 --> go_rag_internal_config_config_go_Save_process_11
     go_rag_stdlib_encoding_json_MarshalIndent_process_11["MarshalIndent"]
     go_rag_internal_config_config_go_Save_process_11 --> go_rag_stdlib_encoding_json_MarshalIndent_process_11
-    go_rag_stdlib_os_MkdirAll_process_11["MkdirAll"]
-    go_rag_internal_config_config_go_Save_process_11 --> go_rag_stdlib_os_MkdirAll_process_11
     go_rag_stdlib_path_filepath_Dir_process_11["Dir"]
     go_rag_internal_config_config_go_Save_process_11 --> go_rag_stdlib_path_filepath_Dir_process_11
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11["bootstrapAdmin"]
+    go_rag_internal_cli_init_go_newInitCmd_process_11 --> go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11
+    go_rag_internal_auth_store_go_NewStore_process_11["NewStore"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> go_rag_internal_auth_store_go_NewStore_process_11
+    go_rag_internal_auth_admin_go_AdminExists_process_11["AdminExists"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> go_rag_internal_auth_admin_go_AdminExists_process_11
+    go_rag_internal_auth_admin_go_CreateAdmin_process_11["CreateAdmin"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> go_rag_internal_auth_admin_go_CreateAdmin_process_11
+    external_call_dep_golang_org_x_crypto_bcrypt_process_11["golang.org/x/crypto/bcrypt"]
+    go_rag_internal_auth_admin_go_CreateAdmin_process_11 --> external_call_dep_golang_org_x_crypto_bcrypt_process_11
+    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_11["generatedPassword"]
+    go_rag_internal_cli_auth_bootstrap_go_bootstrapAdmin_process_11 --> go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_11
+    go_rag_stdlib_crypto_rand_Read_process_11["Read"]
+    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_11 --> go_rag_stdlib_crypto_rand_Read_process_11
+    unresolved___EncodeToString_process_11["unresolved::*.EncodeToString"]
+    go_rag_internal_cli_auth_bootstrap_go_generatedPassword_process_11 --> unresolved___EncodeToString_process_11
+    go_rag_stdlib_testing_Testing_process_11["Testing"]
+    go_rag_internal_cli_init_go_newInitCmd_process_11 --> go_rag_stdlib_testing_Testing_process_11
     go_rag_internal_embed_modelbundle_bundle_go_EnsureModel_process_11["EnsureModel"]
     go_rag_internal_cli_init_go_newInitCmd_process_11 --> go_rag_internal_embed_modelbundle_bundle_go_EnsureModel_process_11
     go_rag_internal_embed_modelbundle_bundle_go_Download_process_11["Download"]
@@ -7824,10 +7860,6 @@ graph LR
     go_rag_internal_embed_modelbundle_bundle_go_IsPresent_process_11 --> go_rag_internal_embed_modelbundle_bundle_go_ModelPath_process_11
     go_rag_stdlib_os_Stat_process_11["Stat"]
     go_rag_internal_embed_modelbundle_bundle_go_IsPresent_process_11 --> go_rag_stdlib_os_Stat_process_11
-    go_rag_stdlib_testing_Testing_process_11["Testing"]
-    go_rag_internal_cli_init_go_newInitCmd_process_11 --> go_rag_stdlib_testing_Testing_process_11
-    unresolved___Fatalf_process_11["unresolved::*.Fatalf"]
-    go_rag_internal_cli_chunk_batch_test_go_TestCLI_ChunkBatch_process_11 --> unresolved___Fatalf_process_11
-    unresolved___Set_process_11["unresolved::*.Set"]
-    go_rag_internal_cli_chunk_batch_test_go_TestCLI_ChunkBatch_process_11 --> unresolved___Set_process_11
+    unresolved___Int_process_11["unresolved::*.Int"]
+    go_rag_internal_cli_init_go_newInitCmd_process_11 --> unresolved___Int_process_11
   end

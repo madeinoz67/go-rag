@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/audit"
+	"github.com/madeinoz67/go-rag/internal/auth"
 	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/observe"
 )
@@ -20,12 +21,21 @@ import (
 // Server is the REST transport adapter over the engine facade.
 type Server struct {
 	eng   *engine.Engine
-	token string // empty => auth disabled (local development)
+	token string         // empty => auth disabled (local development)
+	store *auth.Store    // spec 045: credential store for /api/auth/* + unified Validate
 }
 
 // New returns a REST adapter backed by eng. token enables bearer auth (matching
-// MCP/gRPC); empty disables it for trusted loopback use.
-func New(eng *engine.Engine, token string) *Server { return &Server{eng: eng, token: token} }
+// MCP/gRPC); empty disables it for trusted loopback use. The auth store is
+// built from eng.DB() when present so /api/auth/* (spec 045) can mint/validate
+// sessions and verify the admin password.
+func New(eng *engine.Engine, token string) *Server {
+	s := &Server{eng: eng, token: token}
+	if db := eng.DB(); db != nil {
+		s.store = auth.NewStore(db)
+	}
+	return s
+}
 
 // route is one REST route. routes is the authoritative route table: Handler
 // wires each entry to its handler, and the OpenAPI parity test (T035) asserts
@@ -77,6 +87,7 @@ func (s *Server) Handler() http.Handler {
 		}
 		mux.HandleFunc(r.method+" "+r.path, h)
 	}
+	s.mountAuth(mux) // spec 045: /api/auth/* (login + session management)
 	return mux
 }
 

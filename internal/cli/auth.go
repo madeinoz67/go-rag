@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -34,7 +35,122 @@ admin-login sessions for the UI. The raw secret of an API key is shown exactly
 once at create time and is never persisted — only its SHA-256 hash is stored.`,
 	}
 	cmd.AddCommand(newAuthCreateCmd(), newAuthListCmd(), newAuthRevokeCmd())
+	cmd.AddCommand(newAuthSessionCmd()) // spec 045 US3
 	return cmd
+}
+
+// newAuthSessionCmd groups session-management subcommands (spec 045 US3). The
+// hash handles come from `auth session list` (hex of SHA-256(token)[:16]).
+func newAuthSessionCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "session",
+		Short: "List or revoke admin-login sessions",
+	}
+	cmd.AddCommand(newAuthSessionListCmd(), newAuthSessionRevokeCmd())
+	return cmd
+}
+
+// sessionOut is the JSON shape for `auth session list --json`. The token itself
+// is absent; Hash is hex(TokenHash) — the handle `auth session revoke` takes.
+type sessionOut struct {
+	Hash      string `json:"hash"`
+	User      string `json:"user"`
+	ExpiresAt string `json:"expires_at,omitempty"`
+	LastSeen  string `json:"last_seen,omitempty"`
+	IP        string `json:"ip,omitempty"`
+}
+
+func newAuthSessionListCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List active admin-login sessions (no tokens)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			asJSON, _ := cmd.Flags().GetBool("json")
+			_, db, err := openDB(dbPath)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+			store := auth.NewStore(db)
+
+			list, err := auth.ListSessions(store)
+			if err != nil {
+				return err
+			}
+			if asJSON {
+				out := make([]sessionOut, 0, len(list))
+				for _, s := range list {
+					out = append(out, toSessionOut(s))
+				}
+				return json.NewEncoder(os.Stdout).Encode(out)
+			}
+			printSessionTable(os.Stdout, list)
+			return nil
+		},
+	}
+	cmd.Flags().Bool("json", false, "emit JSON")
+	return cmd
+}
+
+func newAuthSessionRevokeCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "revoke <hash>",
+		Short: "Revoke a session by its hash (from `auth session list`)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			hash, err := hex.DecodeString(args[0])
+			if err != nil {
+				return fmt.Errorf("--hash: not hex: %w", err)
+			}
+			_, db, err := openDB(dbPath)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+			store := auth.NewStore(db)
+
+			if err := auth.RevokeSessionByHash(store, hash); err != nil {
+				return err
+			}
+			fmt.Printf("Revoked session %s\n", args[0])
+			return nil
+		},
+	}
+	return cmd
+}
+
+func toSessionOut(s auth.Session) sessionOut {
+	out := sessionOut{Hash: hex.EncodeToString(s.TokenHash), User: s.User}
+	if !s.ExpiresAt.IsZero() {
+		out.ExpiresAt = s.ExpiresAt.UTC().Format(time.RFC3339)
+	}
+	if !s.LastSeen.IsZero() {
+		out.LastSeen = s.LastSeen.UTC().Format(time.RFC3339)
+	}
+	out.IP = s.CreatedIP
+	return out
+}
+
+func printSessionTable(w io.Writer, list []auth.Session) {
+	if len(list) == 0 {
+		fmt.Fprintln(w, "(no sessions)")
+		return
+	}
+	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
+	fmt.Fprintln(tw, "HASH\tUSER\tEXPIRES\tLAST_SEEN\tIP")
+	for _, s := range list {
+		expires := "—"
+		if !s.ExpiresAt.IsZero() {
+			expires = s.ExpiresAt.UTC().Format(time.RFC3339)
+		}
+		seen := "—"
+		if !s.LastSeen.IsZero() {
+			seen = s.LastSeen.UTC().Format(time.RFC3339)
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+			hex.EncodeToString(s.TokenHash), s.User, expires, seen, s.CreatedIP)
+	}
+	tw.Flush()
 }
 
 // apiKeyOut is the JSON shape for `auth list --json` and create confirmation.

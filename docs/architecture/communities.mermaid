@@ -1,237 +1,248 @@
 graph LR
-  community_92(["engine +13 dirs\n1164"])
-  community_207(["engine +15 dirs\n883"])
-  community_231(["pipeline +11 dirs\n670"])
-  community_213(["reader +19 dirs\n622"])
-  community_221(["daemon +14 dirs\n548"])
-  community_224(["cli +6 dirs\n475"])
+  community_94(["engine +13 dirs\n1208"])
+  community_207(["engine +15 dirs\n900"])
+  community_231(["pipeline +11 dirs\n604"])
+  community_213(["reader +14 dirs\n593"])
+  community_222(["daemon +14 dirs\n503"])
+  community_225(["cli +7 dirs\n467"])
   community_219(["engine +16 dirs\n414"])
-  community_61(["index +2 dirs · Search\n373"])
-  community_141(["caption +4 dirs\n349"])
-  community_85(["rest +4 dirs\n347"])
-  community_106(["protobuf/runtime +2 dirs\n342"])
-  community_233(["eval +7 dirs\n315"])
-  community_21(["engine +1 dirs · Query\n311"])
-  community_89(["engine +7 dirs\n288"])
-  community_212(["grpc +3 dirs\n255"])
+  community_64(["index +2 dirs · Search\n373"])
+  community_141(["caption +6 dirs\n369"])
+  community_87(["rest +5 dirs\n360"])
+  community_116(["protobuf/runtime +2 dirs\n349"])
+  community_233(["eval +7 dirs\n312"])
+  community_93(["pipeline +5 dirs\n302"])
+  community_24(["engine +2 dirs\n286"])
+  community_91(["engine +8 dirs\n271"])
+  community_212(["grpc +3 dirs\n259"])
   community_205(["engine +6 dirs · append\n248"])
-  community_223(["reader +8 dirs\n225"])
-  community_27(["engine +3 dirs · ingestUnder\n206"])
+  community_57(["events +4 dirs\n198"])
+  community_224(["reader +8 dirs\n197"])
   community_237(["reader +7 dirs · TrimSpace\n193"])
-  community_83(["redact +2 dirs\n191"])
 
-  community_106 -->|2| community_141
-  community_106 -->|1| community_212
-  community_141 -->|3| community_205
-  community_141 -->|4| community_207
-  community_141 -->|9| community_221
+  community_116 -->|2| community_141
+  community_116 -->|1| community_212
+  community_141 -->|7| community_205
+  community_141 -->|8| community_207
+  community_141 -->|1| community_219
+  community_141 -->|9| community_222
   community_141 -->|2| community_237
-  community_141 -->|2| community_27
-  community_141 -->|4| community_92
+  community_141 -->|1| community_24
+  community_141 -->|1| community_87
+  community_141 -->|2| community_93
+  community_141 -->|6| community_94
   community_205 -->|20| community_207
   community_205 -->|4| community_213
   community_205 -->|1| community_219
-  community_205 -->|6| community_221
-  community_205 -->|1| community_224
+  community_205 -->|6| community_222
+  community_205 -->|1| community_225
   community_205 -->|1| community_231
   community_205 -->|4| community_237
-  community_205 -->|1| community_27
-  community_205 -->|5| community_89
-  community_205 -->|2| community_92
-  community_207 -->|1| community_141
+  community_205 -->|1| community_24
+  community_205 -->|4| community_91
+  community_205 -->|1| community_93
+  community_205 -->|2| community_94
+  community_207 -->|3| community_141
   community_207 -->|42| community_205
-  community_207 -->|23| community_21
   community_207 -->|4| community_213
-  community_207 -->|35| community_219
-  community_207 -->|12| community_221
-  community_207 -->|8| community_223
+  community_207 -->|37| community_219
+  community_207 -->|12| community_222
   community_207 -->|8| community_224
+  community_207 -->|8| community_225
   community_207 -->|15| community_231
   community_207 -->|1| community_233
   community_207 -->|12| community_237
-  community_207 -->|4| community_27
-  community_207 -->|1| community_83
-  community_207 -->|6| community_89
-  community_207 -->|78| community_92
+  community_207 -->|24| community_24
+  community_207 -->|2| community_87
+  community_207 -->|5| community_91
+  community_207 -->|2| community_93
+  community_207 -->|79| community_94
+  community_212 -->|3| community_116
   community_212 -->|13| community_141
   community_212 -->|9| community_207
   community_212 -->|1| community_213
-  community_212 -->|1| community_85
+  community_212 -->|1| community_87
   community_213 -->|5| community_141
   community_213 -->|5| community_205
-  community_213 -->|26| community_207
+  community_213 -->|25| community_207
   community_213 -->|8| community_219
-  community_213 -->|16| community_221
-  community_213 -->|17| community_223
-  community_213 -->|14| community_224
-  community_213 -->|12| community_231
+  community_213 -->|12| community_222
+  community_213 -->|15| community_224
+  community_213 -->|13| community_225
+  community_213 -->|14| community_231
   community_213 -->|1| community_233
   community_213 -->|17| community_237
-  community_213 -->|1| community_27
-  community_213 -->|8| community_89
-  community_213 -->|24| community_92
-  community_219 -->|1| community_141
+  community_213 -->|1| community_87
+  community_213 -->|9| community_91
+  community_213 -->|5| community_93
+  community_213 -->|24| community_94
+  community_219 -->|3| community_141
   community_219 -->|9| community_205
   community_219 -->|51| community_207
-  community_219 -->|6| community_21
   community_219 -->|1| community_212
   community_219 -->|7| community_213
-  community_219 -->|6| community_221
-  community_219 -->|4| community_223
-  community_219 -->|16| community_224
+  community_219 -->|6| community_222
+  community_219 -->|4| community_224
+  community_219 -->|17| community_225
   community_219 -->|7| community_231
   community_219 -->|1| community_233
   community_219 -->|2| community_237
-  community_219 -->|4| community_27
-  community_219 -->|1| community_85
-  community_219 -->|8| community_89
-  community_219 -->|51| community_92
-  community_21 -->|5| community_205
-  community_21 -->|31| community_207
-  community_21 -->|4| community_213
-  community_21 -->|28| community_219
-  community_21 -->|3| community_221
-  community_21 -->|1| community_224
-  community_21 -->|2| community_231
-  community_21 -->|1| community_233
-  community_21 -->|4| community_27
-  community_21 -->|4| community_61
-  community_21 -->|7| community_89
-  community_21 -->|49| community_92
-  community_221 -->|6| community_141
-  community_221 -->|5| community_205
-  community_221 -->|17| community_207
-  community_221 -->|10| community_213
-  community_221 -->|2| community_219
-  community_221 -->|2| community_223
-  community_221 -->|5| community_224
-  community_221 -->|26| community_231
-  community_221 -->|5| community_233
-  community_221 -->|16| community_237
-  community_221 -->|4| community_27
-  community_221 -->|4| community_89
-  community_221 -->|14| community_92
-  community_223 -->|1| community_141
-  community_223 -->|5| community_205
-  community_223 -->|34| community_207
-  community_223 -->|1| community_21
-  community_223 -->|2| community_213
-  community_223 -->|2| community_219
-  community_223 -->|9| community_221
-  community_223 -->|15| community_224
-  community_223 -->|2| community_231
-  community_223 -->|2| community_233
-  community_223 -->|5| community_237
-  community_223 -->|1| community_27
-  community_223 -->|1| community_85
-  community_223 -->|1| community_89
-  community_223 -->|4| community_92
-  community_224 -->|9| community_205
-  community_224 -->|45| community_207
-  community_224 -->|3| community_21
-  community_224 -->|7| community_213
-  community_224 -->|15| community_219
-  community_224 -->|21| community_221
-  community_224 -->|7| community_223
-  community_224 -->|32| community_231
-  community_224 -->|6| community_233
-  community_224 -->|1| community_237
-  community_224 -->|2| community_27
-  community_224 -->|2| community_61
-  community_224 -->|2| community_83
-  community_224 -->|1| community_85
-  community_224 -->|16| community_89
-  community_224 -->|43| community_92
-  community_231 -->|6| community_205
+  community_219 -->|6| community_24
+  community_219 -->|2| community_57
+  community_219 -->|1| community_87
+  community_219 -->|3| community_91
+  community_219 -->|7| community_93
+  community_219 -->|53| community_94
+  community_222 -->|6| community_141
+  community_222 -->|4| community_205
+  community_222 -->|15| community_207
+  community_222 -->|10| community_213
+  community_222 -->|2| community_219
+  community_222 -->|2| community_224
+  community_222 -->|5| community_225
+  community_222 -->|23| community_231
+  community_222 -->|5| community_233
+  community_222 -->|14| community_237
+  community_222 -->|1| community_57
+  community_222 -->|3| community_91
+  community_222 -->|4| community_93
+  community_222 -->|18| community_94
+  community_224 -->|1| community_141
+  community_224 -->|4| community_205
+  community_224 -->|32| community_207
+  community_224 -->|2| community_213
+  community_224 -->|1| community_219
+  community_224 -->|6| community_222
+  community_224 -->|15| community_225
+  community_224 -->|2| community_231
+  community_224 -->|2| community_233
+  community_224 -->|4| community_237
+  community_224 -->|1| community_24
+  community_224 -->|1| community_91
+  community_224 -->|1| community_93
+  community_224 -->|4| community_94
+  community_225 -->|9| community_205
+  community_225 -->|42| community_207
+  community_225 -->|8| community_213
+  community_225 -->|14| community_219
+  community_225 -->|25| community_222
+  community_225 -->|7| community_224
+  community_225 -->|30| community_231
+  community_225 -->|7| community_233
+  community_225 -->|1| community_237
+  community_225 -->|2| community_24
+  community_225 -->|1| community_57
+  community_225 -->|2| community_64
+  community_225 -->|3| community_87
+  community_225 -->|19| community_91
+  community_225 -->|35| community_94
+  community_231 -->|4| community_205
   community_231 -->|23| community_207
-  community_231 -->|32| community_213
-  community_231 -->|46| community_219
-  community_231 -->|30| community_221
-  community_231 -->|2| community_223
-  community_231 -->|32| community_224
-  community_231 -->|3| community_233
+  community_231 -->|25| community_213
+  community_231 -->|42| community_219
+  community_231 -->|24| community_222
+  community_231 -->|3| community_224
+  community_231 -->|38| community_225
+  community_231 -->|2| community_233
   community_231 -->|1| community_237
-  community_231 -->|8| community_27
-  community_231 -->|2| community_61
-  community_231 -->|27| community_89
-  community_231 -->|44| community_92
+  community_231 -->|2| community_64
+  community_231 -->|21| community_91
+  community_231 -->|50| community_94
   community_233 -->|7| community_205
-  community_233 -->|10| community_207
-  community_233 -->|1| community_21
-  community_233 -->|9| community_219
-  community_233 -->|12| community_221
-  community_233 -->|2| community_223
+  community_233 -->|9| community_207
+  community_233 -->|8| community_219
+  community_233 -->|12| community_222
   community_233 -->|1| community_224
   community_233 -->|5| community_231
   community_233 -->|1| community_237
-  community_233 -->|3| community_27
-  community_233 -->|4| community_89
-  community_233 -->|21| community_92
+  community_233 -->|1| community_24
+  community_233 -->|3| community_91
+  community_233 -->|24| community_94
   community_237 -->|9| community_205
   community_237 -->|19| community_207
   community_237 -->|5| community_213
-  community_237 -->|4| community_221
-  community_237 -->|1| community_224
-  community_237 -->|15| community_92
-  community_27 -->|7| community_205
-  community_27 -->|7| community_207
-  community_27 -->|7| community_21
-  community_27 -->|10| community_219
-  community_27 -->|1| community_223
-  community_27 -->|6| community_231
-  community_27 -->|1| community_233
-  community_27 -->|4| community_89
-  community_27 -->|31| community_92
-  community_61 -->|10| community_205
-  community_61 -->|56| community_207
-  community_61 -->|13| community_219
-  community_61 -->|3| community_231
-  community_61 -->|3| community_83
-  community_61 -->|1| community_89
-  community_61 -->|2| community_92
-  community_83 -->|8| community_205
-  community_83 -->|18| community_207
-  community_83 -->|1| community_221
-  community_83 -->|4| community_237
-  community_85 -->|1| community_205
-  community_85 -->|8| community_207
-  community_85 -->|4| community_21
-  community_85 -->|4| community_213
-  community_85 -->|1| community_219
-  community_85 -->|2| community_221
-  community_85 -->|2| community_223
-  community_85 -->|1| community_224
-  community_85 -->|1| community_231
-  community_85 -->|1| community_233
-  community_85 -->|3| community_27
-  community_85 -->|1| community_89
-  community_85 -->|5| community_92
-  community_89 -->|6| community_205
-  community_89 -->|16| community_207
-  community_89 -->|4| community_21
-  community_89 -->|8| community_213
-  community_89 -->|2| community_219
-  community_89 -->|3| community_221
-  community_89 -->|2| community_231
-  community_89 -->|3| community_27
-  community_89 -->|6| community_61
-  community_89 -->|1| community_83
-  community_89 -->|3| community_92
-  community_92 -->|2| community_141
-  community_92 -->|15| community_205
-  community_92 -->|109| community_207
-  community_92 -->|45| community_21
-  community_92 -->|7| community_212
-  community_92 -->|12| community_213
-  community_92 -->|86| community_219
-  community_92 -->|13| community_221
-  community_92 -->|2| community_223
-  community_92 -->|18| community_224
-  community_92 -->|64| community_231
-  community_92 -->|7| community_233
-  community_92 -->|9| community_237
-  community_92 -->|29| community_27
-  community_92 -->|15| community_61
-  community_92 -->|1| community_83
-  community_92 -->|1| community_85
-  community_92 -->|29| community_89
+  community_237 -->|4| community_222
+  community_237 -->|1| community_225
+  community_237 -->|2| community_93
+  community_237 -->|15| community_94
+  community_24 -->|5| community_205
+  community_24 -->|31| community_207
+  community_24 -->|4| community_213
+  community_24 -->|23| community_219
+  community_24 -->|3| community_222
+  community_24 -->|1| community_225
+  community_24 -->|1| community_231
+  community_24 -->|1| community_233
+  community_24 -->|4| community_64
+  community_24 -->|7| community_91
+  community_24 -->|1| community_93
+  community_24 -->|41| community_94
+  community_57 -->|3| community_205
+  community_57 -->|9| community_207
+  community_57 -->|2| community_213
+  community_57 -->|4| community_219
+  community_57 -->|7| community_231
+  community_57 -->|1| community_24
+  community_57 -->|6| community_94
+  community_64 -->|10| community_205
+  community_64 -->|56| community_207
+  community_64 -->|13| community_219
+  community_64 -->|3| community_231
+  community_64 -->|2| community_91
+  community_64 -->|1| community_93
+  community_64 -->|1| community_94
+  community_87 -->|2| community_141
+  community_87 -->|2| community_205
+  community_87 -->|8| community_207
+  community_87 -->|4| community_213
+  community_87 -->|1| community_219
+  community_87 -->|5| community_222
+  community_87 -->|3| community_224
+  community_87 -->|2| community_225
+  community_87 -->|1| community_231
+  community_87 -->|1| community_233
+  community_87 -->|1| community_237
+  community_87 -->|4| community_24
+  community_87 -->|2| community_91
+  community_87 -->|4| community_94
+  community_91 -->|2| community_141
+  community_91 -->|6| community_205
+  community_91 -->|20| community_207
+  community_91 -->|8| community_213
+  community_91 -->|3| community_219
+  community_91 -->|2| community_222
+  community_91 -->|1| community_225
+  community_91 -->|3| community_231
+  community_91 -->|2| community_233
+  community_91 -->|4| community_24
+  community_91 -->|3| community_64
+  community_91 -->|4| community_93
+  community_91 -->|21| community_94
+  community_93 -->|4| community_141
+  community_93 -->|9| community_205
+  community_93 -->|20| community_207
+  community_93 -->|6| community_213
+  community_93 -->|2| community_219
+  community_93 -->|1| community_225
+  community_93 -->|1| community_237
+  community_93 -->|2| community_64
+  community_93 -->|20| community_91
+  community_93 -->|4| community_94
+  community_94 -->|6| community_141
+  community_94 -->|15| community_205
+  community_94 -->|96| community_207
+  community_94 -->|7| community_212
+  community_94 -->|12| community_213
+  community_94 -->|91| community_219
+  community_94 -->|13| community_222
+  community_94 -->|2| community_224
+  community_94 -->|17| community_225
+  community_94 -->|70| community_231
+  community_94 -->|8| community_233
+  community_94 -->|7| community_237
+  community_94 -->|47| community_24
+  community_94 -->|1| community_57
+  community_94 -->|15| community_64
+  community_94 -->|1| community_87
+  community_94 -->|28| community_91
+  community_94 -->|28| community_93

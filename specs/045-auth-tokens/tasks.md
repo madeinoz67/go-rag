@@ -84,11 +84,11 @@
 
 ### Implementation
 
-- [ ] T015 [P] [US3] `Session` entity in `internal/auth/session.go` — `MintSession` (32-byte random, `gorags_`+base64url, SHA-256[:16] key, opaque + store-tracked), `ValidateSession` (lookup + expiry + last-seen bump), `RevokeSession`, `ListSessions`; default TTL 12h
-- [ ] T016 [US3] HTTP handlers in `internal/auth/http.go` (or `internal/rest/auth.go`) — `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/session` (admin), `DELETE /api/auth/session/<hash>` (admin); **never** emit `Set-Cookie`
-- [ ] T017 [US3] Wire `/api/auth/*` routes into the REST server in `internal/rest/server.go` (mount on `:7879`; 046 remounts on `:7881`)
-- [ ] T018 [US3] `go-rag auth session list/revoke` CLI in `internal/cli/auth.go`
-- [ ] T019 [US3] Tests — `internal/auth/session_test.go` (mint→validate→revoke; expiry) + login endpoint tests in `internal/rest/auth_test.go` (bcrypt login; **assert no `Set-Cookie`** in any response; logout invalidates; bad password → 401 + audit)
+- [x] T015 [P] [US3] `Session` entity in `internal/auth/session.go` — `MintSession` (32-byte random, `gorags_`+base64url, SHA-256[:16] key, opaque + store-tracked), `ValidateSession` (lookup + expiry + last-seen bump), `RevokeSession`, `ListSessions`; default TTL 12h
+- [x] T016 [US3] HTTP handlers in `internal/auth/http.go` (or `internal/rest/auth.go`) — `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/session` (admin), `DELETE /api/auth/session/<hash>` (admin); **never** emit `Set-Cookie`
+- [x] T017 [US3] Wire `/api/auth/*` routes into the REST server in `internal/rest/server.go` (mount on `:7879`; 046 remounts on `:7881`)
+- [x] T018 [US3] `go-rag auth session list/revoke` CLI in `internal/cli/auth.go`
+- [x] T019 [US3] Tests — `internal/auth/session_test.go` (mint→validate→revoke; expiry) + login endpoint tests in `internal/rest/auth_test.go` (bcrypt login; **assert no `Set-Cookie`** in any response; logout invalidates; bad password → 401 + audit)
 
 **Checkpoint**: login → Bearer session works end-to-end; no cookies emitted.
 
@@ -102,7 +102,7 @@
 
 ### Implementation
 
-- [ ] T020 [US2] Implement `Validate(r)` + `ValidateToken(token)` in `internal/auth/auth.go` — prefix dispatch (`gorag_`→APIKey, `gorags_`→Session), length cap 4096, hash-lookup, `Enabled`/`ExpiresAt` checks, return `Principal`; emit `AuthFailEvent` on any failure
+- [x] T020 [US2] Implement `Validate(r)` + `ValidateToken(token)` in `internal/auth/auth.go` — prefix dispatch (`gorag_`→APIKey, `gorags_`→Session), length cap 4096, hash-lookup, `Enabled`/`ExpiresAt` checks, return `Principal`; emit `AuthFailEvent` on any failure
 - [ ] T021 [US2] REST — delete `checkBearer` in `internal/rest/server.go`; route every `/api/*` through an `auth.Validate` middleware that puts `Principal` in `context.Context`
 - [ ] T022 [US2] gRPC — delete `bearerInterceptor`+`hasBearer` in `internal/grpc/server.go`; replace with an interceptor calling `auth.ValidateToken`, propagating `Principal` via context (mirrors MuninnDB's context-key pattern)
 - [ ] T023 [US2] MCP — delete `checkBearer` in `internal/mcp/http.go`; delegate to `auth.Validate`
