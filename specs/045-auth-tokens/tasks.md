@@ -20,8 +20,8 @@
 
 **Purpose**: package skeleton, dependency, prefix reservation.
 
-- [ ] T001 Reserve three free prefix bytes in `internal/storage/storage.go` — define `PrefixAuthAPIKey`, `PrefixAuthAdmin`, `PrefixAuthSession` (avoid `0x11` spec 019, `0x16` BL-011, `0xFF` reserved; pick against the live constants)
-- [ ] T002 [P] Create `internal/auth` package skeleton — `internal/auth/doc.go` (package doc) + `internal/auth/auth.go` with the `Principal` struct and `Validate`/`ValidateToken` signatures (stubs returning `error`)
+- [x] T001 Reserve three free prefix bytes in `internal/storage/storage.go` — define `PrefixAuthAPIKey`, `PrefixAuthAdmin`, `PrefixAuthSession` (avoid `0x11` spec 019, `0x16` BL-011, `0xFF` reserved; pick against the live constants)
+- [x] T002 [P] Create `internal/auth` package skeleton — `internal/auth/doc.go` (package doc) + `internal/auth/auth.go` with the `Principal` struct and `Validate`/`ValidateToken` signatures (stubs returning `error`)
 - [ ] T003 [P] Add `golang.org/x/crypto/bcrypt` dependency — `go get golang.org/x/crypto/bcrypt@latest && go mod tidy` (pure-Go, BSD-3 → Principle III)
 
 ---
@@ -32,10 +32,10 @@
 
 **⚠️ CRITICAL**: No user-story work can begin until this phase is complete.
 
-- [ ] T004 [P] Implement Pebble-backed `Store` in `internal/auth/store.go` — CRUD helpers over `storage.DB.SetWithPrefix`/`GetWithPrefix`/`PrefixScanByte` for the three auth prefixes (by-hash and by-username lookup)
-- [ ] T005 Add migration v3 — `internal/storage/migrate/v3_auth_prefixes.go` (`v3RegisterAuthPrefixes` idempotent `Up`) + register in `defaultMigrations` + bump `ExpectedVersion` 2→3 in `internal/storage/migrate/migrate.go`
-- [ ] T006 [P] Extend `internal/audit/event.go` — add `TokenMgmtEvent` + `LoginEvent` (success + failure) following the existing `AuthFailEvent` pattern
-- [ ] T007 Migration test — `internal/storage/migrate/migrate_test.go`: v3 idempotency (re-run is a no-op) + v2→v3 transform (constitution requires both)
+- [x] T004 [P] Implement Pebble-backed `Store` in `internal/auth/store.go` — CRUD helpers over `storage.DB.SetWithPrefix`/`GetWithPrefix`/`PrefixScanByte` for the three auth prefixes (by-hash and by-username lookup)
+- [x] T005 Add migration v3 — `internal/storage/migrate/v3_auth_prefixes.go` (`v3RegisterAuthPrefixes` idempotent `Up`) + register in `defaultMigrations` + bump `ExpectedVersion` 2→3 in `internal/storage/migrate/migrate.go`
+- [x] T006 [P] Extend `internal/audit/event.go` — add `TokenMgmtEvent` + `LoginEvent` (success + failure) following the existing `AuthFailEvent` pattern
+- [x] T007 Migration test — `internal/storage/migrate/migrate_test.go`: v3 idempotency (re-run is a no-op) + v2→v3 transform (constitution requires both)
 
 **Checkpoint**: foundation ready — store, schema v3, audit, prefixes in place. User-story work can begin.
 

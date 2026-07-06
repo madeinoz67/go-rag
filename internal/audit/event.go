@@ -19,6 +19,7 @@ const (
 	TypeQuery    = "query"
 	TypeIngest   = "ingest"
 	TypeAuthFail = "auth-fail"
+	TypeAuth     = "auth" // spec 045: auth op (login/logout/create/revoke) — success or failure
 )
 
 // Event is one JSONL audit record. `Type` selects which fields are populated; omitted
@@ -45,8 +46,11 @@ type Event struct {
 	Errors  int    `json:"errors,omitempty"`
 
 	// auth-fail
-	Transport string `json:"transport,omitempty"` // rest | grpc | mcp
+	Transport string `json:"transport,omitempty"` // rest | grpc | mcp | ui
 	Detail    string `json:"detail,omitempty"`    // short reason; NEVER the rejected token
+
+	// auth (spec 045) — management operations + login
+	Subject string `json:"subject,omitempty"` // admin username or gorag_<id8>; NEVER the secret
 }
 
 // Marshal encodes the event as one JSONL line (with trailing newline).
@@ -79,6 +83,13 @@ func IngestEvent(op, path string, added, skipped, errors int, err error) Event {
 // rejected credential).
 func AuthFailEvent(transport, detail string) Event {
 	return Event{TS: time.Now().UTC(), Type: TypeAuthFail, Transport: transport, Detail: detail}
+}
+
+// AuthEvent builds an auth-operation audit event (spec 045) for management ops
+// (login/logout/create/revoke) and successful logins. subject is the admin username
+// or the key ID (gorag_<id8>) — NEVER the secret. status derives from err.
+func AuthEvent(op, subject, transport string, err error) Event {
+	return Event{TS: time.Now().UTC(), Type: TypeAuth, Op: op, Subject: subject, Transport: transport, Status: statusOf(err)}
 }
 
 func statusOf(err error) string {

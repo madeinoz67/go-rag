@@ -29,4 +29,10 @@ const (
 	PrefixNearDup      byte = 0x13 // H20/spec 026: near-dup SimHash fingerprint (chunkID → uint64) for sibling scan
 	PrefixEmbedQueue   byte = 0x14 // spec 030: durable pending-embed work queue (chunkID → {model,status,attempts})
 	PrefixImageCaption byte = 0x15 // spec 031: cross-doc image-caption cache (image SHA-256 → {caption,model})
+
+	// Auth (spec 045). 0x16 is reserved for BL-011 (webhook registry, planned)
+	// per the bridge backlog — auth takes the bytes above it to avoid a future collision.
+	PrefixAuthAPIKey  byte = 0x17 // spec 045: API-key record (SHA-256(secret)[:16] → APIKey JSON)
+	PrefixAuthAdmin   byte = 0x18 // spec 045: admin-user record (username → AdminUser JSON)
+	PrefixAuthSession byte = 0x19 // spec 045: session record (SHA-256(token)[:16] → Session JSON)
 )
