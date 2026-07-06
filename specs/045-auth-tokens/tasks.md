@@ -22,7 +22,7 @@
 
 - [x] T001 Reserve three free prefix bytes in `internal/storage/storage.go` — define `PrefixAuthAPIKey`, `PrefixAuthAdmin`, `PrefixAuthSession` (avoid `0x11` spec 019, `0x16` BL-011, `0xFF` reserved; pick against the live constants)
 - [x] T002 [P] Create `internal/auth` package skeleton — `internal/auth/doc.go` (package doc) + `internal/auth/auth.go` with the `Principal` struct and `Validate`/`ValidateToken` signatures (stubs returning `error`)
-- [ ] T003 [P] Add `golang.org/x/crypto/bcrypt` dependency — `go get golang.org/x/crypto/bcrypt@latest && go mod tidy` (pure-Go, BSD-3 → Principle III)
+- [x] T003 [P] Add `golang.org/x/crypto/bcrypt` dependency — `go get golang.org/x/crypto/bcrypt@latest && go mod tidy` (pure-Go, BSD-3 → Principle III)
 
 ---
 
@@ -66,9 +66,9 @@
 
 ### Implementation
 
-- [ ] T012 [P] [US6] `AdminUser` entity + bcrypt in `internal/auth/admin.go` — `CreateAdmin` (bcrypt cost 12), `VerifyPassword` (constant-time via bcrypt), `AdminExists`
-- [ ] T013 [US6] Bootstrap flow in `internal/cli/init.go` — on `init`/first `start`: if no admin, create `admin` (password from `GORAG_ADMIN_PASSWORD` or generated + printed once); idempotent; `GORAG_ADMIN_PASSWORD` rotates an existing admin
-- [ ] T014 [US6] Tests in `internal/auth/admin_test.go` — bcrypt round-trip; `AdminExists` flips; bootstrap idempotency; no `password`/`root` default ships
+- [x] T012 [P] [US6] `AdminUser` entity + bcrypt in `internal/auth/admin.go` — `CreateAdmin` (bcrypt cost 12), `VerifyPassword` (constant-time via bcrypt), `AdminExists`
+- [x] T013 [US6] Bootstrap flow in `internal/cli/init.go` — on `init`/first `start`: if no admin, create `admin` (password from `GORAG_ADMIN_PASSWORD` or generated + printed once); idempotent; `GORAG_ADMIN_PASSWORD` rotates an existing admin
+- [x] T014 [US6] Tests in `internal/auth/admin_test.go` — bcrypt round-trip; `AdminExists` flips; bootstrap idempotency; no `password`/`root` default ships
 
 **Checkpoint**: `go-rag init` bootstraps the admin user.
 

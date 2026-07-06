@@ -51,6 +51,13 @@ func newInitCmd() *cobra.Command {
 			}
 
 			fmt.Printf("Initialized go-rag database at %s\n", cfg.DBPath)
+			// Spec 045 US6: ensure the admin user exists before any transport
+			// accepts a login. GORAG_ADMIN_PASSWORD sets/rotates; otherwise a
+			// password is generated and printed once. A no-op when the admin
+			// already exists and no rotation is requested.
+			if err := bootstrapAdmin(cfg.DBPath); err != nil {
+				fmt.Fprintf(os.Stderr, "  warning: admin bootstrap failed: %v\n", err)
+			}
 			// Spec 032: when the bundled pure-Go provider is selected, fetch the model
 			// now (one-time, hash-gated) so add/query work with no external service.
 			// Best-effort — a fetch failure (e.g. offline) does not abort init; the
