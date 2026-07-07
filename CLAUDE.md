@@ -93,13 +93,15 @@ transport. One Pebble writer; writes ACK on the durable store and embed async
 
 ## Out of scope for v1 (PRD §2.2)
 
-Cloud/hosted service, multi-user auth, LLM inference, audio/video, web UI, plugin
-system, embedding providers beyond Ollama. Don't build these without revisiting the PRD.
+Cloud/hosted service, multi-user auth, LLM inference, audio/video, plugin
+system, embedding providers beyond Ollama. **Web UI: a single-operator management
+console IS in scope as of spec 046** (embedded vendored SPA, loopback 4th transport,
+spec 045 auth) — see PRD §2.2 N7. Don't build the rest without revisiting the PRD.
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/044-engine-serialization/plan.md
+at specs/046-ui-app-shell/plan.md
 <!-- SPECKIT END -->
 
 <!-- gortex:communities:start -->
