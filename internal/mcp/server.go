@@ -163,6 +163,13 @@ func (s *Server) dispatch(name string, args map[string]any, p auth.Principal) (s
 // go_rag_auth_create returns the new key's id only — the secret is printed once
 // by the CLI and is never surfaced over MCP.
 func (s *Server) dispatchAuth(name string, args map[string]any, p auth.Principal) (string, error) {
+	// stdio (p.Source == "") is the operator's local terminal — trusted. A loopback
+	// bypass principal (SourceBypass) is loopback-with-no-credential and MUST NOT
+	// reach admin management — that would let any loopback peer (proxy, browser,
+	// malware) mint/revoke keys on a bare vault. Require a real credential here.
+	if p.Source == auth.SourceBypass {
+		return "", fmt.Errorf("admin scope requires a real credential, not the loopback bypass")
+	}
 	if p.Source != "" && p.Mode != auth.ModeAdmin {
 		return "", fmt.Errorf("admin scope required for %s", name)
 	}

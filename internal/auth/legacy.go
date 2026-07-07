@@ -41,7 +41,18 @@ func ImportLegacyTokenFromFile(s *Store, tokenFilePath, label string) (bool, err
 	if tok == "" {
 		return false, nil
 	}
-	return importLegacyTokenValue(s, tok, label)
+	imported, err := importLegacyTokenValue(s, tok, label)
+	if err != nil || !imported {
+		return imported, err
+	}
+	// Scrub the plaintext token file: its value now lives (hashed) in the store
+	// as a real key, so leaving the cleartext on disk for the 90-day lifetime is
+	// both unnecessary and a leak surface (backups, copies, misconfigured perms).
+	// Best-effort — a remove failure does not undo the import (the key is valid).
+	if rmErr := os.Remove(tokenFilePath); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
+		log.Printf("auth: imported legacy bearer but could not remove plaintext %s: %v (remove it manually)", tokenFilePath, rmErr)
+	}
+	return true, nil
 }
 
 // importLegacyTokenValue stores tok as a legacy admin API key when the APIKey

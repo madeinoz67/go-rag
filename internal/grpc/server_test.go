@@ -119,6 +119,30 @@ func TestGRPC_Query_HappyPath(t *testing.T) {
 	}
 }
 
+func TestGRPC_WatchDocuments_BearerEnforced(t *testing.T) {
+	eng := newEngineWithCorpus(t, "anything")
+	// Minting a credential disables the loopback bypass, so the stream
+	// interceptor's auth check is the only path — without it (red-team finding A)
+	// the server-streaming WatchDocuments RPC accepted unauthenticated streams.
+	if _, _, err := auth.CreateAPIKey(auth.NewStore(eng.DB()), "test", auth.ModeAdmin, nil); err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	client, cleanup := dialBuf(t, NewServer(eng, ""))
+	defer cleanup()
+
+	// No bearer → the stream interceptor rejects before the handler runs. For a
+	// server-streaming RPC the rejection surfaces on Recv (the open itself returns
+	// a stream), so the first Recv must be Unauthenticated — not a real event.
+	stream, err := client.WatchDocuments(context.Background(), &goragpb.WatchRequest{})
+	if err != nil {
+		t.Fatalf("WatchDocuments open: %v", err)
+	}
+	_, recvErr := stream.Recv()
+	if status.Code(recvErr) != codes.Unauthenticated {
+		t.Fatalf("WatchDocuments without bearer: want Unauthenticated on Recv, got %v", recvErr)
+	}
+}
+
 func TestGRPC_Query_BearerMissing_Rejected(t *testing.T) {
 	eng := newEngineWithCorpus(t, "hello world")
 	// Minting a credential disables the loopback bypass, so a missing bearer is

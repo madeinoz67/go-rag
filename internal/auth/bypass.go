@@ -19,20 +19,30 @@ import (
 // local quickstart. After it, even loopback must present a credential (an
 // exposed port forwarded from elsewhere must not silently bypass).
 
-// storesEmpty reports whether the operator has not yet minted a credential that
-// signals "enforce auth". Per spec 045 US5, that signal is an API key — the
-// bootstrap admin alone does NOT disable the loopback bypass: the admin is a
-// login identity for remote/UI access, while local loopback stays frictionless
-// for the operator until they explicitly mint a key. Sessions are minted only
-// by login (which needs the admin) and don't by themselves signal enforcement,
-// so they are not scanned either. A non-loopback peer is fail-closed
-// regardless of this result (see ValidateTokenOrBypass).
+// storesEmpty reports whether NO credential has ever been minted — the
+// necessary condition for the loopback bypass (spec 045 US5). BOTH an admin
+// user AND an API key count as "armed": the admin is created at `init`, so a
+// runnable vault always has one, which means the bypass only ever applies to a
+// truly bare vault (the direct-local fresh start before any bootstrap). This
+// deliberately NARROWS the bypass window to nothing in practice — and that is
+// the point: the loopback peer cannot identify the principal (the proxy in
+// front of go-rag, the operator's browser via fetch(), or local malware are all
+// loopback), so the bypass must not fire on any vault that has been initialized
+// for use. Revoking all API keys cannot re-arm it because the admin persists.
+//
+// Fail-closed on a Pebble read error: treat "we could not tell" as NOT empty,
+// so a storage fault does not silently arm the bypass.
 func (s *Store) storesEmpty() bool {
 	if s == nil || s.db == nil {
 		return true
 	}
-	has, err := anyKey(s, storage.PrefixAuthAPIKey)
-	return err != nil || !has
+	if has, err := anyKey(s, storage.PrefixAuthAPIKey); err != nil || has {
+		return false
+	}
+	if has, err := anyKey(s, storage.PrefixAuthAdmin); err != nil || has {
+		return false
+	}
+	return true
 }
 
 // anyKey reports whether at least one record exists under prefix (stops at the

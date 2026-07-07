@@ -96,14 +96,21 @@ func sessionSecretBytes(bearer string) ([]byte, error) {
 // bump is serialized against RevokeSession/RevokeSessionByHash with a re-Get
 // under the lock so a concurrent revoke cannot be clobbered (HIGH — would
 // resurrect the revoked session on the next validate).
+// ValidateSession resolves a presented bearer to its stored Session. A Get hit
+// on SHA-256(token)[:16] IS the match — no token-string comparison. Expired
+// sessions are eagerly deleted (collapses expired into absent so the two are
+// not timing-distinguishable). Pure read otherwise: no LastSeen write-back, no
+// lock (see ValidateAPIKey for why the validate path must stay write-free).
 func ValidateSession(s *Store, bearer string) (Session, error) {
 	secret, err := sessionSecretBytes(bearer)
 	if err != nil {
+		padSessionFailure()
 		return Session{}, ErrUnknownSession
 	}
 	tokenHash := hash16(secret)
 	val, ok, err := s.db.GetWithPrefix(storage.PrefixAuthSession, tokenHash)
 	if err != nil || !ok {
+		padSessionFailure()
 		return Session{}, ErrUnknownSession
 	}
 	var sess Session
@@ -115,28 +122,20 @@ func ValidateSession(s *Store, bearer string) (Session, error) {
 		_ = s.db.DeleteWithPrefix(storage.PrefixAuthSession, tokenHash)
 		return Session{}, ErrUnknownSession
 	}
-
-	// LastSeen bump — serialized against revoke; re-Get under the lock so a
-	// RevokeSession/RevokeSessionByHash that landed between the read above and
-	// here is observed (bail without writing back, which would resurrect it).
-	now := time.Now().UTC()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	val2, ok2, err2 := s.db.GetWithPrefix(storage.PrefixAuthSession, tokenHash)
-	if err2 != nil || !ok2 {
-		return Session{}, ErrUnknownSession
-	}
-	var fresh Session
-	if json.Unmarshal(val2, &fresh) != nil || time.Now().UTC().After(fresh.ExpiresAt) {
-		_ = s.db.DeleteWithPrefix(storage.PrefixAuthSession, tokenHash)
-		return Session{}, ErrUnknownSession
-	}
-	fresh.LastSeen = now
-	if b, mErr := json.Marshal(fresh); mErr == nil {
-		_ = s.db.SetWithPrefix(storage.PrefixAuthSession, tokenHash, b)
-	}
-	return fresh, nil
+	return sess, nil
 }
+
+// padSessionFailure does the same CPU work a Get-hit-then-expired path does
+// (unmarshal + expiry check) so the Get-miss path is not timing-distinguishable
+// (mirrors padAPIKeyFailure).
+func padSessionFailure() {
+	var s Session
+	_ = json.Unmarshal(decoySessionJSON, &s)
+	_ = time.Now().UTC().After(s.ExpiresAt)
+}
+
+// decoySessionJSON is a valid Session JSON used only to pad the miss path.
+var decoySessionJSON = []byte(`{"token_hash":"","user":"","expires_at":"2026-01-02T00:00:00Z","last_seen":"2026-01-01T00:00:00Z","created_ip":"","created_at":"2026-01-01T00:00:00Z"}`)
 
 // RevokeSessionByHash deletes the session whose TokenHash equals hash (the
 // admin session-revoke path takes a hash, not the raw token). A missing session
@@ -144,8 +143,6 @@ func ValidateSession(s *Store, bearer string) (Session, error) {
 // write so the two cannot cross (a validate write-back could otherwise resurrect
 // a just-deleted session).
 func RevokeSessionByHash(s *Store, hash []byte) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.db.DeleteWithPrefix(storage.PrefixAuthSession, hash)
 }
 
@@ -156,8 +153,6 @@ func RevokeSession(s *Store, bearer string) error {
 	if err != nil {
 		return nil // nothing to revoke
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.db.DeleteWithPrefix(storage.PrefixAuthSession, hash16(secret))
 }
 

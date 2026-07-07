@@ -109,6 +109,17 @@ func CreateAPIKey(s *Store, label, mode string, expiresAt *time.Time) (display s
 // LastSeen bump is serialized against RevokeAPIKey and re-checked under the
 // lock so a concurrent revoke cannot be clobbered (HIGH — would resurrect the
 // revoked key on the next validate).
+// ValidateAPIKey resolves a presented bearer to its stored APIKey. A Get hit on
+// SHA-256(secret)[:16] IS the match — there is no secret-string comparison.
+// Returns ErrUnknownAPIKey when the key is absent, disabled, or expired.
+//
+// Pure read: no LastSeen write-back, no lock. The validate path MUST stay
+// write-free so revoke (a Pebble Delete) cannot race a validate write-back and
+// resurrect the credential — a per-Store mutex would not even fix this, because
+// each transport builds its own Store (the cross-instance race is uncloseable
+// with a lock). LastSeen is set once at creation; listing shows issued-at.
+// All failure paths execute equal work (padAPIKeyFailure on the miss path) so
+// an attacker cannot timing-distinguish "no such key" from "disabled/expired".
 func ValidateAPIKey(s *Store, bearer string) (APIKey, error) {
 	secret, err := secretBytesFromBearer(bearer)
 	if err != nil {
@@ -128,28 +139,7 @@ func ValidateAPIKey(s *Store, bearer string) (APIKey, error) {
 	if !key.Enabled || (key.ExpiresAt != nil && time.Now().UTC().After(*key.ExpiresAt)) {
 		return APIKey{}, ErrUnknownAPIKey
 	}
-
-	// LastSeen bump — serialized against RevokeAPIKey; re-Get under the lock so a
-	// revoke that landed between the read above and here is observed (bail without
-	// writing back, which would resurrect the key).
-	now := time.Now().UTC()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	val2, ok2, err2 := s.db.GetWithPrefix(storage.PrefixAuthAPIKey, storageHash)
-	if err2 != nil || !ok2 {
-		return APIKey{}, ErrUnknownAPIKey
-	}
-	var fresh APIKey
-	if json.Unmarshal(val2, &fresh) != nil ||
-		!fresh.Enabled ||
-		(fresh.ExpiresAt != nil && time.Now().UTC().After(*fresh.ExpiresAt)) {
-		return APIKey{}, ErrUnknownAPIKey
-	}
-	fresh.LastSeen = now
-	if b, mErr := json.Marshal(fresh); mErr == nil {
-		_ = s.db.SetWithPrefix(storage.PrefixAuthAPIKey, storageHash, b)
-	}
-	return fresh, nil
+	return key, nil
 }
 
 // padAPIKeyFailure does the same CPU work a Get-hit-then-disabled/expired path
@@ -191,10 +181,6 @@ func ListAPIKeys(s *Store) ([]APIKey, error) {
 // SetWithPrefix prepends the prefix again — using the scan key would
 // double-prefix and silently miss the real record.
 func RevokeAPIKey(s *Store, id string) error {
-	// Serialize against ValidateAPIKey's LastSeen write so the two cannot cross
-	// (a validate write-back racing this revoke could resurrect the key).
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	var storageHash []byte
 	var ak APIKey
 	found := false

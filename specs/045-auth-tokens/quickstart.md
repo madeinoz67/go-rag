@@ -63,19 +63,27 @@ curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer my-old-secret
 ```
 **Expect**: the unchanged legacy value authenticates via the SHA-256 raw-hash lookup; a one-time deprecation notice is logged at import; the key sunsets in ~90 days (decommission by minting a `gorag_` key and revoking `legacy-mcp`).
 
-## 5. Loopback bypass vs LAN fail-closed
+## 5. Loopback bypass — a narrow safety valve (loopback + bare vault only)
 
-The bypass applies to the DATA API (`/v1/*`) when the peer is loopback and NO API
-key has been minted (the bootstrap admin alone does not disable it — it's a login
-identity, not an enforcement signal). Minting any key disables it everywhere.
+The loopback bypass is intentionally narrow: it fires ONLY when the peer is
+loopback AND the vault has NO credential of any kind (no admin AND no API key).
+Because `init` always bootstraps an admin, **any vault you can actually `start`
+has an admin — so the bypass never applies to a running daemon.** This is
+deliberate: loopback cannot identify the true principal (a reverse proxy in
+front of go-rag, the operator's browser via `fetch()`, or local malware are all
+loopback peers), so the bypass must not fire once a vault is initialized.
+
+Net effect for an `init`'d vault: **every request — loopback or not — needs a
+valid Bearer.** If you want local "just works" for quick experimentation, mint a
+key (`go-rag auth create`) and use it; do NOT rely on a bypass existing.
 
 ```bash
 E=/tmp/gorag-bp && rm -rf $E
 GORAG_ADMIN_PASSWORD=pw ./bin/go-rag init --db-path $E --embedding-provider ollama
 ./bin/go-rag start --db-path $E --mcp-addr 127.0.0.1:7878 --rest-addr 127.0.0.1:7879 &
 sleep 2
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7879/v1/status            # 200 (loopback + no key → bypass)
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7879/api/auth/session     # 401 (management is strict — no bypass)
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7879/v1/status            # 401 (admin present → bypass OFF, even loopback)
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7879/api/auth/session     # 401 (management always strict)
 curl -s -o /dev/null -w '%{http_code}\n' http://<lan-ip>:7879/v1/status             # 401 (non-loopback → fail-closed)
 ```
 

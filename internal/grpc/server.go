@@ -66,9 +66,28 @@ func NewServer(eng *engine.Engine, token string) *grpcc.Server {
 		grpcc.KeepaliveParams(grpcKeepaliveParams),
 		grpcc.KeepaliveEnforcementPolicy(grpcKeepalivePolicy),
 		grpcc.UnaryInterceptor(authInterceptor(store)),
+		grpcc.StreamInterceptor(authStreamInterceptor(store)),
 	)
 	goragpb.RegisterGoragServer(srv, New(eng))
 	return srv
+}
+
+// authStreamInterceptor is the streaming-RPC counterpart to authInterceptor.
+// It covers server-streaming RPCs (e.g. WatchDocuments, spec 040) which the
+// unary interceptor does NOT see — without it, a streaming RPC bypassed auth
+// entirely (spec 045 red-team finding A).
+func authStreamInterceptor(store *auth.Store) grpcc.StreamServerInterceptor {
+	return func(srv any, ss grpcc.ServerStream, _ *grpcc.StreamServerInfo, handler grpcc.StreamHandler) error {
+		if store == nil {
+			return handler(srv, ss)
+		}
+		token := bearerFromGRPCMetadata(ss.Context())
+		if _, err := store.ValidateTokenOrBypass(token, peerIsLoopback(ss.Context())); err != nil {
+			audit.Log(audit.AuthFailEvent("grpc", "missing or invalid bearer token (stream)"))
+			return status.Error(codes.Unauthenticated, "missing or invalid bearer token")
+		}
+		return handler(srv, ss)
+	}
 }
 
 // authInterceptor validates the bearer credential on every unary RPC through the

@@ -27,6 +27,11 @@ func TestImportLegacyToken_FromFile(t *testing.T) {
 	if !imported {
 		t.Fatal("imported=false, want true")
 	}
+	// The plaintext file is scrubbed after import (spec 045 red-team G): the
+	// value now lives hashed in the store; cleartext must not linger on disk.
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("plaintext mcp.token still present after import (err=%v)", err)
+	}
 	// The raw value authenticates with NO gorag_ prefix (legacy client shape).
 	p, err := s.ValidateToken("legacy-bearer-value-12345")
 	if err != nil {

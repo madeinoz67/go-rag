@@ -35,8 +35,12 @@ func TestBypass_NonLoopback_FailClosed(t *testing.T) {
 }
 
 func TestBypass_LoopbackNonEmptyStores_Disabled(t *testing.T) {
+	// Any credential — API key OR the bootstrap admin — disables the bypass.
+	// The admin is created at init, so any runnable vault has one; the bypass
+	// only ever applies to a truly bare (pre-init) vault. This is the security
+	// posture: loopback cannot identify the principal (proxy/browser/malware are
+	// all loopback), so the bypass must not fire once a vault is initialized.
 	s := newTestStore(t)
-	// Mint one API key — the enforcement signal. Bypass now disabled on loopback.
 	if _, _, err := CreateAPIKey(s, "first", ModeRead, nil); err != nil {
 		t.Fatalf("CreateAPIKey: %v", err)
 	}
@@ -46,17 +50,16 @@ func TestBypass_LoopbackNonEmptyStores_Disabled(t *testing.T) {
 		t.Fatalf("loopback+api-key: want ErrNoCredential (bypass off), got %v", err)
 	}
 
-	// The bootstrap admin alone does NOT disable the bypass — it is a login
-	// identity, not an enforcement signal. Local loopback stays frictionless
-	// until an API key is minted.
+	// Admin presence alone also disables the bypass (a vault with a bootstrapped
+	// admin is "armed").
 	s2 := newTestStore(t)
 	if _, err := CreateAdmin(s2, DefaultAdminUsername, "pw"); err != nil {
 		t.Fatalf("CreateAdmin: %v", err)
 	}
 	r2 := mustNewRequest(t, "GET", "/v1/query")
 	r2.RemoteAddr = "127.0.0.1:1234"
-	if _, err := s2.Validate(r2); err != nil {
-		t.Fatalf("loopback+admin-only: bypass should still apply, got %v", err)
+	if _, err := s2.Validate(r2); err != ErrNoCredential {
+		t.Fatalf("loopback+admin-only: want ErrNoCredential (admin arms the store), got %v", err)
 	}
 }
 
