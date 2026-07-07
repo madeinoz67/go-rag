@@ -91,7 +91,16 @@ func (p *Processor) Start(ctx context.Context) {
 	go p.run(ctx)
 }
 
-// Stop gracefully shuts down the processor (drains in-flight work).
+// drainTimeout bounds how long Stop waits for in-flight + final-drain embeddings
+// to settle. Pending work is durable in the 0x14 queue and re-driven on next
+// start (spec 030 crash-safety), so a stuck drain — e.g. the embedder is
+// unreachable and the HTTP call is parked on a long timeout — must not wedge
+// process shutdown. The goroutine is abandoned on timeout (it dies when the
+// process exits); the queued work recovers next run.
+const drainTimeout = 5 * time.Second
+
+// Stop gracefully shuts down the processor (drains in-flight work). Bounded by
+// drainTimeout so a stuck embedder call cannot block shutdown forever.
 func (p *Processor) Stop() {
 	p.mu.Lock()
 	if !p.running {
@@ -103,7 +112,16 @@ func (p *Processor) Stop() {
 	if p.cancelFn != nil {
 		p.cancelFn()
 	}
-	p.wg.Wait()
+	done := make(chan struct{})
+	go func() {
+		p.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(drainTimeout):
+		slog.Warn("embedproc: drain timed out; abandoning worker (pending embeddings recover on next start)", "timeout", drainTimeout)
+	}
 }
 
 func (p *Processor) run(ctx context.Context) {

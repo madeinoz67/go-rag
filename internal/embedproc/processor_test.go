@@ -86,7 +86,31 @@ func TestProcessor_CrashRecovery(t *testing.T) {
 	}
 }
 
-// TestProcessor_IdempotentReEmbed (spec 030, FR-006): re-queuing an already-
+// TestProcessor_StopBoundedWhenDrainStuck (daemon-lifecycle hardening): if a
+// worker never finishes its final drain (e.g. embedder unreachable with a long
+// HTTP timeout), Stop must still return within ~drainTimeout instead of wedging
+// forever (which hung the daemon on `go-rag stop` and left the Pebble lock
+// held). Pending work is durable in 0x14 and recovers on next start.
+func TestProcessor_StopBoundedWhenDrainStuck(t *testing.T) {
+	db := openTestDB(t)
+	em := &fakeEmbedder{}
+	vec := index.NewVector()
+	p := New(db, em, nil, vec, nil)
+	p.Start(context.Background())
+
+	// Simulate a stuck worker: Add to the WaitGroup with no matching Done.
+	p.wg.Add(1)
+
+	done := make(chan struct{})
+	go func() { p.Stop(); close(done) }()
+	select {
+	case <-done:
+		// good
+	case <-time.After(drainTimeout + 3*time.Second):
+		t.Fatalf("Stop did not return within %v — drain timeout regressed (would hang daemon shutdown)", drainTimeout+3*time.Second)
+	}
+}
+
 // embedded chunk is harmless — the queue record is removed again.
 func TestProcessor_IdempotentReEmbed(t *testing.T) {
 	db := openTestDB(t)

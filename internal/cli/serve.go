@@ -24,6 +24,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// shutdownHardDeadline bounds daemon graceful shutdown after SIGTERM. Generous
+// beyond the embedder drain (embedproc.drainTimeout=5s) + Pebble/OTel close so
+// the common case exits cleanly via the deferred closes; the watchdog only
+// forces exit when something hangs. Guarantees `go-rag stop` returns (and the
+// Pebble lock releases) within ~this many seconds.
+const shutdownHardDeadline = 12 * time.Second
+
 // newServeCmd is the hidden long-running daemon invoked (detached) by `start`.
 // It owns the single Pebble database for its lifetime and serves all three
 // transports — MCP, REST, gRPC — in one process, each on its own loopback port.
@@ -182,11 +189,21 @@ func newServeCmd() *cobra.Command {
 				})
 			}
 
-			// Graceful shutdown on SIGTERM/SIGINT (from `go-rag stop`).
+			// Graceful shutdown on SIGTERM/SIGINT (from `go-rag stop`). Bounded by
+			// a hard-deadline watchdog: the deferred engine/db Close can block on
+			// a stuck embedder drain (or any future shutdown hang), which would
+			// wedge `stop` at its 35s timeout and leave the Pebble lock held.
+			// Force-exit after shutdownHardDeadline so the OS releases the lock
+			// promptly; the durable 0x14 queue recovers pending work on next start.
 			go func() {
 				sig := make(chan os.Signal, 1)
 				signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
 				<-sig
+				go func() {
+					time.Sleep(shutdownHardDeadline)
+					fmt.Fprintln(os.Stderr, "go-rag daemon: graceful shutdown exceeded hard deadline; forcing exit")
+					os.Exit(0)
+				}()
 				stopAll()
 			}()
 
