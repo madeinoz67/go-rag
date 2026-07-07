@@ -2665,6 +2665,12 @@ graph LR
     go_rag_internal_mcp_server_go_Server_dispatch_process_4 --> go_rag_internal_mcp_server_go_Server_dispatchAuth_process_4
     go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_4["authStoreOrOpen"]
     go_rag_internal_mcp_server_go_Server_dispatchAuth_process_4 --> go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_4
+    go_rag_internal_mcp_http_go_Server_authStore_process_4["authStore"]
+    go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_4 --> go_rag_internal_mcp_http_go_Server_authStore_process_4
+    unresolved___DB_process_4["unresolved::*.DB"]
+    go_rag_internal_mcp_http_go_Server_authStore_process_4 --> unresolved___DB_process_4
+    go_rag_internal_auth_store_go_NewStore_process_4["NewStore"]
+    go_rag_internal_mcp_http_go_Server_authStore_process_4 --> go_rag_internal_auth_store_go_NewStore_process_4
     go_rag_internal_engine_helpers_go_Open_process_4["Open"]
     go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_4 --> go_rag_internal_engine_helpers_go_Open_process_4
     go_rag_internal_config_config_go_Load_process_4["Load"]
@@ -2693,26 +2699,50 @@ graph LR
     go_rag_internal_storage_migrate_migrate_go_Run_process_4 --> unresolved___Up_process_4
     go_rag_internal_storage_migrate_migrate_go_writeVersion_process_4["writeVersion"]
     go_rag_internal_storage_migrate_migrate_go_Run_process_4 --> go_rag_internal_storage_migrate_migrate_go_writeVersion_process_4
-    unresolved_NewStore_process_4["unresolved::NewStore"]
-    go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_4 --> unresolved_NewStore_process_4
-    go_rag_internal_mcp_http_go_Server_authStore_process_4["authStore"]
-    go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_4 --> go_rag_internal_mcp_http_go_Server_authStore_process_4
-    unresolved___DB_process_4["unresolved::*.DB"]
-    go_rag_internal_mcp_http_go_Server_authStore_process_4 --> unresolved___DB_process_4
-    go_rag_internal_auth_store_go_NewStore_process_4["NewStore"]
-    go_rag_internal_mcp_http_go_Server_authStore_process_4 --> go_rag_internal_auth_store_go_NewStore_process_4
     unresolved_closeStore_process_4["unresolved::closeStore"]
     go_rag_internal_mcp_server_go_Server_dispatchAuth_process_4 --> unresolved_closeStore_process_4
-    unresolved___renderAuthList_process_4["unresolved::*.renderAuthList"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_4 --> unresolved___renderAuthList_process_4
-    unresolved___renderAuthCreate_process_4["unresolved::*.renderAuthCreate"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_4 --> unresolved___renderAuthCreate_process_4
-    unresolved___renderAuthRevoke_process_4["unresolved::*.renderAuthRevoke"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_4 --> unresolved___renderAuthRevoke_process_4
-    unresolved___renderAuthSessionList_process_4["unresolved::*.renderAuthSessionList"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_4 --> unresolved___renderAuthSessionList_process_4
-    unresolved___renderAuthSessionRevoke_process_4["unresolved::*.renderAuthSessionRevoke"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_4 --> unresolved___renderAuthSessionRevoke_process_4
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthList_process_4["renderAuthList"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_4 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthList_process_4
+    unresolved___Format_process_4["unresolved::*.Format"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthList_process_4 --> unresolved___Format_process_4
+    go_rag_internal_auth_apikey_go_ListAPIKeys_process_4["ListAPIKeys"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthList_process_4 --> go_rag_internal_auth_apikey_go_ListAPIKeys_process_4
+    unresolved___PrefixScanByte_process_4["unresolved::*.PrefixScanByte"]
+    go_rag_internal_auth_apikey_go_ListAPIKeys_process_4 --> unresolved___PrefixScanByte_process_4
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthCreate_process_4["renderAuthCreate"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_4 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthCreate_process_4
+    go_rag_stdlib_time_ParseDuration_process_4["ParseDuration"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthCreate_process_4 --> go_rag_stdlib_time_ParseDuration_process_4
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_4["CreateAPIKey"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthCreate_process_4 --> go_rag_internal_auth_apikey_go_CreateAPIKey_process_4
+    go_rag_internal_auth_apikey_go_validMode_process_4["validMode"]
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_4 --> go_rag_internal_auth_apikey_go_validMode_process_4
+    go_rag_internal_auth_store_go_randomBytes_process_4["randomBytes"]
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_4 --> go_rag_internal_auth_store_go_randomBytes_process_4
+    go_rag_stdlib_crypto_rand_Read_process_4["Read"]
+    go_rag_internal_auth_store_go_randomBytes_process_4 --> go_rag_stdlib_crypto_rand_Read_process_4
+    unresolved___EncodeToString_process_4["unresolved::*.EncodeToString"]
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_4 --> unresolved___EncodeToString_process_4
+    unresolved___SetWithPrefix_process_4["unresolved::*.SetWithPrefix"]
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_4 --> unresolved___SetWithPrefix_process_4
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthRevoke_process_4["renderAuthRevoke"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_4 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthRevoke_process_4
+    go_rag_internal_auth_apikey_go_RevokeAPIKey_process_4["RevokeAPIKey"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthRevoke_process_4 --> go_rag_internal_auth_apikey_go_RevokeAPIKey_process_4
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionList_process_4["renderAuthSessionList"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_4 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionList_process_4
+    go_rag_internal_auth_session_go_ListSessions_process_4["ListSessions"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionList_process_4 --> go_rag_internal_auth_session_go_ListSessions_process_4
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionRevoke_process_4["renderAuthSessionRevoke"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_4 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionRevoke_process_4
+    go_rag_stdlib_encoding_hex_DecodeString_process_4["DecodeString"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionRevoke_process_4 --> go_rag_stdlib_encoding_hex_DecodeString_process_4
+    go_rag_internal_auth_session_go_RevokeSessionByHash_process_4["RevokeSessionByHash"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionRevoke_process_4 --> go_rag_internal_auth_session_go_RevokeSessionByHash_process_4
+    go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_4["DeleteWithPrefix"]
+    go_rag_internal_auth_session_go_RevokeSessionByHash_process_4 --> go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_4
+    go_rag_internal_storage_db_go_DB_Delete_process_4["Delete"]
+    go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_4 --> go_rag_internal_storage_db_go_DB_Delete_process_4
     go_rag_internal_mcp_server_go_Server_initTool_process_4["initTool"]
     go_rag_internal_mcp_server_go_Server_dispatch_process_4 --> go_rag_internal_mcp_server_go_Server_initTool_process_4
     go_rag_internal_config_config_go_Default_process_4["Default"]
@@ -2727,18 +2757,58 @@ graph LR
     go_rag_internal_config_config_go_Default_process_4 --> unresolved_temporal_executor_Config_MCPAddr_process_4
     unresolved_temporal_executor_Config_OllamaURL_process_4["unresolved::temporal-executor::Config::OllamaURL"]
     go_rag_internal_config_config_go_Default_process_4 --> unresolved_temporal_executor_Config_OllamaURL_process_4
-    go_rag_internal_config_config_go_Config_Validate_process_4["Validate"]
-    go_rag_internal_mcp_server_go_Server_initTool_process_4 --> go_rag_internal_config_config_go_Config_Validate_process_4
-    go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_4["EffectiveOTelExport"]
-    go_rag_internal_config_config_go_Config_Validate_process_4 --> go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_4
-    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_4["EffectivePoisonThresholdQuarantine"]
-    go_rag_internal_config_config_go_Config_Validate_process_4 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_4
-    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_4["EffectivePoisonThresholdSuspicious"]
-    go_rag_internal_config_config_go_Config_Validate_process_4 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_4
-    go_rag_stdlib_net_url_Parse_process_4["Parse"]
-    go_rag_internal_config_config_go_Config_Validate_process_4 --> go_rag_stdlib_net_url_Parse_process_4
-    go_rag_stdlib_net_SplitHostPort_process_4["SplitHostPort"]
-    go_rag_internal_config_config_go_Config_Validate_process_4 --> go_rag_stdlib_net_SplitHostPort_process_4
+    go_rag_internal_auth_auth_go_Store_Validate_process_4["Validate"]
+    go_rag_internal_mcp_server_go_Server_initTool_process_4 --> go_rag_internal_auth_auth_go_Store_Validate_process_4
+    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_4["ValidateTokenOrBypass"]
+    go_rag_internal_auth_auth_go_Store_Validate_process_4 --> go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_4
+    go_rag_internal_auth_auth_go_Store_ValidateToken_process_4["ValidateToken"]
+    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_4 --> go_rag_internal_auth_auth_go_Store_ValidateToken_process_4
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_4["ValidateAPIKey"]
+    go_rag_internal_auth_auth_go_Store_ValidateToken_process_4 --> go_rag_internal_auth_apikey_go_ValidateAPIKey_process_4
+    go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_4["secretBytesFromBearer"]
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_4 --> go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_4
+    unresolved___DecodeString_process_4["unresolved::*.DecodeString"]
+    go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_4 --> unresolved___DecodeString_process_4
+    go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_4["padAPIKeyFailure"]
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_4 --> go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_4
+    unresolved___After_process_4["unresolved::*.After"]
+    go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_4 --> unresolved___After_process_4
+    go_rag_internal_auth_store_go_hash16_process_4["hash16"]
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_4 --> go_rag_internal_auth_store_go_hash16_process_4
+    unresolved___GetWithPrefix_process_4["unresolved::*.GetWithPrefix"]
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_4 --> unresolved___GetWithPrefix_process_4
+    go_rag_internal_auth_apikey_go_ValidateAPIKeyRaw_process_4["ValidateAPIKeyRaw"]
+    go_rag_internal_auth_auth_go_Store_ValidateToken_process_4 --> go_rag_internal_auth_apikey_go_ValidateAPIKeyRaw_process_4
+    go_rag_internal_auth_session_go_ValidateSession_process_4["ValidateSession"]
+    go_rag_internal_auth_auth_go_Store_ValidateToken_process_4 --> go_rag_internal_auth_session_go_ValidateSession_process_4
+    go_rag_internal_auth_session_go_sessionSecretBytes_process_4["sessionSecretBytes"]
+    go_rag_internal_auth_session_go_ValidateSession_process_4 --> go_rag_internal_auth_session_go_sessionSecretBytes_process_4
+    go_rag_internal_auth_session_go_padSessionFailure_process_4["padSessionFailure"]
+    go_rag_internal_auth_session_go_ValidateSession_process_4 --> go_rag_internal_auth_session_go_padSessionFailure_process_4
+    go_rag_internal_auth_bypass_go_Store_storesEmpty_process_4["storesEmpty"]
+    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_4 --> go_rag_internal_auth_bypass_go_Store_storesEmpty_process_4
+    go_rag_internal_auth_bypass_go_anyKey_process_4["anyKey"]
+    go_rag_internal_auth_bypass_go_Store_storesEmpty_process_4 --> go_rag_internal_auth_bypass_go_anyKey_process_4
+    go_rag_internal_auth_bypass_go_bypassPrincipal_process_4["bypassPrincipal"]
+    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_4 --> go_rag_internal_auth_bypass_go_bypassPrincipal_process_4
+    unresolved_temporal_executor_Principal_Subject_process_4["unresolved::temporal-executor::Principal::Subject"]
+    go_rag_internal_auth_bypass_go_bypassPrincipal_process_4 --> unresolved_temporal_executor_Principal_Subject_process_4
+    go_rag_internal_auth_auth_go_bearerFromHeader_process_4["bearerFromHeader"]
+    go_rag_internal_auth_auth_go_Store_Validate_process_4 --> go_rag_internal_auth_auth_go_bearerFromHeader_process_4
+    unresolved___Get_process_4["unresolved::*.Get"]
+    go_rag_internal_auth_auth_go_bearerFromHeader_process_4 --> unresolved___Get_process_4
+    go_rag_internal_auth_bypass_go_isLoopback_process_4["isLoopback"]
+    go_rag_internal_auth_auth_go_Store_Validate_process_4 --> go_rag_internal_auth_bypass_go_isLoopback_process_4
+    go_rag_internal_auth_bypass_go_peerHost_process_4["peerHost"]
+    go_rag_internal_auth_bypass_go_isLoopback_process_4 --> go_rag_internal_auth_bypass_go_peerHost_process_4
+    go_rag_internal_auth_bypass_go_lastIndex_process_4["lastIndex"]
+    go_rag_internal_auth_bypass_go_peerHost_process_4 --> go_rag_internal_auth_bypass_go_lastIndex_process_4
+    go_rag_internal_auth_bypass_go_countByte_process_4["countByte"]
+    go_rag_internal_auth_bypass_go_peerHost_process_4 --> go_rag_internal_auth_bypass_go_countByte_process_4
+    go_rag_stdlib_net_ParseIP_process_4["ParseIP"]
+    go_rag_internal_auth_bypass_go_isLoopback_process_4 --> go_rag_stdlib_net_ParseIP_process_4
+    unresolved___IsLoopback_process_4["unresolved::*.IsLoopback"]
+    go_rag_internal_auth_bypass_go_isLoopback_process_4 --> unresolved___IsLoopback_process_4
     go_rag_stdlib_os_MkdirAll_process_4["MkdirAll"]
     go_rag_internal_mcp_server_go_Server_initTool_process_4 --> go_rag_stdlib_os_MkdirAll_process_4
     go_rag_internal_config_config_go_Save_process_4["Save"]
@@ -2813,8 +2883,6 @@ graph LR
     go_rag_internal_engine_status_go_Engine_Status_process_4 --> go_rag_internal_engine_status_go_Engine_poolUtilization_process_4
     go_rag_internal_engine_status_go_baselineRecordedAt_process_4["baselineRecordedAt"]
     go_rag_internal_engine_status_go_Engine_Status_process_4 --> go_rag_internal_engine_status_go_baselineRecordedAt_process_4
-    unresolved___Format_process_4["unresolved::*.Format"]
-    go_rag_internal_engine_status_go_baselineRecordedAt_process_4 --> unresolved___Format_process_4
     unresolved___EffectiveAdaptiveDepthEnabled_process_4["unresolved::*.EffectiveAdaptiveDepthEnabled"]
     go_rag_internal_engine_status_go_Engine_Status_process_4 --> unresolved___EffectiveAdaptiveDepthEnabled_process_4
     unresolved___EffectiveCaptioningEnabled_process_4["unresolved::*.EffectiveCaptioningEnabled"]
@@ -2921,6 +2989,8 @@ graph LR
     go_rag_internal_mcp_server_go_Server_renderStatus_process_4 --> go_rag_internal_engine_engine_go_Engine_Config_process_4
     go_rag_internal_config_config_go_Config_EffectiveMetricsEnabled_process_4["EffectiveMetricsEnabled"]
     go_rag_internal_mcp_server_go_Server_renderStatus_process_4 --> go_rag_internal_config_config_go_Config_EffectiveMetricsEnabled_process_4
+    go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_4["EffectiveOTelExport"]
+    go_rag_internal_mcp_server_go_Server_renderStatus_process_4 --> go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_4
     go_rag_internal_mcp_server_go_Server_renderAdd_process_4["renderAdd"]
     go_rag_internal_mcp_server_go_Server_dispatchDB_process_4 --> go_rag_internal_mcp_server_go_Server_renderAdd_process_4
     go_rag_internal_mcp_server_go_Server_renderScan_process_4["renderScan"]
@@ -2937,10 +3007,6 @@ graph LR
     go_rag_internal_pipeline_delete_go_Pipeline_DeleteDoc_process_4 --> unresolved_unlock_process_4
     go_rag_internal_pipeline_delete_go_Pipeline_deleteDocLocked_process_4["deleteDocLocked"]
     go_rag_internal_pipeline_delete_go_Pipeline_DeleteDoc_process_4 --> go_rag_internal_pipeline_delete_go_Pipeline_deleteDocLocked_process_4
-    go_rag_internal_storage_db_go_DB_Delete_process_4["Delete"]
-    go_rag_internal_pipeline_delete_go_Pipeline_deleteDocLocked_process_4 --> go_rag_internal_storage_db_go_DB_Delete_process_4
-    go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_4["DeleteWithPrefix"]
-    go_rag_internal_pipeline_delete_go_Pipeline_deleteDocLocked_process_4 --> go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_4
     go_rag_internal_pipeline_pipeline_go_Pipeline_docLock_process_4["docLock"]
     go_rag_internal_pipeline_delete_go_Pipeline_DeleteDoc_process_4 --> go_rag_internal_pipeline_pipeline_go_Pipeline_docLock_process_4
     unresolved___LoadOrStore_process_4["unresolved::*.LoadOrStore"]
@@ -2967,6 +3033,16 @@ graph LR
     go_rag_internal_config_config_go_Config_Set_process_4 --> go_rag_stdlib_strconv_ParseFloat_process_4
     go_rag_internal_config_config_go_validatePrefixString_process_4["validatePrefixString"]
     go_rag_internal_config_config_go_Config_Set_process_4 --> go_rag_internal_config_config_go_validatePrefixString_process_4
+    go_rag_internal_config_config_go_Config_Validate_process_4["Validate"]
+    go_rag_internal_engine_config_go_Engine_SetConfig_process_4 --> go_rag_internal_config_config_go_Config_Validate_process_4
+    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_4["EffectivePoisonThresholdQuarantine"]
+    go_rag_internal_config_config_go_Config_Validate_process_4 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_4
+    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_4["EffectivePoisonThresholdSuspicious"]
+    go_rag_internal_config_config_go_Config_Validate_process_4 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_4
+    go_rag_stdlib_net_url_Parse_process_4["Parse"]
+    go_rag_internal_config_config_go_Config_Validate_process_4 --> go_rag_stdlib_net_url_Parse_process_4
+    go_rag_stdlib_net_SplitHostPort_process_4["SplitHostPort"]
+    go_rag_internal_config_config_go_Config_Validate_process_4 --> go_rag_stdlib_net_SplitHostPort_process_4
     go_rag_internal_engine_config_go_Engine_GetConfig_process_4["GetConfig"]
     go_rag_internal_mcp_server_go_Server_renderConfig_process_4 --> go_rag_internal_engine_config_go_Engine_GetConfig_process_4
     go_rag_internal_mcp_server_go_Server_renderFiles_process_4["renderFiles"]
@@ -3059,24 +3135,18 @@ graph LR
     go_rag_internal_mcp_server_go_Server_dispatchDB_process_4 --> go_rag_internal_mcp_server_go_Server_renderListDocuments_process_4
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_4["ListDocuments"]
     go_rag_internal_mcp_server_go_Server_renderListDocuments_process_4 --> go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_4
-    unresolved___After_process_4["unresolved::*.After"]
-    go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_4 --> unresolved___After_process_4
     unresolved___Before_process_4["unresolved::*.Before"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_4 --> unresolved___Before_process_4
     unresolved___Equal_process_4["unresolved::*.Equal"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_4 --> unresolved___Equal_process_4
     go_rag_internal_engine_list_documents_go_decodePageToken_process_4["decodePageToken"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_4 --> go_rag_internal_engine_list_documents_go_decodePageToken_process_4
-    unresolved___DecodeString_process_4["unresolved::*.DecodeString"]
-    go_rag_internal_engine_list_documents_go_decodePageToken_process_4 --> unresolved___DecodeString_process_4
     go_rag_stdlib_strings_SplitN_process_4["SplitN"]
     go_rag_internal_engine_list_documents_go_decodePageToken_process_4 --> go_rag_stdlib_strings_SplitN_process_4
     go_rag_stdlib_time_Parse_process_4["Parse"]
     go_rag_internal_engine_list_documents_go_decodePageToken_process_4 --> go_rag_stdlib_time_Parse_process_4
     go_rag_internal_engine_list_documents_go_encodePageToken_process_4["encodePageToken"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_4 --> go_rag_internal_engine_list_documents_go_encodePageToken_process_4
-    unresolved___EncodeToString_process_4["unresolved::*.EncodeToString"]
-    go_rag_internal_engine_list_documents_go_encodePageToken_process_4 --> unresolved___EncodeToString_process_4
     go_rag_stdlib_sort_SliceStable_process_4["SliceStable"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_4 --> go_rag_stdlib_sort_SliceStable_process_4
     go_rag_internal_mcp_server_go_errResp_process_4["errResp"]
@@ -3103,48 +3173,20 @@ graph LR
     go_rag_internal_grpc_server_go_authInterceptor_process_4 --> go_rag_internal_grpc_server_go_bearerFromGRPCMetadata_process_4
     dep_google_golang_org_grpc_metadata_FromIncomingContext_process_4["FromIncomingContext"]
     go_rag_internal_grpc_server_go_bearerFromGRPCMetadata_process_4 --> dep_google_golang_org_grpc_metadata_FromIncomingContext_process_4
-    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_4["ValidateTokenOrBypass"]
-    go_rag_internal_grpc_server_go_authInterceptor_process_4 --> go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_4
-    go_rag_internal_auth_auth_go_Store_ValidateToken_process_4["ValidateToken"]
-    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_4 --> go_rag_internal_auth_auth_go_Store_ValidateToken_process_4
-    go_rag_internal_auth_session_go_ValidateSession_process_4["ValidateSession"]
-    go_rag_internal_auth_auth_go_Store_ValidateToken_process_4 --> go_rag_internal_auth_session_go_ValidateSession_process_4
-    go_rag_internal_auth_session_go_sessionSecretBytes_process_4["sessionSecretBytes"]
-    go_rag_internal_auth_session_go_ValidateSession_process_4 --> go_rag_internal_auth_session_go_sessionSecretBytes_process_4
-    go_rag_internal_auth_store_go_hash16_process_4["hash16"]
-    go_rag_internal_auth_session_go_ValidateSession_process_4 --> go_rag_internal_auth_store_go_hash16_process_4
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_4["ValidateAPIKey"]
-    go_rag_internal_auth_auth_go_Store_ValidateToken_process_4 --> go_rag_internal_auth_apikey_go_ValidateAPIKey_process_4
-    go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_4["secretBytesFromBearer"]
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_4 --> go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_4
-    go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_4["padAPIKeyFailure"]
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_4 --> go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_4
-    unresolved___GetWithPrefix_process_4["unresolved::*.GetWithPrefix"]
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_4 --> unresolved___GetWithPrefix_process_4
-    unresolved___SetWithPrefix_process_4["unresolved::*.SetWithPrefix"]
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_4 --> unresolved___SetWithPrefix_process_4
-    go_rag_internal_auth_apikey_go_ValidateAPIKeyRaw_process_4["ValidateAPIKeyRaw"]
-    go_rag_internal_auth_auth_go_Store_ValidateToken_process_4 --> go_rag_internal_auth_apikey_go_ValidateAPIKeyRaw_process_4
-    go_rag_internal_auth_bypass_go_Store_storesEmpty_process_4["storesEmpty"]
-    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_4 --> go_rag_internal_auth_bypass_go_Store_storesEmpty_process_4
-    go_rag_internal_auth_bypass_go_anyKey_process_4["anyKey"]
-    go_rag_internal_auth_bypass_go_Store_storesEmpty_process_4 --> go_rag_internal_auth_bypass_go_anyKey_process_4
-    go_rag_internal_auth_bypass_go_bypassPrincipal_process_4["bypassPrincipal"]
-    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_4 --> go_rag_internal_auth_bypass_go_bypassPrincipal_process_4
-    unresolved_temporal_executor_Principal_Subject_process_4["unresolved::temporal-executor::Principal::Subject"]
-    go_rag_internal_auth_bypass_go_bypassPrincipal_process_4 --> unresolved_temporal_executor_Principal_Subject_process_4
     go_rag_internal_grpc_server_go_peerIsLoopback_process_4["peerIsLoopback"]
     go_rag_internal_grpc_server_go_authInterceptor_process_4 --> go_rag_internal_grpc_server_go_peerIsLoopback_process_4
     dep_google_golang_org_grpc_peer_FromContext_process_4["FromContext"]
     go_rag_internal_grpc_server_go_peerIsLoopback_process_4 --> dep_google_golang_org_grpc_peer_FromContext_process_4
-    go_rag_stdlib_net_ParseIP_process_4["ParseIP"]
-    go_rag_internal_grpc_server_go_peerIsLoopback_process_4 --> go_rag_stdlib_net_ParseIP_process_4
-    unresolved___IsLoopback_process_4["unresolved::*.IsLoopback"]
-    go_rag_internal_grpc_server_go_peerIsLoopback_process_4 --> unresolved___IsLoopback_process_4
     go_rag_internal_audit_event_go_AuthFailEvent_process_4["AuthFailEvent"]
     go_rag_internal_grpc_server_go_authInterceptor_process_4 --> go_rag_internal_audit_event_go_AuthFailEvent_process_4
     dep_google_golang_org_grpc_status_Error_process_4["Error"]
     go_rag_internal_grpc_server_go_authInterceptor_process_4 --> dep_google_golang_org_grpc_status_Error_process_4
+    dep_google_golang_org_grpc_StreamInterceptor_process_4["StreamInterceptor"]
+    go_rag_internal_grpc_server_go_NewServer_process_4 --> dep_google_golang_org_grpc_StreamInterceptor_process_4
+    go_rag_internal_grpc_server_go_authStreamInterceptor_process_4["authStreamInterceptor"]
+    go_rag_internal_grpc_server_go_NewServer_process_4 --> go_rag_internal_grpc_server_go_authStreamInterceptor_process_4
+    unresolved___Context_process_4["unresolved::*.Context"]
+    go_rag_internal_grpc_server_go_authStreamInterceptor_process_4 --> unresolved___Context_process_4
     go_rag_proto_gen_gorag_grpc_pb_go_RegisterGoragServer_process_4["RegisterGoragServer"]
     go_rag_internal_grpc_server_go_NewServer_process_4 --> go_rag_proto_gen_gorag_grpc_pb_go_RegisterGoragServer_process_4
     unresolved___RegisterService_process_4["unresolved::*.RegisterService"]
@@ -3195,16 +3237,14 @@ graph LR
     go_rag_internal_rest_server_go_Server_guard_process_4 --> unresolved___WithContext_process_4
     go_rag_stdlib_context_WithValue_process_4["WithValue"]
     go_rag_internal_rest_server_go_Server_guard_process_4 --> go_rag_stdlib_context_WithValue_process_4
-    unresolved___Context_process_4["unresolved::*.Context"]
-    go_rag_internal_rest_server_go_Server_guard_process_4 --> unresolved___Context_process_4
     unresolved___HandleFunc_process_4["unresolved::*.HandleFunc"]
     go_rag_internal_rest_server_go_Server_Handler_process_4 --> unresolved___HandleFunc_process_4
     unresolved___mountAuth_process_4["unresolved::*.mountAuth"]
     go_rag_internal_rest_server_go_Server_Handler_process_4 --> unresolved___mountAuth_process_4
-    unresolved_NewWithEngine_process_4["unresolved::NewWithEngine"]
-    go_rag_internal_engine_parity_test_go_TestCrossTransport_BatchGetChunksParity_process_4 --> unresolved_NewWithEngine_process_4
     unresolved_HTTPHandler_process_4["unresolved::HTTPHandler"]
     go_rag_internal_engine_parity_test_go_TestCrossTransport_BatchGetChunksParity_process_4 --> unresolved_HTTPHandler_process_4
+    unresolved_NewWithEngine_process_4["unresolved::NewWithEngine"]
+    go_rag_internal_engine_parity_test_go_TestCrossTransport_BatchGetChunksParity_process_4 --> unresolved_NewWithEngine_process_4
     unresolved_New_process_4["unresolved::New"]
     go_rag_internal_engine_parity_test_go_TestCrossTransport_BatchGetChunksParity_process_4 --> unresolved_New_process_4
   end
@@ -4043,6 +4083,12 @@ graph LR
     go_rag_internal_mcp_server_go_Server_dispatch_process_6 --> go_rag_internal_mcp_server_go_Server_dispatchAuth_process_6
     go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_6["authStoreOrOpen"]
     go_rag_internal_mcp_server_go_Server_dispatchAuth_process_6 --> go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_6
+    go_rag_internal_mcp_http_go_Server_authStore_process_6["authStore"]
+    go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_6 --> go_rag_internal_mcp_http_go_Server_authStore_process_6
+    unresolved___DB_process_6["unresolved::*.DB"]
+    go_rag_internal_mcp_http_go_Server_authStore_process_6 --> unresolved___DB_process_6
+    go_rag_internal_auth_store_go_NewStore_process_6["NewStore"]
+    go_rag_internal_mcp_http_go_Server_authStore_process_6 --> go_rag_internal_auth_store_go_NewStore_process_6
     go_rag_internal_engine_helpers_go_Open_process_6["Open"]
     go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_6 --> go_rag_internal_engine_helpers_go_Open_process_6
     go_rag_internal_config_config_go_Load_process_6["Load"]
@@ -4071,26 +4117,50 @@ graph LR
     go_rag_internal_storage_migrate_migrate_go_Run_process_6 --> unresolved___Up_process_6
     go_rag_internal_storage_migrate_migrate_go_writeVersion_process_6["writeVersion"]
     go_rag_internal_storage_migrate_migrate_go_Run_process_6 --> go_rag_internal_storage_migrate_migrate_go_writeVersion_process_6
-    unresolved_NewStore_process_6["unresolved::NewStore"]
-    go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_6 --> unresolved_NewStore_process_6
-    go_rag_internal_mcp_http_go_Server_authStore_process_6["authStore"]
-    go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_6 --> go_rag_internal_mcp_http_go_Server_authStore_process_6
-    unresolved___DB_process_6["unresolved::*.DB"]
-    go_rag_internal_mcp_http_go_Server_authStore_process_6 --> unresolved___DB_process_6
-    go_rag_internal_auth_store_go_NewStore_process_6["NewStore"]
-    go_rag_internal_mcp_http_go_Server_authStore_process_6 --> go_rag_internal_auth_store_go_NewStore_process_6
     unresolved_closeStore_process_6["unresolved::closeStore"]
     go_rag_internal_mcp_server_go_Server_dispatchAuth_process_6 --> unresolved_closeStore_process_6
-    unresolved___renderAuthList_process_6["unresolved::*.renderAuthList"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_6 --> unresolved___renderAuthList_process_6
-    unresolved___renderAuthCreate_process_6["unresolved::*.renderAuthCreate"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_6 --> unresolved___renderAuthCreate_process_6
-    unresolved___renderAuthRevoke_process_6["unresolved::*.renderAuthRevoke"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_6 --> unresolved___renderAuthRevoke_process_6
-    unresolved___renderAuthSessionList_process_6["unresolved::*.renderAuthSessionList"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_6 --> unresolved___renderAuthSessionList_process_6
-    unresolved___renderAuthSessionRevoke_process_6["unresolved::*.renderAuthSessionRevoke"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_6 --> unresolved___renderAuthSessionRevoke_process_6
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthList_process_6["renderAuthList"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_6 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthList_process_6
+    unresolved___Format_process_6["unresolved::*.Format"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthList_process_6 --> unresolved___Format_process_6
+    go_rag_internal_auth_apikey_go_ListAPIKeys_process_6["ListAPIKeys"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthList_process_6 --> go_rag_internal_auth_apikey_go_ListAPIKeys_process_6
+    unresolved___PrefixScanByte_process_6["unresolved::*.PrefixScanByte"]
+    go_rag_internal_auth_apikey_go_ListAPIKeys_process_6 --> unresolved___PrefixScanByte_process_6
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthCreate_process_6["renderAuthCreate"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_6 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthCreate_process_6
+    go_rag_stdlib_time_ParseDuration_process_6["ParseDuration"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthCreate_process_6 --> go_rag_stdlib_time_ParseDuration_process_6
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_6["CreateAPIKey"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthCreate_process_6 --> go_rag_internal_auth_apikey_go_CreateAPIKey_process_6
+    go_rag_internal_auth_apikey_go_validMode_process_6["validMode"]
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_6 --> go_rag_internal_auth_apikey_go_validMode_process_6
+    go_rag_internal_auth_store_go_randomBytes_process_6["randomBytes"]
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_6 --> go_rag_internal_auth_store_go_randomBytes_process_6
+    go_rag_stdlib_crypto_rand_Read_process_6["Read"]
+    go_rag_internal_auth_store_go_randomBytes_process_6 --> go_rag_stdlib_crypto_rand_Read_process_6
+    unresolved___EncodeToString_process_6["unresolved::*.EncodeToString"]
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_6 --> unresolved___EncodeToString_process_6
+    unresolved___SetWithPrefix_process_6["unresolved::*.SetWithPrefix"]
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_6 --> unresolved___SetWithPrefix_process_6
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthRevoke_process_6["renderAuthRevoke"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_6 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthRevoke_process_6
+    go_rag_internal_auth_apikey_go_RevokeAPIKey_process_6["RevokeAPIKey"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthRevoke_process_6 --> go_rag_internal_auth_apikey_go_RevokeAPIKey_process_6
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionList_process_6["renderAuthSessionList"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_6 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionList_process_6
+    go_rag_internal_auth_session_go_ListSessions_process_6["ListSessions"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionList_process_6 --> go_rag_internal_auth_session_go_ListSessions_process_6
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionRevoke_process_6["renderAuthSessionRevoke"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_6 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionRevoke_process_6
+    go_rag_stdlib_encoding_hex_DecodeString_process_6["DecodeString"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionRevoke_process_6 --> go_rag_stdlib_encoding_hex_DecodeString_process_6
+    go_rag_internal_auth_session_go_RevokeSessionByHash_process_6["RevokeSessionByHash"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionRevoke_process_6 --> go_rag_internal_auth_session_go_RevokeSessionByHash_process_6
+    go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_6["DeleteWithPrefix"]
+    go_rag_internal_auth_session_go_RevokeSessionByHash_process_6 --> go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_6
+    go_rag_internal_storage_db_go_DB_Delete_process_6["Delete"]
+    go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_6 --> go_rag_internal_storage_db_go_DB_Delete_process_6
     go_rag_internal_mcp_server_go_Server_initTool_process_6["initTool"]
     go_rag_internal_mcp_server_go_Server_dispatch_process_6 --> go_rag_internal_mcp_server_go_Server_initTool_process_6
     go_rag_internal_config_config_go_Default_process_6["Default"]
@@ -4105,18 +4175,58 @@ graph LR
     go_rag_internal_config_config_go_Default_process_6 --> unresolved_temporal_executor_Config_MCPAddr_process_6
     unresolved_temporal_executor_Config_OllamaURL_process_6["unresolved::temporal-executor::Config::OllamaURL"]
     go_rag_internal_config_config_go_Default_process_6 --> unresolved_temporal_executor_Config_OllamaURL_process_6
-    go_rag_internal_config_config_go_Config_Validate_process_6["Validate"]
-    go_rag_internal_mcp_server_go_Server_initTool_process_6 --> go_rag_internal_config_config_go_Config_Validate_process_6
-    go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_6["EffectiveOTelExport"]
-    go_rag_internal_config_config_go_Config_Validate_process_6 --> go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_6
-    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_6["EffectivePoisonThresholdQuarantine"]
-    go_rag_internal_config_config_go_Config_Validate_process_6 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_6
-    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_6["EffectivePoisonThresholdSuspicious"]
-    go_rag_internal_config_config_go_Config_Validate_process_6 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_6
-    go_rag_stdlib_net_url_Parse_process_6["Parse"]
-    go_rag_internal_config_config_go_Config_Validate_process_6 --> go_rag_stdlib_net_url_Parse_process_6
-    go_rag_stdlib_net_SplitHostPort_process_6["SplitHostPort"]
-    go_rag_internal_config_config_go_Config_Validate_process_6 --> go_rag_stdlib_net_SplitHostPort_process_6
+    go_rag_internal_auth_auth_go_Store_Validate_process_6["Validate"]
+    go_rag_internal_mcp_server_go_Server_initTool_process_6 --> go_rag_internal_auth_auth_go_Store_Validate_process_6
+    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_6["ValidateTokenOrBypass"]
+    go_rag_internal_auth_auth_go_Store_Validate_process_6 --> go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_6
+    go_rag_internal_auth_auth_go_Store_ValidateToken_process_6["ValidateToken"]
+    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_6 --> go_rag_internal_auth_auth_go_Store_ValidateToken_process_6
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_6["ValidateAPIKey"]
+    go_rag_internal_auth_auth_go_Store_ValidateToken_process_6 --> go_rag_internal_auth_apikey_go_ValidateAPIKey_process_6
+    go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_6["secretBytesFromBearer"]
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_6 --> go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_6
+    unresolved___DecodeString_process_6["unresolved::*.DecodeString"]
+    go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_6 --> unresolved___DecodeString_process_6
+    go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_6["padAPIKeyFailure"]
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_6 --> go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_6
+    unresolved___After_process_6["unresolved::*.After"]
+    go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_6 --> unresolved___After_process_6
+    go_rag_internal_auth_store_go_hash16_process_6["hash16"]
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_6 --> go_rag_internal_auth_store_go_hash16_process_6
+    unresolved___GetWithPrefix_process_6["unresolved::*.GetWithPrefix"]
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_6 --> unresolved___GetWithPrefix_process_6
+    go_rag_internal_auth_apikey_go_ValidateAPIKeyRaw_process_6["ValidateAPIKeyRaw"]
+    go_rag_internal_auth_auth_go_Store_ValidateToken_process_6 --> go_rag_internal_auth_apikey_go_ValidateAPIKeyRaw_process_6
+    go_rag_internal_auth_session_go_ValidateSession_process_6["ValidateSession"]
+    go_rag_internal_auth_auth_go_Store_ValidateToken_process_6 --> go_rag_internal_auth_session_go_ValidateSession_process_6
+    go_rag_internal_auth_session_go_sessionSecretBytes_process_6["sessionSecretBytes"]
+    go_rag_internal_auth_session_go_ValidateSession_process_6 --> go_rag_internal_auth_session_go_sessionSecretBytes_process_6
+    go_rag_internal_auth_session_go_padSessionFailure_process_6["padSessionFailure"]
+    go_rag_internal_auth_session_go_ValidateSession_process_6 --> go_rag_internal_auth_session_go_padSessionFailure_process_6
+    go_rag_internal_auth_bypass_go_Store_storesEmpty_process_6["storesEmpty"]
+    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_6 --> go_rag_internal_auth_bypass_go_Store_storesEmpty_process_6
+    go_rag_internal_auth_bypass_go_anyKey_process_6["anyKey"]
+    go_rag_internal_auth_bypass_go_Store_storesEmpty_process_6 --> go_rag_internal_auth_bypass_go_anyKey_process_6
+    go_rag_internal_auth_bypass_go_bypassPrincipal_process_6["bypassPrincipal"]
+    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_6 --> go_rag_internal_auth_bypass_go_bypassPrincipal_process_6
+    unresolved_temporal_executor_Principal_Subject_process_6["unresolved::temporal-executor::Principal::Subject"]
+    go_rag_internal_auth_bypass_go_bypassPrincipal_process_6 --> unresolved_temporal_executor_Principal_Subject_process_6
+    go_rag_internal_auth_auth_go_bearerFromHeader_process_6["bearerFromHeader"]
+    go_rag_internal_auth_auth_go_Store_Validate_process_6 --> go_rag_internal_auth_auth_go_bearerFromHeader_process_6
+    unresolved___Get_process_6["unresolved::*.Get"]
+    go_rag_internal_auth_auth_go_bearerFromHeader_process_6 --> unresolved___Get_process_6
+    go_rag_internal_auth_bypass_go_isLoopback_process_6["isLoopback"]
+    go_rag_internal_auth_auth_go_Store_Validate_process_6 --> go_rag_internal_auth_bypass_go_isLoopback_process_6
+    go_rag_internal_auth_bypass_go_peerHost_process_6["peerHost"]
+    go_rag_internal_auth_bypass_go_isLoopback_process_6 --> go_rag_internal_auth_bypass_go_peerHost_process_6
+    go_rag_internal_auth_bypass_go_lastIndex_process_6["lastIndex"]
+    go_rag_internal_auth_bypass_go_peerHost_process_6 --> go_rag_internal_auth_bypass_go_lastIndex_process_6
+    go_rag_internal_auth_bypass_go_countByte_process_6["countByte"]
+    go_rag_internal_auth_bypass_go_peerHost_process_6 --> go_rag_internal_auth_bypass_go_countByte_process_6
+    go_rag_stdlib_net_ParseIP_process_6["ParseIP"]
+    go_rag_internal_auth_bypass_go_isLoopback_process_6 --> go_rag_stdlib_net_ParseIP_process_6
+    unresolved___IsLoopback_process_6["unresolved::*.IsLoopback"]
+    go_rag_internal_auth_bypass_go_isLoopback_process_6 --> unresolved___IsLoopback_process_6
     go_rag_stdlib_os_MkdirAll_process_6["MkdirAll"]
     go_rag_internal_mcp_server_go_Server_initTool_process_6 --> go_rag_stdlib_os_MkdirAll_process_6
     go_rag_internal_config_config_go_Save_process_6["Save"]
@@ -4191,8 +4301,6 @@ graph LR
     go_rag_internal_engine_status_go_Engine_Status_process_6 --> go_rag_internal_engine_status_go_Engine_poolUtilization_process_6
     go_rag_internal_engine_status_go_baselineRecordedAt_process_6["baselineRecordedAt"]
     go_rag_internal_engine_status_go_Engine_Status_process_6 --> go_rag_internal_engine_status_go_baselineRecordedAt_process_6
-    unresolved___Format_process_6["unresolved::*.Format"]
-    go_rag_internal_engine_status_go_baselineRecordedAt_process_6 --> unresolved___Format_process_6
     unresolved___EffectiveAdaptiveDepthEnabled_process_6["unresolved::*.EffectiveAdaptiveDepthEnabled"]
     go_rag_internal_engine_status_go_Engine_Status_process_6 --> unresolved___EffectiveAdaptiveDepthEnabled_process_6
     unresolved___EffectiveCaptioningEnabled_process_6["unresolved::*.EffectiveCaptioningEnabled"]
@@ -4299,6 +4407,8 @@ graph LR
     go_rag_internal_mcp_server_go_Server_renderStatus_process_6 --> go_rag_internal_engine_engine_go_Engine_Config_process_6
     go_rag_internal_config_config_go_Config_EffectiveMetricsEnabled_process_6["EffectiveMetricsEnabled"]
     go_rag_internal_mcp_server_go_Server_renderStatus_process_6 --> go_rag_internal_config_config_go_Config_EffectiveMetricsEnabled_process_6
+    go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_6["EffectiveOTelExport"]
+    go_rag_internal_mcp_server_go_Server_renderStatus_process_6 --> go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_6
     go_rag_internal_mcp_server_go_Server_renderAdd_process_6["renderAdd"]
     go_rag_internal_mcp_server_go_Server_dispatchDB_process_6 --> go_rag_internal_mcp_server_go_Server_renderAdd_process_6
     go_rag_internal_mcp_server_go_Server_renderScan_process_6["renderScan"]
@@ -4315,10 +4425,6 @@ graph LR
     go_rag_internal_pipeline_delete_go_Pipeline_DeleteDoc_process_6 --> unresolved_unlock_process_6
     go_rag_internal_pipeline_delete_go_Pipeline_deleteDocLocked_process_6["deleteDocLocked"]
     go_rag_internal_pipeline_delete_go_Pipeline_DeleteDoc_process_6 --> go_rag_internal_pipeline_delete_go_Pipeline_deleteDocLocked_process_6
-    go_rag_internal_storage_db_go_DB_Delete_process_6["Delete"]
-    go_rag_internal_pipeline_delete_go_Pipeline_deleteDocLocked_process_6 --> go_rag_internal_storage_db_go_DB_Delete_process_6
-    go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_6["DeleteWithPrefix"]
-    go_rag_internal_pipeline_delete_go_Pipeline_deleteDocLocked_process_6 --> go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_6
     go_rag_internal_pipeline_pipeline_go_Pipeline_docLock_process_6["docLock"]
     go_rag_internal_pipeline_delete_go_Pipeline_DeleteDoc_process_6 --> go_rag_internal_pipeline_pipeline_go_Pipeline_docLock_process_6
     unresolved___LoadOrStore_process_6["unresolved::*.LoadOrStore"]
@@ -4345,6 +4451,16 @@ graph LR
     go_rag_internal_config_config_go_Config_Set_process_6 --> go_rag_stdlib_strconv_ParseFloat_process_6
     go_rag_internal_config_config_go_validatePrefixString_process_6["validatePrefixString"]
     go_rag_internal_config_config_go_Config_Set_process_6 --> go_rag_internal_config_config_go_validatePrefixString_process_6
+    go_rag_internal_config_config_go_Config_Validate_process_6["Validate"]
+    go_rag_internal_engine_config_go_Engine_SetConfig_process_6 --> go_rag_internal_config_config_go_Config_Validate_process_6
+    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_6["EffectivePoisonThresholdQuarantine"]
+    go_rag_internal_config_config_go_Config_Validate_process_6 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_6
+    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_6["EffectivePoisonThresholdSuspicious"]
+    go_rag_internal_config_config_go_Config_Validate_process_6 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_6
+    go_rag_stdlib_net_url_Parse_process_6["Parse"]
+    go_rag_internal_config_config_go_Config_Validate_process_6 --> go_rag_stdlib_net_url_Parse_process_6
+    go_rag_stdlib_net_SplitHostPort_process_6["SplitHostPort"]
+    go_rag_internal_config_config_go_Config_Validate_process_6 --> go_rag_stdlib_net_SplitHostPort_process_6
     go_rag_internal_engine_config_go_Engine_GetConfig_process_6["GetConfig"]
     go_rag_internal_mcp_server_go_Server_renderConfig_process_6 --> go_rag_internal_engine_config_go_Engine_GetConfig_process_6
     go_rag_internal_mcp_server_go_Server_renderFiles_process_6["renderFiles"]
@@ -4439,24 +4555,18 @@ graph LR
     go_rag_internal_mcp_server_go_Server_dispatchDB_process_6 --> go_rag_internal_mcp_server_go_Server_renderListDocuments_process_6
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_6["ListDocuments"]
     go_rag_internal_mcp_server_go_Server_renderListDocuments_process_6 --> go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_6
-    unresolved___After_process_6["unresolved::*.After"]
-    go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_6 --> unresolved___After_process_6
     unresolved___Before_process_6["unresolved::*.Before"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_6 --> unresolved___Before_process_6
     unresolved___Equal_process_6["unresolved::*.Equal"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_6 --> unresolved___Equal_process_6
     go_rag_internal_engine_list_documents_go_decodePageToken_process_6["decodePageToken"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_6 --> go_rag_internal_engine_list_documents_go_decodePageToken_process_6
-    unresolved___DecodeString_process_6["unresolved::*.DecodeString"]
-    go_rag_internal_engine_list_documents_go_decodePageToken_process_6 --> unresolved___DecodeString_process_6
     go_rag_stdlib_strings_SplitN_process_6["SplitN"]
     go_rag_internal_engine_list_documents_go_decodePageToken_process_6 --> go_rag_stdlib_strings_SplitN_process_6
     go_rag_stdlib_time_Parse_process_6["Parse"]
     go_rag_internal_engine_list_documents_go_decodePageToken_process_6 --> go_rag_stdlib_time_Parse_process_6
     go_rag_internal_engine_list_documents_go_encodePageToken_process_6["encodePageToken"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_6 --> go_rag_internal_engine_list_documents_go_encodePageToken_process_6
-    unresolved___EncodeToString_process_6["unresolved::*.EncodeToString"]
-    go_rag_internal_engine_list_documents_go_encodePageToken_process_6 --> unresolved___EncodeToString_process_6
     go_rag_stdlib_sort_SliceStable_process_6["SliceStable"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_6 --> go_rag_stdlib_sort_SliceStable_process_6
     go_rag_internal_mcp_server_go_errResp_process_6["errResp"]
@@ -4483,48 +4593,20 @@ graph LR
     go_rag_internal_grpc_server_go_authInterceptor_process_6 --> go_rag_internal_grpc_server_go_bearerFromGRPCMetadata_process_6
     dep_google_golang_org_grpc_metadata_FromIncomingContext_process_6["FromIncomingContext"]
     go_rag_internal_grpc_server_go_bearerFromGRPCMetadata_process_6 --> dep_google_golang_org_grpc_metadata_FromIncomingContext_process_6
-    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_6["ValidateTokenOrBypass"]
-    go_rag_internal_grpc_server_go_authInterceptor_process_6 --> go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_6
-    go_rag_internal_auth_auth_go_Store_ValidateToken_process_6["ValidateToken"]
-    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_6 --> go_rag_internal_auth_auth_go_Store_ValidateToken_process_6
-    go_rag_internal_auth_session_go_ValidateSession_process_6["ValidateSession"]
-    go_rag_internal_auth_auth_go_Store_ValidateToken_process_6 --> go_rag_internal_auth_session_go_ValidateSession_process_6
-    go_rag_internal_auth_session_go_sessionSecretBytes_process_6["sessionSecretBytes"]
-    go_rag_internal_auth_session_go_ValidateSession_process_6 --> go_rag_internal_auth_session_go_sessionSecretBytes_process_6
-    go_rag_internal_auth_store_go_hash16_process_6["hash16"]
-    go_rag_internal_auth_session_go_ValidateSession_process_6 --> go_rag_internal_auth_store_go_hash16_process_6
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_6["ValidateAPIKey"]
-    go_rag_internal_auth_auth_go_Store_ValidateToken_process_6 --> go_rag_internal_auth_apikey_go_ValidateAPIKey_process_6
-    go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_6["secretBytesFromBearer"]
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_6 --> go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_6
-    go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_6["padAPIKeyFailure"]
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_6 --> go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_6
-    unresolved___GetWithPrefix_process_6["unresolved::*.GetWithPrefix"]
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_6 --> unresolved___GetWithPrefix_process_6
-    unresolved___SetWithPrefix_process_6["unresolved::*.SetWithPrefix"]
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_6 --> unresolved___SetWithPrefix_process_6
-    go_rag_internal_auth_apikey_go_ValidateAPIKeyRaw_process_6["ValidateAPIKeyRaw"]
-    go_rag_internal_auth_auth_go_Store_ValidateToken_process_6 --> go_rag_internal_auth_apikey_go_ValidateAPIKeyRaw_process_6
-    go_rag_internal_auth_bypass_go_Store_storesEmpty_process_6["storesEmpty"]
-    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_6 --> go_rag_internal_auth_bypass_go_Store_storesEmpty_process_6
-    go_rag_internal_auth_bypass_go_anyKey_process_6["anyKey"]
-    go_rag_internal_auth_bypass_go_Store_storesEmpty_process_6 --> go_rag_internal_auth_bypass_go_anyKey_process_6
-    go_rag_internal_auth_bypass_go_bypassPrincipal_process_6["bypassPrincipal"]
-    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_6 --> go_rag_internal_auth_bypass_go_bypassPrincipal_process_6
-    unresolved_temporal_executor_Principal_Subject_process_6["unresolved::temporal-executor::Principal::Subject"]
-    go_rag_internal_auth_bypass_go_bypassPrincipal_process_6 --> unresolved_temporal_executor_Principal_Subject_process_6
     go_rag_internal_grpc_server_go_peerIsLoopback_process_6["peerIsLoopback"]
     go_rag_internal_grpc_server_go_authInterceptor_process_6 --> go_rag_internal_grpc_server_go_peerIsLoopback_process_6
     dep_google_golang_org_grpc_peer_FromContext_process_6["FromContext"]
     go_rag_internal_grpc_server_go_peerIsLoopback_process_6 --> dep_google_golang_org_grpc_peer_FromContext_process_6
-    go_rag_stdlib_net_ParseIP_process_6["ParseIP"]
-    go_rag_internal_grpc_server_go_peerIsLoopback_process_6 --> go_rag_stdlib_net_ParseIP_process_6
-    unresolved___IsLoopback_process_6["unresolved::*.IsLoopback"]
-    go_rag_internal_grpc_server_go_peerIsLoopback_process_6 --> unresolved___IsLoopback_process_6
     go_rag_internal_audit_event_go_AuthFailEvent_process_6["AuthFailEvent"]
     go_rag_internal_grpc_server_go_authInterceptor_process_6 --> go_rag_internal_audit_event_go_AuthFailEvent_process_6
     dep_google_golang_org_grpc_status_Error_process_6["Error"]
     go_rag_internal_grpc_server_go_authInterceptor_process_6 --> dep_google_golang_org_grpc_status_Error_process_6
+    dep_google_golang_org_grpc_StreamInterceptor_process_6["StreamInterceptor"]
+    go_rag_internal_grpc_server_go_NewServer_process_6 --> dep_google_golang_org_grpc_StreamInterceptor_process_6
+    go_rag_internal_grpc_server_go_authStreamInterceptor_process_6["authStreamInterceptor"]
+    go_rag_internal_grpc_server_go_NewServer_process_6 --> go_rag_internal_grpc_server_go_authStreamInterceptor_process_6
+    unresolved___Context_process_6["unresolved::*.Context"]
+    go_rag_internal_grpc_server_go_authStreamInterceptor_process_6 --> unresolved___Context_process_6
     go_rag_proto_gen_gorag_grpc_pb_go_RegisterGoragServer_process_6["RegisterGoragServer"]
     go_rag_internal_grpc_server_go_NewServer_process_6 --> go_rag_proto_gen_gorag_grpc_pb_go_RegisterGoragServer_process_6
     unresolved___RegisterService_process_6["unresolved::*.RegisterService"]
@@ -4577,16 +4659,14 @@ graph LR
     go_rag_internal_rest_server_go_Server_guard_process_6 --> unresolved___WithContext_process_6
     go_rag_stdlib_context_WithValue_process_6["WithValue"]
     go_rag_internal_rest_server_go_Server_guard_process_6 --> go_rag_stdlib_context_WithValue_process_6
-    unresolved___Context_process_6["unresolved::*.Context"]
-    go_rag_internal_rest_server_go_Server_guard_process_6 --> unresolved___Context_process_6
     unresolved___HandleFunc_process_6["unresolved::*.HandleFunc"]
     go_rag_internal_rest_server_go_Server_Handler_process_6 --> unresolved___HandleFunc_process_6
     unresolved___mountAuth_process_6["unresolved::*.mountAuth"]
     go_rag_internal_rest_server_go_Server_Handler_process_6 --> unresolved___mountAuth_process_6
-    unresolved_NewWithEngine_process_6["unresolved::NewWithEngine"]
-    go_rag_internal_engine_parity_test_go_TestCrossTransport_GetChunkContextParity_process_6 --> unresolved_NewWithEngine_process_6
     unresolved_HTTPHandler_process_6["unresolved::HTTPHandler"]
     go_rag_internal_engine_parity_test_go_TestCrossTransport_GetChunkContextParity_process_6 --> unresolved_HTTPHandler_process_6
+    unresolved_NewWithEngine_process_6["unresolved::NewWithEngine"]
+    go_rag_internal_engine_parity_test_go_TestCrossTransport_GetChunkContextParity_process_6 --> unresolved_NewWithEngine_process_6
     unresolved_New_process_6["unresolved::New"]
     go_rag_internal_engine_parity_test_go_TestCrossTransport_GetChunkContextParity_process_6 --> unresolved_New_process_6
   end
@@ -6311,8 +6391,6 @@ graph LR
     go_rag_internal_mcp_server_go_Server_dispatch_process_10 --> go_rag_internal_mcp_server_go_Server_dispatchAuth_process_10
     go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_10["authStoreOrOpen"]
     go_rag_internal_mcp_server_go_Server_dispatchAuth_process_10 --> go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_10
-    unresolved_NewStore_process_10["unresolved::NewStore"]
-    go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_10 --> unresolved_NewStore_process_10
     go_rag_internal_mcp_http_go_Server_authStore_process_10["authStore"]
     go_rag_internal_mcp_server_go_Server_authStoreOrOpen_process_10 --> go_rag_internal_mcp_http_go_Server_authStore_process_10
     unresolved___DB_process_10["unresolved::*.DB"]
@@ -6321,16 +6399,46 @@ graph LR
     go_rag_internal_mcp_http_go_Server_authStore_process_10 --> go_rag_internal_auth_store_go_NewStore_process_10
     unresolved_closeStore_process_10["unresolved::closeStore"]
     go_rag_internal_mcp_server_go_Server_dispatchAuth_process_10 --> unresolved_closeStore_process_10
-    unresolved___renderAuthList_process_10["unresolved::*.renderAuthList"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_10 --> unresolved___renderAuthList_process_10
-    unresolved___renderAuthCreate_process_10["unresolved::*.renderAuthCreate"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_10 --> unresolved___renderAuthCreate_process_10
-    unresolved___renderAuthRevoke_process_10["unresolved::*.renderAuthRevoke"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_10 --> unresolved___renderAuthRevoke_process_10
-    unresolved___renderAuthSessionList_process_10["unresolved::*.renderAuthSessionList"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_10 --> unresolved___renderAuthSessionList_process_10
-    unresolved___renderAuthSessionRevoke_process_10["unresolved::*.renderAuthSessionRevoke"]
-    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_10 --> unresolved___renderAuthSessionRevoke_process_10
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthList_process_10["renderAuthList"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_10 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthList_process_10
+    go_rag_internal_auth_apikey_go_ListAPIKeys_process_10["ListAPIKeys"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthList_process_10 --> go_rag_internal_auth_apikey_go_ListAPIKeys_process_10
+    unresolved___PrefixScanByte_process_10["unresolved::*.PrefixScanByte"]
+    go_rag_internal_auth_apikey_go_ListAPIKeys_process_10 --> unresolved___PrefixScanByte_process_10
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthCreate_process_10["renderAuthCreate"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_10 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthCreate_process_10
+    go_rag_stdlib_time_ParseDuration_process_10["ParseDuration"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthCreate_process_10 --> go_rag_stdlib_time_ParseDuration_process_10
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_10["CreateAPIKey"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthCreate_process_10 --> go_rag_internal_auth_apikey_go_CreateAPIKey_process_10
+    go_rag_internal_auth_apikey_go_validMode_process_10["validMode"]
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_10 --> go_rag_internal_auth_apikey_go_validMode_process_10
+    go_rag_internal_auth_store_go_randomBytes_process_10["randomBytes"]
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_10 --> go_rag_internal_auth_store_go_randomBytes_process_10
+    go_rag_stdlib_crypto_rand_Read_process_10["Read"]
+    go_rag_internal_auth_store_go_randomBytes_process_10 --> go_rag_stdlib_crypto_rand_Read_process_10
+    unresolved___EncodeToString_process_10["unresolved::*.EncodeToString"]
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_10 --> unresolved___EncodeToString_process_10
+    unresolved___SetWithPrefix_process_10["unresolved::*.SetWithPrefix"]
+    go_rag_internal_auth_apikey_go_CreateAPIKey_process_10 --> unresolved___SetWithPrefix_process_10
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthRevoke_process_10["renderAuthRevoke"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_10 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthRevoke_process_10
+    go_rag_internal_auth_apikey_go_RevokeAPIKey_process_10["RevokeAPIKey"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthRevoke_process_10 --> go_rag_internal_auth_apikey_go_RevokeAPIKey_process_10
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionList_process_10["renderAuthSessionList"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_10 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionList_process_10
+    go_rag_internal_auth_session_go_ListSessions_process_10["ListSessions"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionList_process_10 --> go_rag_internal_auth_session_go_ListSessions_process_10
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionRevoke_process_10["renderAuthSessionRevoke"]
+    go_rag_internal_mcp_server_go_Server_dispatchAuth_process_10 --> go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionRevoke_process_10
+    go_rag_stdlib_encoding_hex_DecodeString_process_10["DecodeString"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionRevoke_process_10 --> go_rag_stdlib_encoding_hex_DecodeString_process_10
+    go_rag_internal_auth_session_go_RevokeSessionByHash_process_10["RevokeSessionByHash"]
+    go_rag_internal_mcp_auth_tools_go_Server_renderAuthSessionRevoke_process_10 --> go_rag_internal_auth_session_go_RevokeSessionByHash_process_10
+    go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_10["DeleteWithPrefix"]
+    go_rag_internal_auth_session_go_RevokeSessionByHash_process_10 --> go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_10
+    go_rag_internal_storage_db_go_DB_Delete_process_10["Delete"]
+    go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_10 --> go_rag_internal_storage_db_go_DB_Delete_process_10
     go_rag_internal_mcp_server_go_Server_initTool_process_10["initTool"]
     go_rag_internal_mcp_server_go_Server_dispatch_process_10 --> go_rag_internal_mcp_server_go_Server_initTool_process_10
     go_rag_internal_config_config_go_Default_process_10["Default"]
@@ -6345,18 +6453,60 @@ graph LR
     go_rag_internal_config_config_go_Default_process_10 --> unresolved_temporal_executor_Config_MCPAddr_process_10
     unresolved_temporal_executor_Config_OllamaURL_process_10["unresolved::temporal-executor::Config::OllamaURL"]
     go_rag_internal_config_config_go_Default_process_10 --> unresolved_temporal_executor_Config_OllamaURL_process_10
-    go_rag_internal_config_config_go_Config_Validate_process_10["Validate"]
-    go_rag_internal_mcp_server_go_Server_initTool_process_10 --> go_rag_internal_config_config_go_Config_Validate_process_10
-    go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_10["EffectiveOTelExport"]
-    go_rag_internal_config_config_go_Config_Validate_process_10 --> go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_10
-    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_10["EffectivePoisonThresholdQuarantine"]
-    go_rag_internal_config_config_go_Config_Validate_process_10 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_10
-    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_10["EffectivePoisonThresholdSuspicious"]
-    go_rag_internal_config_config_go_Config_Validate_process_10 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_10
-    go_rag_stdlib_net_url_Parse_process_10["Parse"]
-    go_rag_internal_config_config_go_Config_Validate_process_10 --> go_rag_stdlib_net_url_Parse_process_10
-    go_rag_stdlib_net_SplitHostPort_process_10["SplitHostPort"]
-    go_rag_internal_config_config_go_Config_Validate_process_10 --> go_rag_stdlib_net_SplitHostPort_process_10
+    go_rag_internal_auth_auth_go_Store_Validate_process_10["Validate"]
+    go_rag_internal_mcp_server_go_Server_initTool_process_10 --> go_rag_internal_auth_auth_go_Store_Validate_process_10
+    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_10["ValidateTokenOrBypass"]
+    go_rag_internal_auth_auth_go_Store_Validate_process_10 --> go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_10
+    go_rag_internal_auth_auth_go_Store_ValidateToken_process_10["ValidateToken"]
+    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_10 --> go_rag_internal_auth_auth_go_Store_ValidateToken_process_10
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_10["ValidateAPIKey"]
+    go_rag_internal_auth_auth_go_Store_ValidateToken_process_10 --> go_rag_internal_auth_apikey_go_ValidateAPIKey_process_10
+    go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_10["secretBytesFromBearer"]
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_10 --> go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_10
+    unresolved___DecodeString_process_10["unresolved::*.DecodeString"]
+    go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_10 --> unresolved___DecodeString_process_10
+    go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_10["padAPIKeyFailure"]
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_10 --> go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_10
+    unresolved___After_process_10["unresolved::*.After"]
+    go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_10 --> unresolved___After_process_10
+    go_rag_internal_auth_store_go_hash16_process_10["hash16"]
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_10 --> go_rag_internal_auth_store_go_hash16_process_10
+    unresolved___GetWithPrefix_process_10["unresolved::*.GetWithPrefix"]
+    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_10 --> unresolved___GetWithPrefix_process_10
+    go_rag_internal_auth_apikey_go_ValidateAPIKeyRaw_process_10["ValidateAPIKeyRaw"]
+    go_rag_internal_auth_auth_go_Store_ValidateToken_process_10 --> go_rag_internal_auth_apikey_go_ValidateAPIKeyRaw_process_10
+    go_rag_internal_auth_session_go_ValidateSession_process_10["ValidateSession"]
+    go_rag_internal_auth_auth_go_Store_ValidateToken_process_10 --> go_rag_internal_auth_session_go_ValidateSession_process_10
+    go_rag_internal_auth_session_go_sessionSecretBytes_process_10["sessionSecretBytes"]
+    go_rag_internal_auth_session_go_ValidateSession_process_10 --> go_rag_internal_auth_session_go_sessionSecretBytes_process_10
+    go_rag_internal_auth_session_go_padSessionFailure_process_10["padSessionFailure"]
+    go_rag_internal_auth_session_go_ValidateSession_process_10 --> go_rag_internal_auth_session_go_padSessionFailure_process_10
+    go_rag_internal_auth_bypass_go_Store_storesEmpty_process_10["storesEmpty"]
+    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_10 --> go_rag_internal_auth_bypass_go_Store_storesEmpty_process_10
+    go_rag_internal_auth_bypass_go_anyKey_process_10["anyKey"]
+    go_rag_internal_auth_bypass_go_Store_storesEmpty_process_10 --> go_rag_internal_auth_bypass_go_anyKey_process_10
+    go_rag_internal_auth_bypass_go_bypassPrincipal_process_10["bypassPrincipal"]
+    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_10 --> go_rag_internal_auth_bypass_go_bypassPrincipal_process_10
+    unresolved_temporal_executor_Principal_Subject_process_10["unresolved::temporal-executor::Principal::Subject"]
+    go_rag_internal_auth_bypass_go_bypassPrincipal_process_10 --> unresolved_temporal_executor_Principal_Subject_process_10
+    go_rag_internal_auth_auth_go_bearerFromHeader_process_10["bearerFromHeader"]
+    go_rag_internal_auth_auth_go_Store_Validate_process_10 --> go_rag_internal_auth_auth_go_bearerFromHeader_process_10
+    unresolved___Get_process_10["unresolved::*.Get"]
+    go_rag_internal_auth_auth_go_bearerFromHeader_process_10 --> unresolved___Get_process_10
+    go_rag_stdlib_strings_EqualFold_process_10["EqualFold"]
+    go_rag_internal_auth_auth_go_bearerFromHeader_process_10 --> go_rag_stdlib_strings_EqualFold_process_10
+    go_rag_internal_auth_bypass_go_isLoopback_process_10["isLoopback"]
+    go_rag_internal_auth_auth_go_Store_Validate_process_10 --> go_rag_internal_auth_bypass_go_isLoopback_process_10
+    go_rag_internal_auth_bypass_go_peerHost_process_10["peerHost"]
+    go_rag_internal_auth_bypass_go_isLoopback_process_10 --> go_rag_internal_auth_bypass_go_peerHost_process_10
+    go_rag_internal_auth_bypass_go_lastIndex_process_10["lastIndex"]
+    go_rag_internal_auth_bypass_go_peerHost_process_10 --> go_rag_internal_auth_bypass_go_lastIndex_process_10
+    go_rag_internal_auth_bypass_go_countByte_process_10["countByte"]
+    go_rag_internal_auth_bypass_go_peerHost_process_10 --> go_rag_internal_auth_bypass_go_countByte_process_10
+    go_rag_stdlib_net_ParseIP_process_10["ParseIP"]
+    go_rag_internal_auth_bypass_go_isLoopback_process_10 --> go_rag_stdlib_net_ParseIP_process_10
+    unresolved___IsLoopback_process_10["unresolved::*.IsLoopback"]
+    go_rag_internal_auth_bypass_go_isLoopback_process_10 --> unresolved___IsLoopback_process_10
     go_rag_stdlib_os_MkdirAll_process_10["MkdirAll"]
     go_rag_internal_mcp_server_go_Server_initTool_process_10 --> go_rag_stdlib_os_MkdirAll_process_10
     go_rag_internal_config_config_go_Save_process_10["Save"]
@@ -6431,8 +6581,6 @@ graph LR
     go_rag_internal_engine_query_go_Engine_Query_process_10 --> go_rag_internal_index_retrieval_go_Retrieval_EnableRerankRetry_process_10
     go_rag_internal_index_filter_go_Filter_Matches_process_10["Matches"]
     go_rag_internal_engine_query_go_Engine_Query_process_10 --> go_rag_internal_index_filter_go_Filter_Matches_process_10
-    go_rag_stdlib_strings_EqualFold_process_10["EqualFold"]
-    go_rag_internal_index_filter_go_Filter_Matches_process_10 --> go_rag_stdlib_strings_EqualFold_process_10
     go_rag_internal_index_filter_go_sourceMatches_process_10["sourceMatches"]
     go_rag_internal_index_filter_go_Filter_Matches_process_10 --> go_rag_internal_index_filter_go_sourceMatches_process_10
     go_rag_stdlib_path_Match_process_10["Match"]
@@ -6643,6 +6791,8 @@ graph LR
     go_rag_internal_mcp_server_go_Server_renderStatus_process_10 --> go_rag_internal_engine_engine_go_Engine_Config_process_10
     go_rag_internal_config_config_go_Config_EffectiveMetricsEnabled_process_10["EffectiveMetricsEnabled"]
     go_rag_internal_mcp_server_go_Server_renderStatus_process_10 --> go_rag_internal_config_config_go_Config_EffectiveMetricsEnabled_process_10
+    go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_10["EffectiveOTelExport"]
+    go_rag_internal_mcp_server_go_Server_renderStatus_process_10 --> go_rag_internal_config_config_go_Config_EffectiveOTelExport_process_10
     go_rag_internal_mcp_server_go_Server_renderAdd_process_10["renderAdd"]
     go_rag_internal_mcp_server_go_Server_dispatchDB_process_10 --> go_rag_internal_mcp_server_go_Server_renderAdd_process_10
     go_rag_internal_mcp_server_go_Server_renderScan_process_10["renderScan"]
@@ -6659,10 +6809,6 @@ graph LR
     go_rag_internal_pipeline_delete_go_Pipeline_DeleteDoc_process_10 --> unresolved_unlock_process_10
     go_rag_internal_pipeline_delete_go_Pipeline_deleteDocLocked_process_10["deleteDocLocked"]
     go_rag_internal_pipeline_delete_go_Pipeline_DeleteDoc_process_10 --> go_rag_internal_pipeline_delete_go_Pipeline_deleteDocLocked_process_10
-    go_rag_internal_storage_db_go_DB_Delete_process_10["Delete"]
-    go_rag_internal_pipeline_delete_go_Pipeline_deleteDocLocked_process_10 --> go_rag_internal_storage_db_go_DB_Delete_process_10
-    go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_10["DeleteWithPrefix"]
-    go_rag_internal_pipeline_delete_go_Pipeline_deleteDocLocked_process_10 --> go_rag_internal_storage_db_go_DB_DeleteWithPrefix_process_10
     go_rag_internal_pipeline_pipeline_go_Pipeline_docLock_process_10["docLock"]
     go_rag_internal_pipeline_delete_go_Pipeline_DeleteDoc_process_10 --> go_rag_internal_pipeline_pipeline_go_Pipeline_docLock_process_10
     unresolved___LoadOrStore_process_10["unresolved::*.LoadOrStore"]
@@ -6689,6 +6835,16 @@ graph LR
     go_rag_internal_config_config_go_Config_Set_process_10 --> go_rag_stdlib_strconv_ParseFloat_process_10
     go_rag_internal_config_config_go_validatePrefixString_process_10["validatePrefixString"]
     go_rag_internal_config_config_go_Config_Set_process_10 --> go_rag_internal_config_config_go_validatePrefixString_process_10
+    go_rag_internal_config_config_go_Config_Validate_process_10["Validate"]
+    go_rag_internal_engine_config_go_Engine_SetConfig_process_10 --> go_rag_internal_config_config_go_Config_Validate_process_10
+    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_10["EffectivePoisonThresholdQuarantine"]
+    go_rag_internal_config_config_go_Config_Validate_process_10 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdQuarantine_process_10
+    go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_10["EffectivePoisonThresholdSuspicious"]
+    go_rag_internal_config_config_go_Config_Validate_process_10 --> go_rag_internal_config_config_go_Config_EffectivePoisonThresholdSuspicious_process_10
+    go_rag_stdlib_net_url_Parse_process_10["Parse"]
+    go_rag_internal_config_config_go_Config_Validate_process_10 --> go_rag_stdlib_net_url_Parse_process_10
+    go_rag_stdlib_net_SplitHostPort_process_10["SplitHostPort"]
+    go_rag_internal_config_config_go_Config_Validate_process_10 --> go_rag_stdlib_net_SplitHostPort_process_10
     go_rag_internal_mcp_server_go_Server_renderFiles_process_10["renderFiles"]
     go_rag_internal_mcp_server_go_Server_dispatchDB_process_10 --> go_rag_internal_mcp_server_go_Server_renderFiles_process_10
     go_rag_internal_mcp_server_go_Server_renderDirs_process_10["renderDirs"]
@@ -6781,24 +6937,18 @@ graph LR
     go_rag_internal_mcp_server_go_Server_dispatchDB_process_10 --> go_rag_internal_mcp_server_go_Server_renderListDocuments_process_10
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_10["ListDocuments"]
     go_rag_internal_mcp_server_go_Server_renderListDocuments_process_10 --> go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_10
-    unresolved___After_process_10["unresolved::*.After"]
-    go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_10 --> unresolved___After_process_10
     unresolved___Before_process_10["unresolved::*.Before"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_10 --> unresolved___Before_process_10
     unresolved___Equal_process_10["unresolved::*.Equal"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_10 --> unresolved___Equal_process_10
     go_rag_internal_engine_list_documents_go_decodePageToken_process_10["decodePageToken"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_10 --> go_rag_internal_engine_list_documents_go_decodePageToken_process_10
-    unresolved___DecodeString_process_10["unresolved::*.DecodeString"]
-    go_rag_internal_engine_list_documents_go_decodePageToken_process_10 --> unresolved___DecodeString_process_10
     go_rag_stdlib_strings_SplitN_process_10["SplitN"]
     go_rag_internal_engine_list_documents_go_decodePageToken_process_10 --> go_rag_stdlib_strings_SplitN_process_10
     go_rag_stdlib_time_Parse_process_10["Parse"]
     go_rag_internal_engine_list_documents_go_decodePageToken_process_10 --> go_rag_stdlib_time_Parse_process_10
     go_rag_internal_engine_list_documents_go_encodePageToken_process_10["encodePageToken"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_10 --> go_rag_internal_engine_list_documents_go_encodePageToken_process_10
-    unresolved___EncodeToString_process_10["unresolved::*.EncodeToString"]
-    go_rag_internal_engine_list_documents_go_encodePageToken_process_10 --> unresolved___EncodeToString_process_10
     go_rag_stdlib_sort_SliceStable_process_10["SliceStable"]
     go_rag_internal_engine_list_documents_go_Engine_ListDocuments_process_10 --> go_rag_stdlib_sort_SliceStable_process_10
     go_rag_internal_mcp_server_go_errResp_process_10["errResp"]
@@ -6825,48 +6975,20 @@ graph LR
     go_rag_internal_grpc_server_go_authInterceptor_process_10 --> go_rag_internal_grpc_server_go_bearerFromGRPCMetadata_process_10
     dep_google_golang_org_grpc_metadata_FromIncomingContext_process_10["FromIncomingContext"]
     go_rag_internal_grpc_server_go_bearerFromGRPCMetadata_process_10 --> dep_google_golang_org_grpc_metadata_FromIncomingContext_process_10
-    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_10["ValidateTokenOrBypass"]
-    go_rag_internal_grpc_server_go_authInterceptor_process_10 --> go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_10
-    go_rag_internal_auth_auth_go_Store_ValidateToken_process_10["ValidateToken"]
-    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_10 --> go_rag_internal_auth_auth_go_Store_ValidateToken_process_10
-    go_rag_internal_auth_session_go_ValidateSession_process_10["ValidateSession"]
-    go_rag_internal_auth_auth_go_Store_ValidateToken_process_10 --> go_rag_internal_auth_session_go_ValidateSession_process_10
-    go_rag_internal_auth_session_go_sessionSecretBytes_process_10["sessionSecretBytes"]
-    go_rag_internal_auth_session_go_ValidateSession_process_10 --> go_rag_internal_auth_session_go_sessionSecretBytes_process_10
-    go_rag_internal_auth_store_go_hash16_process_10["hash16"]
-    go_rag_internal_auth_session_go_ValidateSession_process_10 --> go_rag_internal_auth_store_go_hash16_process_10
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_10["ValidateAPIKey"]
-    go_rag_internal_auth_auth_go_Store_ValidateToken_process_10 --> go_rag_internal_auth_apikey_go_ValidateAPIKey_process_10
-    go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_10["secretBytesFromBearer"]
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_10 --> go_rag_internal_auth_apikey_go_secretBytesFromBearer_process_10
-    go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_10["padAPIKeyFailure"]
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_10 --> go_rag_internal_auth_apikey_go_padAPIKeyFailure_process_10
-    unresolved___GetWithPrefix_process_10["unresolved::*.GetWithPrefix"]
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_10 --> unresolved___GetWithPrefix_process_10
-    unresolved___SetWithPrefix_process_10["unresolved::*.SetWithPrefix"]
-    go_rag_internal_auth_apikey_go_ValidateAPIKey_process_10 --> unresolved___SetWithPrefix_process_10
-    go_rag_internal_auth_apikey_go_ValidateAPIKeyRaw_process_10["ValidateAPIKeyRaw"]
-    go_rag_internal_auth_auth_go_Store_ValidateToken_process_10 --> go_rag_internal_auth_apikey_go_ValidateAPIKeyRaw_process_10
-    go_rag_internal_auth_bypass_go_Store_storesEmpty_process_10["storesEmpty"]
-    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_10 --> go_rag_internal_auth_bypass_go_Store_storesEmpty_process_10
-    go_rag_internal_auth_bypass_go_anyKey_process_10["anyKey"]
-    go_rag_internal_auth_bypass_go_Store_storesEmpty_process_10 --> go_rag_internal_auth_bypass_go_anyKey_process_10
-    go_rag_internal_auth_bypass_go_bypassPrincipal_process_10["bypassPrincipal"]
-    go_rag_internal_auth_auth_go_Store_ValidateTokenOrBypass_process_10 --> go_rag_internal_auth_bypass_go_bypassPrincipal_process_10
-    unresolved_temporal_executor_Principal_Subject_process_10["unresolved::temporal-executor::Principal::Subject"]
-    go_rag_internal_auth_bypass_go_bypassPrincipal_process_10 --> unresolved_temporal_executor_Principal_Subject_process_10
     go_rag_internal_grpc_server_go_peerIsLoopback_process_10["peerIsLoopback"]
     go_rag_internal_grpc_server_go_authInterceptor_process_10 --> go_rag_internal_grpc_server_go_peerIsLoopback_process_10
     dep_google_golang_org_grpc_peer_FromContext_process_10["FromContext"]
     go_rag_internal_grpc_server_go_peerIsLoopback_process_10 --> dep_google_golang_org_grpc_peer_FromContext_process_10
-    go_rag_stdlib_net_ParseIP_process_10["ParseIP"]
-    go_rag_internal_grpc_server_go_peerIsLoopback_process_10 --> go_rag_stdlib_net_ParseIP_process_10
-    unresolved___IsLoopback_process_10["unresolved::*.IsLoopback"]
-    go_rag_internal_grpc_server_go_peerIsLoopback_process_10 --> unresolved___IsLoopback_process_10
     go_rag_internal_audit_event_go_AuthFailEvent_process_10["AuthFailEvent"]
     go_rag_internal_grpc_server_go_authInterceptor_process_10 --> go_rag_internal_audit_event_go_AuthFailEvent_process_10
     dep_google_golang_org_grpc_status_Error_process_10["Error"]
     go_rag_internal_grpc_server_go_authInterceptor_process_10 --> dep_google_golang_org_grpc_status_Error_process_10
+    dep_google_golang_org_grpc_StreamInterceptor_process_10["StreamInterceptor"]
+    go_rag_internal_grpc_server_go_NewServer_process_10 --> dep_google_golang_org_grpc_StreamInterceptor_process_10
+    go_rag_internal_grpc_server_go_authStreamInterceptor_process_10["authStreamInterceptor"]
+    go_rag_internal_grpc_server_go_NewServer_process_10 --> go_rag_internal_grpc_server_go_authStreamInterceptor_process_10
+    unresolved___Context_process_10["unresolved::*.Context"]
+    go_rag_internal_grpc_server_go_authStreamInterceptor_process_10 --> unresolved___Context_process_10
     go_rag_proto_gen_gorag_grpc_pb_go_RegisterGoragServer_process_10["RegisterGoragServer"]
     go_rag_internal_grpc_server_go_NewServer_process_10 --> go_rag_proto_gen_gorag_grpc_pb_go_RegisterGoragServer_process_10
     unresolved___RegisterService_process_10["unresolved::*.RegisterService"]
@@ -6915,8 +7037,6 @@ graph LR
     go_rag_internal_rest_server_go_Server_guard_process_10 --> unresolved___WithContext_process_10
     go_rag_stdlib_context_WithValue_process_10["WithValue"]
     go_rag_internal_rest_server_go_Server_guard_process_10 --> go_rag_stdlib_context_WithValue_process_10
-    unresolved___Context_process_10["unresolved::*.Context"]
-    go_rag_internal_rest_server_go_Server_guard_process_10 --> unresolved___Context_process_10
     unresolved___HandleFunc_process_10["unresolved::*.HandleFunc"]
     go_rag_internal_rest_server_go_Server_Handler_process_10 --> unresolved___HandleFunc_process_10
     unresolved___mountAuth_process_10["unresolved::*.mountAuth"]
