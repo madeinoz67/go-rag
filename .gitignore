@@ -10,7 +10,7 @@
 # Go workspace
 /go.work
 /go.work.sum
-vendor/
+/vendor/
 
 # Test coverage
 coverage.out

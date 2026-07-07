@@ -24,6 +24,7 @@ type Addrs struct {
 	MCPAddr      string `json:"mcp_addr"`
 	RESTAddr     string `json:"rest_addr"`
 	GRPCAddr     string `json:"grpc_addr"`
+	UIAddr       string `json:"ui_addr,omitempty"`
 	BindExternal bool   `json:"bind_external,omitempty"`
 }
 

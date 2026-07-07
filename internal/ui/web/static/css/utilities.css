@@ -1,0 +1,253 @@
+/* utilities.css — hand-written primitives replacing Tailwind utilities.
+ * Layer 3 of 4. Structural atoms + named layout classes.
+ * go-rag has NO Tailwind (CLAUDE.md hard constraint); this file is the replacement.
+ * Cosmetic polish (gradients, alpha fills, focus rings) lives in components.css. */
+
+/* =========================================================================
+ * Display
+ * ========================================================================= */
+.hidden        { display: none !important; }
+.block         { display: block; }
+.inline        { display: inline; }
+.inline-block  { display: inline-block; }
+.flex          { display: flex; }
+.inline-flex   { display: inline-flex; }
+.grid          { display: grid; }
+
+/* =========================================================================
+ * Flex direction + alignment helpers (.row / .col are the workhorses)
+ * ========================================================================= */
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.col-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.items-start    { align-items: flex-start; }
+.items-center   { align-items: center; }
+.items-end      { align-items: flex-end; }
+.items-stretch  { align-items: stretch; }
+.justify-start    { justify-content: flex-start; }
+.justify-center   { justify-content: center; }
+.justify-end      { justify-content: flex-end; }
+.justify-between  { justify-content: space-between; }
+.flex-1        { flex: 1 1 0%; }
+.flex-shrink-0 { flex-shrink: 0; }
+.flex-wrap     { flex-wrap: wrap; }
+
+/* =========================================================================
+ * Grid column counts (named; collapse at 768px in components.css)
+ * ========================================================================= */
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.grid-cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+
+/* =========================================================================
+ * Spacing utilities — .p/.m/.gap 1..4 → --space-1..4
+ * ========================================================================= */
+.p-1 { padding: var(--space-1); }
+.p-2 { padding: var(--space-2); }
+.p-3 { padding: var(--space-3); }
+.p-4 { padding: var(--space-4); }
+
+.m-1 { margin: var(--space-1); }
+.m-2 { margin: var(--space-2); }
+.m-3 { margin: var(--space-3); }
+.m-4 { margin: var(--space-4); }
+
+.gap-1 { gap: var(--space-1); }
+.gap-2 { gap: var(--space-2); }
+.gap-3 { gap: var(--space-3); }
+.gap-4 { gap: var(--space-4); }
+
+/* =========================================================================
+ * Text helpers — three text colors only (style guide §4)
+ * ========================================================================= */
+.text-primary   { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted     { color: var(--text-muted); }
+
+.text-sm     { font-size: 0.8125rem; }
+.text-xs     { font-size: 0.75rem; }
+.text-mono   { font-family: var(--font-mono); }
+.text-center { text-align: center; }
+.text-right  { text-align: right; }
+.uppercase   { text-transform: uppercase; letter-spacing: 0.08em; }
+.truncate    { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* =========================================================================
+ * Width helpers
+ * ========================================================================= */
+.w-full     { width: 100%; }
+.max-w-page { max-width: 1400px; }
+
+/* =========================================================================
+ * Surface atoms (full styled versions in components.css)
+ * ========================================================================= */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.tile {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.input {
+  display: block;
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  padding: var(--space-1) var(--space-2);
+  height: 2.375rem;            /* fixed height — inputs never grow with content */
+  font-size: 0.875rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--motion-default) var(--motion-ease);
+}
+.input::placeholder { color: var(--text-muted); }
+
+/* =========================================================================
+ * Button atom — variants in components.css
+ * ========================================================================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  height: 2.375rem;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--motion-default) var(--motion-ease),
+              border-color var(--motion-default) var(--motion-ease),
+              color var(--motion-default) var(--motion-ease),
+              opacity var(--motion-default) var(--motion-ease);
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: #fff;
+  border: 0;
+}
+.btn-primary:hover:not(:disabled) { opacity: 0.9; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 0;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.btn-block { width: 100%; }
+
+/* =========================================================================
+ * Badge atom + variants (style guide §6.3 alpha fills)
+ * ========================================================================= */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--hover-wash);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.badge-success { background: rgba(34, 197, 94, 0.15);  color: var(--success); }
+.badge-danger  { background: rgba(239, 68, 68, 0.15);  color: var(--danger);  }
+.badge-warning { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+.badge-info    { background: rgba(59, 130, 246, 0.15); color: var(--info);    }
+
+/* =========================================================================
+ * Layout primitives — sidebar + main + nav
+ * ========================================================================= */
+.app-layout {
+  display: flex;
+  flex-direction: row;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: var(--z-sidebar);
+}
+
+.main {
+  flex: 1;
+  padding: var(--space-5);
+  max-width: 1400px;
+  overflow-y: auto;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  color: var(--text-secondary);
+  border: 0;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  transition: background var(--motion-default) var(--motion-ease),
+              color var(--motion-default) var(--motion-ease);
+}
+.nav-item:hover {
+  background: var(--primary-wash);
+  color: var(--primary);
+}
+.nav-item.active {
+  background: var(--primary-wash-strong);
+  color: var(--primary);
+}
+
+/* =========================================================================
+ * Dashboard stat grid (style guide §10.3 — collapses to 1 col under 768px)
+ * ========================================================================= */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
+}

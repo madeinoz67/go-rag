@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>go-rag</title>
+
+  <!-- FOUC prevention: apply light theme class BEFORE first paint.
+       The class is read from localStorage['goragTheme']; anything else
+       (including the key being absent) keeps the dark default. -->
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem('goragTheme') === 'light') {
+          document.documentElement.classList.add('light');
+        }
+      } catch (_e) {
+        /* storage unavailable — fall through to dark default */
+      }
+    })();
+  </script>
+
+  <!-- CSS layers in order: tokens → reset → primitives → component catalog -->
+  <link rel="stylesheet" href="/static/css/theme.css">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/utilities.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+</head>
+
+<body x-data="goragApp()" x-init="mount()" x-cloak>
+
+  <!-- =====================================================================
+       AUTH GATE — LOGIN VIEW
+       (shown when no token is held in memory)
+       ===================================================================== -->
+  <div x-show="!isAuthed()" class="login-wrap">
+    <form class="login-card" autocomplete="on" @submit.prevent="submitLogin()">
+      <div class="login-logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none"
+             stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <line x1="3" y1="9"  x2="21" y2="9"/>
+          <line x1="9" y1="3"  x2="9"  y2="21"/>
+        </svg>
+      </div>
+      <h1 class="login-title">go-rag</h1>
+      <p class="login-subtitle">Sign in to the management console</p>
+
+      <div class="form-group">
+        <label for="gorag-login-user">Username</label>
+        <input id="gorag-login-user"
+               class="input"
+               type="text"
+               autocomplete="username"
+               x-model="login.username"
+               :disabled="loading">
+      </div>
+
+      <div class="form-group">
+        <label for="gorag-login-pass">Password</label>
+        <input id="gorag-login-pass"
+               class="input"
+               type="password"
+               autocomplete="current-password"
+               x-model="login.password"
+               :disabled="loading">
+      </div>
+
+      <p x-show="error" class="login-error" x-text="error" role="alert"></p>
+
+      <button type="submit"
+              class="btn btn-primary btn-block"
+              :disabled="loading">
+        <span x-show="!loading">Sign in</span>
+        <span x-show="loading" x-cloak>Signing in…</span>
+      </button>
+    </form>
+  </div>
+
+  <!-- =====================================================================
+       AUTHENTICATED SHELL
+       ===================================================================== -->
+  <div x-show="isAuthed()" class="app-layout">
+
+    <!-- ============ SIDEBAR (8 nav items, exact labels) ============ -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none"
+             stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <line x1="3" y1="9"  x2="21" y2="9"/>
+          <line x1="9" y1="3"  x2="9"  y2="21"/>
+        </svg>
+        <span class="sidebar-brand-label">go-rag</span>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Primary">
+        <button type="button"
+                class="nav-item"
+                :class="{ 'active': currentView === 'dashboard' }"
+                @click="switchView('dashboard')"
+                aria-label="Dashboard">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3"  y="3"  width="7" height="9" rx="1"/>
+            <rect x="14" y="3"  width="7" height="5" rx="1"/>
+            <rect x="14" y="12" width="7" height="9" rx="1"/>
+            <rect x="3"  y="16" width="7" height="5" rx="1"/>
+          </svg>
+          <span class="nav-label">Dashboard</span>
+        </button>
+
+        <button type="button"
+                class="nav-item"
+                :class="{ 'active': currentView === 'documents' }"
+                @click="switchView('documents')"
+                aria-label="Documents">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="8" y1="13" x2="16" y2="13"/>
+            <line x1="8" y1="17" x2="16" y2="17"/>
+          </svg>
+          <span class="nav-label">Documents</span>
+        </button>
+
+        <button type="button"
+                class="nav-item"
+                :class="{ 'active': currentView === 'query' }"
+                @click="switchView('query')"
+                aria-label="Query">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <span class="nav-label">Query</span>
+        </button>
+
+        <button type="button"
+                class="nav-item"
+                :class="{ 'active': currentView === 'bridge-ops' }"
+                @click="switchView('bridge-ops')"
+                aria-label="Bridge Ops">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 12h4l3-9 4 18 3-9h4"/>
+          </svg>
+          <span class="nav-label">Bridge Ops</span>
+        </button>
+
+        <button type="button"
+                class="nav-item"
+                :class="{ 'active': currentView === 'vaults' }"
+                @click="switchView('vaults')"
+                aria-label="Vaults">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+            <path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6"/>
+          </svg>
+          <span class="nav-label">Vaults</span>
+        </button>
+
+        <button type="button"
+                class="nav-item"
+                :class="{ 'active': currentView === 'observability' }"
+                @click="switchView('observability')"
+                aria-label="Observability">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 3v18h18"/>
+            <path d="M7 14l4-4 4 4 5-5"/>
+          </svg>
+          <span class="nav-label">Observability</span>
+        </button>
+
+        <button type="button"
+                class="nav-item"
+                :class="{ 'active': currentView === 'settings' }"
+                @click="switchView('settings')"
+                aria-label="Settings">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span class="nav-label">Settings</span>
+        </button>
+
+        <button type="button"
+                class="nav-item"
+                :class="{ 'active': currentView === 'memory-graph' }"
+                @click="switchView('memory-graph')"
+                aria-label="Memory and Graph">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="5"  r="2"/>
+            <circle cx="5"  cy="19" r="2"/>
+            <circle cx="19" cy="19" r="2"/>
+            <line x1="11.2" y1="6.8" x2="5.8"  y2="17.2"/>
+            <line x1="12.8" y1="6.8" x2="18.2" y2="17.2"/>
+            <line x1="7"    y1="19"  x2="17"    y2="19"/>
+          </svg>
+          <span class="nav-label">Memory &amp; Graph</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button type="button" class="nav-item" @click="logout()" aria-label="Sign out">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          <span class="nav-label">Sign out</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ============ MAIN CONTENT ============ -->
+    <main class="main">
+
+      <!-- ====== DASHBOARD (the one real view in Slice 0) ====== -->
+      <section x-show="currentView === 'dashboard'" class="view">
+        <header class="view-header">
+          <h1 class="page-title">Dashboard</h1>
+          <div class="vault-chip" x-show="stats.vault" x-cloak>
+            <span class="vault-chip-label">Vault:</span>
+            <span x-text="stats.vault || ''"></span>
+          </div>
+        </header>
+
+        <div class="stat-grid">
+          <div class="stat-card tile">
+            <div class="stat-label">Documents</div>
+            <div class="stat-value" x-text="stats.documents ?? '—'"></div>
+          </div>
+          <div class="stat-card tile">
+            <div class="stat-label">Chunks</div>
+            <div class="stat-value" x-text="stats.chunks ?? '—'"></div>
+          </div>
+          <div class="stat-card tile">
+            <div class="stat-label">Embeddings</div>
+            <div class="stat-value" x-text="stats.embeddings ?? '—'"></div>
+          </div>
+          <div class="stat-card tile">
+            <div class="stat-label">Dimensions</div>
+            <div class="stat-value" x-text="stats.dimensions ?? '—'"></div>
+          </div>
+          <div class="stat-card tile">
+            <div class="stat-label">Embedding model</div>
+            <div class="stat-value stat-value-text" x-text="stats.embedding_model || '—'"></div>
+          </div>
+        </div>
+
+        <div class="dashboard-meta">
+          <div class="meta-row">
+            <span class="meta-label">Index health</span>
+            <span class="badge"
+                  :class="(stats.embeddings_complete && !stats.hard_drift) ? 'badge-success' : 'badge-danger'"
+                  x-text="(stats.embeddings_complete && !stats.hard_drift) ? 'healthy' : 'degraded'"></span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Drift verdict</span>
+            <span class="meta-value" x-text="stats.drift_verdict || '—'"></span>
+          </div>
+          <div class="meta-row" x-show="stats.vault" x-cloak>
+            <span class="meta-label">Active vault</span>
+            <span class="meta-value" x-text="stats.vault || '—'"></span>
+          </div>
+          <div class="meta-row" x-show="stats.reranker" x-cloak>
+            <span class="meta-label">Reranker</span>
+            <span class="meta-value" x-text="stats.reranker || '—'"></span>
+          </div>
+          <div class="meta-row" x-show="stats.embed_pending !== undefined" x-cloak>
+            <span class="meta-label">Embed backlog</span>
+            <span class="meta-value"
+                  x-text="(stats.embed_pending || 0) + ' pending · ' + (stats.embed_failed || 0) + ' failed'"></span>
+          </div>
+        </div>
+
+        <p class="dashboard-error" x-show="error" x-text="error" role="alert" x-cloak></p>
+      </section>
+
+      <!-- ====== PLACEHOLDER VIEWS (later specs 047..053) ====== -->
+      <section x-show="currentView === 'documents'" class="view" x-cloak>
+        <header class="view-header">
+          <h1 class="page-title">Documents</h1>
+        </header>
+        <div class="placeholder-card" x-html="placeholderHtml('Documents', '047')"></div>
+      </section>
+
+      <section x-show="currentView === 'query'" class="view" x-cloak>
+        <header class="view-header">
+          <h1 class="page-title">Query</h1>
+        </header>
+        <div class="placeholder-card" x-html="placeholderHtml('Query', '048')"></div>
+      </section>
+
+      <section x-show="currentView === 'bridge-ops'" class="view" x-cloak>
+        <header class="view-header">
+          <h1 class="page-title">Bridge Ops</h1>
+        </header>
+        <div class="placeholder-card" x-html="placeholderHtml('Bridge Ops', '049')"></div>
+      </section>
+
+      <section x-show="currentView === 'vaults'" class="view" x-cloak>
+        <header class="view-header">
+          <h1 class="page-title">Vaults</h1>
+        </header>
+        <div class="placeholder-card" x-html="placeholderHtml('Vaults', '050')"></div>
+      </section>
+
+      <section x-show="currentView === 'observability'" class="view" x-cloak>
+        <header class="view-header">
+          <h1 class="page-title">Observability</h1>
+        </header>
+        <div class="placeholder-card" x-html="placeholderHtml('Observability', '051')"></div>
+      </section>
+
+      <section x-show="currentView === 'settings'" class="view" x-cloak>
+        <header class="view-header">
+          <h1 class="page-title">Settings</h1>
+        </header>
+        <div class="placeholder-card" x-html="placeholderHtml('Settings', '052')"></div>
+      </section>
+
+      <section x-show="currentView === 'memory-graph'" class="view" x-cloak>
+        <header class="view-header">
+          <h1 class="page-title">Memory &amp; Graph</h1>
+        </header>
+        <div class="placeholder-card" x-html="placeholderHtml('Memory &amp; Graph', '053')"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Toast mount point — app.js can append .toast nodes here if needed later. -->
+  <div class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Scripts: app.js defines goragApp() BEFORE Alpine boots.
+       Both defer; defer preserves document order, so app.js runs first.
+       Chart.js + Cytoscape are vendored for later slices but NOT loaded here. -->
+  <script defer src="/static/js/app.js"></script>
+  <script defer src="/static/vendor/alpine.min.js"></script>
+</body>
+</html>

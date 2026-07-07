@@ -1,0 +1,17 @@
+{{/* _placeholder.html — reusable placeholder panel for not-yet-built views.
+     Slice 0 (spec 046). Mirrored client-side by goragApp().placeholderHtml()
+     in static/js/app.js so the two stay in sync.
+
+     Server-side usage (when a later slice wires html/template):
+         {{template "_placeholder.html" .}}
+     Expected context fields:
+         .ViewName   string  — human-readable view label
+         .FutureSpec string  — numeric spec id (e.g. "047")
+
+     Design: a centered card. The card title reads "<ViewName>" and the
+     subtitle reads "planned — spec <FutureSpec>". Reuses .placeholder-card /
+     .placeholder-title / .placeholder-spec classes from components.css. */}}
+<div class="placeholder-card">
+  <div class="placeholder-title">{{.ViewName}}</div>
+  <div class="placeholder-spec">planned — spec {{.FutureSpec}}</div>
+</div>

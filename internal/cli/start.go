@@ -15,8 +15,9 @@ func newStartCmd() *cobra.Command {
 			mcpAddr, _ := cmd.Flags().GetString("mcp-addr")
 			restAddr, _ := cmd.Flags().GetString("rest-addr")
 			grpcAddr, _ := cmd.Flags().GetString("grpc-addr")
+			uiAddr, _ := cmd.Flags().GetString("ui-addr")
 			bindExternal, _ := cmd.Flags().GetBool("bind-external")
-			addrs := daemon.Addrs{MCPAddr: mcpAddr, RESTAddr: restAddr, GRPCAddr: grpcAddr, BindExternal: bindExternal}
+			addrs := daemon.Addrs{MCPAddr: mcpAddr, RESTAddr: restAddr, GRPCAddr: grpcAddr, UIAddr: uiAddr, BindExternal: bindExternal}
 			// Pre-validate at the start layer too, so a bad bind fails immediately
 			// with the actionable error on the console (SC-002) rather than after
 			// the detached 5s health probe buries it in the daemon log. serve
@@ -35,6 +36,9 @@ func newStartCmd() *cobra.Command {
 			if grpcAddr != "" {
 				bound += ", gRPC " + grpcAddr
 			}
+			if uiAddr != "" {
+				bound += ", UI " + uiAddr
+			}
 			suffix := ""
 			if bindExternal {
 				suffix = " [EXTERNAL binding — see daemon log]"
@@ -46,6 +50,7 @@ func newStartCmd() *cobra.Command {
 	cmd.Flags().String("mcp-addr", "127.0.0.1:7878", "MCP listen address (loopback by default)")
 	cmd.Flags().String("rest-addr", "127.0.0.1:7879", "REST listen address (loopback); empty disables REST")
 	cmd.Flags().String("grpc-addr", "127.0.0.1:7880", "gRPC listen address (loopback); empty disables gRPC")
+	cmd.Flags().String("ui-addr", "127.0.0.1:7881", "UI listen address (loopback); empty disables the management console")
 	cmd.Flags().Bool("bind-external", false, "allow non-loopback bind addresses (exposes the vault on the network; no TLS)")
 	return cmd
 }

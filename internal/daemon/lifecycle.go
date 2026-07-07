@@ -42,6 +42,9 @@ func Start(dbPath string, addrs Addrs) error {
 	if addrs.GRPCAddr != "" {
 		args = append(args, "--grpc-addr", addrs.GRPCAddr)
 	}
+	if addrs.UIAddr != "" {
+		args = append(args, "--ui-addr", addrs.UIAddr)
+	}
 	// Forward the external-bind opt-in (spec 007 FR-004): start is the
 	// user-facing command; serve is the detached listener-opener that enforces
 	// the loopback-by-default gate, so the opt-in must reach it.

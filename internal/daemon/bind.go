@@ -66,6 +66,9 @@ func enabledBinds(addrs Addrs) []BindEntry {
 	if addrs.GRPCAddr != "" {
 		out = append(out, BindEntry{Name: "gRPC", Addr: addrs.GRPCAddr})
 	}
+	if addrs.UIAddr != "" {
+		out = append(out, BindEntry{Name: "UI", Addr: addrs.UIAddr})
+	}
 	return out
 }
 

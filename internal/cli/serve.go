@@ -21,6 +21,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/mcp"
 	"github.com/madeinoz67/go-rag/internal/observe"
 	"github.com/madeinoz67/go-rag/internal/rest"
+	"github.com/madeinoz67/go-rag/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -45,6 +46,7 @@ func newServeCmd() *cobra.Command {
 			mcpAddr, _ := cmd.Flags().GetString("mcp-addr")
 			restAddr, _ := cmd.Flags().GetString("rest-addr")
 			grpcAddr, _ := cmd.Flags().GetString("grpc-addr")
+			uiAddr, _ := cmd.Flags().GetString("ui-addr")
 			bindExternal, _ := cmd.Flags().GetBool("bind-external")
 
 			// Loopback-by-default contract (spec 007, FR-001/003): refuse to bind
@@ -54,7 +56,7 @@ func newServeCmd() *cobra.Command {
 			// through it — so gating here is necessary and sufficient. Runs before
 			// openDB/listeners, so a rejection opens no DB and no listener.
 			if err := daemon.ValidateBind(daemon.Addrs{
-				MCPAddr: mcpAddr, RESTAddr: restAddr, GRPCAddr: grpcAddr,
+				MCPAddr: mcpAddr, RESTAddr: restAddr, GRPCAddr: grpcAddr, UIAddr: uiAddr,
 			}, bindExternal); err != nil {
 				return err
 			}
@@ -172,6 +174,14 @@ func newServeCmd() *cobra.Command {
 				}
 			}
 
+			// UI (spec 046) — embedded management console; optional. Empty addr
+			// disables it. A fourth loopback HTTP transport over the same engine,
+			// auth-gated by the spec 045 Bearer-session system (Bearer only).
+			var uiSrv *http.Server
+			if uiAddr != "" {
+				uiSrv = &http.Server{Addr: uiAddr, Handler: ui.New(eng, token).Handler()}
+			}
+
 			// stopAll drains every started listener. Idempotent via sync.Once so the
 			// signal goroutine and the post-error path can both call it safely.
 			var stopOnce sync.Once
@@ -182,6 +192,9 @@ func newServeCmd() *cobra.Command {
 					_ = mcpSrv.Shutdown(ctx)
 					if restSrv != nil {
 						_ = restSrv.Shutdown(ctx)
+					}
+					if uiSrv != nil {
+						_ = uiSrv.Shutdown(ctx)
 					}
 					if grpcLis != nil {
 						grpcSrv.GracefulStop()
@@ -214,23 +227,30 @@ func newServeCmd() *cobra.Command {
 			if grpcAddr != "" {
 				bound += ", gRPC " + grpcAddr
 			}
+			if uiAddr != "" {
+				bound += ", UI " + uiAddr
+			}
 			fmt.Fprintf(os.Stderr, "go-rag daemon serving %s\n", bound)
 			// Exposure warning (spec 007 FR-005): when external binding is
 			// authorized and at least one transport is actually non-loopback, say
 			// so loudly — once, at boot. All-loopback + --bind-external stays silent.
 			if w := daemon.ExternalBindWarning(daemon.Addrs{
-				MCPAddr: mcpAddr, RESTAddr: restAddr, GRPCAddr: grpcAddr,
+				MCPAddr: mcpAddr, RESTAddr: restAddr, GRPCAddr: grpcAddr, UIAddr: uiAddr,
 			}); w != "" {
 				fmt.Fprintln(os.Stderr, w)
 			}
 
 			// Start each listener in its own goroutine; collect their exit errors.
-			errCh := make(chan error, 3)
+			errCh := make(chan error, 4)
 			n := 1 // MCP always
 			go func() { errCh <- mcpSrv.ListenAndServe() }()
 			if restSrv != nil {
 				n++
 				go func() { errCh <- restSrv.ListenAndServe() }()
+			}
+			if uiSrv != nil {
+				n++
+				go func() { errCh <- uiSrv.ListenAndServe() }()
 			}
 			if grpcLis != nil {
 				n++
@@ -256,6 +276,7 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().String("mcp-addr", "127.0.0.1:7878", "MCP listen address (loopback by default)")
 	cmd.Flags().String("rest-addr", "127.0.0.1:7879", "REST listen address (loopback); empty disables REST")
 	cmd.Flags().String("grpc-addr", "127.0.0.1:7880", "gRPC listen address (loopback); empty disables gRPC")
+	cmd.Flags().String("ui-addr", "127.0.0.1:7881", "UI listen address (loopback); empty disables the management console")
 	cmd.Flags().Bool("bind-external", false, "allow non-loopback bind addresses (exposes the vault on the network; no TLS)")
 	return cmd
 }

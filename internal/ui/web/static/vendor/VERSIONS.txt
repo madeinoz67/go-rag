@@ -1,0 +1,3 @@
+alpine.min.js    = Alpine.js 3.14.9  (MIT) https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js
+chart.min.js     = Chart.js  4.4.7  (MIT) https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js
+cytoscape.min.js = Cytoscape 3.30.4 (MIT) https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js

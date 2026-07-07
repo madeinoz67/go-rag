@@ -1,0 +1,90 @@
+/* theme.css — design tokens (dark-first, light opt-in).
+ * Layer 1 of 4. Tokens only — no component rules here.
+ * Source: docs/style-guide.md §3.1 (dark) and §3.2 (light).
+ * Brand/accent/status hues are NOT overridden in light — only neutrals invert. */
+
+:root {
+  /* === Neutrals — dark palette (the reference) === */
+  --bg-base:      #0a0a0a;
+  --bg-surface:   #1a1a2e;
+  --bg-elevated:  #16213e;
+  --bg-card:      #1e2a45;
+  --border:       #2a2a4a;
+
+  /* === Text scale (three colors only, per style guide §4) === */
+  --text-primary:   #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted:     #64748b;
+
+  /* === Brand + accent (carried unchanged across themes) === */
+  --primary:      #06b6d4;   /* cyan — interactive / selected / live */
+  --primary-dark: #0891b2;   /* gradient end-stop for primary buttons */
+
+  --accent:      #a855f7;    /* purple — active tab + selected vault ONLY */
+  --accent-dark: #9333ea;    /* gradient end-stop for confidence/progress fills */
+
+  /* === Status colors === */
+  --success: #22c55e;
+  --danger:  #ef4444;
+  --warning: #f59e0b;
+  --info:    #3b82f6;
+  --yellow:  #eab308;
+
+  /* === Spacing scale (style guide §5) === */
+  --space-1: 0.5rem;   /* small gaps, badge vertical pad */
+  --space-2: 0.75rem;  /* button vertical pad, input pad */
+  --space-3: 1rem;     /* button horizontal pad */
+  --space-4: 1.25rem;  /* card / stat-card padding */
+  --space-5: 1.5rem;   /* page padding, modal padding */
+  --space-6: 2rem;     /* reserved — almost never used */
+
+  /* === Radius scale === */
+  --radius-sm:   0.375rem;
+  --radius-md:   0.5rem;
+  --radius-lg:   0.75rem;
+  --radius-pill: 9999px;
+
+  /* === Typography === */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* === Motion (style guide §8 — 150ms default, cap 300ms) === */
+  --motion-fast:    100ms;
+  --motion-default: 150ms;
+  --motion-slow:    250ms;
+  --motion-ease:    ease;
+
+  /* === Z-index scale (style guide §9 — explicit stack) === */
+  --z-base:    0;
+  --z-sidebar: 50;
+  --z-modal:   60;
+  --z-toast:   100;
+  --z-picker:  200;
+
+  /* === Translucent overlays (style guide §3.3) === */
+  --hover-wash:          rgba(255, 255, 255, 0.05);
+  --hover-wash-strong:   rgba(255, 255, 255, 0.18);
+  --primary-wash:        rgba(6, 182, 212, 0.06);   /* hover "selected" look */
+  --primary-wash-strong: rgba(6, 182, 212, 0.10);   /* active "selected" look */
+
+  color-scheme: dark;
+}
+
+/* === Light palette (style guide §3.2) — neutrals invert, brand carries === */
+html.light {
+  --bg-base:      #fafafa;
+  --bg-surface:   #ffffff;
+  --bg-elevated:  #f1f5f9;
+  --bg-card:      #f8fafc;
+  --border:       #e2e8f0;
+
+  --text-primary:   #0f172a;
+  --text-secondary: #475569;
+  --text-muted:     #94a3b8;
+
+  /* Light theme uses black-tint translucency instead of white */
+  --hover-wash:          rgba(0, 0, 0, 0.04);
+  --hover-wash-strong:   rgba(0, 0, 0, 0.08);
+
+  color-scheme: light;
+}
