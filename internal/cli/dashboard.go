@@ -81,6 +81,7 @@ func printVaultsOverview() {
 		dashRow("mcp", runningAddrs.MCPAddr, green)
 		dashTransport("rest", runningAddrs.RESTAddr)
 		dashTransport("grpc", runningAddrs.GRPCAddr)
+		dashTransport("ui", runningAddrs.UIAddr)
 	} else {
 		fmt.Printf("  go-rag  %s○%s  stopped\n\n", red, reset)
 		dashRowOff("mcp", mcpAddr)
@@ -167,6 +168,7 @@ func printVaultDetail() {
 		dashRow("mcp", addrs.MCPAddr, green)
 		dashTransport("rest", addrs.RESTAddr)
 		dashTransport("grpc", addrs.GRPCAddr)
+		dashTransport("ui", addrs.UIAddr)
 	}
 
 	// Reranker row (shown in both states)
