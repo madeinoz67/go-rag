@@ -87,6 +87,7 @@ func printVaultsOverview() {
 		dashRowOff("mcp", mcpAddr)
 		dashRowOff("rest", "127.0.0.1:7879")
 		dashRowOff("grpc", "127.0.0.1:7880")
+		dashRowOff("ui", "127.0.0.1:7881")
 	}
 	if ollamaHealth == "OK" {
 		dashRow("ollama", ollamaHealth, green)
@@ -169,6 +170,15 @@ func printVaultDetail() {
 		dashTransport("rest", addrs.RESTAddr)
 		dashTransport("grpc", addrs.GRPCAddr)
 		dashTransport("ui", addrs.UIAddr)
+	} else {
+		mcp := "127.0.0.1:7878"
+		if cfg.MCPAddr != "" {
+			mcp = cfg.MCPAddr
+		}
+		dashRowOff("mcp", mcp)
+		dashRowOff("rest", "127.0.0.1:7879")
+		dashRowOff("grpc", "127.0.0.1:7880")
+		dashRowOff("ui", "127.0.0.1:7881")
 	}
 
 	// Reranker row (shown in both states)
