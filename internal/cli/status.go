@@ -56,17 +56,12 @@ func newStatusCmd() *cobra.Command {
 				if asJSON {
 					return json.NewEncoder(os.Stdout).Encode(map[string]any{
 						"daemon": "running", "pid": pid,
-						"mcp_addr": addrs.MCPAddr, "rest_addr": addrs.RESTAddr, "grpc_addr": addrs.GRPCAddr,
+						"mcp_addr": addrs.MCPAddr, "rest_addr": addrs.RESTAddr, "grpc_addr": addrs.GRPCAddr, "ui_addr": addrs.UIAddr,
 						"counts": counts,
 					})
 				}
 				fmt.Printf("Daemon: running (pid %d, MCP %s)\n", pid, addrs.MCPAddr)
-				if addrs.RESTAddr != "" {
-					fmt.Printf("  REST %s\n", addrs.RESTAddr)
-				}
-				if addrs.GRPCAddr != "" {
-					fmt.Printf("  gRPC %s\n", addrs.GRPCAddr)
-				}
+				fmt.Print(formatBoundAddrs(addrs))
 				if counts != "" {
 					fmt.Printf("  %s\n", counts)
 				}
@@ -98,6 +93,25 @@ func newStatusCmd() *cobra.Command {
 	}
 	cmd.Flags().Bool("json", false, "output as JSON")
 	return cmd
+}
+
+// formatBoundAddrs renders the optional (non-MCP) transport address lines for
+// the daemon-running status output. MCP is on the leading "Daemon: running"
+// line; REST/gRPC/UI are each shown only when bound (empty addr = disabled,
+// spec 007 FR-008). Extracted so the UI line (spec 046) is unit-testable without
+// a running daemon.
+func formatBoundAddrs(addrs daemon.Addrs) string {
+	out := ""
+	if addrs.RESTAddr != "" {
+		out += fmt.Sprintf("  REST %s\n", addrs.RESTAddr)
+	}
+	if addrs.GRPCAddr != "" {
+		out += fmt.Sprintf("  gRPC %s\n", addrs.GRPCAddr)
+	}
+	if addrs.UIAddr != "" {
+		out += fmt.Sprintf("  UI %s\n", addrs.UIAddr)
+	}
+	return out
 }
 
 func gatherStats(db *storage.DB, cfg config.Config) statusInfo {
