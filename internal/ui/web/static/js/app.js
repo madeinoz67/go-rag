@@ -290,6 +290,80 @@
         return (n / 1073741824).toFixed(1) + ' GB';
       },
 
+      // === Documents detail (spec 047 US2) =======================================
+      selectedDoc: null,        // documentDTO of the open document (null = list view)
+      docChunks: [],
+      docChunksNextToken: '',
+      docChunksLoading: false,
+      selectedChunk: null,      // chunkDTO currently shown with its context window
+      chunkContext: null,       // chunkContextResponse for the selected chunk
+
+      /** Open a document: fetch its detail + first chunk page. */
+      openDocument: async function (id) {
+        this.error = '';
+        this.selectedDoc = null;
+        this.docChunks = [];
+        this.docChunksNextToken = '';
+        this.selectedChunk = null;
+        this.chunkContext = null;
+        var res = await this.api('/api/documents/' + encodeURIComponent(id));
+        if (!res || res.status === 401) return;
+        if (res.status === 404) { this.error = 'Document not found.'; return; }
+        if (!res.ok) { this.error = 'Failed to load document (HTTP ' + res.status + ').'; return; }
+        this.selectedDoc = await res.json();
+        await this.loadDocChunks('');
+      },
+
+      /** Load (or extend) the open document's chunk list. */
+      loadDocChunks: async function (pageToken) {
+        if (!this.selectedDoc) return;
+        this.docChunksLoading = true;
+        var id = encodeURIComponent(this.selectedDoc.id);
+        var q = '/api/documents/' + id + '/chunks?page_size=20';
+        if (pageToken) q += '&page_token=' + encodeURIComponent(pageToken);
+        var res = await this.api(q);
+        this.docChunksLoading = false;
+        if (!res || res.status === 401) return;
+        if (!res.ok) { this.error = 'Failed to load chunks.'; return; }
+        var data = await res.json();
+        if (pageToken) { this.docChunks = this.docChunks.concat(data.chunks || []); }
+        else { this.docChunks = data.chunks || []; }
+        this.docChunksNextToken = data.next_page_token || '';
+      },
+
+      /** Cursor forward one chunk page. */
+      nextDocChunkPage: function () {
+        if (!this.docChunksNextToken) return;
+        this.loadDocChunks(this.docChunksNextToken);
+      },
+
+      /** Select a chunk → fetch its neighbour context window. */
+      selectChunk: async function (chunkID) {
+        this.error = '';
+        this.selectedChunk = null;
+        this.chunkContext = null;
+        if (!this.selectedDoc) return;
+        var id = encodeURIComponent(this.selectedDoc.id);
+        var cid = encodeURIComponent(chunkID);
+        var res = await this.api('/api/documents/' + id + '/chunks/' + cid + '/context?window=1');
+        if (!res || res.status === 401) return;
+        if (!res.ok) return;
+        var data = await res.json();
+        this.chunkContext = data;
+        if (data && data.target_index >= 0 && data.chunks && data.chunks[data.target_index]) {
+          this.selectedChunk = data.chunks[data.target_index];
+        }
+      },
+
+      /** Close the detail pane; return to the list. */
+      closeDocument: function () {
+        this.selectedDoc = null;
+        this.docChunks = [];
+        this.docChunksNextToken = '';
+        this.selectedChunk = null;
+        this.chunkContext = null;
+      },
+
       /** Client-side placeholder panel — mirrors templates/_placeholder.html.
        *  Returns an HTML string; the calling x-html binding injects it. */
       placeholderHtml: function (viewName, futureSpec) {

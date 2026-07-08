@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/madeinoz67/go-rag/internal/engine"
@@ -45,14 +46,49 @@ type documentDTO struct {
 	EnrichmentAt     string   `json:"enrichment_at,omitempty"`
 }
 
-// chunkDTO + toChunkDTO are deferred to the US2 detail view (spec 047 Phase 4):
-// they project model.Chunk for /api/documents/{id}/chunks. Defined there so the
-// byte-parity chunk shape lands with its first consumer (and stays lint-clean).
+// chunkDTO is the UI projection of model.Chunk. Byte-identical to rest.chunkDTO
+// (sidecars via the model types directly, matching the CLI projection — their
+// JSON tags are the cross-transport contract).
+type chunkDTO struct {
+	ChunkID           string               `json:"chunk_id"`
+	DocumentID        string               `json:"document_id"`
+	Content           string               `json:"content"`
+	ChunkIndex        int                  `json:"chunk_index"`
+	TotalChunks       int                  `json:"total_chunks"`
+	PageNumber        int                  `json:"page_number"`
+	StartChar         int                  `json:"start_char"`
+	EndChar           int                  `json:"end_char"`
+	TokenCount        int                  `json:"token_count"`
+	PreviousChunkID   string               `json:"previous_chunk_id,omitempty"`
+	NextChunkID       string               `json:"next_chunk_id,omitempty"`
+	Poisoning         *model.PoisonVerdict `json:"poisoning,omitempty"`
+	SectionContext    []string             `json:"section_context,omitempty"`
+	SectionDepth      int                  `json:"section_depth,omitempty"`
+	ExtractionQuality float64              `json:"extraction_quality,omitempty"`
+	ExtractionMethod  string               `json:"extraction_method,omitempty"`
+	Wikilinks         []string             `json:"wikilinks,omitempty"`
+	NearDup           *model.NearDupInfo   `json:"near_dup,omitempty"`
+	Kind              string               `json:"kind,omitempty"`
+	CreatedAt         string               `json:"created_at,omitempty"`
+}
 
 // documentsListResponse is the UI envelope for the document list (US1).
 type documentsListResponse struct {
 	Documents     []documentDTO `json:"documents"`
 	NextPageToken string        `json:"next_page_token,omitempty"`
+}
+
+// documentChunksResponse is the UI envelope for a document's chunk page (US2).
+type documentChunksResponse struct {
+	Chunks        []chunkDTO `json:"chunks"`
+	NextPageToken string     `json:"next_page_token,omitempty"`
+}
+
+// chunkContextResponse is the UI envelope for a chunk's neighbour window (US2).
+type chunkContextResponse struct {
+	Chunks      []chunkDTO   `json:"chunks"`
+	TargetIndex int          `json:"target_index"`
+	Document    *documentDTO `json:"document,omitempty"`
 }
 
 // rfc3339 renders a time as UTC RFC3339, "" for the zero value (so unset
@@ -94,15 +130,44 @@ func toDocumentDTO(d model.Document, src model.Source) documentDTO {
 	return out
 }
 
-// writeEngineErr maps an engine error to an HTTP response: ErrInvalid → 400
-// "invalid"; anything else → 500 "internal" (no detail leakage). Mirrors
-// rest.writeEngineErr.
-func writeEngineErr(w http.ResponseWriter, err error) {
-	if errors.Is(err, engine.ErrInvalid) {
-		writeError(w, http.StatusBadRequest, "invalid")
-		return
+// toChunkDTO projects a model.Chunk to the wire DTO (spec 047 US2).
+func toChunkDTO(c model.Chunk) chunkDTO {
+	return chunkDTO{
+		ChunkID:           c.ID,
+		DocumentID:        c.DocumentID,
+		Content:           c.Content,
+		ChunkIndex:        c.ChunkIndex,
+		TotalChunks:       c.TotalChunks,
+		PageNumber:        c.PageNumber,
+		StartChar:         c.StartCharIdx,
+		EndChar:           c.EndCharIdx,
+		TokenCount:        c.TokenCount,
+		PreviousChunkID:   c.PreviousChunkID,
+		NextChunkID:       c.NextChunkID,
+		Poisoning:         c.Poisoning,
+		SectionContext:    c.SectionContext,
+		SectionDepth:      c.SectionLevel,
+		ExtractionQuality: c.ExtractionQuality,
+		ExtractionMethod:  c.ExtractionMethod,
+		Wikilinks:         c.Wikilinks,
+		NearDup:           c.NearDup,
+		Kind:              c.Kind,
+		CreatedAt:         rfc3339(c.CreatedAt),
 	}
-	writeError(w, http.StatusInternalServerError, "internal")
+}
+
+// writeEngineErr maps an engine error to an HTTP response: ErrInvalid → 400
+// "invalid"; ErrNotFound → 404 "not found"; anything else → 500 "internal"
+// (no detail leakage). Mirrors rest.writeEngineErr.
+func writeEngineErr(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, engine.ErrInvalid):
+		writeError(w, http.StatusBadRequest, "invalid")
+	case errors.Is(err, engine.ErrNotFound):
+		writeError(w, http.StatusNotFound, "not found")
+	default:
+		writeError(w, http.StatusInternalServerError, "internal")
+	}
 }
 
 // handleDocumentsList is the UI projection of engine.ListDocuments (spec 047
@@ -136,6 +201,80 @@ func (s *Server) handleDocumentsList(w http.ResponseWriter, r *http.Request) {
 	}
 	for i, d := range res.Documents {
 		out.Documents[i] = toDocumentDTO(d, model.Source{}) // listing has no per-doc source context
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// --- spec 047 US2: document detail + chunks + chunk context (read-only) ---
+
+// handleDocumentDetail resolves one document (+ its source, so source_path is
+// populated — unlike the list row) for the detail header. GET /api/documents/{id}.
+func (s *Server) handleDocumentDetail(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if strings.TrimSpace(id) == "" {
+		writeError(w, http.StatusBadRequest, "invalid")
+		return
+	}
+	res, err := s.eng.GetDocument(id)
+	if err != nil {
+		writeEngineErr(w, err) // ErrNotFound → 404
+		return
+	}
+	writeJSON(w, http.StatusOK, toDocumentDTO(res.Document, res.Source))
+}
+
+// handleDocumentChunks lists one document's chunks, paginated. GET
+// /api/documents/{id}/chunks. Unknown/empty document → empty page (200), matching
+// engine.ListChunks' tolerant empty result (the detail route 404s unknown docs).
+func (s *Server) handleDocumentChunks(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	q := r.URL.Query()
+	req := engine.ListChunksRequest{PageToken: q.Get("page_token")}
+	if raw := q.Get("page_size"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "page_size must be an integer")
+			return
+		}
+		req.PageSize = n
+	}
+	res, err := s.eng.ListChunks(id, req)
+	if err != nil {
+		writeEngineErr(w, err) // ErrInvalid (bad page_size/token) → 400
+		return
+	}
+	out := documentChunksResponse{Chunks: make([]chunkDTO, len(res.Chunks)), NextPageToken: res.NextPageToken}
+	for i, c := range res.Chunks {
+		out.Chunks[i] = toChunkDTO(c)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// handleChunkContext returns a chunk plus up to `window` neighbours each side
+// (+ the parent document). GET /api/documents/{id}/chunks/{chunkID}/context.
+func (s *Server) handleChunkContext(w http.ResponseWriter, r *http.Request) {
+	chunkID := r.PathValue("chunkID")
+	window := 2
+	if raw := r.URL.Query().Get("window"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "window must be an integer")
+			return
+		}
+		window = n
+	}
+	res, err := s.eng.GetChunkContext(chunkID, window)
+	if err != nil {
+		writeEngineErr(w, err) // ErrInvalid (bad window/empty id) → 400; ErrNotFound (chunk) → 404
+		return
+	}
+	out := chunkContextResponse{Chunks: make([]chunkDTO, len(res.Chunks)), TargetIndex: res.TargetIndex}
+	for i, c := range res.Chunks {
+		out.Chunks[i] = toChunkDTO(c)
+	}
+	if res.Document.ID != "" {
+		d := toDocumentDTO(res.Document, res.Source)
+		out.Document = &d
 	}
 	writeJSON(w, http.StatusOK, out)
 }

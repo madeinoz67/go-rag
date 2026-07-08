@@ -280,7 +280,7 @@
       </section>
 
       <!-- ====== DOCUMENTS (spec 047 US1 — real view) ====== -->
-      <section x-show="currentView === 'documents'" class="view" x-cloak>
+      <section x-show="currentView === 'documents' && !selectedDoc" class="view" x-cloak>
         <header class="view-header">
           <h1 class="page-title">Documents</h1>
         </header>
@@ -316,7 +316,7 @@
             </thead>
             <tbody>
               <template x-for="d in sortedDocs()" :key="d.id">
-                <tr>
+                <tr @click="openDocument(d.id)" class="doc-row">
                   <td>
                     <div class="doc-name" x-text="d.file_name || d.file_path"></div>
                     <div class="doc-path" x-text="d.file_path"></div>
@@ -346,6 +346,60 @@
             <span x-show="!docsLoading">Next page</span>
             <span x-show="docsLoading" x-cloak>Loading…</span>
           </button>
+        </div>
+      </section>
+
+      <!-- ====== DOCUMENT DETAIL (spec 047 US2) ====== -->
+      <section x-show="currentView === 'documents' && selectedDoc" class="view" x-cloak>
+        <header class="view-header">
+          <button type="button" class="btn" @click="closeDocument()">← Back to list</button>
+          <h1 class="page-title" x-text="selectedDoc ? (selectedDoc.file_name || selectedDoc.file_path || '') : ''"></h1>
+        </header>
+
+        <div class="doc-meta">
+          <span><b>Status:</b> <span class="badge" :class="(selectedDoc && selectedDoc.status === 'embedded') ? 'badge-success' : 'badge-warn'" x-text="selectedDoc ? selectedDoc.status : ''"></span></span>
+          <span><b>Chunks:</b> <span x-text="selectedDoc ? selectedDoc.chunk_count : ''"></span></span>
+          <span><b>Size:</b> <span x-text="selectedDoc ? formatBytes(selectedDoc.file_size) : ''"></span></span>
+          <span><b>Type:</b> <span x-text="selectedDoc ? selectedDoc.file_type : ''"></span></span>
+          <span><b>Ingested:</b> <span x-text="selectedDoc ? (selectedDoc.ingested_at || '—') : ''"></span></span>
+        </div>
+        <div class="doc-path-line doc-muted" x-show="selectedDoc && selectedDoc.source_path" x-text="selectedDoc ? selectedDoc.source_path : ''"></div>
+        <div class="doc-path-line doc-muted" x-show="selectedDoc && selectedDoc.file_path" x-text="selectedDoc ? selectedDoc.file_path : ''"></div>
+
+        <div class="doc-summary" x-show="selectedDoc && selectedDoc.summary">
+          <b>Summary:</b> <span x-text="selectedDoc ? selectedDoc.summary : ''"></span>
+        </div>
+        <div class="doc-tags" x-show="selectedDoc && selectedDoc.tags && selectedDoc.tags.length">
+          <template x-for="t in (selectedDoc ? (selectedDoc.tags || []) : [])" :key="t">
+            <span class="tag-chip" x-text="t"></span>
+          </template>
+        </div>
+        <p class="dashboard-empty" x-show="selectedDoc && !selectedDoc.summary && !(selectedDoc.tags && selectedDoc.tags.length)">No enrichment summary or tags.</p>
+
+        <h3 class="doc-section-title">Chunks</h3>
+        <div class="doc-chunk-list">
+          <template x-for="c in docChunks" :key="c.chunk_id">
+            <div class="doc-chunk" :class="{ 'selected': selectedChunk && selectedChunk.chunk_id === c.chunk_id }" @click="selectChunk(c.chunk_id)">
+              <div class="doc-chunk-head">
+                <span class="doc-muted">#<span x-text="c.chunk_index"></span></span>
+                <span class="chunk-breadcrumb" x-show="c.section_context && c.section_context.length" x-text="(c.section_context || []).join(' › ')"></span>
+              </div>
+              <div class="doc-chunk-text" x-text="c.content"></div>
+            </div>
+          </template>
+        </div>
+        <div class="docs-pager">
+          <button type="button" class="btn" x-show="docChunksNextToken" :disabled="docChunksLoading" @click="nextDocChunkPage()">More chunks</button>
+        </div>
+
+        <div class="chunk-context" x-show="chunkContext" x-cloak>
+          <h4 class="doc-section-title">Context window</h4>
+          <template x-for="(c, i) in (chunkContext ? (chunkContext.chunks || []) : [])" :key="c.chunk_id">
+            <div class="doc-chunk" :class="{ 'target': chunkContext && i === chunkContext.target_index }">
+              <span class="doc-muted">#<span x-text="c.chunk_index"></span></span>
+              <div class="doc-chunk-text" x-text="c.content"></div>
+            </div>
+          </template>
         </div>
       </section>
 
