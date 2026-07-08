@@ -278,3 +278,54 @@ func (s *Server) handleChunkContext(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, out)
 }
+
+// --- spec 047 US3: content search (read-only) ---
+
+// documentsSearchResponse is the UI envelope for a content-search result: the
+// distinct parent documents of matching chunks, in retrieval rank.
+type documentsSearchResponse struct {
+	Query     string        `json:"query"`
+	Documents []documentDTO `json:"documents"`
+}
+
+// handleDocumentsSearch searches the corpus by chunk content (engine.Query) and
+// returns the distinct parent documents, ranked by retrieval order (R2). GET
+// /api/documents/search?q=&limit=. Name/path matching is folded client-side over
+// the ranked result. 400 on empty/missing q; 401 via the guard.
+func (s *Server) handleDocumentsSearch(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		writeError(w, http.StatusBadRequest, "invalid")
+		return
+	}
+	limit := 20
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 100 {
+			writeError(w, http.StatusBadRequest, "limit must be 1..100")
+			return
+		}
+		limit = n
+	}
+	res, err := s.eng.Query(r.Context(), engine.QueryRequest{Query: q, K: limit})
+	if err != nil {
+		writeEngineErr(w, err)
+		return
+	}
+	// Distinct parent documents, ranked by hit order (R2). Tolerant of a hit
+	// whose document vanished (skip it).
+	seen := make(map[string]bool, len(res.Hits))
+	docs := make([]documentDTO, 0, len(res.Hits))
+	for _, h := range res.Hits {
+		if h.DocumentID == "" || seen[h.DocumentID] {
+			continue
+		}
+		seen[h.DocumentID] = true
+		d, err := s.eng.GetDocument(h.DocumentID)
+		if err != nil {
+			continue
+		}
+		docs = append(docs, toDocumentDTO(d.Document, d.Source))
+	}
+	writeJSON(w, http.StatusOK, documentsSearchResponse{Query: q, Documents: docs})
+}

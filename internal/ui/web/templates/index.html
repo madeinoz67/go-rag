@@ -297,6 +297,10 @@
                  @keydown.enter.prevent="applyDocFilters()" aria-label="Filter by tag">
           <button type="button" class="btn btn-primary" @click="applyDocFilters()">Filter</button>
           <button type="button" class="btn" @click="clearDocFilters()">Clear</button>
+          <input class="input" type="text" placeholder="Search content"
+                 x-model="docSearchQ"
+                 @keydown.enter.prevent="searchDocuments()" aria-label="Search document content">
+          <button type="button" class="btn btn-primary" @click="searchDocuments()">Search</button>
         </div>
 
         <p class="dashboard-error" x-show="error" x-text="error" role="alert" x-cloak></p>

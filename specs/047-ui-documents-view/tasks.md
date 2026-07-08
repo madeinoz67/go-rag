@@ -92,9 +92,9 @@ New files: `internal/engine/list_chunks.go`, `internal/rest/list_chunks.go`, `in
 
 ### Implementation
 
-- [ ] T019 [US3] Implement `handleDocumentsSearch` — `internal/ui/documents.go`: `s.eng.Query(ctx, QueryRequest{Query: q, ...})` → project `QueryHit[]` to **distinct parent documents** (dedup on document_id, preserve retrieval rank) → `{query, documents: [documentDTO]}`; `limit` 1–100 (default 20); register `GET /api/documents/search?q=&limit=` (guarded). 400 on empty/missing `q`. (R2, contracts)
-- [ ] T020 [US3] Alpine search + filter UI — `internal/ui/web/static/js/app.js` + `internal/ui/web/templates/index.html`: a search box (submits to `/api/documents/search`; folds name/path matching client-side over the ranked result); tag + status filter controls applied to `/api/documents`; combined filters intersect; "clear" restores the full list. Reuses the list-row rendering from US1.
-- [ ] T021 [US3] US3 tests — `internal/ui/ui_test.go`: (a) content search returns only documents whose chunks match; (b) absent term → `{"documents":[]}`; (c) `?tag=`/`?status=` filters narrow; (d) search + filter combine by intersection; (e) 400 empty `q`; (f) 401 without Bearer. (R2, R3)
+- [X] T019 [US3] Implement `handleDocumentsSearch` — `internal/ui/documents.go`: `s.eng.Query(ctx, QueryRequest{Query: q, ...})` → project `QueryHit[]` to **distinct parent documents** (dedup on document_id, preserve retrieval rank) → `{query, documents: [documentDTO]}`; `limit` 1–100 (default 20); register `GET /api/documents/search?q=&limit=` (guarded). 400 on empty/missing `q`. (R2, contracts)
+- [X] T020 [US3] Alpine search + filter UI — `internal/ui/web/static/js/app.js` + `internal/ui/web/templates/index.html`: a search box (submits to `/api/documents/search`; folds name/path matching client-side over the ranked result); tag + status filter controls applied to `/api/documents`; combined filters intersect; "clear" restores the full list. Reuses the list-row rendering from US1.
+- [X] T021 [US3] US3 tests — `internal/ui/ui_test.go`: (a) content search returns only documents whose chunks match; (b) absent term → `{"documents":[]}`; (c) `?tag=`/`?status=` filters narrow; (d) search + filter combine by intersection; (e) 400 empty `q`; (f) 401 without Bearer. (R2, R3)
 
 **Checkpoint**: US3 independently testable — a findable corpus.
 

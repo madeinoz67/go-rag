@@ -206,6 +206,7 @@
       docsLoading: false,
       docFilterStatus: '',
       docFilterTag: '',
+      docSearchQ: '',
       docSortKey: 'ingested_at',
       docSortDir: 'asc',
 
@@ -245,11 +246,32 @@
         this.loadDocuments('');
       },
 
-      /** Clear filters and re-fetch. */
+      /** Clear filters/search and re-fetch the list. */
       clearDocFilters: function () {
         this.docFilterStatus = '';
         this.docFilterTag = '';
+        this.docSearchQ = '';
         this.loadDocuments('');
+      },
+
+      /** Content-search the corpus; replaces the list with ranked matches (R2). */
+      searchDocuments: async function () {
+        var q = (this.docSearchQ || '').trim();
+        if (!q) { this.loadDocuments(''); return; }
+        this.error = '';
+        this.docsLoading = true;
+        try {
+          var res = await this.api('/api/documents/search?q=' + encodeURIComponent(q) + '&limit=20');
+          if (!res || res.status === 401) return;
+          if (!res.ok) { this.error = 'Search failed (HTTP ' + res.status + ').'; return; }
+          var data = await res.json();
+          this.docs = data.documents || [];
+          this.docsNextToken = '';
+        } catch (_e) {
+          this.error = 'Network error during search.';
+        } finally {
+          this.docsLoading = false;
+        }
       },
 
       /** Toggle the page-local sort column/direction. */
