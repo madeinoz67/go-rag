@@ -207,6 +207,8 @@
       docFilterStatus: '',
       docFilterTag: '',
       docSearchQ: '',
+      searchMode: false,
+      searchResults: [],
       docSortKey: 'ingested_at',
       docSortDir: 'asc',
 
@@ -251,13 +253,15 @@
         this.docFilterStatus = '';
         this.docFilterTag = '';
         this.docSearchQ = '';
+        this.searchMode = false;
+        this.searchResults = [];
         this.loadDocuments('');
       },
 
-      /** Content-search the corpus; replaces the list with ranked matches (R2). */
+      /** Content-search the corpus; shows ranked results with the found-text snippet (R2). */
       searchDocuments: async function () {
         var q = (this.docSearchQ || '').trim();
-        if (!q) { this.loadDocuments(''); return; }
+        if (!q) { this.searchMode = false; this.loadDocuments(''); return; }
         this.error = '';
         this.docsLoading = true;
         try {
@@ -265,8 +269,8 @@
           if (!res || res.status === 401) return;
           if (!res.ok) { this.error = 'Search failed (HTTP ' + res.status + ').'; return; }
           var data = await res.json();
-          this.docs = data.documents || [];
-          this.docsNextToken = '';
+          this.searchResults = data.results || [];
+          this.searchMode = true;
         } catch (_e) {
           this.error = 'Network error during search.';
         } finally {

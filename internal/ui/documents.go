@@ -281,11 +281,27 @@ func (s *Server) handleChunkContext(w http.ResponseWriter, r *http.Request) {
 
 // --- spec 047 US3: content search (read-only) ---
 
-// documentsSearchResponse is the UI envelope for a content-search result: the
-// distinct parent documents of matching chunks, in retrieval rank.
+// searchHitDTO is the matching-chunk context for one search result (US3): where
+// the query matched, so the operator sees the found text without opening the doc.
+type searchHitDTO struct {
+	ChunkID        string   `json:"chunk_id"`
+	ChunkIndex     int      `json:"chunk_index"`
+	Snippet        string   `json:"snippet"`
+	Score          float64  `json:"score"`
+	SectionContext []string `json:"section_context,omitempty"`
+}
+
+// searchResultDTO is one ranked search result: the parent document plus its top
+// matching chunk (distinct per document, in retrieval rank).
+type searchResultDTO struct {
+	Document documentDTO  `json:"document"`
+	Match    searchHitDTO `json:"match"`
+}
+
+// documentsSearchResponse is the UI envelope for a content-search result.
 type documentsSearchResponse struct {
-	Query     string        `json:"query"`
-	Documents []documentDTO `json:"documents"`
+	Query   string            `json:"query"`
+	Results []searchResultDTO `json:"results"`
 }
 
 // handleDocumentsSearch searches the corpus by chunk content (engine.Query) and
@@ -312,10 +328,10 @@ func (s *Server) handleDocumentsSearch(w http.ResponseWriter, r *http.Request) {
 		writeEngineErr(w, err)
 		return
 	}
-	// Distinct parent documents, ranked by hit order (R2). Tolerant of a hit
-	// whose document vanished (skip it).
+	// Distinct parent documents (top hit each), ranked by retrieval order (R2).
+	// Carry the matching chunk's snippet so the operator sees the found text.
 	seen := make(map[string]bool, len(res.Hits))
-	docs := make([]documentDTO, 0, len(res.Hits))
+	results := make([]searchResultDTO, 0, len(res.Hits))
 	for _, h := range res.Hits {
 		if h.DocumentID == "" || seen[h.DocumentID] {
 			continue
@@ -325,7 +341,45 @@ func (s *Server) handleDocumentsSearch(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
-		docs = append(docs, toDocumentDTO(d.Document, d.Source))
+		results = append(results, searchResultDTO{
+			Document: toDocumentDTO(d.Document, d.Source),
+			Match: searchHitDTO{
+				ChunkID:        h.ChunkID,
+				ChunkIndex:     h.ChunkIndex,
+				Snippet:        snippet(h.Content, q, 240),
+				Score:          h.Score,
+				SectionContext: h.SectionContext,
+			},
+		})
 	}
-	writeJSON(w, http.StatusOK, documentsSearchResponse{Query: q, Documents: docs})
+	writeJSON(w, http.StatusOK, documentsSearchResponse{Query: q, Results: results})
+}
+
+// snippet returns a ~maxLen-char window of content centered on the first query-term
+// match (case-insensitive); ellipsised when truncated. Falls back to the start.
+func snippet(content, query string, maxLen int) string {
+	if content == "" {
+		return ""
+	}
+	low := strings.ToLower(content)
+	idx := strings.Index(low, strings.ToLower(query))
+	start := 0
+	if idx >= 0 {
+		start = idx - maxLen/3
+		if start < 0 {
+			start = 0
+		}
+	}
+	end := start + maxLen
+	if end > len(content) {
+		end = len(content)
+	}
+	s := content[start:end]
+	if start > 0 {
+		s = "…" + s
+	}
+	if end < len(content) {
+		s += "…"
+	}
+	return s
 }

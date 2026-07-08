@@ -479,3 +479,11 @@
 .chunk-breadcrumb { font-size: 0.75rem; color: var(--text-muted, #9aa0a6); }
 .doc-chunk-text { font-size: 0.85rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word; color: var(--text-primary, #e6e6e6); }
 .chunk-context { margin-top: var(--space-4, 1rem); padding-top: var(--space-3, 0.75rem); border-top: 1px solid var(--border, rgba(127,127,127,0.18)); }
+
+/* Search results (spec 047 US3) */
+.search-results { display: flex; flex-direction: column; gap: var(--space-2, 0.5rem); }
+.search-results-head { display: flex; justify-content: space-between; align-items: center; color: var(--text-muted, #9aa0a6); font-size: 0.85rem; margin-bottom: var(--space-1, 0.25rem); }
+.search-result { padding: var(--space-3, 0.75rem); border: 1px solid var(--border, rgba(127,127,127,0.18)); border-radius: 6px; cursor: pointer; }
+.search-result:hover { border-color: var(--accent, #3b82f6); background: rgba(127,127,127,0.05); }
+.search-result-head { display: flex; gap: var(--space-2, 0.5rem); align-items: baseline; margin-bottom: var(--space-1, 0.25rem); }
+.search-snippet { font-size: 0.85rem; line-height: 1.45; color: var(--text-secondary, #c0c4cc); white-space: pre-wrap; word-break: break-word; }

@@ -304,9 +304,27 @@
         </div>
 
         <p class="dashboard-error" x-show="error" x-text="error" role="alert" x-cloak></p>
-        <p class="dashboard-empty" x-show="!docsLoading && docs.length === 0 && !error">No documents.</p>
+        <p class="dashboard-empty" x-show="!searchMode && !docsLoading && docs.length === 0 && !error">No documents.</p>
 
-        <div class="card" x-show="docs.length > 0" x-cloak>
+        <div class="search-results" x-show="searchMode" x-cloak>
+          <div class="search-results-head">
+            <span x-text="(searchResults||[]).length + ' result(s) for ' + (docSearchQ||'')"></span>
+            <button type="button" class="btn" @click="clearDocFilters()">Clear</button>
+          </div>
+          <template x-for="r in (searchResults||[])" :key="r.document.id">
+            <div class="search-result" @click="openDocument(r.document.id)">
+              <div class="search-result-head">
+                <span class="doc-name" x-text="r.document.file_name || r.document.file_path"></span>
+                <span class="chunk-breadcrumb" x-show="r.match.section_context && r.match.section_context.length" x-text="(r.match.section_context||[]).join(' › ')"></span>
+                <span class="doc-muted">#<span x-text="r.match.chunk_index"></span></span>
+              </div>
+              <div class="search-snippet" x-text="r.match.snippet"></div>
+            </div>
+          </template>
+          <p class="dashboard-empty" x-show="(searchResults||[]).length === 0">No matching documents.</p>
+        </div>
+
+        <div class="card" x-show="!searchMode && docs.length > 0" x-cloak>
           <table class="doc-table">
             <thead>
               <tr>
@@ -345,7 +363,7 @@
           </table>
         </div>
 
-        <div class="docs-pager" x-show="docs.length > 0" x-cloak>
+        <div class="docs-pager" x-show="!searchMode && docs.length > 0" x-cloak>
           <button type="button" class="btn" :disabled="!docsNextToken || docsLoading" @click="nextDocPage()">
             <span x-show="!docsLoading">Next page</span>
             <span x-show="docsLoading" x-cloak>Loading…</span>
