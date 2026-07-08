@@ -38,8 +38,9 @@ const pageTokenSep = "\x1f"
 type ListDocumentsRequest struct {
 	PageSize  int
 	PageToken string
-	After     string // RFC3339; "" → unbounded below (all documents)
-	Status    string // "embedded"|"pending"|"error"|"" (all)
+	After     string   // RFC3339; "" → unbounded below (all documents)
+	Status    string   // "embedded"|"pending"|"error"|"" (all)
+	Tags      []string // spec 047 R3: match-any tag filter; nil/empty = all
 }
 
 // ListDocumentsResult is one page of documents + the opaque cursor for the next
@@ -53,6 +54,25 @@ type ListDocumentsResult struct {
 // tests (mirrors the spec-037 window helpers).
 func DefaultListPageSize() int { return defaultListPageSize }
 func MaxListPageSize() int     { return maxListPageSize }
+
+// docHasAnyTag reports whether d carries at least one of the filter tags
+// (match-any semantics, spec 047 R3). Un-enriched documents (nil Enrichment)
+// carry no tags and so fail every tag filter.
+func docHasAnyTag(d model.Document, tags []string) bool {
+	if d.Enrichment == nil || len(d.Enrichment.Tags) == 0 {
+		return false
+	}
+	wanted := make(map[string]struct{}, len(tags))
+	for _, t := range tags {
+		wanted[t] = struct{}{}
+	}
+	for _, t := range d.Enrichment.Tags {
+		if _, ok := wanted[t]; ok {
+			return true
+		}
+	}
+	return false
+}
 
 // encodePageToken renders an opaque, URL-safe page token for (t, id): the
 // base64-url-no-pad encoding of "<RFC3339Nano>\x1f<id>".
@@ -135,6 +155,9 @@ func (e *Engine) ListDocuments(req ListDocumentsRequest) (*ListDocumentsResult, 
 			continue
 		}
 		if !afterT.IsZero() && !d.IngestedAt.After(afterT) {
+			continue
+		}
+		if len(req.Tags) > 0 && !docHasAnyTag(d, req.Tags) {
 			continue
 		}
 		filtered = append(filtered, d)

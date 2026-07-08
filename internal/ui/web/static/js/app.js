@@ -195,6 +195,99 @@
         if (view === 'dashboard') {
           this.loadDashboard();
         }
+        if (view === 'documents') {
+          this.loadDocuments('');
+        }
+      },
+
+      // === Documents (spec 047 US1) =======================================
+      docs: [],
+      docsNextToken: '',
+      docsLoading: false,
+      docFilterStatus: '',
+      docFilterTag: '',
+      docSortKey: 'ingested_at',
+      docSortDir: 'asc',
+
+      /** GET /api/documents → {documents, next_page_token}. Status/tag filters
+       *  go server-side (engine); sort is page-local over the cursor-paginated
+       *  page (R7: corpus-wide non-date sort is deferred). */
+      loadDocuments: async function (pageToken) {
+        this.error = '';
+        this.docsLoading = true;
+        try {
+          var q = '/api/documents?page_size=50';
+          if (pageToken) q += '&page_token=' + encodeURIComponent(pageToken);
+          if (this.docFilterStatus) q += '&status=' + encodeURIComponent(this.docFilterStatus);
+          var tag = (this.docFilterTag || '').trim();
+          if (tag) q += '&tag=' + encodeURIComponent(tag);
+          var res = await this.api(q);
+          if (!res || res.status === 401) return;
+          if (!res.ok) { this.error = 'Failed to load documents (HTTP ' + res.status + ').'; return; }
+          var data = await res.json();
+          this.docs = data.documents || [];
+          this.docsNextToken = data.next_page_token || '';
+        } catch (_e) {
+          this.error = 'Network error loading documents.';
+        } finally {
+          this.docsLoading = false;
+        }
+      },
+
+      /** Cursor forward one page. */
+      nextDocPage: function () {
+        if (!this.docsNextToken) return;
+        this.loadDocuments(this.docsNextToken);
+      },
+
+      /** Re-fetch page 1 with the current filters. */
+      applyDocFilters: function () {
+        this.loadDocuments('');
+      },
+
+      /** Clear filters and re-fetch. */
+      clearDocFilters: function () {
+        this.docFilterStatus = '';
+        this.docFilterTag = '';
+        this.loadDocuments('');
+      },
+
+      /** Toggle the page-local sort column/direction. */
+      setDocSort: function (key) {
+        if (this.docSortKey === key) {
+          this.docSortDir = this.docSortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.docSortKey = key;
+          this.docSortDir = 'asc';
+        }
+      },
+
+      /** Page-local sort of the current page's documents (R7). */
+      sortedDocs: function () {
+        var key = this.docSortKey;
+        var dir = this.docSortDir === 'desc' ? -1 : 1;
+        return (this.docs || []).slice().sort(function (a, b) {
+          var va, vb;
+          if (key === 'file_size' || key === 'chunk_count') {
+            va = Number(a[key]) || 0;
+            vb = Number(b[key]) || 0;
+          } else {
+            va = String(a[key] || '').toLowerCase();
+            vb = String(b[key] || '').toLowerCase();
+          }
+          if (va < vb) return -1 * dir;
+          if (va > vb) return 1 * dir;
+          return 0;
+        });
+      },
+
+      /** Human-readable byte size. */
+      formatBytes: function (n) {
+        n = Number(n) || 0;
+        if (n < 1024) return n + ' B';
+        if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+        if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB';
+        return (n / 1073741824).toFixed(1) + ' GB';
       },
 
       /** Client-side placeholder panel — mirrors templates/_placeholder.html.

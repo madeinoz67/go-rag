@@ -71,6 +71,7 @@ func (s *Server) Handler() http.Handler {
 	// /api/* routes, which 401 until the operator authenticates.
 	mux.HandleFunc("GET /{$}", s.handleShell)
 	mux.HandleFunc("GET /api/dashboard/stats", s.guard(s.handleDashboardStats))
+	mux.HandleFunc("GET /api/documents", s.guard(s.handleDocumentsList)) // spec 047 US1
 	mux.HandleFunc("GET /api/placeholder/{view}", s.guard(s.handlePlaceholder))
 	mux.HandleFunc("POST /logout", s.guard(s.handleLogout))
 	return mux

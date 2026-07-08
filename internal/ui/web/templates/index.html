@@ -279,14 +279,77 @@
         <p class="dashboard-error" x-show="error" x-text="error" role="alert" x-cloak></p>
       </section>
 
-      <!-- ====== PLACEHOLDER VIEWS (later specs 047..053) ====== -->
+      <!-- ====== DOCUMENTS (spec 047 US1 — real view) ====== -->
       <section x-show="currentView === 'documents'" class="view" x-cloak>
         <header class="view-header">
           <h1 class="page-title">Documents</h1>
         </header>
-        <div class="placeholder-card" x-html="placeholderHtml('Documents', '047')"></div>
+
+        <div class="docs-toolbar">
+          <select class="input" x-model="docFilterStatus" @change="applyDocFilters()" aria-label="Filter by embedding status">
+            <option value="">All statuses</option>
+            <option value="embedded">Embedded</option>
+            <option value="pending">Pending</option>
+            <option value="error">Error</option>
+          </select>
+          <input class="input" type="text" placeholder="Filter by tag"
+                 x-model="docFilterTag"
+                 @keydown.enter.prevent="applyDocFilters()" aria-label="Filter by tag">
+          <button type="button" class="btn btn-primary" @click="applyDocFilters()">Filter</button>
+          <button type="button" class="btn" @click="clearDocFilters()">Clear</button>
+        </div>
+
+        <p class="dashboard-error" x-show="error" x-text="error" role="alert" x-cloak></p>
+        <p class="dashboard-empty" x-show="!docsLoading && docs.length === 0 && !error">No documents.</p>
+
+        <div class="card" x-show="docs.length > 0" x-cloak>
+          <table class="doc-table">
+            <thead>
+              <tr>
+                <th class="sortable" @click="setDocSort('file_name')">Name</th>
+                <th class="sortable" @click="setDocSort('status')">Status</th>
+                <th class="sortable num" @click="setDocSort('chunk_count')">Chunks</th>
+                <th class="sortable num" @click="setDocSort('file_size')">Size</th>
+                <th>Tags</th>
+                <th class="sortable" @click="setDocSort('ingested_at')">Ingested</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="d in sortedDocs()" :key="d.id">
+                <tr>
+                  <td>
+                    <div class="doc-name" x-text="d.file_name || d.file_path"></div>
+                    <div class="doc-path" x-text="d.file_path"></div>
+                  </td>
+                  <td>
+                    <span class="badge"
+                          :class="d.status === 'embedded' ? 'badge-success' : (d.status === 'error' ? 'badge-danger' : 'badge-warn')"
+                          x-text="d.status"></span>
+                  </td>
+                  <td class="num" x-text="d.chunk_count"></td>
+                  <td class="num" x-text="formatBytes(d.file_size)"></td>
+                  <td>
+                    <template x-for="t in (d.tags || [])" :key="t">
+                      <span class="tag-chip" x-text="t"></span>
+                    </template>
+                    <span class="doc-muted" x-show="!d.tags || d.tags.length === 0">—</span>
+                  </td>
+                  <td class="doc-muted" x-text="d.ingested_at || '—'"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="docs-pager" x-show="docs.length > 0" x-cloak>
+          <button type="button" class="btn" :disabled="!docsNextToken || docsLoading" @click="nextDocPage()">
+            <span x-show="!docsLoading">Next page</span>
+            <span x-show="docsLoading" x-cloak>Loading…</span>
+          </button>
+        </div>
       </section>
 
+      <!-- ====== PLACEHOLDER VIEWS (later specs 048..053) ====== -->
       <section x-show="currentView === 'query'" class="view" x-cloak>
         <header class="view-header">
           <h1 class="page-title">Query</h1>

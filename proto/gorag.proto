@@ -76,6 +76,10 @@ service Gorag {
   // filter + page_token pagination. → engine.ListDocuments (also REST
   // GET /v1/documents, MCP go_rag_list_documents, CLI `go-rag documents list`).
   rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
+  // spec 047 (Slice 1): list a document's chunks — chunk_index cursor +
+  // page_token pagination. → engine.ListChunks (also REST
+  // GET /v1/documents/{id}/chunks, MCP go_rag_list_chunks, CLI `go-rag chunk list`).
+  rpc ListChunks(ListChunksRequest) returns (ListChunksResponse);
   // spec 040 (BL-008): long-lived server-stream of document lifecycle events
   // (INGESTED/EMBEDDED/DELETED). → engine's event bus. gRPC-only — streaming has
   // no unary equivalent (REST push = BL-011 webhook, separate).
@@ -226,12 +230,26 @@ message ListDocumentsRequest {
   string page_token = 2; // opaque; empty → first page
   string after      = 3; // RFC3339; only docs with ingested_at > after; "" → all
   string status     = 4; // embedded|pending|error|"" (all); AND with after
+  repeated string tags = 5; // spec 047: tag filter, match-any (doc has ≥1 of these); empty = no constraint
 }
 
 // spec 039 (BL-007): one page of documents + the cursor for the next page.
 message ListDocumentsResponse {
   repeated DocumentMeta documents       = 1; // ordered (ingested_at ASC, id ASC)
   string                next_page_token = 2; // empty ⇒ last page
+}
+
+// spec 047 (Slice 1): list one document's chunks, paginated by chunk_index.
+message ListChunksRequest {
+  string document_id = 1; // required; empty → INVALID_ARGUMENT
+  int32  page_size   = 2; // default 50, max 200; <1 or >200 → INVALID_ARGUMENT
+  string page_token  = 3; // opaque; empty → first page
+}
+
+// spec 047 (Slice 1): one page of chunks + the cursor for the next page.
+message ListChunksResponse {
+  repeated Chunk chunks           = 1; // ordered (chunk_index ASC, chunk_id ASC)
+  string          next_page_token = 2; // empty ⇒ last page
 }
 
 // spec 040 (BL-008): document lifecycle event kinds. RE_INGESTED is reserved for
