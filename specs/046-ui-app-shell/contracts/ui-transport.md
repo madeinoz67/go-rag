@@ -52,13 +52,14 @@ Drop the calling session.
 
 Serve the application shell.
 
-- **Auth:** guard (bypass-enabled).
+- **Auth:** **public** (the shell *is* the login page — no data lives in the
+  HTML). Serving it unauthenticated is intentional: guarding it would return a
+  401 before the browser could load the login form. The Alpine gate renders
+  login vs. app client-side based on whether a `gorags_` token is held; all
+  sensitive data is behind the guarded `/api/*` routes (which 401 until
+  authenticated). The shell returns 200 on any vault, bare or initialized.
 - **Response 200:** `text/html; charset=utf-8` — `templates/index.html`
   (Alpine `goragApp` root, 8-view sidebar, auth-gate state).
-- **Response 401:** when not bypass-eligible and no/invalid Bearer → the login
-  view (the SPA renders its own login form client-side; the server returns the
-  same `index.html`, the Alpine gate decides which view to show based on whether
-  a token is held).
 
 ### `GET /static/*` — vendored static assets
 

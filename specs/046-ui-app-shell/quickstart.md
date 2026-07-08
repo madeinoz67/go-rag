@@ -16,7 +16,7 @@ live daemon (per the repo CLAUDE.md smoke-test rule).
 ## 1. Start the daemon with the UI transport
 
 ```bash
-./bin/go-rag init --db-path /tmp/gorag-ui-smoke   # creates the vault + admin
+./bin/go-rag init --db-path /tmp/gorag-ui-smoke   # creates vault + admin (prints admin password ONCE — copy it)
 ./bin/go-rag start \
   --db-path /tmp/gorag-ui-smoke \
   --mcp-addr 127.0.0.1:18788 \
@@ -24,37 +24,53 @@ live daemon (per the repo CLAUDE.md smoke-test rule).
   --ui-addr  127.0.0.1:7881
 ```
 
+**Admin password:** `init` prints a generated admin password to stdout **exactly
+once** — copy it; it is never shown again and is stored only as a bcrypt hash.
+This is the credential you use to log in to the console (§3, §4). To set or
+rotate it instead, run `GORAG_ADMIN_PASSWORD=<pw> ./bin/go-rag init --db-path …`
+(prints "Admin password rotated"). There is no `go-rag auth` subcommand to read
+or reset a forgotten password — rotation is env-var-driven.
+
 **Expected:** the daemon binds three loopback ports; the bound-address log line
 includes `UI 127.0.0.1:7881`. (`--mcp-addr`/`--rest-addr` are overridden only to
 avoid colliding with any running default daemon.)
 
-## 2. Smoke — bypass regime (bare vault, loopback)
+## 2. Smoke — shell + bypass posture (loopback)
 
-On a freshly-init'd vault the spec 045 loopback bypass admits loopback requests:
+The shell is served publicly (it *is* the login page — no data in the HTML), so
+it loads on any vault:
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7881/
 ```
 
-**Expected:** `200` (the shell HTML). Then:
+**Expected:** `200` (the shell HTML) — bare or initialized vault alike; the
+shell must load so the login form can render.
+
+The API is Bearer-guarded. Because `init` creates an admin (§1), the spec 045
+loopback bypass is **disabled** on an init'd vault, so an unauthenticated stats
+call is rejected:
 
 ```bash
-curl -s http://127.0.0.1:7881/api/dashboard/stats | jq .
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7881/api/dashboard/stats
 ```
 
-**Expected:** a `DashboardDTO` with `documents: 0`, `embeddings_complete: true`
-(empty corpus is "complete"), `vault: "gorag-ui-smoke"` (derived from the DB
-basename), and no `Set-Cookie` header (`curl -i …` to confirm).
+**Expected:** `401` (no Bearer, admin exists → bypass disabled). The bypass
+fires only on a bare **pre-init** vault (no admin record) — pinned by spec 045's
+`TestBypassGuard_BareVaultBypasses_InitializedVaultDoesNot`. To see real
+Dashboard data, authenticate first (§3) and confirm no `Set-Cookie` on any
+response (`curl -i …`).
 
 ## 3. Smoke — auth regime (initialized vault)
 
 Once an admin exists, the bypass is disabled and Bearer is required:
 
 ```bash
-# No bearer → 401 (shell not served over the API; the SPA shows login client-side)
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7881/api/dashboard/stats   # after admin bootstrap on a fresh loopback session
+# No bearer → 401 on the API (admin exists → bypass disabled; shell at GET / is public, /api/* guarded)
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7881/api/dashboard/stats
 
-# Login → mint a gorags_ session
+# Login → mint a gorags_ session. <admin-pass> = the password init printed in
+# §1 (or your GORAG_ADMIN_PASSWORD).
 TOK=$(curl -s -X POST http://127.0.0.1:7881/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"<admin-pass>"}' | jq -r .token)
