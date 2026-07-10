@@ -148,6 +148,59 @@ func (p *Processor) run(ctx context.Context) {
 	}
 }
 
+// pendingChunk is a dequeued embed-queue item awaiting embedding within one
+// processBatch pass: the chunk id (0x14 key) and its text content (read from 0x03).
+// Lifted to package level so the per-text isolation fallback (embedOneByOne) can
+// share the type with processBatch.
+type pendingChunk struct {
+	id   string
+	text string
+}
+
+// embedOneByOne is the per-text isolation fallback (approach D, spec 032 overflow
+// hardening) invoked when a whole-batch Embed errors. It re-embeds each text
+// individually and returns a sparse result (vec[i]==nil for texts that failed), so
+// one bad text no longer kills its 31 batch-mates.
+//
+// Terminal-vs-transient policy: per-text failures are marked EmbedQueueFailed
+// (terminal — processBatch skips them on the next scan) ONLY when at least one text
+// in the batch succeeded individually, which proves the embedder backend is healthy
+// and the failures are text-specific (over-length past sub-chunk recovery, malformed
+// input). If EVERY per-text embed fails the embedder itself is the problem (provider
+// down, network, OOM) and all records are left pending (transient) for the next
+// tick — the breaker, already tripped by the batch fail, backs off the embedder.
+func (p *Processor) embedOneByOne(ctx context.Context, texts []string, batch []pendingChunk) [][]float32 {
+	vecs := make([][]float32, len(texts))
+	succeeded := 0
+	for i, t := range texts {
+		res, err := p.embedder.Embed(ctx, []string{t})
+		if err != nil {
+			slog.Warn("embedproc: per-text embed failed", "chunk_id", batch[i].id, "error", err)
+			continue
+		}
+		if len(res) > 0 {
+			vecs[i] = res[0]
+			succeeded++
+		}
+	}
+	if succeeded == 0 {
+		return vecs // embedder-wide failure — leave everything pending (transient)
+	}
+	// At least one succeeded → the failures are text-specific; mark them terminal so
+	// they stop re-entering the retry set on every tick.
+	for i := range texts {
+		if vecs[i] != nil {
+			continue
+		}
+		rec, _ := json.Marshal(storage.EmbedQueueItem{
+			Model:  p.embedder.Model(),
+			Status: storage.EmbedQueueFailed,
+		})
+		_ = p.db.PutEmbedQueue(batch[i].id, rec)
+	}
+	return vecs
+}
+
 // processBatch drains the 0x14 queue: accumulates up to maxBatch pending chunkIDs +
 // their texts, applies the document-role prefix (H07), circuit-breaker-guards the
 // embed call, scatters vectors back (0x04 + vec.Add + remove 0x14), and bumps the
@@ -155,11 +208,7 @@ func (p *Processor) run(ctx context.Context) {
 // pass); on permanent failure they are marked status=failed (terminal).
 func (p *Processor) processBatch(ctx context.Context) {
 	for { // drain: process batches of maxBatch until the queue is empty
-		type pending struct {
-			id   string
-			text string
-		}
-		var batch []pending
+		var batch []pendingChunk
 
 		_ = p.db.ScanEmbedQueue(func(chunkID string, item storage.EmbedQueueItem) bool {
 			if len(batch) >= maxBatch {
@@ -191,7 +240,7 @@ func (p *Processor) processBatch(ctx context.Context) {
 				}
 				// Malformed/empty vector — fall through to normal embed.
 			}
-			batch = append(batch, pending{chunkID, c.Content})
+			batch = append(batch, pendingChunk{chunkID, c.Content})
 			return true
 		})
 		if len(batch) == 0 {
@@ -217,23 +266,36 @@ func (p *Processor) processBatch(ctx context.Context) {
 		// Embed the whole batch in one call (FR-005 cross-doc batching).
 		vecs, err := p.embedder.Embed(ctx, texts)
 		if err != nil {
+			// Approach D (spec 032 overflow hardening): isolate per-text failures so
+			// one bad text (over-length past sub-chunk recovery, OOM, provider glitch)
+			// no longer poisons its batch-mates. Re-embed each text individually;
+			// successes scatter normally, text-specific failures are marked terminal
+			// (EmbedQueueFailed) by embedOneByOne so they stop clogging the retry
+			// queue. With the HugotEmbedder sub-chunk fix (B) in place this rarely
+			// fires for the 512-token case; it is the structural guard for "one bad
+			// text kills the batch." The breaker still records the batch-level fail
+			// (embedder-health signal).
 			p.br.fail()
-			slog.Warn("embedproc: embed batch failed", "batch_size", len(batch), "error", err)
-			return // transient: queue records stay pending (retried next pass)
+			slog.Warn("embedproc: embed batch failed, isolating per-text", "batch_size", len(batch), "error", err)
+			vecs = p.embedOneByOne(ctx, texts, batch)
+		} else {
+			p.br.ok()
 		}
-		p.br.ok()
 
-		// Scatter vectors: write 0x04 + vec.Add + remove 0x14 per chunk.
+		// Scatter vectors: write 0x04 + vec.Add + remove 0x14 per chunk. Only items
+		// that produced a vector are scattered + dequeued; per-text failures were
+		// marked terminal (or left pending if the whole batch failed) by embedOneByOne.
 		for i, it := range batch {
-			if i < len(vecs) {
-				rec, _ := json.Marshal(embedRecord{
-					Model:      p.embedder.Model(),
-					Convention: conv,
-					Vector:     vecs[i],
-				})
-				_ = p.db.SetWithPrefix(storage.PrefixEmbedding, []byte(it.id), rec)
-				p.vec.Add(it.id, vecs[i])
+			if i >= len(vecs) || vecs[i] == nil {
+				continue
 			}
+			rec, _ := json.Marshal(embedRecord{
+				Model:      p.embedder.Model(),
+				Convention: conv,
+				Vector:     vecs[i],
+			})
+			_ = p.db.SetWithPrefix(storage.PrefixEmbedding, []byte(it.id), rec)
+			p.vec.Add(it.id, vecs[i])
 			_ = p.db.DeleteEmbedQueue(it.id) // embedding landed — remove from queue
 		}
 

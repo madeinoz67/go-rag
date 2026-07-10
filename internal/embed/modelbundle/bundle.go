@@ -28,6 +28,12 @@ const (
 	ModelDirName  = "Xenova_bge-small-en-v1.5" // local dir under modelsParent; matches the release-asset tarball top entry
 	ModelFilename = "model_int8.onnx"          // local weights filename
 	EmbeddingDim  = 384
+	// MaxSeqLen is the bundled model's max_position_embeddings (config.json):
+	// the longest input sequence the graph can compile. Inputs exceeding this are
+	// sub-chunked + mean-pooled by HugotEmbedder.Embed (spec 032 overflow fix) —
+	// handing an over-length text straight to the pipeline crashes GoMLX graph
+	// compilation (position-embedding buffer is fixed at this width).
+	MaxSeqLen = 512
 
 	repoOwner      = "madeinoz67"
 	repoName       = "go-rag"
