@@ -258,6 +258,8 @@ func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any
 		return s.renderBatchGetChunks(eng, args) // spec 038
 	case "go_rag_list_documents":
 		return s.renderListDocuments(eng, args) // spec 039
+	case "go_rag_list_chunks":
+		return s.renderListChunks(eng, args) // spec 047 / T008
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
 }
@@ -683,6 +685,14 @@ func (s *Server) renderListDocuments(eng *engine.Engine, args map[string]any) (s
 	if v, ok := args["status"].(string); ok {
 		req.Status = v
 	}
+	// spec 047 R3: match-any tag filter (mirrors renderQuery's tags parsing).
+	if raw, ok := args["tags"].([]any); ok {
+		for _, t := range raw {
+			if tag, ok := t.(string); ok {
+				req.Tags = append(req.Tags, tag)
+			}
+		}
+	}
 	res, err := eng.ListDocuments(req)
 	if err != nil {
 		return "", err
@@ -690,6 +700,50 @@ func (s *Server) renderListDocuments(eng *engine.Engine, args map[string]any) (s
 	var b strings.Builder
 	for _, d := range res.Documents {
 		fmt.Fprintf(&b, "%s\t%s\t%s\n", d.IngestedAt.UTC().Format("2006-01-02T15:04:05Z07:00"), d.Status, d.FilePath)
+	}
+	if res.NextPageToken != "" {
+		fmt.Fprintf(&b, "next_page_token: %s\n", res.NextPageToken)
+	}
+	return b.String(), nil
+}
+
+// renderListChunks is the MCP text projection of engine.ListChunks (spec 047 /
+// T008): one line per chunk in (chunk_index ASC, chunk_id ASC) order, then a
+// next_page_token line when more remain. Unknown document → empty result (not
+// an error), matching the engine's contract. Mirrors renderListDocuments's TSV
+// shape; reuses the chunk fields surfaced by renderGetChunk (kind/page/section).
+func (s *Server) renderListChunks(eng *engine.Engine, args map[string]any) (string, error) {
+	documentID, _ := args["document_id"].(string)
+	if strings.TrimSpace(documentID) == "" {
+		return "", fmt.Errorf("document_id required")
+	}
+	req := engine.ListChunksRequest{}
+	if v, ok := args["page_size"].(float64); ok && v > 0 {
+		req.PageSize = int(v)
+	}
+	if v, ok := args["page_token"].(string); ok {
+		req.PageToken = v
+	}
+	res, err := eng.ListChunks(documentID, req)
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	for _, c := range res.Chunks {
+		fmt.Fprintf(&b, "%s\t#%d", c.ID, c.ChunkIndex)
+		if c.Kind != "" {
+			fmt.Fprintf(&b, "\tkind=%s", c.Kind)
+		}
+		if c.PageNumber > 0 {
+			fmt.Fprintf(&b, "\tpage=%d", c.PageNumber)
+		}
+		if c.TokenCount > 0 {
+			fmt.Fprintf(&b, "\ttokens=%d", c.TokenCount)
+		}
+		if len(c.SectionContext) > 0 {
+			fmt.Fprintf(&b, "\tsection=%s", strings.Join(c.SectionContext, " / "))
+		}
+		b.WriteByte('\n')
 	}
 	if res.NextPageToken != "" {
 		fmt.Fprintf(&b, "next_page_token: %s\n", res.NextPageToken)
@@ -1100,7 +1154,21 @@ func toolDefs() []map[string]any {
 					"page_token": map[string]any{"type": "string"},
 					"after":      map[string]any{"type": "string", "format": "date-time"},
 					"status":     map[string]any{"type": "string", "enum": []string{"embedded", "pending", "error"}},
+					"tags":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "match-any tag filter (spec 047 R3); nil/empty = all"},
 				},
+			},
+		},
+		{
+			"name":        "go_rag_list_chunks",
+			"description": "List chunks of one document (spec 047 / T008) in (chunk_index, chunk_id) ascending order + a next_page_token. Unknown or empty document → empty result (not an error). document_id is required.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"document_id": map[string]any{"type": "string"},
+					"page_size":   map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
+					"page_token":  map[string]any{"type": "string"},
+				},
+				"required": []string{"document_id"},
 			},
 		},
 		{

@@ -64,8 +64,8 @@ func TestHTTPToolsList(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 		t.Fatal(err)
 	}
-	if len(env.Result.Tools) != 28 { // spec 045 added 5 auth-management tools
-		t.Fatalf("want 28 tools, got %d", len(env.Result.Tools))
+	if len(env.Result.Tools) != 29 { // spec 045 added 5 auth tools; spec 047 added go_rag_list_chunks
+		t.Fatalf("want 29 tools, got %d", len(env.Result.Tools))
 	}
 }
 

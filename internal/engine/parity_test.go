@@ -29,6 +29,7 @@ import (
 	goraggrpc "github.com/madeinoz67/go-rag/internal/grpc"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/mcp"
+	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/rest"
 	"github.com/madeinoz67/go-rag/internal/storage"
@@ -1807,4 +1808,379 @@ func TestCrossTransport_ListDocumentsParity(t *testing.T) {
 	if mcpTok != ref2.NextPageToken {
 		t.Errorf("MCP page next_page_token=%q, want %q", mcpTok, ref2.NextPageToken)
 	}
+}
+
+// restListChunksResponse mirrors internal/rest's ListChunks JSON envelope
+// (listChunksResponse: {chunks, next_page_token}). The per-chunk fields mirror
+// chunkDTO 1:1 — only the subset the parity assertion reads is typed out.
+type restListChunksResponse struct {
+	Chunks []struct {
+		ChunkID    string `json:"chunk_id"`
+		Content    string `json:"content"`
+		ChunkIndex int    `json:"chunk_index"`
+	} `json:"chunks"`
+	NextPageToken string `json:"next_page_token"`
+}
+
+// mcpListChunksCall drives go_rag_list_chunks over MCP and returns the per-chunk
+// chunk_ids (in order) + the next_page_token. The render emits one
+// "<chunk_id>\t#<chunk_index>" line per chunk (with optional suffix fields),
+// then a "next_page_token:" line when more remain (mirrors renderListChunks).
+func mcpListChunksCall(t *testing.T, baseURL string, args map[string]any) (ids []string, nextToken string) {
+	t.Helper()
+	if args == nil {
+		args = map[string]any{}
+	}
+	body, _ := json.Marshal(map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": "go_rag_list_chunks", "arguments": args},
+	})
+	resp, err := http.Post(baseURL+"/mcp", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("MCP list_chunks call: %v", err)
+	}
+	defer resp.Body.Close()
+	var env struct {
+		Result struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode MCP list_chunks: %v", err)
+	}
+	if len(env.Result.Content) == 0 {
+		t.Fatal("MCP list_chunks: empty content")
+	}
+	for _, line := range strings.Split(env.Result.Content[0].Text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "next_page_token:") {
+			nextToken = strings.TrimSpace(strings.TrimPrefix(line, "next_page_token:"))
+			continue
+		}
+		// First two fields are "<chunk_id>\t#<chunk_index>"; the chunk_id is what
+		// the parity assertion keys on.
+		fields := strings.Split(line, "\t")
+		if len(fields) >= 2 {
+			ids = append(ids, fields[0])
+		}
+	}
+	return ids, nextToken
+}
+
+// assertChunkParity compares the per-chunk (chunk_id, content) tuples in order.
+func assertChunkParity(t *testing.T, label string, ids, contents, wantIDs, wantContents []string) {
+	t.Helper()
+	if !reflect.DeepEqual(ids, wantIDs) {
+		t.Errorf("%s: chunk_ids=%v, want %v", label, ids, wantIDs)
+	}
+	if !reflect.DeepEqual(contents, wantContents) {
+		t.Errorf("%s: contents=%v, want %v", label, contents, wantContents)
+	}
+}
+
+// TestCrossTransport_ListChunksParity (spec 047 / T010): the same document's
+// chunks return byte-identical per-chunk ids + content (in chunk_index order)
+// + the same next_page_token over the facade, REST, gRPC, and MCP — all backed
+// by one shared engine. Covers the no-filter listing and a paginated first page.
+// (The chunk_index ordering and page_token resume are engine-tested in
+// list_chunks_test.go.) The CLI projection is parity-covered separately in
+// internal/cli (it opens its own Pebble handle, so it cannot share this engine).
+func TestCrossTransport_ListChunksParity(t *testing.T) {
+	eng := sharedChunkedDocEngine(t)
+
+	// Pick the first (only) document as the fixture doc.
+	docs, err := eng.ListDocuments(engine.ListDocumentsRequest{})
+	if err != nil {
+		t.Fatalf("facade ListDocuments: %v", err)
+	}
+	if len(docs.Documents) == 0 {
+		t.Fatal("setup: no documents ingested")
+	}
+	docID := docs.Documents[0].ID
+
+	// Reference: facade, no filter.
+	ref, err := eng.ListChunks(docID, engine.ListChunksRequest{})
+	if err != nil {
+		t.Fatalf("facade ListChunks: %v", err)
+	}
+	if len(ref.Chunks) == 0 {
+		t.Fatalf("setup: doc %s has no chunks", docID)
+	}
+	wantIDs := make([]string, len(ref.Chunks))
+	wantContent := make([]string, len(ref.Chunks))
+	for i, c := range ref.Chunks {
+		wantIDs[i] = c.ID
+		wantContent[i] = c.Content
+	}
+
+	restSrv := httptest.NewServer(rest.New(eng, "").Handler())
+	defer restSrv.Close()
+	client := dialGRPC(t, eng)
+	mcpSrv := httptest.NewServer(mcp.NewWithEngine("", eng, config.Default()).HTTPHandler(""))
+	defer mcpSrv.Close()
+
+	// No-filter listing — identical chunk_ids + content across all four.
+	rr := getJSON[restListChunksResponse](t, restSrv.URL+"/v1/documents/"+docID+"/chunks")
+	restIDs := make([]string, len(rr.Chunks))
+	restContent := make([]string, len(rr.Chunks))
+	for i, c := range rr.Chunks {
+		restIDs[i] = c.ChunkID
+		restContent[i] = c.Content
+	}
+	assertChunkParity(t, "REST", restIDs, restContent, wantIDs, wantContent)
+
+	gresp, err := client.ListChunks(context.Background(), &goragpb.ListChunksRequest{DocumentId: docID})
+	if err != nil {
+		t.Fatalf("gRPC ListChunks: %v", err)
+	}
+	grpcIDs := make([]string, len(gresp.GetChunks()))
+	grpcContent := make([]string, len(gresp.GetChunks()))
+	for i, c := range gresp.GetChunks() {
+		grpcIDs[i] = c.GetChunkId()
+		grpcContent[i] = c.GetContent()
+	}
+	assertChunkParity(t, "gRPC", grpcIDs, grpcContent, wantIDs, wantContent)
+
+	mcpIDs, _ := mcpListChunksCall(t, mcpSrv.URL, map[string]any{"document_id": docID})
+	if !reflect.DeepEqual(mcpIDs, wantIDs) {
+		t.Errorf("MCP: chunk_ids=%v, want %v", mcpIDs, wantIDs)
+	}
+
+	// Paginated first page (page_size=1) — identical ids + identical
+	// next_page_token. (Only meaningful when the doc has >1 chunk.)
+	if len(ref.Chunks) < 2 {
+		t.Fatalf("setup: doc %s has %d chunks, need ≥2 for pagination parity", docID, len(ref.Chunks))
+	}
+	ref2, _ := eng.ListChunks(docID, engine.ListChunksRequest{PageSize: 1})
+	wantPage := []string{ref2.Chunks[0].ID}
+
+	rr2 := getJSON[restListChunksResponse](t, restSrv.URL+"/v1/documents/"+docID+"/chunks?page_size=1")
+	if len(rr2.Chunks) != 1 || rr2.Chunks[0].ChunkID != wantPage[0] {
+		t.Errorf("REST page: ids=%v, want %v", chunkIDsREST(rr2.Chunks), wantPage)
+	}
+	if rr2.NextPageToken != ref2.NextPageToken {
+		t.Errorf("REST page next_page_token=%q, want %q", rr2.NextPageToken, ref2.NextPageToken)
+	}
+
+	gresp2, err := client.ListChunks(context.Background(), &goragpb.ListChunksRequest{DocumentId: docID, PageSize: 1})
+	if err != nil {
+		t.Fatalf("gRPC page: %v", err)
+	}
+	if len(gresp2.GetChunks()) != 1 || gresp2.GetChunks()[0].GetChunkId() != wantPage[0] {
+		t.Errorf("gRPC page: ids=%v, want %v", chunkIDsPB(gresp2.GetChunks()), wantPage)
+	}
+	if gresp2.GetNextPageToken() != ref2.NextPageToken {
+		t.Errorf("gRPC page next_page_token=%q, want %q", gresp2.GetNextPageToken(), ref2.NextPageToken)
+	}
+
+	mcpPage, mcpTok := mcpListChunksCall(t, mcpSrv.URL, map[string]any{"document_id": docID, "page_size": float64(1)})
+	if !reflect.DeepEqual(mcpPage, wantPage) {
+		t.Errorf("MCP page: chunk_ids=%v, want %v", mcpPage, wantPage)
+	}
+	if mcpTok != ref2.NextPageToken {
+		t.Errorf("MCP page next_page_token=%q, want %q", mcpTok, ref2.NextPageToken)
+	}
+}
+
+func chunkIDsREST(chunks []struct {
+	ChunkID    string `json:"chunk_id"`
+	Content    string `json:"content"`
+	ChunkIndex int    `json:"chunk_index"`
+}) []string {
+	out := make([]string, len(chunks))
+	for i, c := range chunks {
+		out[i] = c.ChunkID
+	}
+	return out
+}
+
+func chunkIDsPB(chunks []*goragpb.Chunk) []string {
+	out := make([]string, len(chunks))
+	for i, c := range chunks {
+		out[i] = c.GetChunkId()
+	}
+	return out
+}
+
+// sharedChunkedDocEngine ingests one document large enough to span multiple
+// chunks (the splitter is 512 tokens / 50 overlap). Used by
+// TestCrossTransport_ListChunksParity, which needs ≥2 chunks to exercise
+// pagination parity. Mirrors sharedDocsEngine's storage wiring.
+func sharedChunkedDocEngine(t *testing.T) *engine.Engine {
+	t.Helper()
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		t.Fatalf("mkdir data: %v", err)
+	}
+	cfg := config.Default()
+	cfg.DBPath = dir
+	cfg.EmbeddingModel = "fake"
+	db, err := storage.Open(dataDir)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	p := pipeline.New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
+	defer p.Close()
+	// ~40 paragraphs of distinct content → comfortably > 512 tokens → ≥2 chunks.
+	var content strings.Builder
+	for i := 0; i < 40; i++ {
+		fmt.Fprintf(&content, "paragraph %d: retrieval chunking parity across transports exercises distinct tokens.\n", i)
+	}
+	dp := filepath.Join(dir, "chunked.txt")
+	if err := os.WriteFile(dp, []byte(content.String()), 0o644); err != nil {
+		t.Fatalf("write chunked doc: %v", err)
+	}
+	if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
+		t.Fatalf("ingest chunked doc: %v", err)
+	}
+	return engine.NewWithDB(cfg, db)
+}
+
+// sharedTaggedDocsEngine writes n document records directly via storage (no chunk
+// ingest — ListDocuments does not require chunks) where even-indexed docs carry
+// tag "alpha" and odd-indexed carry "beta". Used by the spec-047-R3 tag-filter
+// parity case (TestCrossTransport_ListDocumentsTagsParity). Mirrors
+// sharedDocsEngine's storage wiring so the REST/gRPC/MCP servers bind to one
+// engine over the same backing store.
+func sharedTaggedDocsEngine(t *testing.T, n int) *engine.Engine {
+	t.Helper()
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		t.Fatalf("mkdir data: %v", err)
+	}
+	cfg := config.Default()
+	cfg.DBPath = dir
+	cfg.EmbeddingModel = "fake"
+	db, err := storage.Open(dataDir)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for i := 0; i < n; i++ {
+		id := fmt.Sprintf("tagdoc-%d", i)
+		tag := "alpha"
+		if i%2 == 1 {
+			tag = "beta"
+		}
+		d := model.Document{
+			ID:          id,
+			FilePath:    id + ".txt",
+			FileName:    id + ".txt",
+			FileType:    "text",
+			ContentHash: id,
+			Status:      "embedded",
+			IngestedAt:  base.Add(time.Duration(i) * time.Second),
+			Enrichment:  &model.EnrichInfo{Tags: []string{tag}, Status: model.EnrichStatusDone, Model: "test"},
+		}
+		raw, err := json.Marshal(d)
+		if err != nil {
+			t.Fatalf("marshal %s: %v", id, err)
+		}
+		if err := db.SetWithPrefix(storage.PrefixDocument, []byte(id), raw); err != nil {
+			t.Fatalf("put doc %s: %v", id, err)
+		}
+	}
+	return engine.NewWithDB(cfg, db)
+}
+
+// TestCrossTransport_ListDocumentsTagsParity (spec 047 R3): the match-any tag
+// filter returns identical per-document file paths (in order) over the facade,
+// REST, gRPC, and MCP — all backed by one shared engine. Even-indexed docs are
+// tagged "alpha", odd-indexed "beta". Covers single-tag, multi-tag union, and
+// the no-match empty case across every transport.
+func TestCrossTransport_ListDocumentsTagsParity(t *testing.T) {
+	eng := sharedTaggedDocsEngine(t, 4)
+
+	restSrv := httptest.NewServer(rest.New(eng, "").Handler())
+	defer restSrv.Close()
+	client := dialGRPC(t, eng)
+	mcpSrv := httptest.NewServer(mcp.NewWithEngine("", eng, config.Default()).HTTPHandler(""))
+	defer mcpSrv.Close()
+
+	wantAlpha := []string{"tagdoc-0.txt", "tagdoc-2.txt"} // even-indexed
+	wantBeta := []string{"tagdoc-1.txt", "tagdoc-3.txt"}  // odd-indexed
+
+	// --- single tag: alpha ---
+	ref, err := eng.ListDocuments(engine.ListDocumentsRequest{Tags: []string{"alpha"}})
+	if err != nil {
+		t.Fatalf("facade tags=[alpha]: %v", err)
+	}
+	alphaPaths := docPaths(ref.Documents)
+	assertListParity(t, "facade alpha", alphaPaths, wantAlpha)
+
+	rr := getJSON[restListDocumentsResponse](t, restSrv.URL+"/v1/documents?tag=alpha")
+	assertListParity(t, "REST alpha", restDocPaths(rr.Documents), wantAlpha)
+
+	gresp, err := client.ListDocuments(context.Background(), &goragpb.ListDocumentsRequest{Tags: []string{"alpha"}})
+	if err != nil {
+		t.Fatalf("gRPC tags=[alpha]: %v", err)
+	}
+	assertListParity(t, "gRPC alpha", grpcDocPaths(gresp.GetDocuments()), wantAlpha)
+
+	mcpPaths, _ := mcpListCall(t, mcpSrv.URL, map[string]any{"tags": []any{"alpha"}})
+	assertListParity(t, "MCP alpha", mcpPaths, wantAlpha)
+
+	// --- single tag: beta ---
+	rrBeta := getJSON[restListDocumentsResponse](t, restSrv.URL+"/v1/documents?tag=beta")
+	assertListParity(t, "REST beta", restDocPaths(rrBeta.Documents), wantBeta)
+
+	grespBeta, err := client.ListDocuments(context.Background(), &goragpb.ListDocumentsRequest{Tags: []string{"beta"}})
+	if err != nil {
+		t.Fatalf("gRPC tags=[beta]: %v", err)
+	}
+	assertListParity(t, "gRPC beta", grpcDocPaths(grespBeta.GetDocuments()), wantBeta)
+
+	// --- multi-tag union: [alpha,beta] → all four (match-any) ---
+	wantAll := []string{"tagdoc-0.txt", "tagdoc-1.txt", "tagdoc-2.txt", "tagdoc-3.txt"}
+	grespAll, err := client.ListDocuments(context.Background(), &goragpb.ListDocumentsRequest{Tags: []string{"alpha", "beta"}})
+	if err != nil {
+		t.Fatalf("gRPC tags=[alpha,beta]: %v", err)
+	}
+	assertListParity(t, "gRPC union", grpcDocPaths(grespAll.GetDocuments()), wantAll)
+
+	// --- no match ---
+	grespNone, err := client.ListDocuments(context.Background(), &goragpb.ListDocumentsRequest{Tags: []string{"nonexistent"}})
+	if err != nil {
+		t.Fatalf("gRPC tags=[nonexistent]: %v", err)
+	}
+	if len(grespNone.GetDocuments()) != 0 {
+		t.Errorf("gRPC no-match: docs=%d, want 0", len(grespNone.GetDocuments()))
+	}
+}
+
+func docPaths(docs []model.Document) []string {
+	out := make([]string, len(docs))
+	for i, d := range docs {
+		out[i] = d.FilePath
+	}
+	return out
+}
+
+func restDocPaths(docs []struct {
+	ID       string `json:"id"`
+	FilePath string `json:"file_path"`
+	Status   string `json:"status"`
+}) []string {
+	out := make([]string, len(docs))
+	for i, d := range docs {
+		out[i] = d.FilePath
+	}
+	return out
+}
+
+func grpcDocPaths(docs []*goragpb.DocumentMeta) []string {
+	out := make([]string, len(docs))
+	for i, d := range docs {
+		out[i] = d.GetFilePath()
+	}
+	return out
 }

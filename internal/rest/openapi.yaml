@@ -266,7 +266,7 @@ paths:
 
   /v1/documents:
     get:
-      summary: List documents — ingested_at cursor + status filter + pagination (spec 039)
+      summary: List documents — ingested_at cursor + status + tag filter + pagination (spec 039 / 047 R3)
       parameters:
         - name: page_size
           in: query
@@ -282,6 +282,10 @@ paths:
         - name: status
           in: query
           schema: { type: string, enum: [embedded, pending, error] }
+        - name: tag
+          in: query
+          schema: { type: array, items: { type: string } }
+          description: spec 047 R3 repeatable match-any tag filter (?tag=a&tag=b → union)
       responses:
         '200':
           description: a page of documents + next_page_token (empty result = empty array)
@@ -294,6 +298,34 @@ paths:
                   next_page_token: { type: string, description: "opaque; empty when last page" }
         '400':
           description: invalid-argument (page_size out of range, non-RFC3339 after, unknown status, malformed page_token)
+
+  /v1/documents/{document_id}/chunks:
+    get:
+      summary: List one document's chunks, paginated (spec 047 / T006)
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: page_size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: page_token
+          in: query
+          schema: { type: string }
+          description: opaque pagination cursor from a prior next_page_token
+      responses:
+        '200':
+          description: a page of chunks + next_page_token (unknown doc / empty page = empty array, not 404)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chunks: { type: array, description: "ordered (chunk_index ASC, chunk_id ASC); same shape as GetChunk's chunk" }
+                  next_page_token: { type: string, description: "opaque; empty when last page" }
+        '400':
+          description: invalid-argument (empty document_id, page_size out of range, malformed page_token)
 
   /v1/config:
     get:

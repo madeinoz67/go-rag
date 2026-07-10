@@ -19,6 +19,7 @@ func (a *Adapter) ListDocuments(_ context.Context, req *goragpb.ListDocumentsReq
 		PageToken: req.GetPageToken(),
 		After:     req.GetAfter(),
 		Status:    req.GetStatus(),
+		Tags:      req.GetTags(), // spec 047 R3: match-any tag filter (parity with REST/MCP)
 	})
 	if err != nil {
 		return nil, toStatusErr(err) // ErrInvalid → InvalidArgument

@@ -31,6 +31,7 @@ func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 		PageToken: q.Get("page_token"),
 		After:     q.Get("after"),
 		Status:    q.Get("status"),
+		Tags:      q["tag"], // spec 047 R3: repeatable ?tag= match-any filter
 	}
 	if raw := q.Get("page_size"); raw != "" {
 		n, err := strconv.Atoi(raw)

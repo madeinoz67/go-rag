@@ -40,11 +40,11 @@ New files: `internal/engine/list_chunks.go`, `internal/rest/list_chunks.go`, `in
 - [X] T003 Implement `Engine.ListChunks` — `internal/engine/list_chunks.go`: `func (e *Engine) ListChunks(documentID string, req ListChunksRequest) (*ListChunksResult, error)` with `ListChunksRequest{PageSize, PageToken}` / `ListChunksResult{Chunks []model.Chunk, NextPageToken}`. One `PrefixScan` over chunk prefix (0x03) filtered by `document_id`, ordered `(chunk_index ASC, chunk_id ASC)`; opaque cursor pagination reusing the `list_documents.go` encode/decode-page-token pattern (token encodes the resume point; client re-sends page_size/page_token each page). page_size default 50 / max 200 (`defaultListPageSize`/`maxListPageSize`). Pure read, no new key. (R1, R7)
 - [X] T004 `Engine.ListChunks` tests — `internal/engine/list_chunks_test.go`: pagination + cursor resume; ordering; empty document (empty `Chunks`, empty token — not an error); unknown document (empty result, not an error); invalid page_token / out-of-range page_size → `ErrInvalid`. Mirror `list_documents_test.go::TestListDocuments_{Pagination,CursorAndFilter,InvalidInput}`.
 - [X] T005 Add `Tags []string` (match-any) filter to `ListDocumentsRequest` + apply it in the existing in-memory filter pass in `internal/engine/list_documents.go`; empty/nil = all documents (backward-compatible). Add a tag-filter case to `internal/engine/list_documents_test.go`. (R3)
-- [ ] T006 [P] REST projection — `internal/rest/list_chunks.go`: `GET /v1/documents/{document_id}/chunks?page_size=&page_token=` → `{chunks: [documentMetaDTO-shape], next_page_token}` (reuse the `chunkDTO` projection); 200 always (empty = empty array), 400 invalid-arg, 404 unknown doc. Also bind repeatable `?tag=` in `internal/rest/list_documents.go::handleListDocuments` → `req.Tags`. (R1, R3)
-- [ ] T007 [P] gRPC projection — `internal/grpc/list_chunks.go`: `func (a *Adapter) ListDocuments`-style `Adapter.ListChunks(ctx, *goragpb.ListChunksRequest) (*goragpb.ListChunksResponse, error)` delegating to `eng.ListChunks` (depends on T001 regen). (R1)
-- [ ] T008 [P] MCP projection — `internal/mcp/server.go`: add `renderListChunks(eng, args)` + a `go_rag_list_chunks` tool registration; thread a `tags` arg through `renderListDocuments`. (R1, R3)
-- [ ] T009 [P] CLI projection — `internal/cli/chunk.go`: add a `go-rag chunk list <document_id> [--page-size N] [--page-token T]` subcommand (JSON default + `--format text`), mirroring `newDocumentsListCmd`. (R1; constitution V: CLI op → also MCP, satisfied by T008)
-- [ ] T010 Cross-transport parity test — `internal/engine/parity_test.go::TestCrossTransport_ListChunksParity` (pattern of `TestCrossTransport_ListDocumentsParity`): against one engine assert engine / REST / gRPC / MCP / CLI `ListChunks` return byte-identical chunks for a document; add a `Tags`-filter parity case to the ListDocuments parity test. (R1, R8, FR-013)
+- [X] T006 [P] REST projection — `internal/rest/list_chunks.go`: `GET /v1/documents/{document_id}/chunks?page_size=&page_token=` → `{chunks: [documentMetaDTO-shape], next_page_token}` (reuse the `chunkDTO` projection); 200 always (empty = empty array), 400 invalid-arg, 404 unknown doc. Also bind repeatable `?tag=` in `internal/rest/list_documents.go::handleListDocuments` → `req.Tags`. (R1, R3)
+- [X] T007 [P] gRPC projection — `internal/grpc/list_chunks.go`: `func (a *Adapter) ListDocuments`-style `Adapter.ListChunks(ctx, *goragpb.ListChunksRequest) (*goragpb.ListChunksResponse, error)` delegating to `eng.ListChunks` (depends on T001 regen). (R1)
+- [X] T008 [P] MCP projection — `internal/mcp/server.go`: add `renderListChunks(eng, args)` + a `go_rag_list_chunks` tool registration; thread a `tags` arg through `renderListDocuments`. (R1, R3)
+- [X] T009 [P] CLI projection — `internal/cli/chunk.go`: add a `go-rag chunk list <document_id> [--page-size N] [--page-token T]` subcommand (JSON default + `--format text`), mirroring `newDocumentsListCmd`. (R1; constitution V: CLI op → also MCP, satisfied by T008)
+- [X] T010 Cross-transport parity test — `internal/engine/parity_test.go::TestCrossTransport_ListChunksParity` (pattern of `TestCrossTransport_ListDocumentsParity`): against one engine assert engine / REST / gRPC / MCP / CLI `ListChunks` return byte-identical chunks for a document; add a `Tags`-filter parity case to the ListDocuments parity test. (R1, R8, FR-013)
 
 **Checkpoint**: `Engine.ListChunks` live engine + REST + gRPC + MCP + CLI; parity pinned; `make build && make vet` clean. UI may now call the engine in-process.
 
@@ -108,9 +108,9 @@ New files: `internal/engine/list_chunks.go`, `internal/rest/list_chunks.go`, `in
 
 ### Implementation / Verification
 
-- [ ] T022 [US4] No-Node + read-only assertion tests — `internal/ui/ui_test.go`: repo-root scan finds no `package.json`/`node_modules`/`vite.config.*`/`tailwind.config.*`; enumerate the UI mux and assert every `/api/documents*` route is `GET` (no write verb registered); `/static/*` assets serve 200 from the embed FS. (FR-009, FR-011, SC-005, SC-006)
-- [ ] T023 [US4] Cross-transport parity test — `internal/ui/ui_test.go`: against one engine, assert the UI `documentDTO` from `GET /api/documents` is byte-identical to REST `GET /v1/documents` and MCP `go_rag_list_documents`; assert the UI `chunkDTO` from `/api/documents/{id}/chunks` matches REST. (R8, FR-013, SC-004)
-- [ ] T024 [US4] Empty/edge-state rendering — `internal/ui/web/static/js/app.js` + `internal/ui/web/templates/index.html`: empty corpus (healthy empty state, not error), zero-chunk document, `status==error` (failed-embed badge), drifted embedding, un-enriched summary — each renders a deliberate state, never a crash. (FR-012)
+- [X] T022 [US4] No-Node + read-only assertion tests — `internal/ui/ui_test.go`: repo-root scan finds no `package.json`/`node_modules`/`vite.config.*`/`tailwind.config.*`; enumerate the UI mux and assert every `/api/documents*` route is `GET` (no write verb registered); `/static/*` assets serve 200 from the embed FS. (FR-009, FR-011, SC-005, SC-006)
+- [X] T023 [US4] Cross-transport parity test — `internal/ui/ui_test.go`: against one engine, assert the UI `documentDTO` from `GET /api/documents` is byte-identical to REST `GET /v1/documents` and MCP `go_rag_list_documents`; assert the UI `chunkDTO` from `/api/documents/{id}/chunks` matches REST. (R8, FR-013, SC-004)
+- [X] T024 [US4] Empty/edge-state rendering — `internal/ui/web/static/js/app.js` + `internal/ui/web/templates/index.html`: empty corpus (healthy empty state, not error), zero-chunk document, `status==error` (failed-embed badge), drifted embedding, un-enriched summary — each renders a deliberate state, never a crash. (FR-012)
 
 **Checkpoint**: US4 independently testable — the invariants are pinned.
 
@@ -118,9 +118,9 @@ New files: `internal/engine/list_chunks.go`, `internal/rest/list_chunks.go`, `in
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T025 [P] Gate hygiene — `make lint` (0 findings), `make vet`, `make test -race` clean across `internal/engine`, `internal/rest`, `internal/grpc`, `internal/mcp`, `internal/cli`, `internal/ui`.
-- [ ] T026 [P] quickstart curl smoke DONE on an isolated DB (list/detail/chunks/context/search + 401 regimes + no `Set-Cookie` + no-Node); Interceptor browser verify of browse/inspect/search render = remaining manual step.
-- [ ] T027 [P] Doc sync — update spec 046's Slice Decomposition row (047 status); update `PROJECTS.md` go-rag entry + MuninnDB memory to reflect Slice 1 tasked.
+- [X] T025 [P] Gate hygiene — `make lint` (0 findings), `make vet`, `make test -race` clean across `internal/engine`, `internal/rest`, `internal/grpc`, `internal/mcp`, `internal/cli`, `internal/ui`.
+- [X] T026 [P] quickstart curl smoke DONE on an isolated DB (list/detail/chunks/context/search + 401 regimes + no `Set-Cookie` + no-Node); Interceptor browser verify of browse/inspect/search render = remaining manual step.
+- [X] T027 [P] Doc sync — update spec 046's Slice Decomposition row (047 status); update `PROJECTS.md` go-rag entry + MuninnDB memory to reflect Slice 1 tasked.
 
 ---
 

@@ -53,7 +53,70 @@ func newChunkCmd() *cobra.Command {
 	cmd.AddCommand(newChunkGetCmd())
 	cmd.AddCommand(newChunkContextCmd()) // spec 037
 	cmd.AddCommand(newChunkBatchCmd())   // spec 038
+	cmd.AddCommand(newChunkListCmd())    // spec 047 (Documents view)
 	return cmd
+}
+
+// chunksListOut is the CLI JSON envelope for ListChunks — {chunks, next_page_token} —
+// mirroring the proto ListChunksResponse / REST shape 1:1 (cross-transport parity,
+// spec 047 T009). Identical envelope shape to documentsListOut.
+type chunksListOut struct {
+	Chunks        []chunkOut `json:"chunks"`
+	NextPageToken string     `json:"next_page_token,omitempty"`
+}
+
+// newChunkListCmd lists one document's chunks, paginated (spec 047 / T009). It
+// is the CLI projection of engine.ListChunks — the direct analogue of
+// `documents list` over the chunk prefix. JSON is the default format
+// (scripting/bridge friendly); --format text prints one line per chunk
+// (chunk_index, chunk_id, token_count) + a next_page_token line when present.
+func newChunkListCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "list <document_id>",
+		Short: "List one document's chunks, paginated (spec 047)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			pageSize, _ := cmd.Flags().GetInt("page-size")
+			pageToken, _ := cmd.Flags().GetString("page-token")
+			format, _ := cmd.Flags().GetString("format")
+			cfg, db, err := openDB(dbPath)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+			res, err := engine.NewWithDB(cfg, db).ListChunks(args[0], engine.ListChunksRequest{
+				PageSize: pageSize, PageToken: pageToken,
+			})
+			if err != nil {
+				return err
+			}
+			out := chunksListOut{Chunks: make([]chunkOut, len(res.Chunks)), NextPageToken: res.NextPageToken}
+			for i, c := range res.Chunks {
+				out.Chunks[i] = toChunkOut(c)
+			}
+			if format == "json" {
+				return json.NewEncoder(os.Stdout).Encode(out)
+			}
+			printChunksListText(out)
+			return nil
+		},
+	}
+	cmd.Flags().Int("page-size", engine.DefaultListPageSize(), "page size (1..200; default 50)")
+	cmd.Flags().String("page-token", "", "opaque pagination cursor (next_page_token)")
+	cmd.Flags().StringP("format", "f", "json", "output format: json|text")
+	return cmd
+}
+
+// printChunksListText renders one line per chunk (chunk_index, chunk_id,
+// token_count) plus a next_page_token line when present. Mirrors the MCP text
+// render (cross-transport parity, spec 047).
+func printChunksListText(out chunksListOut) {
+	for _, c := range out.Chunks {
+		fmt.Printf("[%d] %s (%d tokens)\n", c.ChunkIndex, c.ChunkID, c.TokenCount)
+	}
+	if out.NextPageToken != "" {
+		fmt.Printf("next_page_token: %s\n", out.NextPageToken)
+	}
 }
 
 // newChunkGetCmd resolves a chunk_id to its full chunk. JSON is the default
