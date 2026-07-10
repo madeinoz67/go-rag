@@ -69,7 +69,9 @@ func newEngineWithCorpus(t *testing.T, doc string) *engine.Engine {
 	if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
-	return engine.NewWithDB(cfg, db)
+	eng := engine.NewWithDB(cfg, db)
+	t.Cleanup(eng.Close) // drain background workers before db.Close (no-op; corpus ingested via a separately-drained pipeline)
+	return eng
 }
 
 // dialBuf serves srv on an in-memory bufconn and returns a client plus a cleanup

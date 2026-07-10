@@ -65,6 +65,7 @@ func TestProcessor_PerTextIsolation_MarksPoisonTerminal(t *testing.T) {
 
 	p := New(db, em, nil, vec, nil)
 	p.Start(context.Background())
+	defer p.Stop()
 	time.Sleep(400 * time.Millisecond)
 	p.Stop()
 
@@ -111,6 +112,7 @@ func TestProcessor_PerTextIsolation_AllFailStaysPending(t *testing.T) {
 	}
 	p := New(db, alwaysFailEmbedder{}, nil, vec, nil)
 	p.Start(context.Background())
+	defer p.Stop()
 	time.Sleep(400 * time.Millisecond)
 	p.Stop()
 

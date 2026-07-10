@@ -30,7 +30,9 @@ func newTestEngineCfg(t *testing.T, mutate func(*config.Config)) (*Engine, strin
 	if mutate != nil {
 		mutate(&cfg)
 	}
-	return NewWithDB(cfg, db), dir
+	eng := NewWithDB(cfg, db)
+	t.Cleanup(eng.Close) // drain background workers before db.Close (no-op for read-only engines)
+	return eng, dir
 }
 
 // TestEngine_Query_EffectivePool_Resolution (H22/spec 024, US1) proves the

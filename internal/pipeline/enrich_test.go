@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/madeinoz67/go-rag/internal/chunk"
@@ -49,6 +50,9 @@ func TestPipeline_EnrichsDocument(t *testing.T) {
 
 	p := New(db, chunk.NewSplitter(512, 50), fakeEmbedPI{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
 	p.SetEnricher(fakeEnricher{})
+	var drainOnce sync.Once
+	drain := func() { drainOnce.Do(p.Close) }
+	defer drain() // safety net: drain async workers if a t.Fatal skips the in-body drain
 
 	dp := filepath.Join(dir, "doc.txt")
 	if err := os.WriteFile(dp, []byte("Nightly incremental backups protect against ransomware and disk failure. "+
@@ -62,7 +66,7 @@ func TestPipeline_EnrichsDocument(t *testing.T) {
 	if res.New == 0 {
 		t.Fatal("expected 1 new document")
 	}
-	p.Close() // drain async embed + enrich
+	drain() // happy-path drain before reading the async-written sidecar (idempotent via drainOnce)
 
 	// Read the document back; it must carry the Enrichment sidecar.
 	var doc model.Document
@@ -107,6 +111,10 @@ func TestPipeline_NoEnricherIsNoop(t *testing.T) {
 
 	p := New(db, chunk.NewSplitter(512, 50), fakeEmbedPI{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
 	// No SetEnricher — enrichment off.
+	var drainOnce sync.Once
+	drain := func() { drainOnce.Do(p.Close) }
+	defer drain() // safety net: drain async workers if a t.Fatal skips the in-body drain
+
 	dp := filepath.Join(dir, "doc.txt")
 	if err := os.WriteFile(dp, []byte("A document with no enrichment configured."), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)
@@ -114,7 +122,7 @@ func TestPipeline_NoEnricherIsNoop(t *testing.T) {
 	if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
-	p.Close()
+	drain() // happy-path drain (idempotent via drainOnce)
 
 	var doc model.Document
 	_ = db.PrefixScanByte(storage.PrefixDocument, func(_ []byte, val []byte) bool {

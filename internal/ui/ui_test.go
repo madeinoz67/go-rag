@@ -36,7 +36,9 @@ func newTestEngine(t *testing.T) *engine.Engine {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return engine.NewWithDB(cfg, db)
+	eng := engine.NewWithDB(cfg, db)
+	t.Cleanup(eng.Close) // drain background workers before db.Close (no-op for read-only engines)
+	return eng
 }
 
 func newUITest(t *testing.T, eng *engine.Engine) *httptest.Server {

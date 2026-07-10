@@ -72,6 +72,7 @@ func TestProcessor_CrashRecovery(t *testing.T) {
 
 	p := New(db, em, nil, vec, nil)
 	p.Start(context.Background())
+	defer p.Stop()
 	time.Sleep(200 * time.Millisecond)
 	p.Stop()
 
@@ -97,6 +98,7 @@ func TestProcessor_StopBoundedWhenDrainStuck(t *testing.T) {
 	vec := index.NewVector()
 	p := New(db, em, nil, vec, nil)
 	p.Start(context.Background())
+	defer p.Stop()
 
 	// Simulate a stuck worker: Add to the WaitGroup with no matching Done.
 	p.wg.Add(1)
@@ -120,6 +122,7 @@ func TestProcessor_IdempotentReEmbed(t *testing.T) {
 
 	p := New(db, em, nil, vec, nil)
 	p.Start(context.Background())
+	defer p.Stop()
 	time.Sleep(150 * time.Millisecond)
 	p.Stop()
 	if em.calls != 1 {
@@ -129,6 +132,7 @@ func TestProcessor_IdempotentReEmbed(t *testing.T) {
 	_ = db.PutEmbedQueueItem("chunk1", "fake")
 	p2 := New(db, em, nil, vec, nil)
 	p2.Start(context.Background())
+	defer p2.Stop()
 	time.Sleep(150 * time.Millisecond)
 	p2.Stop()
 
@@ -149,6 +153,7 @@ func TestProcessor_CrossDocBatching(t *testing.T) {
 
 	p := New(db, em, nil, vec, nil)
 	p.Start(context.Background())
+	defer p.Stop()
 	time.Sleep(400 * time.Millisecond)
 	p.Stop()
 
@@ -174,6 +179,7 @@ func TestProcessor_CircuitBreaker(t *testing.T) {
 
 	p := New(db, failingEmbedder{}, nil, vec, nil)
 	p.Start(context.Background())
+	defer p.Stop()
 	time.Sleep(400 * time.Millisecond)
 	p.Stop()
 

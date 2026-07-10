@@ -27,7 +27,9 @@ func newTestEngine(t *testing.T) (*Engine, string) {
 	cfg := config.Default()
 	cfg.DBPath = dir
 	cfg.EmbeddingModel = "nomic-embed-text"
-	return NewWithDB(cfg, db), dir
+	eng := NewWithDB(cfg, db)
+	t.Cleanup(eng.Close) // drain background workers before db.Close (no-op for read-only engines)
+	return eng, dir
 }
 
 func TestEngine_Status_EmptyDB(t *testing.T) {

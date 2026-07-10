@@ -141,8 +141,10 @@ func TestValidateSession_NoResurrectUnderConcurrentRevoke(t *testing.T) {
 		t.Fatalf("MintSession: %v", err)
 	}
 	done := make(chan struct{})
+	quit := make(chan struct{})
 	// Validator hammer.
 	go func() {
+		defer close(quit)
 		for {
 			select {
 			case <-done:
@@ -157,6 +159,7 @@ func TestValidateSession_NoResurrectUnderConcurrentRevoke(t *testing.T) {
 		_ = RevokeSession(s, tok)
 	}
 	close(done)
+	<-quit // join hammer so its final Validate* cannot race t.Cleanup's db.Close()
 	// After revoke settled, the session must NOT validate.
 	if _, err := ValidateSession(s, tok); err != ErrUnknownSession {
 		t.Fatalf("session resurrected after revoke: err=%v", err)
@@ -173,7 +176,9 @@ func TestValidateAPIKey_NoResurrectUnderConcurrentRevoke(t *testing.T) {
 	}
 	id := id8of(display)
 	done := make(chan struct{})
+	quit := make(chan struct{})
 	go func() {
+		defer close(quit)
 		for {
 			select {
 			case <-done:
@@ -187,6 +192,7 @@ func TestValidateAPIKey_NoResurrectUnderConcurrentRevoke(t *testing.T) {
 		_ = RevokeAPIKey(s, id)
 	}
 	close(done)
+	<-quit // join hammer so its final Validate* cannot race t.Cleanup's db.Close()
 	// Revoked key must not authenticate.
 	if _, err := ValidateAPIKey(s, display); err != ErrUnknownAPIKey {
 		t.Fatalf("api key resurrected after revoke: err=%v", err)

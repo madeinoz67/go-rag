@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/madeinoz67/go-rag/internal/chunk"
@@ -22,8 +23,11 @@ func TestEmbeddingModelRecorded(t *testing.T) {
 	}
 	defer db.Close()
 	p := New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
+	var drainOnce sync.Once
+	drain := func() { drainOnce.Do(p.Close) }
+	defer drain() // safety net: drain async workers if a t.Fatal skips the in-body drain
 	_, _ = p.Ingest(context.Background(), dir, "*")
-	p.Close() // drain async embedding so 0x04 entries are written
+	drain() // drain async embedding so the queue count check is stable (idempotent via drainOnce)
 
 	// spec 030: the pipeline now queues chunks for the background embedder (0x14),
 	// not embedding directly. Verify the queue has entries with the right model.

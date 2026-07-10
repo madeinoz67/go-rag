@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/madeinoz67/go-rag/internal/chunk"
@@ -44,6 +45,10 @@ func ingestWith(t *testing.T, e enrich.Enricher) model.Document {
 	if e != nil {
 		p.SetEnricher(e)
 	}
+	var drainOnce sync.Once
+	drain := func() { drainOnce.Do(p.Close) }
+	defer drain() // safety net: drain async workers if a t.Fatal skips the in-body drain
+
 	dp := filepath.Join(dir, "doc.txt")
 	if err := os.WriteFile(dp, []byte("A document on nightly incremental backups and retention."), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)
@@ -51,7 +56,7 @@ func ingestWith(t *testing.T, e enrich.Enricher) model.Document {
 	if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
-	p.Close()
+	drain() // happy-path drain before read (idempotent via drainOnce)
 	var doc model.Document
 	_ = db.PrefixScanByte(storage.PrefixDocument, func(_ []byte, val []byte) bool {
 		_ = json.Unmarshal(val, &doc)
