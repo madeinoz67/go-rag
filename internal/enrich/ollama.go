@@ -25,7 +25,24 @@ type Ollama struct {
 
 // NewOllama returns an Ollama enricher pointing at baseURL using model.
 func NewOllama(baseURL, model string) *Ollama {
-	return &Ollama{baseURL: baseURL, model: model, client: &http.Client{Timeout: 120 * time.Second}, br: newBreaker()}
+	return &Ollama{
+		baseURL: baseURL,
+		model:   model,
+		client: &http.Client{
+			Timeout: 120 * time.Second,
+			Transport: &http.Transport{
+				// DisableKeepAlives forces a fresh TCP conn per /api/generate
+				// call. Without it, after ~88 sequential requests a pooled conn
+				// goes stale (Ollama closes it server-side; the client doesn't
+				// notice) and the next persistConn.roundTrip hands the request to
+				// the dead conn, where it hangs indefinitely — Client.Timeout
+				// fails to fire on this path. A per-request conn (the exact curl
+				// pattern) eliminates the dead-conn-reuse pathology.
+				DisableKeepAlives: true,
+			},
+		},
+		br: newBreaker(),
+	}
 }
 
 // Model returns the generation model identifier (provenance on the sidecar).
@@ -58,6 +75,14 @@ Rules: tags are single words or short hyphenated phrases, lowercase, no punctuat
 
 // maxDocChars bounds the text sent to the model (context safety + latency).
 const maxDocChars = 4000
+
+// enrichTimeout bounds a single /api/generate call. Normal generation is ~3s
+// (warm model, ~1000-token prompt, ~50-token JSON output); 120s gives generous
+// headroom for a cold model-load + prompt eval while preventing a hung generate
+// from blocking the serial ReEnrich scan. Client.Timeout alone fails to fire on
+// the persistConn.roundTrip hang path (darwin/arm64, Go 1.26), so each request
+// gets its own explicit context deadline that does fire.
+const enrichTimeout = 120 * time.Second
 
 // Enrich asks the local model for tags + summary, guarded by a circuit breaker
 // (spec 029, R5). An open breaker fast-fails with ErrCircuitOpen (transient — the
@@ -94,7 +119,14 @@ func (o *Ollama) generate(ctx context.Context, docText string) ([]string, string
 		Stream: false,
 		Format: "json",
 	})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.baseURL+"/api/generate", bytes.NewReader(body))
+	// Per-request deadline: some document contents send the model's
+	// JSON-grammar-constrained generation into a non-terminating loop (Ollama
+	// accepts the request but never produces the closing tokens, so it never
+	// responds). The explicit context deadline cancels the HTTP request and
+	// turns the hang into a retryable transient error ReEnrich skips.
+	reqCtx, cancel := context.WithTimeout(ctx, enrichTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, o.baseURL+"/api/generate", bytes.NewReader(body))
 	if err != nil {
 		return nil, "", err
 	}
