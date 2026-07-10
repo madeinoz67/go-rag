@@ -147,6 +147,7 @@ func TestEpoch_AsyncVectorBump(t *testing.T) {
 func TestEpoch_MigrateFlushesCaches(t *testing.T) {
 	e := newResultCacheEngine(t, 8)
 	addDoc(t, e, "migrate document content about re-embedding")
+	waitForEpochStable(t, e) // drain async index bumps before querying (CI timing)
 
 	// Warm the result cache with a query (embedder model "fake" matches corpus).
 	req := QueryRequest{Query: "migrate", Mode: "keyword", K: 5}
