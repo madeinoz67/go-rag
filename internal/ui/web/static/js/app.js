@@ -401,6 +401,187 @@
         );
       },
 
+      // === Query (spec 048) ============================================
+      // Read-only retrieval view: POST /api/query → Engine.Query in-process.
+      // Explicit submit only (R9) — controls never auto-fire. include_quarantined
+      // resets to false on each new query (R8: quarantine-by-default).
+      queryInput: '',
+      queryForm: {
+        k: 5,
+        mode: 'hybrid',
+        no_rerank: false,
+        threshold: 0,
+        rrf_k: 0,
+        pool_size: 0,
+        source: '',
+        type: '',
+        tags: '', // comma-separated in the UI; split + trimmed on submit
+        context_window: 0,
+        no_cache: false,
+        include_quarantined: false,
+        dedup: false,
+      },
+      queryLoading: false,
+      queryResult: null, // queryResponseDTO (hits + transparency) or null
+      queryError: '',    // operator-facing detail for the current state
+      queryErrorKind: '', // '' | 'empty' | 'noresults' | 'embedder' | 'mismatch' | 'unauth' | 'network'
+      selectedHit: null,  // queryHitDTO open in the detail pane (client-side, no round-trip — R7)
+      queryRequestedK: 5, // the (clamped) k actually sent, for the adaptive-depth note (R6)
+
+      /** clampTopK keeps k in [1,50] (R7: default 5, sane ceiling). */
+      clampTopK: function (n) {
+        n = Number(n) || 5;
+        if (n < 1) n = 1;
+        if (n > 50) n = 50;
+        return n;
+      },
+
+      /** Build the /api/query request body from the form state. */
+      queryRequestBody: function () {
+        var k = this.clampTopK(this.queryForm.k);
+        var tags = (this.queryForm.tags || '')
+          .split(',')
+          .map(function (t) { return t.trim(); })
+          .filter(function (t) { return t.length > 0; });
+        // R8: capture the per-query quarantine opt-in, then reset the toggle so
+        // the resting state is always safe (quarantine-by-default).
+        var includeQuarantined = !!this.queryForm.include_quarantined;
+        this.queryForm.include_quarantined = false;
+        return {
+          query: (this.queryInput || '').trim(),
+          k: k,
+          mode: this.queryForm.mode || 'hybrid',
+          no_rerank: !!this.queryForm.no_rerank,
+          threshold: Number(this.queryForm.threshold) || 0,
+          rrf_k: Number(this.queryForm.rrf_k) || 0,
+          pool_size: Number(this.queryForm.pool_size) || 0,
+          source: (this.queryForm.source || '').trim(),
+          type: (this.queryForm.type || '').trim(),
+          tags: tags,
+          context_window: Number(this.queryForm.context_window) || 0,
+          no_cache: !!this.queryForm.no_cache,
+          include_quarantined: includeQuarantined,
+          dedup: !!this.queryForm.dedup,
+        };
+      },
+
+      /** Submit the query (explicit — Enter or Search button). R9: never auto-fires. */
+      runQuery: async function () {
+        var body = this.queryRequestBody();
+        this.queryRequestedK = body.k;
+        // Client-side guard: empty/whitespace query → empty state, not a request (R11).
+        if (!body.query) {
+          this.queryResult = null;
+          this.selectedHit = null;
+          this.queryError = '';
+          this.queryErrorKind = 'empty';
+          return;
+        }
+        this.queryError = '';
+        this.queryErrorKind = '';
+        this.queryLoading = true;
+        this.selectedHit = null;
+        try {
+          var res = await this.api('/api/query', {
+            method: 'POST',
+            body: JSON.stringify(body),
+          });
+          if (!res) return;
+          if (res.status === 401) {
+            // api() already cleared the token → the gate re-locks to login.
+            this.queryErrorKind = 'unauth';
+            this.queryError = 'Session expired.';
+            this.queryResult = null;
+            return;
+          }
+          if (res.status === 503) {
+            // Embedder unreachable (semantic/vector needs local Ollama) — suggest keyword.
+            this.queryErrorKind = 'embedder';
+            this.queryError = await this.readErrDetail(res);
+            this.queryResult = null;
+            return;
+          }
+          if (res.status === 400) {
+            var msg = await this.readErrMsg(res);
+            if (msg === 'embedding mismatch') {
+              this.queryErrorKind = 'mismatch';
+              this.queryError = await this.readErrDetail(res);
+            } else {
+              // 'empty query' (shouldn't happen — client guards) or 'invalid mode'.
+              this.queryErrorKind = 'network';
+              this.queryError = msg || ('Bad request (HTTP 400).');
+            }
+            this.queryResult = null;
+            return;
+          }
+          if (!res.ok) {
+            this.queryErrorKind = 'network';
+            this.queryError = 'Query failed (HTTP ' + res.status + ').';
+            this.queryResult = null;
+            return;
+          }
+          var data;
+          try {
+            data = await res.json();
+          } catch (_e) {
+            this.queryErrorKind = 'network';
+            this.queryError = 'Query response was not valid JSON.';
+            this.queryResult = null;
+            return;
+          }
+          this.queryResult = data;
+          // No-results state: distinguish "corpus empty" from "nothing matched".
+          if (!data || !data.hits || data.hits.length === 0) {
+            this.queryErrorKind = 'noresults';
+          }
+        } catch (_e) {
+          this.queryErrorKind = 'network';
+          this.queryError = 'Network error running the query.';
+          this.queryResult = null;
+        } finally {
+          this.queryLoading = false;
+        }
+      },
+
+      /** readErrMsg pulls {"error": "..."} from a JSON error response (best-effort). */
+      readErrMsg: async function (res) {
+        try {
+          var m = await res.clone().json();
+          return m && typeof m.error === 'string' ? m.error : '';
+        } catch (_e) {
+          return '';
+        }
+      },
+
+      /** readErrDetail pulls {"detail": "..."} (or {"error":...}) for guidance. */
+      readErrDetail: async function (res) {
+        try {
+          var m = await res.clone().json();
+          if (!m) return '';
+          if (typeof m.detail === 'string') return m.detail;
+          if (typeof m.error === 'string') return m.error;
+          return '';
+        } catch (_e) {
+          return '';
+        }
+      },
+
+      /** Open a hit's detail pane (client-side — the payload already carries
+       *  full text + context + provenance, so no second round-trip — R7). */
+      selectHit: function (hit) {
+        this.selectedHit = hit;
+      },
+
+      /** Close the detail pane; return to the result list. */
+      closeHit: function () {
+        this.selectedHit = null;
+      },
+
+      /** Format a score to 3 decimals for display. */
+      fmtScore: function (s) {
+        return (Number(s) || 0).toFixed(3);
+      },
+
       // === Token storage helpers ===========================================
 
       setToken: function (token) {

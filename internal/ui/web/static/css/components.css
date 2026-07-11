@@ -487,3 +487,89 @@
 .search-result:hover { border-color: var(--accent, #3b82f6); background: rgba(127,127,127,0.05); }
 .search-result-head { display: flex; gap: var(--space-2, 0.5rem); align-items: baseline; margin-bottom: var(--space-1, 0.25rem); }
 .search-snippet { font-size: 0.85rem; line-height: 1.45; color: var(--text-secondary, #c0c4cc); white-space: pre-wrap; word-break: break-word; }
+
+/* ==========================================================================
+ * Query view (spec 048 — US1/US2/US3) — form, controls, transparency, hits,
+ * provenance. Reuses the Documents-view primitives above (search-result,
+ * doc-meta, doc-chunk, chunk-context, tag-chip, badges) and adds only the
+ * query-specific layout. Same fallback-vars convention as spec 047.
+ * ========================================================================== */
+.query-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 0.75rem);
+  padding: var(--space-4, 1rem);
+}
+.query-input {
+  width: 100%;
+  min-height: 5.5rem;
+  resize: vertical;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.query-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+  align-items: end;
+}
+.ctrl {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #c0c4cc);
+}
+.ctrl.ctrl-wide { grid-column: span 2; }
+.ctrl-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #9aa0a6);
+}
+.ctrl .input { width: 100%; }
+.ctrl-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary, #c0c4cc);
+  cursor: pointer;
+}
+.ctrl-check input { margin: 0; }
+.query-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 0.75rem);
+}
+.query-hint { font-size: 0.78rem; }
+.query-transparency {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2, 0.5rem);
+  padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+  background: var(--bg-surface, rgba(127,127,127,0.04));
+  border: 1px solid var(--border, rgba(127,127,127,0.18));
+  border-radius: var(--radius-md, 6px);
+  font-size: 0.82rem;
+}
+.query-hit-preview {
+  max-height: 6.5rem;
+  overflow: hidden;
+}
+.query-provenance {
+  margin-top: var(--space-3, 0.75rem);
+  padding-top: var(--space-3, 0.75rem);
+  border-top: 1px solid var(--border, rgba(127,127,127,0.18));
+}
+.poisoning-verdict {
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: var(--radius-md, 6px);
+  padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+}
+@media (max-width: 768px) {
+  .query-controls { grid-template-columns: 1fr; }
+  .ctrl.ctrl-wide { grid-column: span 1; }
+}

@@ -100,8 +100,9 @@ REST projection omits but the UI detail view wants in one payload).
 **nearDupDTO** — `siblings` ([]string), `similarity` (float64).
 (Mirrors `model.NearDupInfo` / the REST `nearDupInfo`.)
 
-**contextChunkDTO** — `chunk_index` (int), `content` (string), `is_before` (bool).
-(Mirrors `engine.ContextChunk`; `is_before` distinguishes left/right sibling for rendering.)
+**contextChunkDTO** — `chunk_id` (string), `content` (string), `is_before` (bool).
+(Mirrors `engine.ContextChunk` (`ChunkID`, `Content`, `Direction` — the engine type carries no
+chunk index on siblings, so `chunk_id` is the faithful projection, mapped from `Direction`);
 
 ---
 

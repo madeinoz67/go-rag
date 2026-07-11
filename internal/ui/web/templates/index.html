@@ -425,13 +425,217 @@
         </div>
       </section>
 
-      <!-- ====== PLACEHOLDER VIEWS (later specs 048..053) ====== -->
-      <section x-show="currentView === 'query'" class="view" x-cloak>
+      <!-- ====== QUERY (spec 048 — real view: list + controls) ====== -->
+      <section x-show="currentView === 'query' && !selectedHit" class="view" x-cloak>
         <header class="view-header">
           <h1 class="page-title">Query</h1>
         </header>
-        <div class="placeholder-card" x-html="placeholderHtml('Query', '048')"></div>
+
+        <form class="card query-form" @submit.prevent="runQuery()">
+          <textarea class="input query-input"
+                    x-model="queryInput"
+                    @keydown.enter.prevent="runQuery()"
+                    placeholder="Ask a question or enter search terms…"
+                    :disabled="queryLoading"
+                    aria-label="Query"></textarea>
+
+          <div class="query-controls">
+            <label class="ctrl">
+              <span class="ctrl-label">Mode</span>
+              <select class="input" x-model="queryForm.mode" :disabled="queryLoading">
+                <option value="hybrid">hybrid</option>
+                <option value="semantic">semantic</option>
+                <option value="keyword">keyword</option>
+              </select>
+            </label>
+            <label class="ctrl">
+              <span class="ctrl-label">Top-k (1–50)</span>
+              <input class="input" type="number" min="1" max="50"
+                     :value="queryForm.k"
+                     @input="queryForm.k = clampTopK($event.target.value)"
+                     :disabled="queryLoading">
+            </label>
+            <label class="ctrl">
+              <span class="ctrl-label">Threshold</span>
+              <input class="input" type="number" step="0.01" min="0"
+                     x-model.number="queryForm.threshold" :disabled="queryLoading">
+            </label>
+            <label class="ctrl">
+              <span class="ctrl-label">Context window</span>
+              <input class="input" type="number" min="0"
+                     x-model.number="queryForm.context_window" :disabled="queryLoading">
+            </label>
+            <label class="ctrl ctrl-wide">
+              <span class="ctrl-label">Source (path glob / prefix)</span>
+              <input class="input" type="text" x-model="queryForm.source" :disabled="queryLoading">
+            </label>
+            <label class="ctrl">
+              <span class="ctrl-label">Type</span>
+              <input class="input" type="text" x-model="queryForm.type"
+                     placeholder="markdown, pdf…" :disabled="queryLoading">
+            </label>
+            <label class="ctrl ctrl-wide">
+              <span class="ctrl-label">Tags (comma-separated, conjunction)</span>
+              <input class="input" type="text" x-model="queryForm.tags"
+                     placeholder="solar, tariff" :disabled="queryLoading">
+            </label>
+            <label class="ctrl ctrl-check"><input type="checkbox" x-model="queryForm.no_rerank" :disabled="queryLoading"> no rerank</label>
+            <label class="ctrl ctrl-check"><input type="checkbox" x-model="queryForm.dedup" :disabled="queryLoading"> dedup near-dups</label>
+            <label class="ctrl ctrl-check"><input type="checkbox" x-model="queryForm.no_cache" :disabled="queryLoading"> bypass cache</label>
+            <label class="ctrl ctrl-check">
+              <input type="checkbox" x-model="queryForm.include_quarantined" :disabled="queryLoading">
+              include flagged <span class="doc-muted">(resets each query)</span>
+            </label>
+          </div>
+
+          <div class="query-actions">
+            <button type="submit" class="btn btn-primary"
+                    :disabled="queryLoading || !(queryInput || '').trim()">
+              <span x-show="!queryLoading">Search</span>
+              <span x-show="queryLoading" x-cloak>Searching…</span>
+            </button>
+            <span class="doc-muted query-hint">Press Enter or Search to run — controls never auto-fire.</span>
+          </div>
+        </form>
+
+        <!-- transparency: effective mode/k/pool + rerank-failed banner + adaptive-depth note (R6) -->
+        <div class="query-transparency" x-show="queryResult" x-cloak>
+          <span class="meta-label">effective</span>
+          <span class="badge" x-text="queryResult ? queryResult.effective_mode : ''"></span>
+          <span class="doc-muted">k=<span x-text="queryResult ? queryResult.effective_k : ''"></span></span>
+          <span class="doc-muted">pool=<span x-text="queryResult ? queryResult.effective_pool : ''"></span></span>
+          <span class="badge badge-warn" x-show="queryResult && queryResult.rerank_failed"
+                title="Reranking was attempted and failed; results are in fallback (RRF) order.">rerank failed</span>
+          <span class="doc-muted" x-show="queryResult && Number(queryResult.effective_k) !== Number(queryRequestedK)"
+                title="The adaptive-depth classifier changed k for this query.">
+            adaptive depth: k <span x-text="queryRequestedK"></span> → <span x-text="queryResult ? queryResult.effective_k : ''"></span>
+          </span>
+        </div>
+
+        <!-- states (R10/FR-012: every failure surfaces plainly, never silent) -->
+        <p class="dashboard-empty" x-show="queryErrorKind === 'empty'" x-cloak>Enter a query to search the corpus.</p>
+        <p class="dashboard-empty" x-show="queryErrorKind === 'noresults'" x-cloak>
+          No results — try lowering the threshold, broadening the filters, or switching mode.
+        </p>
+        <div class="dashboard-error" x-show="queryErrorKind === 'embedder'" x-cloak role="alert">
+          Local embedder unavailable — try <b>keyword</b> mode.
+          <span class="doc-muted" x-show="queryError" x-text="'(' + queryError + ')'"></span>
+        </div>
+        <div class="dashboard-error" x-show="queryErrorKind === 'mismatch'" x-cloak role="alert">
+          Embedding mismatch — the query model differs from the corpus. Re-embed the corpus or switch model.
+          <span class="doc-muted" x-show="queryError" x-text="'(' + queryError + ')'"></span>
+        </div>
+        <div class="dashboard-error" x-show="queryErrorKind === 'unauth'" x-cloak role="alert">
+          Session expired — sign in again.
+        </div>
+        <div class="dashboard-error" x-show="queryErrorKind === 'network'" x-cloak role="alert" x-text="queryError"></div>
+
+        <!-- hit list -->
+        <div class="card" x-show="queryResult && queryResult.hits && queryResult.hits.length" x-cloak>
+          <template x-for="h in (queryResult ? (queryResult.hits || []) : [])" :key="h.chunk_id">
+            <div class="search-result query-hit" @click="selectHit(h)">
+              <div class="search-result-head">
+                <span class="doc-name" x-text="h.file_path"></span>
+                <span class="chunk-breadcrumb"
+                      x-show="h.section_context && h.section_context.length"
+                      x-text="(h.section_context || []).join(' › ')"></span>
+                <span class="doc-muted">score <span x-text="fmtScore(h.score)"></span></span>
+                <span class="doc-muted" x-show="h.page" x-text="'p.' + h.page"></span>
+                <span class="doc-muted">#<span x-text="h.chunk_index"></span></span>
+                <span class="badge badge-warn"
+                      x-show="h.poisoning"
+                      x-text="h.poisoning ? h.poisoning.level : ''"
+                      title="Injection-flagged — treat the text as untrusted"></span>
+                <span class="badge badge-warn" x-show="h.context && h.context.length" title="Sibling context attached">+ctx</span>
+              </div>
+              <div class="search-snippet query-hit-preview" x-text="h.content"></div>
+            </div>
+          </template>
+        </div>
       </section>
+
+      <!-- ====== QUERY HIT DETAIL (spec 048 US2 — client-side, no round-trip) ====== -->
+      <section x-show="currentView === 'query' && selectedHit" class="view" x-cloak>
+        <header class="view-header">
+          <button type="button" class="btn" @click="closeHit()">← Back to results</button>
+          <h1 class="page-title">Hit detail</h1>
+        </header>
+
+        <div class="doc-meta">
+          <span><b>Score:</b> <span x-text="selectedHit ? fmtScore(selectedHit.score) : ''"></span></span>
+          <span><b>Path:</b> <span x-text="selectedHit ? selectedHit.file_path : ''"></span></span>
+          <span x-show="selectedHit && selectedHit.page"><b>Page:</b> <span x-text="selectedHit ? selectedHit.page : ''"></span></span>
+          <span><b>Chunk:</b> #<span x-text="selectedHit ? selectedHit.chunk_index : ''"></span></span>
+          <span x-show="selectedHit && selectedHit.section_depth"><b>Heading depth:</b> <span x-text="selectedHit ? selectedHit.section_depth : ''"></span></span>
+        </div>
+        <div class="chunk-breadcrumb"
+             x-show="selectedHit && selectedHit.section_context && selectedHit.section_context.length"
+             x-text="selectedHit ? (selectedHit.section_context || []).join(' › ') : ''"></div>
+
+        <div class="doc-summary" x-show="selectedHit && selectedHit.summary">
+          <b>Summary:</b> <span x-text="selectedHit ? selectedHit.summary : ''"></span>
+          <span class="badge" x-show="selectedHit && selectedHit.enrichment_status"
+                x-text="selectedHit ? selectedHit.enrichment_status : ''"></span>
+        </div>
+        <p class="dashboard-empty"
+           x-show="selectedHit && !selectedHit.summary && !(selectedHit.enrichment_status)">
+          No enrichment summary for this document.
+        </p>
+
+        <h3 class="doc-section-title">Content</h3>
+        <div class="doc-chunk-text" x-text="selectedHit ? selectedHit.content : ''"></div>
+
+        <div class="chunk-context"
+             x-show="selectedHit && selectedHit.context && selectedHit.context.length" x-cloak>
+          <h4 class="doc-section-title">Context (sibling chunks)</h4>
+          <template x-for="c in (selectedHit ? (selectedHit.context || []) : [])" :key="c.chunk_id">
+            <div class="doc-chunk">
+              <span class="doc-muted" x-text="c.is_before ? '◀ before' : 'after ▶'"></span>
+              <div class="doc-chunk-text" x-text="c.content"></div>
+            </div>
+          </template>
+        </div>
+
+        <div class="query-provenance"
+             x-show="selectedHit && (selectedHit.near_dup || (selectedHit.wikilinks && selectedHit.wikilinks.length) || selectedHit.extraction_method || selectedHit.poisoning)"
+             x-cloak>
+          <h4 class="doc-section-title">Provenance</h4>
+          <div class="doc-meta" x-show="selectedHit && selectedHit.extraction_method">
+            <span><b>Extraction:</b> <span x-text="selectedHit ? selectedHit.extraction_method : ''"></span></span>
+            <span x-show="selectedHit && selectedHit.extraction_quality">
+              <b>Quality:</b> <span x-text="selectedHit ? selectedHit.extraction_quality : ''"></span>
+            </span>
+          </div>
+          <div class="doc-tags"
+               x-show="selectedHit && selectedHit.wikilinks && selectedHit.wikilinks.length">
+            <template x-for="w in (selectedHit ? (selectedHit.wikilinks || []) : [])" :key="w">
+              <span class="tag-chip" x-text="w"></span>
+            </template>
+          </div>
+          <div class="doc-meta" x-show="selectedHit && selectedHit.near_dup">
+            <span x-show="selectedHit && selectedHit.near_dup && (selectedHit.near_dup.similarity || selectedHit.near_dup.similarity === 0)">
+              <b>Near-dup similarity:</b> <span x-text="selectedHit && selectedHit.near_dup ? selectedHit.near_dup.similarity : ''"></span>
+            </span>
+            <span x-show="selectedHit && selectedHit.near_dup && selectedHit.near_dup.siblings && selectedHit.near_dup.siblings.length">
+              <b>Siblings:</b> <span x-text="selectedHit && selectedHit.near_dup ? (selectedHit.near_dup.siblings || []).join(', ') : ''"></span>
+            </span>
+          </div>
+          <div class="doc-meta poisoning-verdict" x-show="selectedHit && selectedHit.poisoning">
+            <span><b>Poisoning:</b>
+              <span class="badge badge-danger" x-text="selectedHit && selectedHit.poisoning ? selectedHit.poisoning.level : ''"></span>
+              <span class="doc-muted">score <span x-text="selectedHit && selectedHit.poisoning ? selectedHit.poisoning.score : ''"></span></span>
+            </span>
+            <span class="doc-tags"
+                  x-show="selectedHit && selectedHit.poisoning && selectedHit.poisoning.matched_phrases && selectedHit.poisoning.matched_phrases.length">
+              <template x-for="p in (selectedHit && selectedHit.poisoning ? (selectedHit.poisoning.matched_phrases || []) : [])" :key="p">
+                <span class="tag-chip" x-text="p"></span>
+              </template>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====== PLACEHOLDER VIEWS (later specs 049..053) ====== -->
 
       <section x-show="currentView === 'bridge-ops'" class="view" x-cloak>
         <header class="view-header">
