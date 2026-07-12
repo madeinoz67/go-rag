@@ -101,7 +101,7 @@ spec 045 auth) — see PRD §2.2 N7. Don't build the rest without revisiting the
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/050-ui-documents-write/plan.md
+at specs/052-multi-vault-store/plan.md
 <!-- SPECKIT END -->
 
 <!-- gortex:communities:start -->
