@@ -50,6 +50,7 @@ const (
 	Gorag_BatchGetChunks_FullMethodName  = "/gorag.Gorag/BatchGetChunks"
 	Gorag_ListDocuments_FullMethodName   = "/gorag.Gorag/ListDocuments"
 	Gorag_ListChunks_FullMethodName      = "/gorag.Gorag/ListChunks"
+	Gorag_DeleteDocument_FullMethodName  = "/gorag.Gorag/DeleteDocument"
 	Gorag_WatchDocuments_FullMethodName  = "/gorag.Gorag/WatchDocuments"
 )
 
@@ -111,6 +112,11 @@ type GoragClient interface {
 	// page_token pagination. → engine.ListChunks (also REST
 	// GET /v1/documents/{id}/chunks, MCP go_rag_list_chunks, CLI `go-rag chunk list`).
 	ListChunks(ctx context.Context, in *ListChunksRequest, opts ...grpc.CallOption) (*ListChunksResponse, error)
+	// spec 050 (Slice 4): delete a document by its content-addressed ID —
+	// index-only (the source file on disk is never touched). → engine.DeleteDoc
+	// (also REST DELETE /v1/documents/{id}, MCP go_rag_delete_document,
+	// CLI `go-rag delete`).
+	DeleteDocument(ctx context.Context, in *DeleteDocumentRequest, opts ...grpc.CallOption) (*DeleteDocumentResponse, error)
 	// spec 040 (BL-008): long-lived server-stream of document lifecycle events
 	// (INGESTED/EMBEDDED/DELETED). → engine's event bus. gRPC-only — streaming has
 	// no unary equivalent (REST push = BL-011 webhook, separate).
@@ -345,6 +351,16 @@ func (c *goragClient) ListChunks(ctx context.Context, in *ListChunksRequest, opt
 	return out, nil
 }
 
+func (c *goragClient) DeleteDocument(ctx context.Context, in *DeleteDocumentRequest, opts ...grpc.CallOption) (*DeleteDocumentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteDocumentResponse)
+	err := c.cc.Invoke(ctx, Gorag_DeleteDocument_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *goragClient) WatchDocuments(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DocumentEvent], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &Gorag_ServiceDesc.Streams[0], Gorag_WatchDocuments_FullMethodName, cOpts...)
@@ -422,6 +438,11 @@ type GoragServer interface {
 	// page_token pagination. → engine.ListChunks (also REST
 	// GET /v1/documents/{id}/chunks, MCP go_rag_list_chunks, CLI `go-rag chunk list`).
 	ListChunks(context.Context, *ListChunksRequest) (*ListChunksResponse, error)
+	// spec 050 (Slice 4): delete a document by its content-addressed ID —
+	// index-only (the source file on disk is never touched). → engine.DeleteDoc
+	// (also REST DELETE /v1/documents/{id}, MCP go_rag_delete_document,
+	// CLI `go-rag delete`).
+	DeleteDocument(context.Context, *DeleteDocumentRequest) (*DeleteDocumentResponse, error)
 	// spec 040 (BL-008): long-lived server-stream of document lifecycle events
 	// (INGESTED/EMBEDDED/DELETED). → engine's event bus. gRPC-only — streaming has
 	// no unary equivalent (REST push = BL-011 webhook, separate).
@@ -501,6 +522,9 @@ func (UnimplementedGoragServer) ListDocuments(context.Context, *ListDocumentsReq
 }
 func (UnimplementedGoragServer) ListChunks(context.Context, *ListChunksRequest) (*ListChunksResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListChunks not implemented")
+}
+func (UnimplementedGoragServer) DeleteDocument(context.Context, *DeleteDocumentRequest) (*DeleteDocumentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteDocument not implemented")
 }
 func (UnimplementedGoragServer) WatchDocuments(*WatchRequest, grpc.ServerStreamingServer[DocumentEvent]) error {
 	return status.Error(codes.Unimplemented, "method WatchDocuments not implemented")
@@ -922,6 +946,24 @@ func _Gorag_ListChunks_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Gorag_DeleteDocument_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteDocumentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GoragServer).DeleteDocument(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Gorag_DeleteDocument_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GoragServer).DeleteDocument(ctx, req.(*DeleteDocumentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Gorag_WatchDocuments_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(WatchRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -1027,6 +1069,10 @@ var Gorag_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListChunks",
 			Handler:    _Gorag_ListChunks_Handler,
+		},
+		{
+			MethodName: "DeleteDocument",
+			Handler:    _Gorag_DeleteDocument_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

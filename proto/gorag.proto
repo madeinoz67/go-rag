@@ -80,6 +80,11 @@ service Gorag {
   // page_token pagination. → engine.ListChunks (also REST
   // GET /v1/documents/{id}/chunks, MCP go_rag_list_chunks, CLI `go-rag chunk list`).
   rpc ListChunks(ListChunksRequest) returns (ListChunksResponse);
+  // spec 050 (Slice 4): delete a document by its content-addressed ID —
+  // index-only (the source file on disk is never touched). → engine.DeleteDoc
+  // (also REST DELETE /v1/documents/{id}, MCP go_rag_delete_document,
+  // CLI `go-rag delete`).
+  rpc DeleteDocument(DeleteDocumentRequest) returns (DeleteDocumentResponse);
   // spec 040 (BL-008): long-lived server-stream of document lifecycle events
   // (INGESTED/EMBEDDED/DELETED). → engine's event bus. gRPC-only — streaming has
   // no unary equivalent (REST push = BL-011 webhook, separate).
@@ -251,6 +256,17 @@ message ListChunksResponse {
   repeated Chunk chunks           = 1; // ordered (chunk_index ASC, chunk_id ASC)
   string          next_page_token = 2; // empty ⇒ last page
 }
+
+// spec 050 (Slice 4): delete a document by content-addressed ID. The document +
+// its chunks/embeddings are removed from the index; the source file on disk is
+// untouched (index-only). Empty response — the doc is gone when the RPC returns.
+message DeleteDocumentRequest {
+  string doc_id = 1; // required; empty → INVALID_ARGUMENT; unknown → NOT_FOUND
+}
+
+// spec 050 (Slice 4): an empty response — deletion is synchronous and complete
+// at ACK, so there is nothing to project back (the doc is gone).
+message DeleteDocumentResponse {}
 
 // spec 040 (BL-008): document lifecycle event kinds. RE_INGESTED is reserved for
 // BL-010 (before/after delta) and is NOT emitted by the MVP.

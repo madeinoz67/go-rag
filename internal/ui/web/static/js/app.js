@@ -215,6 +215,17 @@
       docSortKey: 'ingested_at',
       docSortDir: 'asc',
 
+      // === Documents write surface (spec 050) ==============================
+      // Add dialog: POST /api/documents {path, glob?}. Path-based (no upload).
+      addDialog: { open: false, path: '', glob: '', loading: false },
+      // Generic confirmation dialog for the destructive actions (remove,
+      // reingest). Confirmation is a client-side UX gate (R7) — the server
+      // executes the guarded mutation on receipt.
+      confirmDialog: {
+        open: false, title: '', message: '', confirmLabel: 'Confirm',
+        danger: false, busy: false, action: '', targetId: '', targetLabel: '',
+      },
+
       /** GET /api/documents → {documents, next_page_token}. Status/tag filters
        *  go server-side (engine); sort is page-local over the cursor-paginated
        *  page (R7: corpus-wide non-date sort is deferred). */
@@ -259,6 +270,127 @@
         this.searchMode = false;
         this.searchResults = [];
         this.loadDocuments('');
+      },
+
+      // === Documents write actions (spec 050) ==============================
+      // Add/reingest ACK fast (async-after-ACK); the pending/embedding state
+      // surfaces via the doc's status badge (pending → embedded) on refresh.
+      // Remove is synchronous → the row disappears on ACK.
+
+      /** Open the Add dialog (path + optional glob). */
+      openAddDialog: function () {
+        this.addDialog.path = '';
+        this.addDialog.glob = '';
+        this.addDialog.loading = false;
+        this.addDialog.open = true;
+      },
+
+      closeAddDialog: function () {
+        if (this.addDialog.loading) return; // disable-on-submit (R7)
+        this.addDialog.open = false;
+      },
+
+      /** Submit POST /api/documents. On 200, refresh the list (the new row shows
+       *  a pending badge until embed completes) and close the dialog. */
+      submitAdd: async function () {
+        var path = (this.addDialog.path || '').trim();
+        if (!path) { this.error = 'Path is required.'; return; }
+        this.error = '';
+        this.addDialog.loading = true;
+        try {
+          var res = await this.api('/api/documents', {
+            method: 'POST',
+            body: JSON.stringify({ path: path, glob: (this.addDialog.glob || '').trim() }),
+          });
+          if (!res || res.status === 401) return;
+          if (res.status === 400) {
+            var e = await res.json().catch(function () { return {}; });
+            this.error = e.error || 'Invalid path.';
+            return;
+          }
+          if (!res.ok) { this.error = 'Add failed (HTTP ' + res.status + ').'; return; }
+          this.addDialog.open = false;
+          await this.loadDocuments('');
+        } catch (_e) {
+          this.error = 'Network error during add.';
+        } finally {
+          this.addDialog.loading = false;
+        }
+      },
+
+      /** Open the Remove confirmation for a document (index-only — source file
+       *  preserved). stopPropagation so the row click doesn't also open the doc. */
+      confirmRemove: function (doc, ev) {
+        if (ev) ev.stopPropagation();
+        this.confirmDialog = {
+          open: true,
+          title: 'Remove document',
+          message: 'Remove "' + (doc.file_name || doc.file_path) + '" from the index? Its chunks and embeddings are deleted. The source file on disk is NOT touched (index-only — re-add the path to restore it).',
+          confirmLabel: 'Remove',
+          danger: true,
+          busy: false,
+          action: 'remove',
+          targetId: doc.id,
+          targetLabel: doc.file_name || doc.file_path,
+        };
+      },
+
+      /** Open the Reingest confirmation for a document. */
+      confirmReingest: function (doc, ev) {
+        if (ev) ev.stopPropagation();
+        this.confirmDialog = {
+          open: true,
+          title: 'Reingest document',
+          message: 'Re-derive the chunks and embeddings for "' + (doc.file_name || doc.file_path) + '" from its source path? Dedup is bypassed (the current reader/embedder applies).',
+          confirmLabel: 'Reingest',
+          danger: false,
+          busy: false,
+          action: 'reingest',
+          targetId: doc.id,
+          targetLabel: doc.file_name || doc.file_path,
+        };
+      },
+
+      closeConfirm: function () {
+        if (this.confirmDialog.busy) return; // disable-on-submit (R7)
+        this.confirmDialog.open = false;
+      },
+
+      /** Execute the confirmed action (remove or reingest). Never proceeds
+       *  without an explicit confirm — the dialog is the gate. */
+      doConfirm: async function () {
+        var cd = this.confirmDialog;
+        var id = cd.targetId;
+        if (!id || !cd.open) return;
+        cd.busy = true;
+        this.error = '';
+        try {
+          if (cd.action === 'remove') {
+            var del = await this.api('/api/documents/' + encodeURIComponent(id), { method: 'DELETE' });
+            if (!del || del.status === 401) return;
+            if (del.status === 404) { this.error = 'Document not found (already removed?).'; }
+            else if (!del.ok && del.status !== 204) { this.error = 'Remove failed (HTTP ' + del.status + ').'; }
+          } else if (cd.action === 'reingest') {
+            var re = await this.api('/api/documents/' + encodeURIComponent(id) + '/reingest', { method: 'POST' });
+            if (!re || re.status === 401) return;
+            if (re.status === 404) {
+              var e = await re.json().catch(function () { return {}; });
+              this.error = e.error === 'source not found' ? 'Source file no longer exists.' : 'Document not found.';
+            } else if (!re.ok) {
+              this.error = 'Reingest failed (HTTP ' + re.status + ').';
+            }
+          }
+          this.confirmDialog.open = false;
+          // If the open document was removed, drop back to the list before refresh.
+          if (cd.action === 'remove' && this.selectedDoc && this.selectedDoc.id === id) {
+            this.closeDocument();
+          }
+          await this.loadDocuments('');
+        } catch (_e) {
+          this.error = 'Network error during ' + cd.action + '.';
+        } finally {
+          cd.busy = false;
+        }
       },
 
       /** Content-search the corpus; shows ranked results with the found-text snippet (R2). */

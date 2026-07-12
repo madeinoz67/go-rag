@@ -64,6 +64,7 @@ var routes = []route{
 	{"GET", "/v1/dirs", true},
 	{"GET", "/v1/documents", true},                      // spec 039: list documents (cursor + status + tags + pagination)
 	{"GET", "/v1/documents/{document_id}/chunks", true}, // spec 047 T006: list a document's chunks (cursor pagination)
+	{"DELETE", "/v1/documents/{id}", true},              // spec 050: delete a document (index-only)
 	{"GET", "/v1/config", true},
 	{"PUT", "/v1/config", true},
 	{"GET", "/v1/vaults", true},
@@ -125,6 +126,8 @@ func (s *Server) handlerFor(method, path string) http.HandlerFunc {
 		return s.handleListDocuments // spec 039
 	case "GET /v1/documents/{document_id}/chunks":
 		return s.handleListChunks // spec 047 T006
+	case "DELETE /v1/documents/{id}":
+		return s.handleDeleteDocument // spec 050
 	case "GET /v1/config":
 		return s.handleConfigGet
 	case "PUT /v1/config":

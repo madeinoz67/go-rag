@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -200,7 +201,6 @@ func dialGRPC(t *testing.T, eng *engine.Engine) goragpb.GoragClient {
 }
 
 // --- canonical hit comparison (FR-002) ---
-
 type canonHit struct {
 	ChunkID    string
 	DocumentID string
@@ -2183,4 +2183,200 @@ func grpcDocPaths(docs []*goragpb.DocumentMeta) []string {
 		out[i] = d.GetFilePath()
 	}
 	return out
+}
+
+// deleteParityEngine ingests n distinctive single-chunk documents via a
+// standalone pipeline (fakeEmbed — no Ollama), drains, and returns an Engine
+// over the DB plus the per-doc (id, distinctive-term) pairs in ingest order.
+// Each doc carries a unique token (deletetermA, deletetermB, ...) so a keyword
+// query can pin one doc's presence/absence precisely. Used by the cross-
+// transport delete parity test.
+func deleteParityEngine(t *testing.T, n int) (*engine.Engine, []docTerm) {
+	t.Helper()
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		t.Fatalf("mkdir data: %v", err)
+	}
+	cfg := config.Default()
+	cfg.DBPath = dir
+	cfg.EmbeddingModel = "fake"
+	db, err := storage.Open(dataDir)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	p := pipeline.New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
+	defer p.Close()
+	terms := make([]docTerm, 0, n)
+	for i := 0; i < n; i++ {
+		term := fmt.Sprintf("deleteterm%c", 'A'+i)
+		src := filepath.Join(dir, term+".txt")
+		if err := os.WriteFile(src, []byte(term+" solar tariff deficit battery inverter charge deadline\n"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", term, err)
+		}
+		if _, err := p.Ingest(context.Background(), src, "*"); err != nil {
+			t.Fatalf("ingest %s: %v", term, err)
+		}
+		terms = append(terms, docTerm{term: term})
+	}
+	eng := engine.NewWithDB(cfg, db)
+	t.Cleanup(eng.Close)
+	// Resolve doc IDs via the engine list (Ingest's Result carries counts, not IDs).
+	res, err := eng.ListDocuments(engine.ListDocumentsRequest{})
+	if err != nil {
+		t.Fatalf("ListDocuments: %v", err)
+	}
+	if len(res.Documents) != n {
+		t.Fatalf("setup: want %d docs, got %d", n, len(res.Documents))
+	}
+	byFile := map[string]string{}
+	for _, d := range res.Documents {
+		byFile[d.FileName] = d.ID
+	}
+	for i := range terms {
+		id, ok := byFile[terms[i].term+".txt"]
+		if !ok {
+			t.Fatalf("setup: no doc for term %q", terms[i].term)
+		}
+		terms[i].id = id
+	}
+	return eng, terms
+}
+
+type docTerm struct {
+	id   string
+	term string
+}
+
+// docGone asserts the id is absent from the list, has no chunks, and is not
+// referenced by any keyword hit for its distinctive term (the live FTS index was
+// cleared in place — no phantoms, H01/spec 011).
+func docGone(t *testing.T, eng *engine.Engine, id, term string) {
+	t.Helper()
+	docs, err := eng.ListDocuments(engine.ListDocumentsRequest{})
+	if err != nil {
+		t.Fatalf("ListDocuments: %v", err)
+	}
+	for _, d := range docs.Documents {
+		if d.ID == id {
+			t.Errorf("doc %s still listed after delete", id)
+		}
+	}
+	chunks, err := eng.ListChunks(id, engine.ListChunksRequest{})
+	if err != nil {
+		t.Fatalf("ListChunks(%s): %v", id, err)
+	}
+	if len(chunks.Chunks) != 0 {
+		t.Errorf("doc %s: %d chunks remain after delete", id, len(chunks.Chunks))
+	}
+	hits, err := eng.Query(context.Background(), engine.QueryRequest{Query: term, Mode: "keyword", K: 10, NoCache: true})
+	if err != nil {
+		t.Fatalf("query %q: %v", term, err)
+	}
+	for _, h := range hits.Hits {
+		if h.DocumentID == id {
+			t.Errorf("phantom hit: doc %s still matches %q after delete", id, term)
+		}
+	}
+}
+
+// restDeleteDocument DELETEs /v1/documents/{id} and returns the HTTP status.
+func restDeleteDocument(t *testing.T, baseURL, id string) int {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodDelete, baseURL+"/v1/documents/"+id, nil)
+	if err != nil {
+		t.Fatalf("new DELETE req: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE %s: %v", id, err)
+	}
+	resp.Body.Close()
+	return resp.StatusCode
+}
+
+// mcpDeleteDocumentCall invokes the go_rag_delete_document tool and returns the
+// rendered text (a "deleted document <id>" line on success).
+func mcpDeleteDocumentCall(t *testing.T, baseURL, id string) string {
+	t.Helper()
+	body, _ := json.Marshal(map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": "go_rag_delete_document", "arguments": map[string]any{"doc_id": id}},
+	})
+	resp, err := http.Post(baseURL+"/mcp", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("MCP delete call: %v", err)
+	}
+	defer resp.Body.Close()
+	var env struct {
+		Result struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		t.Fatalf("decode MCP delete: %v", err)
+	}
+	if env.Error != nil {
+		t.Fatalf("MCP delete returned error: %s", env.Error.Message)
+	}
+	if len(env.Result.Content) == 0 {
+		t.Fatal("MCP delete: empty content")
+	}
+	return env.Result.Content[0].Text
+}
+
+// TestCrossTransport_DeleteDocumentParity (spec 050 / T009 / FR-008): the new
+// delete operation is identical across every transport — engine, REST, gRPC, and
+// MCP all drive engine.DeleteDoc and leave the same post-state (doc gone, chunks
+// gone, no phantom keyword hit). Mirrors TestCrossTransport_ListChunksParity's
+// shared-engine + per-transport-server setup. (The CLI projection is parity-
+// covered structurally + by internal/cli: it opens its own Pebble handle, so it
+// cannot share this engine — same caveat as ListChunks.)
+func TestCrossTransport_DeleteDocumentParity(t *testing.T) {
+	// One distinctive doc per transport (engine / REST / gRPC / MCP).
+	eng, docs := deleteParityEngine(t, 4)
+
+	restSrv := httptest.NewServer(rest.New(eng, "").Handler())
+	defer restSrv.Close()
+	client := dialGRPC(t, eng)
+	mcpSrv := httptest.NewServer(mcp.NewWithEngine("", eng, config.Default()).HTTPHandler(""))
+	defer mcpSrv.Close()
+
+	// Engine.
+	if err := eng.DeleteDoc(context.Background(), docs[0].id); err != nil {
+		t.Fatalf("engine DeleteDoc: %v", err)
+	}
+	docGone(t, eng, docs[0].id, docs[0].term)
+
+	// REST → 204 + same post-state.
+	if code := restDeleteDocument(t, restSrv.URL, docs[1].id); code != http.StatusNoContent {
+		t.Fatalf("REST delete: status %d, want 204", code)
+	}
+	docGone(t, eng, docs[1].id, docs[1].term)
+
+	// gRPC → empty response + same post-state.
+	if _, err := client.DeleteDocument(context.Background(), &goragpb.DeleteDocumentRequest{DocId: docs[2].id}); err != nil {
+		t.Fatalf("gRPC DeleteDocument: %v", err)
+	}
+	docGone(t, eng, docs[2].id, docs[2].term)
+
+	// MCP → one-line render + same post-state.
+	mcpDeleteDocumentCall(t, mcpSrv.URL, docs[3].id)
+	docGone(t, eng, docs[3].id, docs[3].term)
+
+	// Unknown id → a real error on every transport (engine ErrNotFound, REST 404,
+	// gRPC NotFound, MCP -32001). Pin the engine + REST shapes here; gRPC/MCP
+	// NotFound mapping is covered by their point tests.
+	if err := eng.DeleteDoc(context.Background(), "not-a-real-id"); !errors.Is(err, engine.ErrNotFound) {
+		t.Errorf("engine unknown id: err=%v, want ErrNotFound", err)
+	}
+	if code := restDeleteDocument(t, restSrv.URL, "not-a-real-id"); code != http.StatusNotFound {
+		t.Errorf("REST unknown id: status %d, want 404", code)
+	}
 }

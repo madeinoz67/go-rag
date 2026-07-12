@@ -274,7 +274,8 @@ specs replace.
 | 1 | Documents view (list, status, summaries from spec 029) | Done/shipped | 047 |
 | 2 | Query view (retrieval UI — the "go-rag retrieval UI" Stephen named) | Done/shipped | 048 |
 | 3 | Bridge Ops view (go-rag-native half: ingest/watcher status) | Done/shipped | 049 |
-| 4 | Vaults view | Planned | 050 |
+| 4 | Documents write-actions (first write surface; reuses cross-transport Add/Reprocess + ships new cross-transport Delete) | Done/shipped | 050 |
+| 5 | Vaults view (moved from slot 050 — `Engine.ListVaults` already exists) | Planned | 054 |
 | 5 | Observability view (charts — Chart.js) | Planned | 051 |
 | 6 | Settings view | Planned | 052 |
 | 7 | Memory & Graph view (Cytoscape) — **bridge-blocked** | Blocked | 053 |

@@ -73,6 +73,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/dashboard/stats", s.guard(s.handleDashboardStats))
 	mux.HandleFunc("GET /api/documents", s.guard(s.handleDocumentsList))                              // spec 047 US1
 	mux.HandleFunc("GET /api/documents/search", s.guard(s.handleDocumentsSearch))                     // spec 047 US3
+	mux.HandleFunc("POST /api/documents", s.guard(s.handleDocumentAdd))                               // spec 050 US1 (write)
+	mux.HandleFunc("DELETE /api/documents/{id}", s.guard(s.handleDocumentRemove))                     // spec 050 US2 (write)
+	mux.HandleFunc("POST /api/documents/{id}/reingest", s.guard(s.handleDocumentReingest))            // spec 050 US3 (write)
 	mux.HandleFunc("GET /api/documents/{id}", s.guard(s.handleDocumentDetail))                        // spec 047 US2
 	mux.HandleFunc("GET /api/documents/{id}/chunks", s.guard(s.handleDocumentChunks))                 // spec 047 US2
 	mux.HandleFunc("GET /api/documents/{id}/chunks/{chunkID}/context", s.guard(s.handleChunkContext)) // spec 047 US2

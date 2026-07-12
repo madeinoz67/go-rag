@@ -39,24 +39,22 @@ func readBody(t *testing.T, url, token string) []byte {
 	return b
 }
 
-// TestDocuments_ReadOnlyRoutes — T022: every /api/documents* route is registered
-// as GET only. The Go 1.22+ pattern ServeMux returns 405 Method Not Allowed when
-// a request's path matches a registered pattern but its method does not — so a
-// 405 on POST/PUT/DELETE/PATCH for each documents route proves the view is
-// strictly read-only (no mutation handler is wired). GET must NOT be 405, which
-// proves the GET handler is registered. The no-Node-artifacts half of the
-// read-only + no-Node invariant is covered by TestNoNodeArtifacts (run command
-// includes it via the TestNoNode prefix). [FR-009, N6]
-func TestDocuments_ReadOnlyRoutes(t *testing.T) {
+// TestDocuments_RegisteredRoutes — T022 (spec 047) updated for spec 050: the
+// Documents surface is read-only EXCEPT for the three spec-050 write routes
+// (POST /api/documents, DELETE /api/documents/{id}, POST /api/documents/{id}/
+// reingest). The Go 1.22+ pattern ServeMux returns 405 when a path matches a
+// registered pattern but the method does not — so a 405 proves no handler is
+// wired for that method+path, and a non-405 proves one is. This pins the exact
+// registered write surface: PUT/PATCH are 405 everywhere (never registered);
+// POST is registered only on the collection + reingest; DELETE only on {id}.
+// GET must never be 405 on these paths. The no-Node half of the invariant is
+// covered by TestNoNodeArtifacts. [spec 050 FR-005, N6]
+func TestDocuments_RegisteredRoutes(t *testing.T) {
 	eng := newTestEngine(t)
 	putUIDoc(t, eng, "d1", "embedded", nil, 1)
 	srvURL, tok := authedDocServer(t, eng)
 
-	// expectedRoutes is the exhaustive set of /api/documents* routes from
-	// Server.Handler — the authoritative registration. Each concrete path
-	// matches exactly one registered GET pattern (search is a literal, more
-	// specific than {id}, so it wins for that path).
-	expectedRoutes := []string{
+	getPaths := []string{
 		"/api/documents",
 		"/api/documents/search",               // literal, beats {id}
 		"/api/documents/d1",                   // {id}
@@ -64,38 +62,65 @@ func TestDocuments_ReadOnlyRoutes(t *testing.T) {
 		"/api/documents/d1/chunks/c1/context", // {id}/chunks/{chunkID}/context
 	}
 
-	writeMethods := []string{
-		http.MethodPost,
-		http.MethodPut,
-		http.MethodDelete,
-		http.MethodPatch,
+	// GET is registered on every documents path → never 405.
+	for _, path := range getPaths {
+		resp := bearerGet(t, srvURL+path, tok)
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusMethodNotAllowed {
+			t.Errorf("GET %s: got 405, want GET registered", path)
+		}
 	}
 
-	for _, path := range expectedRoutes {
-		// GET must be registered: any non-405 status proves the GET handler
-		// ran (200/400/404 all count — the resource need not exist for the
-		// route to be registered).
-		getResp := bearerGet(t, srvURL+path, tok)
-		getResp.Body.Close()
-		if getResp.StatusCode == http.StatusMethodNotAllowed {
-			t.Errorf("GET %s: got 405, want GET registered (non-405)", path)
+	// (method, path, want405): the exact spec-050 write surface. want405=false
+	// means a handler IS registered there (the write route); the response is
+	// 400/404/200 rather than 405. PUT and PATCH are 405 everywhere (never
+	// registered). POST is wired only on the collection + reingest. DELETE
+	// only on {id} (which also matches /api/documents/search as id="search").
+	type probe struct {
+		method  string
+		path    string
+		want405 bool
+	}
+	probes := []probe{
+		// PUT / PATCH: 405 everywhere.
+		{http.MethodPut, "/api/documents/d1", true},
+		{http.MethodPatch, "/api/documents/d1", true},
+		// POST collection (add) → registered (400 on empty body).
+		{http.MethodPost, "/api/documents", false},
+		// POST on a GET-only documents path → 405.
+		{http.MethodPost, "/api/documents/d1/chunks", true},
+		// POST reingest → registered (404 on a non-existent source).
+		{http.MethodPost, "/api/documents/d1/reingest", false},
+		// DELETE collection → 405 (POST registered, not DELETE).
+		{http.MethodDelete, "/api/documents", true},
+		// DELETE {id} → registered (204 on d1, 404 on unknown).
+		{http.MethodDelete, "/api/documents/d1", false},
+		// DELETE on a GET-only deeper path → 405.
+		{http.MethodDelete, "/api/documents/d1/chunks", true},
+	}
+	for _, p := range probes {
+		body := bytes.NewReader([]byte("{}"))
+		if p.method == http.MethodDelete {
+			body = bytes.NewReader(nil)
 		}
-
-		// Every write method must be rejected with 405 — the view is read-only.
-		for _, m := range writeMethods {
-			req, err := http.NewRequest(m, srvURL+path, nil)
-			if err != nil {
-				t.Fatalf("new %s %s req: %v", m, path, err)
-			}
-			req.Header.Set("Authorization", "Bearer "+tok)
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatalf("%s %s: %v", m, path, err)
-			}
-			resp.Body.Close()
-			if resp.StatusCode != http.StatusMethodNotAllowed {
-				t.Errorf("%s %s: got %d, want 405 (read-only)", m, path, resp.StatusCode)
-			}
+		req, err := http.NewRequest(p.method, srvURL+p.path, body)
+		if err != nil {
+			t.Fatalf("new %s %s: %v", p.method, p.path, err)
+		}
+		req.Header.Set("Authorization", "Bearer "+tok)
+		if p.method != http.MethodDelete {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("%s %s: %v", p.method, p.path, err)
+		}
+		resp.Body.Close()
+		if p.want405 && resp.StatusCode != http.StatusMethodNotAllowed {
+			t.Errorf("%s %s: got %d, want 405 (not a registered write route)", p.method, p.path, resp.StatusCode)
+		}
+		if !p.want405 && resp.StatusCode == http.StatusMethodNotAllowed {
+			t.Errorf("%s %s: got 405, want a registered write route (spec 050)", p.method, p.path)
 		}
 	}
 }

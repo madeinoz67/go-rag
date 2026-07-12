@@ -723,3 +723,90 @@
   .query-controls { grid-template-columns: 1fr; }
   .ctrl.ctrl-wide { grid-column: span 1; }
 }
+
+/* =========================================================================
+ * Documents write surface (spec 050) — Add dialog, destructive-action confirm,
+ * per-row action buttons. Reuses the button catalog + 4-layer CSS variables;
+ * introduces only dialog/field primitives + a mini per-row button.
+ * ========================================================================= */
+
+/* Per-row action buttons (tighter than .btn-sm). */
+.btn-mini {
+  height: auto;
+  padding: 0.2rem var(--space-2);
+  font-size: 0.75rem;
+  line-height: 1;
+}
+td.doc-actions {
+  white-space: nowrap;
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+.doc-actions-col { width: 1%; white-space: nowrap; }
+
+/* Dialog overlay — fixed full-screen, dimmed backdrop, centered card. */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(15, 17, 21, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+.dialog {
+  width: 100%;
+  max-width: 520px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.dialog-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.dialog-intro,
+.dialog-message {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+.dialog-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* Field primitive for the Add dialog. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.field-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.field-hint {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+.req { color: var(--danger); }

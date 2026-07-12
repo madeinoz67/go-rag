@@ -327,6 +327,28 @@ paths:
         '400':
           description: invalid-argument (empty document_id, page_size out of range, malformed page_token)
 
+  /v1/documents/{id}:
+    delete:
+      summary: Delete a document by content-addressed ID — index-only (spec 050)
+      description: |
+        Removes the document and all of its chunks/embeddings from the index.
+        The source file on disk is NOT touched (index-only, FR-011); re-add the
+        path to restore it. Synchronous — the doc is gone when the response
+        returns, so 204 (no body) rather than an IngestSummary.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: content-addressed document ID
+      responses:
+        '204':
+          description: deleted — the document + its chunks are gone
+        '400':
+          description: invalid-argument (empty id)
+        '404':
+          description: unknown document ID (not a silent no-op)
+
   /v1/config:
     get:
       summary: Get config (all, or one via ?key=)

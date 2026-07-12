@@ -71,6 +71,7 @@ func Execute(version string) error {
 		newServeCmd(),
 		newHealthCmd(),
 		newReprocessCmd(),
+		newDeleteCmd(), // spec 050
 		newMigrateCmd(),
 		newEnrichCmd(),
 		newPoisonCmd(),

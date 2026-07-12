@@ -260,6 +260,8 @@ func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any
 		return s.renderListDocuments(eng, args) // spec 039
 	case "go_rag_list_chunks":
 		return s.renderListChunks(eng, args) // spec 047 / T008
+	case "go_rag_delete_document":
+		return s.renderDeleteDocument(eng, args) // spec 050 / T008
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
 }
@@ -471,6 +473,19 @@ func (s *Server) renderReprocess(eng *engine.Engine, args map[string]any) (strin
 		return "", err
 	}
 	return fmt.Sprintf("reprocessed=%d errors=%d", res.New, res.Errors), nil
+}
+
+// renderDeleteDocument is the MCP text projection of engine.DeleteDoc (spec 050
+// / T008): remove a document + its chunks/embeddings from the index by
+// content-addressed doc_id. Index-only — the source file on disk is untouched.
+// Mirrors renderReprocess's arg + error surface; returns a one-line confirmation
+// (the structured cross-transport contract is the empty gRPC response / REST 204).
+func (s *Server) renderDeleteDocument(eng *engine.Engine, args map[string]any) (string, error) {
+	docID, _ := args["doc_id"].(string)
+	if err := eng.DeleteDoc(context.Background(), docID); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("deleted document %s", docID), nil
 }
 
 func (s *Server) renderMigrate(eng *engine.Engine) (string, error) {
@@ -904,6 +919,7 @@ func (s *Server) guide() (string, error) {
 	b.WriteString("- **go_rag_dirs** — Per-directory document counts.\n")
 	b.WriteString("- **go_rag_scan** — Detect and apply filesystem changes (added/modified/deleted).\n")
 	b.WriteString("- **go_rag_reprocess** — Force re-ingest a directory (after reader/config changes).\n")
+	b.WriteString("- **go_rag_delete_document** — Delete a document by ID (index-only; source file preserved).\n")
 	b.WriteString("- **go_rag_migrate** — Re-embed all documents to the current model.\n")
 	b.WriteString("- **go_rag_migrate_plan** — Preview a migration (what would change + cost) without re-embedding.\n")
 	b.WriteString("- **go_rag_config** — Get or set configuration.\n")
@@ -1169,6 +1185,15 @@ func toolDefs() []map[string]any {
 					"page_token":  map[string]any{"type": "string"},
 				},
 				"required": []string{"document_id"},
+			},
+		},
+		{
+			"name":        "go_rag_delete_document",
+			"description": "Delete a document and all its chunks/embeddings from the index by content-addressed document ID (spec 050). Index-only — the source file on disk is NOT touched. Returns not-found if the id is absent from this vault. doc_id is required.",
+			"inputSchema": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"doc_id": map[string]any{"type": "string"}},
+				"required":   []string{"doc_id"},
 			},
 		},
 		{
