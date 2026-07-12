@@ -36,7 +36,7 @@ already shows, except the backlog which is central here) + the watch configurati
 | `subsystems.poisoning` | object | H04 | `{enabled bool (PoisoningEnabled), flagged int (PoisonFlagged), sources int (PoisonSources), phrases int (PoisonPhrases), threshold_sus float, threshold_qua float}` |
 | `subsystems.enrichment` | object | spec 029 | `{enabled bool (EnrichmentEnabled), captioning bool (CaptioningEnabled), enriched_docs int (EnrichedDocs)}` |
 | `subsystems.caches` | object | spec 016 | `{result CacheStatsDTO, embedding CacheStatsDTO}` |
-| `subsystems.adaptive` | object | spec 024 | `{pool_size int (PoolSize), enabled bool (AdaptiveDepthEnabled), utilization object (PoolUtilization), near_dup_chunks int (NearDupChunks)}` |
+| `subsystems.adaptive` | object | spec 024 | `{pool_size int (PoolSize), enabled bool (AdaptiveDepthEnabled), utilization object {queries, avg_fetched, avg_kept, saturated} (PoolUtilization, projected as-is), near_dup_chunks int (NearDupChunks)}` |
 | `watch` | object | `Config.WatchDirs` | `{dirs []string, scan_driven bool}` — `scan_driven` is always `true` this slice (no persistent watcher) |
 
 `CacheStatsDTO` — `{enabled bool, size int, capacity int, hits int, misses int}` (projects

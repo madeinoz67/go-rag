@@ -24,7 +24,7 @@ New files: `internal/engine/audit_read.go` (+ test), `internal/ui/bridgeops.go` 
 
 **Purpose**: Land the `internal/ui/bridgeops.go` DTO + stub skeleton so everything downstream compiles before logic lands.
 
-- [ ] T001 Create `internal/ui/bridgeops.go`: package comment + Slice-3 scope note; define DTO structs per [data-model.md](./data-model.md) — `bridgeOpsStatsDTO` (vault, last_activity, backlog, drift{...}, subsystems{poisoning,enrichment,caches,adaptive}, watch), `cacheStatsDTO`, `activityEventDTO`, `activityResponseDTO`; projection helpers `toBridgeOpsStats(*engine.StatusInfo, watchDirs []string)` and `toActivityEvents([]audit.Event)`; empty `handleBridgeOpsStats` + `handleBridgeOpsActivity` stubs. (R1, R2)
+- [X] T001 Create `internal/ui/bridgeops.go`: package comment + Slice-3 scope note; define DTO structs per [data-model.md](./data-model.md) — `bridgeOpsStatsDTO` (vault, last_activity, backlog, drift{...}, subsystems{poisoning,enrichment,caches,adaptive}, watch), `cacheStatsDTO`, `activityEventDTO`, `activityResponseDTO`; projection helpers `toBridgeOpsStats(*engine.StatusInfo, watchDirs []string)` and `toActivityEvents([]audit.Event)`; empty `handleBridgeOpsStats` + `handleBridgeOpsActivity` stubs. (R1, R2)
 
 **Checkpoint**: `CGO_ENABLED=0 go build ./...` clean; DTOs compile.
 
@@ -36,11 +36,11 @@ New files: `internal/engine/audit_read.go` (+ test), `internal/ui/bridgeops.go` 
 
 **⚠️ CRITICAL**: No user story can function until these are live.
 
-- [ ] T002 Implement `Engine.AuditRead` — `internal/engine/audit_read.go`: `func (e *Engine) AuditRead(opts audit.ReadOptions) ([]audit.Event, error)`, a thin read-only wrapper that resolves the audit path (`e.cfg.AuditPath` or `audit.DefaultPath(e.cfg.DBPath)`) and delegates to `audit.Read(path, opts)`. Read-only — opens no DB write. (R3)
-- [ ] T003 `Engine.AuditRead` tests — `internal/engine/audit_read_test.go`: (a) path resolution (configured vs default); (b) tail + type filter pass-through matches `audit.Read` directly; (c) missing/disabled audit log → empty slice, no error; (d) read-only (no DB mutation). (R3)
-- [ ] T004 Register routes — `internal/ui/ui.go::Server.Handler`: add `mux.HandleFunc("GET /api/bridge-ops/stats", s.guard(s.handleBridgeOpsStats))` and `mux.HandleFunc("GET /api/bridge-ops/activity", s.guard(s.handleBridgeOpsActivity))` (// spec 049). (R1)
-- [ ] T005 Implement `handleBridgeOpsStats` — `internal/ui/bridgeops.go`: `s.eng.Status()` → `toBridgeOpsStats(...)`, including surfacing the configured `WatchDirs` (read from the engine config; `watch.scan_driven = true`); 200 always. Engine error → `writeEngineErr` (existing helper, same package). (R1, R2, R5)
-- [ ] T006 Implement `handleBridgeOpsActivity` — `internal/ui/bridgeops.go`: parse `tail` (clamp [0,100], default 20) + `type` (default `ingest`; validate `ingest|query|auth-fail`, else 400 `invalid type`) → `s.eng.AuditRead(audit.ReadOptions{Type, Tail})` → `toActivityEvents(...)` → 200 `{events, count}`. Missing/disabled log → `{events:[], count:0}` (healthy empty). (R1, R4)
+- [X] T002 Implement `Engine.AuditRead` — `internal/engine/audit_read.go`: `func (e *Engine) AuditRead(opts audit.ReadOptions) ([]audit.Event, error)`, a thin read-only wrapper that resolves the audit path (`e.cfg.AuditPath` or `audit.DefaultPath(e.cfg.DBPath)`) and delegates to `audit.Read(path, opts)`. Read-only — opens no DB write. (R3)
+- [X] T003 `Engine.AuditRead` tests — `internal/engine/audit_read_test.go`: (a) path resolution (configured vs default); (b) tail + type filter pass-through matches `audit.Read` directly; (c) missing/disabled audit log → empty slice, no error; (d) read-only (no DB mutation). (R3)
+- [X] T004 Register routes — `internal/ui/ui.go::Server.Handler`: add `mux.HandleFunc("GET /api/bridge-ops/stats", s.guard(s.handleBridgeOpsStats))` and `mux.HandleFunc("GET /api/bridge-ops/activity", s.guard(s.handleBridgeOpsActivity))` (// spec 049). (R1)
+- [X] T005 Implement `handleBridgeOpsStats` — `internal/ui/bridgeops.go`: `s.eng.Status()` → `toBridgeOpsStats(...)`, including surfacing the configured `WatchDirs` (read from the engine config; `watch.scan_driven = true`); 200 always. Engine error → `writeEngineErr` (existing helper, same package). (R1, R2, R5)
+- [X] T006 Implement `handleBridgeOpsActivity` — `internal/ui/bridgeops.go`: parse `tail` (clamp [0,100], default 20) + `type` (default `ingest`; validate `ingest|query|auth-fail`, else 400 `invalid type`) → `s.eng.AuditRead(audit.ReadOptions{Type, Tail})` → `toActivityEvents(...)` → 200 `{events, count}`. Missing/disabled log → `{events:[], count:0}` (healthy empty). (R1, R4)
 
 **Checkpoint**: `curl /api/bridge-ops/stats` + `/api/bridge-ops/activity` work — 200 happy path, 400 invalid-type, 401 without Bearer. `make build && make vet` clean.
 
@@ -54,8 +54,8 @@ New files: `internal/engine/audit_read.go` (+ test), `internal/ui/bridgeops.go` 
 
 ### Implementation
 
-- [ ] T007 [US1] Alpine health view — `internal/ui/web/static/js/app.js` + `internal/ui/web/templates/index.html` (+ `components.css`): on Bridge Ops view-entry fetch `/api/bridge-ops/stats`; render the backlog tile (pending / failed / completion flag), the drift verdict + one-line cause, and last-activity timestamp; sidebar "Bridge Ops" active (replaces the placeholder); explicit refresh button (R8 — no auto-poll/streaming); no full-page reload.
-- [ ] T008 [US1] US1 tests — `internal/ui/bridgeops_test.go`: (a) `GET /api/bridge-ops/stats` 200 + backlog/drift/last_activity fields present; (b) values match `go-rag status` for the same vault (parity); (c) 401 without Bearer; (d) fresh/empty vault → zero backlog, `drift.verdict` present, no error. (FR-012, SC-002)
+- [X] T007 [US1] Alpine health view — `internal/ui/web/static/js/app.js` + `internal/ui/web/templates/index.html` (+ `components.css`): on Bridge Ops view-entry fetch `/api/bridge-ops/stats`; render the backlog tile (pending / failed / completion flag), the drift verdict + one-line cause, and last-activity timestamp; sidebar "Bridge Ops" active (replaces the placeholder); explicit refresh button (R8 — no auto-poll/streaming); no full-page reload.
+- [X] T008 [US1] US1 tests — `internal/ui/bridgeops_test.go`: (a) `GET /api/bridge-ops/stats` 200 + backlog/drift/last_activity fields present; (b) values match `go-rag status` for the same vault (parity); (c) 401 without Bearer; (d) fresh/empty vault → zero backlog, `drift.verdict` present, no error. (FR-012, SC-002)
 
 **Checkpoint**: US1 independently testable — operational health from the browser (MVP).
 
@@ -69,8 +69,8 @@ New files: `internal/engine/audit_read.go` (+ test), `internal/ui/bridgeops.go` 
 
 ### Implementation
 
-- [ ] T009 [US2] Alpine activity feed — `internal/ui/web/static/js/app.js` + `internal/ui/web/templates/index.html`: fetch `/api/bridge-ops/activity?tail=20&type=ingest`; render a reverse-chron list (type, timestamp, summary, outcome) with failures visually distinct from successes; healthy empty state when no events; a control to broaden `type` (ingest/query/auth-fail) and adjust `tail`. Re-renders on refresh.
-- [ ] T010 [US2] US2 tests — `internal/ui/bridgeops_test.go`: (a) `GET /api/bridge-ops/activity` 200 + events most-recent-first; (b) parity with `go-rag audit --type ingest --tail 20` for the same vault; (c) `tail` clamp + `type` validation (400 on bogus type); (d) missing/disabled audit log → `{events:[],count:0}`; (e) 401 without Bearer. (R3, R4, FR-004, FR-005)
+- [X] T009 [US2] Alpine activity feed — `internal/ui/web/static/js/app.js` + `internal/ui/web/templates/index.html`: fetch `/api/bridge-ops/activity?tail=20&type=ingest`; render a reverse-chron list (type, timestamp, summary, outcome) with failures visually distinct from successes; healthy empty state when no events; a control to broaden `type` (ingest/query/auth-fail) and adjust `tail`. Re-renders on refresh.
+- [X] T010 [US2] US2 tests — `internal/ui/bridgeops_test.go`: (a) `GET /api/bridge-ops/activity` 200 + events most-recent-first; (b) parity with `go-rag audit --type ingest --tail 20` for the same vault; (c) `tail` clamp + `type` validation (400 on bogus type); (d) missing/disabled audit log → `{events:[],count:0}`; (e) 401 without Bearer. (R3, R4, FR-004, FR-005)
 
 **Checkpoint**: US2 independently testable — a findable recent-activity feed.
 
@@ -84,8 +84,8 @@ New files: `internal/engine/audit_read.go` (+ test), `internal/ui/bridgeops.go` 
 
 ### Implementation
 
-- [ ] T011 [US3] Alpine subsystem tiles + drift detail — `internal/ui/web/static/js/app.js` + `internal/ui/web/templates/index.html` (+ `components.css`): render a subsystem tile grid (poisoning: enabled/flagged/sources/phrases; enrichment: enabled/captioning/enriched_docs; caches: result + embedding enabled/size/hits/misses; adaptive: pool_size/enabled/utilization/near_dup_chunks) from `/api/bridge-ops/stats`; make the drift tile expandable to the full baseline-vs-live breakdown (`drift.baseline`, `live_ollama_ver`, drift counts). Tiles show "off/disabled" cleanly when a subsystem is off. (R6, R7)
-- [ ] T012 [US3] US3 tests — `internal/ui/bridgeops_test.go`: (a) subsystems DTO carries poisoning/enrichment/caches/adaptive with the `StatusInfo`-sourced values; (b) drift detail (baseline + cause) present and matches `StatusInfo`; (c) all-subsystems-off (default) renders cleanly, not as error. (FR-006, SC-002)
+- [X] T011 [US3] Alpine subsystem tiles + drift detail — `internal/ui/web/static/js/app.js` + `internal/ui/web/templates/index.html` (+ `components.css`): render a subsystem tile grid (poisoning: enabled/flagged/sources/phrases; enrichment: enabled/captioning/enriched_docs; caches: result + embedding enabled/size/hits/misses; adaptive: pool_size/enabled/utilization/near_dup_chunks) from `/api/bridge-ops/stats`; make the drift tile expandable to the full baseline-vs-live breakdown (`drift.baseline`, `live_ollama_ver`, drift counts). Tiles show "off/disabled" cleanly when a subsystem is off. (R6, R7)
+- [X] T012 [US3] US3 tests — `internal/ui/bridgeops_test.go`: (a) subsystems DTO carries poisoning/enrichment/caches/adaptive with the `StatusInfo`-sourced values; (b) drift detail (baseline + cause) present and matches `StatusInfo`; (c) all-subsystems-off (default) renders cleanly, not as error. (FR-006, SC-002)
 
 **Checkpoint**: US3 independently testable — subsystem + drift-detail visibility.
 
@@ -99,8 +99,8 @@ New files: `internal/engine/audit_read.go` (+ test), `internal/ui/bridgeops.go` 
 
 ### Implementation / Verification
 
-- [ ] T013 [US4] No-write + no-Node + guard invariants — `internal/ui/bridgeops_test.go`: (a) snapshot `engine.Status()` counts before/after a stats+activity fetch → identical (no mutation via the Bridge Ops path); (b) repo-root scan finds no `package.json`/`node_modules`/`vite.config.*`/`tailwind.config.*`; (c) every `/api/bridge-ops/*` route is `GET` (no write verb registered; POST → 405); (d) 401 without Bearer on both routes. (FR-008, FR-010, FR-011, SC-005, SC-006)
-- [ ] T014 [US4] Empty + embedder-down + watch-honesty rendering — `internal/ui/web/static/js/app.js` + `internal/ui/web/templates/index.html`: deliberate states for fresh/empty vault (zero backlog, "no recent activity", drift `n/a`), embedder unreachable (drift/version signals degrade to "unknown" plainly), and the watch section reflecting `scan_driven: true` (no live-watcher claim). Never a silent failure or crash. (FR-007, FR-012)
+- [X] T013 [US4] No-write + no-Node + guard invariants — `internal/ui/bridgeops_test.go`: (a) snapshot `engine.Status()` counts before/after a stats+activity fetch → identical (no mutation via the Bridge Ops path); (b) repo-root scan finds no `package.json`/`node_modules`/`vite.config.*`/`tailwind.config.*`; (c) every `/api/bridge-ops/*` route is `GET` (no write verb registered; POST → 405); (d) 401 without Bearer on both routes. (FR-008, FR-010, FR-011, SC-005, SC-006)
+- [X] T014 [US4] Empty + embedder-down + watch-honesty rendering — `internal/ui/web/static/js/app.js` + `internal/ui/web/templates/index.html`: deliberate states for fresh/empty vault (zero backlog, "no recent activity", drift `n/a`), embedder unreachable (drift/version signals degrade to "unknown" plainly), and the watch section reflecting `scan_driven: true` (no live-watcher claim). Never a silent failure or crash. (FR-007, FR-012)
 
 **Checkpoint**: US4 independently testable — the invariants are pinned.
 
@@ -108,9 +108,9 @@ New files: `internal/engine/audit_read.go` (+ test), `internal/ui/bridgeops.go` 
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T015 [P] Gate hygiene — `make lint` (0 findings), `make vet`, `make test -race` clean across `internal/engine` + `internal/ui` (and any touched package).
-- [ ] T016 [P] quickstart validation — run [quickstart.md](./quickstart.md) §1–§4 on an isolated DB via `serve --db-path <tmp>` (non-default ports): `curl` smoke for §1–§3 + **Interceptor** browser verify for §4 (mandatory per CLAUDE.md). Note: prefer `serve` over `start` for the isolated smoke (the `start --db-path <tmp>` isolation quirk).
-- [ ] T017 [P] Doc sync — update spec 046's Slice Decomposition row (049 status); update `PROJECTS.md` go-rag entry + MuninnDB memory to reflect Slice 3 shipped; note the pre-existing audit cross-transport-parity follow-up.
+- [X] T015 [P] Gate hygiene — `make lint` (0 findings), `make vet`, `make test -race` clean across `internal/engine` + `internal/ui`. Independently re-run by the parent DA: build/vet/lint `0 issues`, `make test -race` 31/31 `ok` (internal/ui 302s 67.9% cov, internal/engine 82.5%).
+- [X] T016 [P] quickstart validation — run [quickstart.md](./quickstart.md) §1–§4 on an isolated DB via `serve --db-path <tmp>` (non-default ports): `curl` smoke for §1–§3 + **Interceptor** browser verify for §4 (mandatory per CLAUDE.md). Smoke: stats 200 with full DTO (backlog/drift/subsystems/watch), activity 200, error matrix 400-invalid-type / 401 / 405, parity (UI activity == audit log). Interceptor (real Chrome): login → Bridge Ops renders REAL (health tiles + drift verdict+cause + last activity + subsystem tiles + drift-detail + activity feed with type/tail controls) → `/api/bridge-ops/*` 200, zero console errors. (Screenshot failed on the Interceptor SVG-rasterize bug — not a 049 defect; a11y tree + text are the evidence.)
+- [X] T017 [P] Doc sync — spec 046 Slice Decomposition row → Done/shipped; data-model.md + contracts/ui-bridge-ops.md PoolUtilization corrected to the real engine fields (`queries/avg_fetched/avg_kept/saturated`); `PROJECTS.md` + MuninnDB memory updated; pre-existing audit cross-transport-parity follow-up noted.
 
 ---
 

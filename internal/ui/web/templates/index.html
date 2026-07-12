@@ -635,14 +635,201 @@
         </div>
       </section>
 
-      <!-- ====== PLACEHOLDER VIEWS (later specs 049..053) ====== -->
-
+      <!-- ====== BRIDGE OPS (spec 049 — real view: operational health) ====== -->
       <section x-show="currentView === 'bridge-ops'" class="view" x-cloak>
         <header class="view-header">
           <h1 class="page-title">Bridge Ops</h1>
+          <div class="vault-chip" x-show="bridgeStats && bridgeStats.vault" x-cloak>
+            <span class="vault-chip-label">Vault:</span>
+            <span x-text="bridgeStats ? bridgeStats.vault : ''"></span>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm bridge-refresh"
+                  @click="refreshBridgeOps()" :disabled="bridgeLoading" x-cloak>
+            <span x-show="!bridgeLoading">Refresh</span>
+            <span x-show="bridgeLoading">Loading…</span>
+          </button>
         </header>
-        <div class="placeholder-card" x-html="placeholderHtml('Bridge Ops', '049')"></div>
+
+        <p class="dashboard-error" x-show="bridgeError" x-text="bridgeError" role="alert" x-cloak></p>
+
+        <!-- US1: health tiles — backlog + drift verdict + last activity, at a glance. -->
+        <div class="stat-grid" x-show="bridgeStats" x-cloak>
+          <div class="stat-card tile">
+            <div class="stat-label">Embed backlog</div>
+            <div class="stat-value" x-text="bridgeStats ? (bridgeStats.backlog.pending || 0) : '—'"></div>
+            <div class="stat-sub" x-text="bridgeStats ? (bridgeStats.backlog.complete ? 'embedding complete' : 'pending embed') : ''"></div>
+          </div>
+          <div class="stat-card tile">
+            <div class="stat-label">Failed embeds</div>
+            <div class="stat-value"
+                 :class="(bridgeStats && bridgeStats.backlog.failed > 0) ? 'stat-value-warn' : ''"
+                 x-text="bridgeStats ? (bridgeStats.backlog.failed || 0) : '—'"></div>
+            <div class="stat-sub">permanently failed</div>
+          </div>
+          <div class="stat-card tile">
+            <div class="stat-label">Drift verdict</div>
+            <div class="stat-value stat-value-text"
+                 x-text="bridgeStats ? (bridgeStats.drift.verdict || '—') : '—'"></div>
+            <div class="stat-sub" x-text="bridgeStats ? ('cause: ' + bridgeStats.drift.cause) : ''"></div>
+          </div>
+          <div class="stat-card tile">
+            <div class="stat-label">Last activity</div>
+            <div class="stat-value stat-value-text bridge-ts"
+                 x-text="bridgeStats ? (bridgeStats.last_activity ? fmtTS(bridgeStats.last_activity) : 'no recent activity') : '—'"></div>
+            <div class="stat-sub">newest audit event</div>
+          </div>
+        </div>
+
+        <!-- US3: drift detail — baseline vs live, expandable behind the tile. -->
+        <details class="bridge-detail" x-show="bridgeStats" x-cloak>
+          <summary>Drift detail — corpus baseline vs live</summary>
+          <div class="bridge-detail-body">
+            <div class="meta-row">
+              <span class="meta-label">Verdict</span>
+              <span class="meta-value" x-text="bridgeStats ? bridgeStats.drift.verdict : ''"></span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Cause</span>
+              <span class="meta-value" x-text="bridgeStats ? bridgeStats.drift.cause : ''"></span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Hard drift</span>
+              <span class="badge"
+                    :class="(bridgeStats && bridgeStats.drift.hard) ? 'badge-danger' : 'badge-success'"
+                    x-text="(bridgeStats && bridgeStats.drift.hard) ? 'yes' : 'no'"></span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Version drift</span>
+              <span class="badge"
+                    :class="(bridgeStats && bridgeStats.drift.version) ? 'badge-warn-text' : 'badge-success'"
+                    x-text="(bridgeStats && bridgeStats.drift.version) ? 'yes' : 'no'"></span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Live Ollama</span>
+              <span class="meta-value"
+                    x-text="bridgeStats ? (bridgeStats.drift.live_ollama_ver || 'unknown') : ''"></span>
+            </div>
+            <div class="bridge-subhead">Corpus baseline (the profile the index was built under)</div>
+            <div class="meta-row">
+              <span class="meta-label">Model</span>
+              <span class="meta-value" x-text="bridgeStats ? (bridgeStats.drift.baseline.model || '—') : ''"></span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Dimensionality</span>
+              <span class="meta-value" x-text="bridgeStats ? bridgeStats.drift.baseline.dim : ''"></span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Convention</span>
+              <span class="meta-value" x-text="bridgeStats ? (bridgeStats.drift.baseline.convention || '—') : ''"></span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Ollama ver</span>
+              <span class="meta-value" x-text="bridgeStats ? (bridgeStats.drift.baseline.ollama_ver || '—') : ''"></span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Recorded at</span>
+              <span class="meta-value" x-text="bridgeStats ? (bridgeStats.drift.baseline.recorded_at || '—') : ''"></span>
+            </div>
+          </div>
+        </details>
+
+        <!-- US3: subsystem tile grid — poisoning / enrichment / caches / adaptive. -->
+        <h2 class="bridge-section-title" x-show="bridgeStats" x-cloak>Subsystems</h2>
+        <div class="bridge-tile-grid" x-show="bridgeStats" x-cloak>
+          <div class="bridge-tile">
+            <div class="bridge-tile-head">
+              <span class="bridge-tile-name">Poisoning</span>
+              <span class="badge"
+                    :class="(bridgeStats && bridgeStats.subsystems.poisoning.enabled) ? 'badge-success' : 'badge-muted'"
+                    x-text="(bridgeStats && bridgeStats.subsystems.poisoning.enabled) ? 'on' : 'off'"></span>
+            </div>
+            <div class="meta-row"><span class="meta-label">Flagged</span><span class="meta-value" x-text="bridgeStats ? bridgeStats.subsystems.poisoning.flagged : 0"></span></div>
+            <div class="meta-row"><span class="meta-label">Sources</span><span class="meta-value" x-text="bridgeStats ? bridgeStats.subsystems.poisoning.sources : 0"></span></div>
+            <div class="meta-row"><span class="meta-label">Phrases</span><span class="meta-value" x-text="bridgeStats ? bridgeStats.subsystems.poisoning.phrases : 0"></span></div>
+            <div class="meta-row"><span class="meta-label">Threshold (sus/qua)</span><span class="meta-value" x-text="bridgeStats ? (bridgeStats.subsystems.poisoning.threshold_sus + ' / ' + bridgeStats.subsystems.poisoning.threshold_qua) : ''"></span></div>
+          </div>
+          <div class="bridge-tile">
+            <div class="bridge-tile-head">
+              <span class="bridge-tile-name">Enrichment</span>
+              <span class="badge"
+                    :class="(bridgeStats && bridgeStats.subsystems.enrichment.enabled) ? 'badge-success' : 'badge-muted'"
+                    x-text="(bridgeStats && bridgeStats.subsystems.enrichment.enabled) ? 'on' : 'off'"></span>
+            </div>
+            <div class="meta-row"><span class="meta-label">Captioning</span><span class="meta-value" x-text="(bridgeStats && bridgeStats.subsystems.enrichment.captioning) ? 'on' : 'off'"></span></div>
+            <div class="meta-row"><span class="meta-label">Enriched docs</span><span class="meta-value" x-text="bridgeStats ? bridgeStats.subsystems.enrichment.enriched_docs : 0"></span></div>
+          </div>
+          <div class="bridge-tile">
+            <div class="bridge-tile-head"><span class="bridge-tile-name">Caches</span></div>
+            <div class="meta-row"><span class="meta-label">Result</span><span class="meta-value" x-text="bridgeStats ? cacheSummary(bridgeStats.subsystems.caches.result) : ''"></span></div>
+            <div class="meta-row"><span class="meta-label">Embedding</span><span class="meta-value" x-text="bridgeStats ? cacheSummary(bridgeStats.subsystems.caches.embedding) : ''"></span></div>
+          </div>
+          <div class="bridge-tile">
+            <div class="bridge-tile-head">
+              <span class="bridge-tile-name">Adaptive retrieval</span>
+              <span class="badge"
+                    :class="(bridgeStats && bridgeStats.subsystems.adaptive.enabled) ? 'badge-success' : 'badge-muted'"
+                    x-text="(bridgeStats && bridgeStats.subsystems.adaptive.enabled) ? 'on' : 'off'"></span>
+            </div>
+            <div class="meta-row"><span class="meta-label">Pool size</span><span class="meta-value" x-text="bridgeStats ? bridgeStats.subsystems.adaptive.pool_size : 0"></span></div>
+            <div class="meta-row"><span class="meta-label">Utilization (queries)</span><span class="meta-value" x-text="bridgeStats ? bridgeStats.subsystems.adaptive.utilization.queries : 0"></span></div>
+            <div class="meta-row"><span class="meta-label">Near-dup chunks</span><span class="meta-value" x-text="bridgeStats ? bridgeStats.subsystems.adaptive.near_dup_chunks : 0"></span></div>
+          </div>
+        </div>
+
+        <!-- US2: recent activity feed — bounded, type-filtered, failures distinct. -->
+        <div class="bridge-activity-head">
+          <h2 class="bridge-section-title">Recent activity</h2>
+          <div class="bridge-activity-controls">
+            <label class="ctrl ctrl-inline">
+              <span class="ctrl-label">Type</span>
+              <select class="input" :value="bridgeActivityType" @change="changeActivityType($event.target.value)" aria-label="Activity type filter">
+                <option value="ingest">ingest</option>
+                <option value="query">query</option>
+                <option value="auth-fail">auth-fail</option>
+              </select>
+            </label>
+            <label class="ctrl ctrl-inline">
+              <span class="ctrl-label">Tail (1–100)</span>
+              <input class="input bridge-tail-input" type="number" min="1" max="100"
+                     :value="bridgeActivityTail" @change="changeActivityTail($event.target.value)" aria-label="Activity tail size">
+            </label>
+          </div>
+        </div>
+        <ul class="bridge-activity-list" x-show="bridgeActivity && bridgeActivity.length > 0" x-cloak>
+          <template x-for="ev in bridgeActivity" :key="ev.timestamp + '::' + ev.summary">
+            <li class="bridge-activity-item"
+                :class="(ev.outcome === 'failed') ? 'is-failed' : ((ev.outcome === 'success') ? 'is-success' : '')">
+              <span class="bridge-activity-ts" x-text="fmtTS(ev.timestamp)"></span>
+              <span class="bridge-activity-type" x-text="ev.type"></span>
+              <span class="bridge-activity-summary" x-text="ev.summary"></span>
+              <span class="badge"
+                    :class="(ev.outcome === 'failed') ? 'badge-danger' : ((ev.outcome === 'success') ? 'badge-success' : 'badge-muted')"
+                    x-show="ev.outcome" x-text="ev.outcome"></span>
+            </li>
+          </template>
+        </ul>
+        <p class="dashboard-empty" x-show="!bridgeLoading && bridgeActivity && bridgeActivity.length === 0" x-cloak>
+          No recent activity — the audit log is empty or audit is disabled for this vault.
+        </p>
+
+        <!-- US4: watch config — honest scan-driven framing (no live watcher claim). -->
+        <h2 class="bridge-section-title" x-show="bridgeStats" x-cloak>Watch</h2>
+        <div class="bridge-watch" x-show="bridgeStats" x-cloak>
+          <p class="bridge-watch-note">
+            Scanning is <strong>scan-driven</strong> (on-demand). No persistent file watcher runs in this
+            slice — add, scan, and reprocess ingest on demand from the CLI or daemon.
+          </p>
+          <div class="bridge-watch-dirs">
+            <span class="meta-label">Directories:</span>
+            <template x-for="d in (bridgeStats ? bridgeStats.watch.dirs : [])" :key="d">
+              <span class="tag-chip" x-text="d"></span>
+            </template>
+            <span class="doc-muted" x-show="bridgeStats && bridgeStats.watch.dirs.length === 0">(none configured)</span>
+          </div>
+        </div>
       </section>
+
+      <!-- ====== PLACEHOLDER VIEWS (later specs 050..053) ====== -->
 
       <section x-show="currentView === 'vaults'" class="view" x-cloak>
         <header class="view-header">

@@ -383,6 +383,156 @@
   to   { opacity: 1; transform: translateX(0); }
 }
 
+/* ==========================================================================
+ * Bridge Ops view (spec 049 — US1..US4) — operational-health surface. Reuses
+ * the Dashboard/Query primitives (stat-grid, meta-row, badge, tag-chip,
+ * dashboard-empty, ctrl) and adds the bridge-specific tile grid, activity
+ * feed, expandable drift detail, and watch section. Same fallback-vars
+ * convention as spec 047/048. Read-only view — no write controls.
+ * ========================================================================== */
+.bridge-refresh { margin-left: auto; }
+
+.stat-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted, #9aa0a6);
+  margin-top: var(--space-1, 0.25rem);
+}
+.stat-value-warn { color: #f59e0b; }
+.bridge-ts { font-size: 1rem; }
+
+/* Drift detail — expandable behind the glance tile (R6). */
+.bridge-detail {
+  margin: var(--space-4, 1rem) 0;
+  border: 1px solid var(--border, rgba(127,127,127,0.18));
+  border-radius: var(--radius-md, 6px);
+  background: var(--bg-surface, rgba(127,127,127,0.04));
+}
+.bridge-detail > summary {
+  cursor: pointer;
+  padding: var(--space-3, 0.75rem);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary, #c0c4cc);
+  user-select: none;
+}
+.bridge-detail > summary:hover { color: var(--text-primary, #e6e6e6); }
+.bridge-detail-body { padding: 0 var(--space-3, 0.75rem) var(--space-3, 0.75rem); }
+.bridge-subhead {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #9aa0a6);
+  margin: var(--space-3, 0.75rem) 0 var(--space-1, 0.25rem);
+}
+
+/* Section title (US3 subsystem band, US2 activity band, watch band). */
+.bridge-section-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary, #e6e6e6);
+  margin: var(--space-5, 1.5rem) 0 var(--space-3, 0.75rem);
+}
+
+/* Subsystem tile grid — one tile per subsystem (R7). */
+.bridge-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--space-3, 0.75rem);
+}
+.bridge-tile {
+  padding: var(--space-3, 0.75rem);
+  border: 1px solid var(--border, rgba(127,127,127,0.18));
+  border-radius: var(--radius-md, 6px);
+  background: var(--bg-surface, rgba(127,127,127,0.04));
+}
+.bridge-tile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2, 0.5rem);
+  margin-bottom: var(--space-2, 0.5rem);
+}
+.bridge-tile-name { font-weight: 600; color: var(--text-primary, #e6e6e6); font-size: 0.92rem; }
+
+/* Badges not covered by spec 047 (off state + plain warning text). */
+.badge-muted {
+  background: rgba(127, 127, 127, 0.18);
+  color: var(--text-muted, #9aa0a6);
+}
+.badge-warn-text { background: rgba(245, 158, 11, 0.18); color: #f59e0b; }
+
+/* Activity feed (US2). */
+.bridge-activity-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3, 0.75rem);
+  flex-wrap: wrap;
+}
+.bridge-activity-head .bridge-section-title { margin: 0; }
+.bridge-activity-controls {
+  display: flex;
+  gap: var(--space-2, 0.5rem);
+  flex-wrap: wrap;
+}
+.ctrl.ctrl-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+.bridge-tail-input { width: 5rem; }
+.bridge-activity-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-3, 0.75rem) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 0.5rem);
+}
+.bridge-activity-item {
+  display: grid;
+  grid-template-columns: 11rem 5.5rem 1fr auto;
+  gap: var(--space-3, 0.75rem);
+  align-items: baseline;
+  padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+  border: 1px solid var(--border, rgba(127,127,127,0.18));
+  border-left-width: 3px;
+  border-radius: var(--radius-md, 6px);
+  font-size: 0.85rem;
+  color: var(--text-secondary, #c0c4cc);
+}
+.bridge-activity-item.is-failed {
+  border-left-color: var(--danger, #ef4444);
+  background: rgba(239, 68, 68, 0.05);
+}
+.bridge-activity-item.is-success { border-left-color: var(--success, #22c55e); }
+.bridge-activity-ts {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.78rem;
+  color: var(--text-muted, #9aa0a6);
+}
+.bridge-activity-type {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #9aa0a6);
+}
+.bridge-activity-summary { word-break: break-word; color: var(--text-primary, #e6e6e6); }
+
+/* Watch section (US4 — honest scan-driven framing). */
+.bridge-watch {
+  padding: var(--space-3, 0.75rem);
+  border: 1px solid var(--border, rgba(127,127,127,0.18));
+  border-radius: var(--radius-md, 6px);
+  background: var(--bg-surface, rgba(127,127,127,0.04));
+}
+.bridge-watch-note { margin: 0 0 var(--space-2, 0.5rem); font-size: 0.85rem; color: var(--text-secondary, #c0c4cc); }
+.bridge-watch-dirs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 0.5rem); }
+
+@media (max-width: 768px) {
+  .bridge-activity-item { grid-template-columns: 1fr; gap: 0.2rem; }
+}
+
 /* =========================================================================
  * Responsive — single breakpoint (style guide §10.3, desktop-first)
  * ========================================================================= */

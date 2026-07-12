@@ -198,6 +198,9 @@
         if (view === 'documents') {
           this.loadDocuments('');
         }
+        if (view === 'bridge-ops') {
+          this.loadBridgeOps();
+        }
       },
 
       // === Documents (spec 047 US1) =======================================
@@ -580,6 +583,97 @@
       /** Format a score to 3 decimals for display. */
       fmtScore: function (s) {
         return (Number(s) || 0).toFixed(3);
+      },
+
+      // === Bridge Ops (spec 049) ============================================
+      // Read-only operational-health view: GET /api/bridge-ops/stats +
+      // /api/bridge-ops/activity, both in-process engine reads (the UI is a 4th
+      // adapter, not a REST proxy — R1). Manual refresh only (R8 — no auto-poll
+      // or SSE). Empty / embedder-down / scan-driven states degrade plainly,
+      // never a silent crash (US4).
+      bridgeStats: null,        // bridgeOpsStatsDTO or null (until first load)
+      bridgeActivity: [],       // activityEventDTO[] (most-recent-first)
+      bridgeLoading: false,
+      bridgeError: '',
+      bridgeActivityType: 'ingest',
+      bridgeActivityTail: 20,
+
+      /** Fetch stats + activity together (both refresh on view-entry + click). */
+      loadBridgeOps: async function () {
+        this.bridgeError = '';
+        this.bridgeLoading = true;
+        await Promise.all([this.loadBridgeStats(), this.loadBridgeActivity()]);
+        this.bridgeLoading = false;
+      },
+
+      /** Refresh-button alias — reload both payloads. */
+      refreshBridgeOps: function () {
+        this.loadBridgeOps();
+      },
+
+      /** GET /api/bridge-ops/stats → operational projection of engine.Status(). */
+      loadBridgeStats: async function () {
+        var res = await this.api('/api/bridge-ops/stats');
+        if (!res || res.status === 401) return; // api() re-locks the gate
+        if (!res.ok) {
+          this.bridgeError = 'Failed to load bridge ops (HTTP ' + res.status + ').';
+          return;
+        }
+        try {
+          this.bridgeStats = await res.json();
+        } catch (_e) {
+          this.bridgeError = 'Bridge ops response was not valid JSON.';
+        }
+      },
+
+      /** GET /api/bridge-ops/activity?tail=N&type=T → bounded recent feed. */
+      loadBridgeActivity: async function () {
+        var q = '/api/bridge-ops/activity?tail=' + encodeURIComponent(this.bridgeActivityTail) +
+          '&type=' + encodeURIComponent(this.bridgeActivityType);
+        var res = await this.api(q);
+        if (!res || res.status === 401) return;
+        if (!res.ok) {
+          // 400 invalid-type is guarded client-side by the select; any other
+          // non-ok degrades to empty + a soft error (never a crash).
+          this.bridgeActivity = [];
+          this.bridgeError = 'Failed to load activity (HTTP ' + res.status + ').';
+          return;
+        }
+        try {
+          var data = await res.json();
+          this.bridgeActivity = (data && data.events) || [];
+        } catch (_e) {
+          this.bridgeActivity = [];
+        }
+      },
+
+      /** Broaden the activity type filter, then reload the feed (US2 control). */
+      changeActivityType: function (t) {
+        if (t !== 'ingest' && t !== 'query' && t !== 'auth-fail') return;
+        this.bridgeActivityType = t;
+        this.loadBridgeActivity();
+      },
+
+      /** Adjust the tail size (clamped client-side; the server clamps too — R4). */
+      changeActivityTail: function (raw) {
+        var n = Number(raw) || 20;
+        if (n < 1) n = 1;
+        if (n > 100) n = 100;
+        this.bridgeActivityTail = n;
+        this.loadBridgeActivity();
+      },
+
+      /** One-line cache summary for the caches subsystem tile. */
+      cacheSummary: function (c) {
+        if (!c) return '—';
+        if (!c.enabled) return 'off';
+        return c.size + '/' + c.capacity + ' (hits ' + c.hits + ', miss ' + c.misses + ')';
+      },
+
+      /** Trim an RFC3339 timestamp to a readable UTC form for the feed/tiles. */
+      fmtTS: function (ts) {
+        if (!ts) return '';
+        return ts.replace('T', ' ').replace(/Z$/, '');
       },
 
       // === Token storage helpers ===========================================

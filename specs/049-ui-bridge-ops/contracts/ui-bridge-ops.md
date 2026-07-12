@@ -41,7 +41,7 @@ states (poisoning / enrichment / caches / adaptive), and configured watch direct
       "embedding":  { "enabled": true, "size": 3,  "capacity": 256,  "hits": 2,  "misses": 0 }
     },
     "adaptive": { "pool_size": 60, "enabled": false,
-                  "utilization": { "samples": 0, "p50": 0, "p95": 0 }, "near_dup_chunks": 0 }
+                  "utilization": { "queries": 0, "avg_fetched": 0, "avg_kept": 0, "saturated": false }, "near_dup_chunks": 0 }
   },
   "watch": { "dirs": ["."], "scan_driven": true }
 }

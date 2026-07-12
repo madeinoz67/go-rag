@@ -77,6 +77,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/documents/{id}/chunks", s.guard(s.handleDocumentChunks))                 // spec 047 US2
 	mux.HandleFunc("GET /api/documents/{id}/chunks/{chunkID}/context", s.guard(s.handleChunkContext)) // spec 047 US2
 	mux.HandleFunc("POST /api/query", s.guard(s.handleQuery))                                         // spec 048
+	mux.HandleFunc("GET /api/bridge-ops/stats", s.guard(s.handleBridgeOpsStats))                      // spec 049
+	mux.HandleFunc("GET /api/bridge-ops/activity", s.guard(s.handleBridgeOpsActivity))                // spec 049
 	mux.HandleFunc("GET /api/placeholder/{view}", s.guard(s.handlePlaceholder))
 	mux.HandleFunc("POST /logout", s.guard(s.handleLogout))
 	return mux
