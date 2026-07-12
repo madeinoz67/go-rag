@@ -198,7 +198,7 @@
         if (view === 'documents') {
           this.loadDocuments('');
         }
-        if (view === 'bridge-ops') {
+        if (view === 'operations') {
           this.loadBridgeOps();
         }
       },
@@ -585,7 +585,7 @@
         return (Number(s) || 0).toFixed(3);
       },
 
-      // === Bridge Ops (spec 049) ============================================
+      // === Operations (spec 049) ============================================
       // Read-only operational-health view: GET /api/bridge-ops/stats +
       // /api/bridge-ops/activity, both in-process engine reads (the UI is a 4th
       // adapter, not a REST proxy — R1). Manual refresh only (R8 — no auto-poll

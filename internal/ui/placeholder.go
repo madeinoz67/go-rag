@@ -10,12 +10,12 @@ import (
 // later view-spec replaces handlePlaceholder's JSON marker with a real handler.
 //
 // Dashboard is NOT here — it is the one real view in Slice 0 (handleDashboardStats).
-// Memory & Graph (053) and half of Bridge Ops (049) stay bridge-blocked until
+// Memory & Graph (053) and half of Operations (049) stay bridge-blocked until
 // the MuninnDB bridge lands (their issues #560 → #556).
 var placeholderViews = map[string]string{
 	"documents":     "047",
 	"query":         "048",
-	"bridge-ops":    "049",
+	"operations":    "049",
 	"vaults":        "050",
 	"observability": "051",
 	"settings":      "052",

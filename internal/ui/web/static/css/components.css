@@ -384,7 +384,7 @@
 }
 
 /* ==========================================================================
- * Bridge Ops view (spec 049 — US1..US4) — operational-health surface. Reuses
+ * Operations view (spec 049 — US1..US4) — operational-health surface. Reuses
  * the Dashboard/Query primitives (stat-grid, meta-row, badge, tag-chip,
  * dashboard-empty, ctrl) and adds the bridge-specific tile grid, activity
  * feed, expandable drift detail, and watch section. Same fallback-vars

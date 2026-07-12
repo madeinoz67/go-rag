@@ -260,7 +260,7 @@ func TestPlaceholder_Routes(t *testing.T) {
 // sidebar views with their future spec numbers (the 8th, Dashboard, is real).
 func TestSidebar_ViewSet(t *testing.T) {
 	want := map[string]string{
-		"documents": "047", "query": "048", "bridge-ops": "049", "vaults": "050",
+		"documents": "047", "query": "048", "operations": "049", "vaults": "050",
 		"observability": "051", "settings": "052", "memory-graph": "053",
 	}
 	if len(placeholderViews) != len(want) {

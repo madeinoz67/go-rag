@@ -139,13 +139,13 @@
 
         <button type="button"
                 class="nav-item"
-                :class="{ 'active': currentView === 'bridge-ops' }"
-                @click="switchView('bridge-ops')"
-                aria-label="Bridge Ops">
+                :class="{ 'active': currentView === 'operations' }"
+                @click="switchView('operations')"
+                aria-label="Operations">
           <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M3 12h4l3-9 4 18 3-9h4"/>
           </svg>
-          <span class="nav-label">Bridge Ops</span>
+          <span class="nav-label">Operations</span>
         </button>
 
         <button type="button"
@@ -636,9 +636,9 @@
       </section>
 
       <!-- ====== BRIDGE OPS (spec 049 — real view: operational health) ====== -->
-      <section x-show="currentView === 'bridge-ops'" class="view" x-cloak>
+      <section x-show="currentView === 'operations'" class="view" x-cloak>
         <header class="view-header">
-          <h1 class="page-title">Bridge Ops</h1>
+          <h1 class="page-title">Operations</h1>
           <div class="vault-chip" x-show="bridgeStats && bridgeStats.vault" x-cloak>
             <span class="vault-chip-label">Vault:</span>
             <span x-text="bridgeStats ? bridgeStats.vault : ''"></span>

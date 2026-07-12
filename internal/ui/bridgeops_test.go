@@ -1,7 +1,7 @@
 package ui
 
 // bridgeops_test.go (spec 049 T008/T010/T012/T013) covers all four user stories
-// of the Bridge Ops view against the live in-process engine + audit log. The
+// of the Operations view against the live in-process engine + audit log. The
 // harness (newTestEngine/newUITest/bearerGet/login) is shared with ui_test.go.
 //
 // Parity is the spine: stats values match eng.Status() (the source `go-rag
@@ -299,7 +299,7 @@ func TestBridgeOpsActivity_MissingLogIsEmpty(t *testing.T) {
 
 // TestBridgeOpsStats_DriftDetail — the baseline (corpus baseline the index was
 // built under) + cause are present and match StatusInfo (the Dashboard shows
-// only the verdict; Bridge Ops adds the detail — R6).
+// only the verdict; Operations adds the detail — R6).
 func TestBridgeOpsStats_DriftDetail(t *testing.T) {
 	srv, tok, eng := bridgeOpsSetup(t)
 	want, err := eng.Status()
@@ -382,7 +382,7 @@ func TestBridgeOps_NoWrite(t *testing.T) {
 	drainAndClose(resp)
 
 	if after := snapUI(t, eng); before != after {
-		t.Fatalf("Bridge Ops mutated DB: before=%s after=%s", before, after)
+		t.Fatalf("Operations mutated DB: before=%s after=%s", before, after)
 	}
 }
 

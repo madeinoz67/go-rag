@@ -1,6 +1,6 @@
 package ui
 
-// bridgeops.go (spec 049 Slice 3) is the Bridge Ops view's two read-only
+// bridgeops.go (spec 049 Slice 3) is the Operations view's two read-only
 // backend routes — the operational-health surface (view 4 of the sidebar). It
 // differentiates from the Dashboard (spec 046) by surfacing what the Dashboard
 // omits: drift detail (baseline-vs-live), the subsystem tiles (poisoning,
