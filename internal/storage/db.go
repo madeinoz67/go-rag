@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/cockroachdb/pebble"
 )
@@ -14,6 +15,17 @@ import (
 type DB struct {
 	db   *pebble.DB
 	path string
+
+	// vaultPrefixCache memoizes vault-name → wsPrefix resolutions (spec 052).
+	// It is the hot path of ResolveVaultPrefix and is seeded from the persisted
+	// VaultNameIndex (0x1B) at startup so the SipHash fallback stays cold-only.
+	// Bounded (10k); single-operator scale never approaches the bound.
+	vaultPrefixCache *vaultCache
+
+	// vaultNameWritten records wsPrefixes whose VaultMeta/VaultNameIndex keys
+	// have already been persisted this session, so WriteVaultName's existence
+	// check fires at most once per vault per process (the per-write fast path).
+	vaultNameWritten sync.Map
 }
 
 // quietLogger suppresses Pebble's chatty Info-level logs (WAL replay notices,
@@ -33,7 +45,7 @@ func Open(path string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open pebble %q: %w", path, err)
 	}
-	return &DB{db: db, path: path}, nil
+	return &DB{db: db, path: path, vaultPrefixCache: newVaultCache(vaultCacheCapacity)}, nil
 }
 
 // Close closes the database.

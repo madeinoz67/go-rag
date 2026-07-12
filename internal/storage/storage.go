@@ -35,4 +35,43 @@ const (
 	PrefixAuthAPIKey  byte = 0x17 // spec 045: API-key record (SHA-256(secret)[:16] → APIKey JSON)
 	PrefixAuthAdmin   byte = 0x18 // spec 045: admin-user record (username → AdminUser JSON)
 	PrefixAuthSession byte = 0x19 // spec 045: session record (SHA-256(token)[:16] → Session JSON)
+
+	// Vault registry (spec 052 / v2.0 storage model). These are GLOBAL — the
+	// registry records vaults and MUST NOT be scoped by the very prefix it maps.
+	// VaultMeta is keyed by ws[8] (scan to list); VaultNameIndex is keyed by
+	// siphash(name)[8] (point-get to resolve). See internal/storage/keys/keys.go
+	// and internal/storage/vault.go.
+	PrefixVaultMeta      byte = 0x1A // spec 052: ws[8] → vault name (list index)
+	PrefixVaultNameIndex byte = 0x1B // spec 052: siphash(name)[8] → ws[8] (resolve index)
 )
+
+// VaultScopedKinds is the fixed set of key-prefix kinds that widen with an
+// 8-byte wsPrefix under the v2.0 unified store (spec 052 / data-model.md).
+// Every key in these families has shape `kind | wsPrefix(8) | payload`. The
+// v3→v4 migration mechanically prepends ws to each; ClearVault tombstones each
+// of these ranges for one vault.
+//
+// The global kinds NOT in this list (Config 0x09, AuthAPIKey 0x17, AuthAdmin
+// 0x18, AuthSession 0x19, VaultMeta 0x1A, VaultNameIndex 0x1B) keep the flat
+// `kind | payload` shape — they are instance-wide, not per-vault.
+var VaultScopedKinds = []byte{
+	0x01, // Source
+	0x02, // Document
+	0x03, // Chunk
+	0x04, // Embedding
+	0x05, // FTSPosting
+	0x07, // FTSIndexed
+	0x08, // FTSGlobalSt
+	0x0A, // SourceDocs
+	0x0B, // DocChunks
+	0x0C, // PathDoc
+	0x0D, // ContentHash
+	0x0E, // ChangeDetect
+	0x0F, // Idempotency
+	0x10, // CorpusMeta
+	0x11, // PoisonQuar
+	0x12, // ThreatSrc
+	0x13, // NearDup
+	0x14, // EmbedQueue
+	0x15, // ImageCaption
+}

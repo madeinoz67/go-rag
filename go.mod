@@ -4,6 +4,7 @@ go 1.26.5
 
 require (
 	github.com/cockroachdb/pebble v1.1.5
+	github.com/dchest/siphash v1.0.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/knights-analytics/hugot v0.7.5
 	github.com/pdfcpu/pdfcpu v0.13.0

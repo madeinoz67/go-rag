@@ -38,6 +38,13 @@ var defaultMigrations = []Migration{
 	{Version: 1, Description: "introduce schema-version key (v0→v1 bootstrap)", Up: v1Bootstrap},
 	{Version: 2, Description: "backfill per-chunk ContentHash sidecar (spec 043 / BL-010)", Up: v2ContentHash},
 	{Version: 3, Description: "reserve auth key-space prefixes (spec 045)", Up: v3RegisterAuthPrefixes},
+	// Version 4 (spec 052): multi-vault unified-store key-widening marker. The
+	// actual key-rewrite is filesystem-level (migrate.MergeLegacyVaults, called by
+	// the daemon pre-open); this Up is a no-op that advances the schema-version
+	// key so the refuse-newer guard arms. INACTIVE while ExpectedVersion stays 3 —
+	// Run() skips Version > expected. Activated by the one-line ExpectedVersion
+	// bump that ships with the storage widening (T004–T005).
+	{Version: 4, Description: "multi-vault unified-store key-widening (spec 052) — marker; merge runs pre-open", Up: v4MultiVault},
 }
 
 // Run applies every migration in ms whose Version is greater than the store's
