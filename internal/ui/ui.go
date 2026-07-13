@@ -203,6 +203,23 @@ func writeError(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, code, map[string]any{"error": msg})
 }
 
+// vaultHeader is the request-scoped vault selector. The web client pins it on
+// every /api/* fetch so the handler targets the operator's chosen vault.
+const vaultHeader = "X-Go-Rag-Vault"
+
+// vaultFromRequest resolves the target vault for a request. The operator may
+// pin it per-request via the X-Go-Rag-Vault header or the ?vault= query param
+// (header wins when both are present). Absent/empty → "default".
+func vaultFromRequest(r *http.Request) string {
+	if v := strings.TrimSpace(r.Header.Get(vaultHeader)); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(r.URL.Query().Get("vault")); v != "" {
+		return v
+	}
+	return "default"
+}
+
 // bearerOf extracts the raw bearer token from the Authorization header (best
 // effort — used to identify the caller's own session for logout).
 func bearerOf(r *http.Request) string {

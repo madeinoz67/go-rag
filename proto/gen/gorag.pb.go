@@ -149,6 +149,8 @@ type QueryRequest struct {
 	IncludeQuarantined bool                   `protobuf:"varint,12,opt,name=include_quarantined,json=includeQuarantined,proto3" json:"include_quarantined,omitempty"` // H04/spec 019: return chunks flagged as injection-poisoning (excluded by default)
 	PoolSize           int32                  `protobuf:"varint,13,opt,name=pool_size,json=poolSize,proto3" json:"pool_size,omitempty"`                               // H22/spec 024: reranker candidate-pool override; 0 = config/default (60); shrinks with classifier-recommended k
 	Dedup              bool                   `protobuf:"varint,14,opt,name=dedup,proto3" json:"dedup,omitempty"`                                                     // H20/spec 026: collapse near-duplicate hits (default false)
+	Vault              string                 `protobuf:"bytes,15,opt,name=vault,proto3" json:"vault,omitempty"`                                                      // vault scope (empty = default vault)
+	Vaults             []string               `protobuf:"bytes,16,rep,name=vaults,proto3" json:"vaults,omitempty"`                                                    // cross-vault query (empty = single vault above)
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -279,6 +281,20 @@ func (x *QueryRequest) GetDedup() bool {
 		return x.Dedup
 	}
 	return false
+}
+
+func (x *QueryRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
+}
+
+func (x *QueryRequest) GetVaults() []string {
+	if x != nil {
+		return x.Vaults
+	}
+	return nil
 }
 
 type QueryHit struct {
@@ -635,6 +651,7 @@ func (x *PoisoningSignals) GetInstruction() float64 {
 // ReleaseChunk / ResetChunk (also REST /v1/poison, MCP poison_*).
 type ListPoisonedRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Vault         string                 `protobuf:"bytes,1,opt,name=vault,proto3" json:"vault,omitempty"` // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -667,6 +684,13 @@ func (x *ListPoisonedRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ListPoisonedRequest.ProtoReflect.Descriptor instead.
 func (*ListPoisonedRequest) Descriptor() ([]byte, []int) {
 	return file_gorag_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ListPoisonedRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
 }
 
 type ListPoisonedResponse struct {
@@ -784,6 +808,7 @@ func (x *PoisonedChunk) GetVerdict() *Poisoning {
 type ReleaseChunkRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ChunkId       string                 `protobuf:"bytes,1,opt,name=chunk_id,json=chunkId,proto3" json:"chunk_id,omitempty"`
+	Vault         string                 `protobuf:"bytes,2,opt,name=vault,proto3" json:"vault,omitempty"` // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -825,9 +850,17 @@ func (x *ReleaseChunkRequest) GetChunkId() string {
 	return ""
 }
 
+func (x *ReleaseChunkRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
+}
+
 type ResetChunkRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ChunkId       string                 `protobuf:"bytes,1,opt,name=chunk_id,json=chunkId,proto3" json:"chunk_id,omitempty"`
+	Vault         string                 `protobuf:"bytes,2,opt,name=vault,proto3" json:"vault,omitempty"` // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -865,6 +898,13 @@ func (*ResetChunkRequest) Descriptor() ([]byte, []int) {
 func (x *ResetChunkRequest) GetChunkId() string {
 	if x != nil {
 		return x.ChunkId
+	}
+	return ""
+}
+
+func (x *ResetChunkRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
 	}
 	return ""
 }
@@ -923,6 +963,7 @@ func (x *PoisonActionResponse) GetStatus() string {
 
 type RescanPoisoningRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Vault         string                 `protobuf:"bytes,1,opt,name=vault,proto3" json:"vault,omitempty"` // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -955,6 +996,13 @@ func (x *RescanPoisoningRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RescanPoisoningRequest.ProtoReflect.Descriptor instead.
 func (*RescanPoisoningRequest) Descriptor() ([]byte, []int) {
 	return file_gorag_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *RescanPoisoningRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
 }
 
 type RescanPoisoningResponse struct {
@@ -1009,12 +1057,12 @@ func (x *RescanPoisoningResponse) GetFlagged() int32 {
 	return 0
 }
 
-// spec 035 (BL-001): fetch a single chunk by content-addressed ID. The request
-// carries only chunk_id — the engine is single-vault-per-process, so (unlike the
-// bridge backlog's draft) there is NO vault field; mirrors ReleaseChunkRequest.
+// spec 035 (BL-001): fetch a single chunk by content-addressed ID. Carries
+// chunk_id + vault scope (multi-vault); mirrors ReleaseChunkRequest.
 type GetChunkRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ChunkId       string                 `protobuf:"bytes,1,opt,name=chunk_id,json=chunkId,proto3" json:"chunk_id,omitempty"`
+	Vault         string                 `protobuf:"bytes,2,opt,name=vault,proto3" json:"vault,omitempty"` // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1052,6 +1100,13 @@ func (*GetChunkRequest) Descriptor() ([]byte, []int) {
 func (x *GetChunkRequest) GetChunkId() string {
 	if x != nil {
 		return x.ChunkId
+	}
+	return ""
+}
+
+func (x *GetChunkRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
 	}
 	return ""
 }
@@ -1116,6 +1171,7 @@ type GetChunkContextRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ChunkId       string                 `protobuf:"bytes,1,opt,name=chunk_id,json=chunkId,proto3" json:"chunk_id,omitempty"`
 	Window        int32                  `protobuf:"varint,2,opt,name=window,proto3" json:"window,omitempty"` // default 2, clamped [0,10]; >10 → INVALID_ARGUMENT
+	Vault         string                 `protobuf:"bytes,3,opt,name=vault,proto3" json:"vault,omitempty"`    // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1162,6 +1218,13 @@ func (x *GetChunkContextRequest) GetWindow() int32 {
 		return x.Window
 	}
 	return 0
+}
+
+func (x *GetChunkContextRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
 }
 
 // spec 037 (BL-002): the ordered context window [predecessors][target][successors],
@@ -1226,10 +1289,11 @@ func (x *GetChunkContextResponse) GetDocument() *DocumentMeta {
 	return nil
 }
 
-// spec 038 (BL-003): request up to 100 content-addressed chunk ids (no vault).
+// spec 038 (BL-003): request up to 100 content-addressed chunk ids.
 type BatchGetChunksRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ChunkIds      []string               `protobuf:"bytes,1,rep,name=chunk_ids,json=chunkIds,proto3" json:"chunk_ids,omitempty"` // max 100; >100 / empty / empty-element → INVALID_ARGUMENT
+	Vault         string                 `protobuf:"bytes,2,opt,name=vault,proto3" json:"vault,omitempty"`                       // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1269,6 +1333,13 @@ func (x *BatchGetChunksRequest) GetChunkIds() []string {
 		return x.ChunkIds
 	}
 	return nil
+}
+
+func (x *BatchGetChunksRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
 }
 
 // spec 038 (BL-003): one positional result entry — the requested id, its chunk
@@ -1396,6 +1467,7 @@ type ListDocumentsRequest struct {
 	After         string                 `protobuf:"bytes,3,opt,name=after,proto3" json:"after,omitempty"`                          // RFC3339; only docs with ingested_at > after; "" → all
 	Status        string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`                        // embedded|pending|error|"" (all); AND with after
 	Tags          []string               `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`                            // spec 047: tag filter, match-any (doc has ≥1 of these); empty = no constraint
+	Vault         string                 `protobuf:"bytes,6,opt,name=vault,proto3" json:"vault,omitempty"`                          // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1465,6 +1537,13 @@ func (x *ListDocumentsRequest) GetTags() []string {
 	return nil
 }
 
+func (x *ListDocumentsRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
+}
+
 // spec 039 (BL-007): one page of documents + the cursor for the next page.
 type ListDocumentsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1524,6 +1603,7 @@ type ListChunksRequest struct {
 	DocumentId    string                 `protobuf:"bytes,1,opt,name=document_id,json=documentId,proto3" json:"document_id,omitempty"` // required; empty → INVALID_ARGUMENT
 	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`      // default 50, max 200; <1 or >200 → INVALID_ARGUMENT
 	PageToken     string                 `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`    // opaque; empty → first page
+	Vault         string                 `protobuf:"bytes,4,opt,name=vault,proto3" json:"vault,omitempty"`                             // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1575,6 +1655,13 @@ func (x *ListChunksRequest) GetPageSize() int32 {
 func (x *ListChunksRequest) GetPageToken() string {
 	if x != nil {
 		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListChunksRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
 	}
 	return ""
 }
@@ -1638,6 +1725,7 @@ func (x *ListChunksResponse) GetNextPageToken() string {
 type DeleteDocumentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	DocId         string                 `protobuf:"bytes,1,opt,name=doc_id,json=docId,proto3" json:"doc_id,omitempty"` // required; empty → INVALID_ARGUMENT; unknown → NOT_FOUND
+	Vault         string                 `protobuf:"bytes,2,opt,name=vault,proto3" json:"vault,omitempty"`              // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1675,6 +1763,13 @@ func (*DeleteDocumentRequest) Descriptor() ([]byte, []int) {
 func (x *DeleteDocumentRequest) GetDocId() string {
 	if x != nil {
 		return x.DocId
+	}
+	return ""
+}
+
+func (x *DeleteDocumentRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
 	}
 	return ""
 }
@@ -1721,6 +1816,7 @@ func (*DeleteDocumentResponse) Descriptor() ([]byte, []int) {
 type WatchRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Cursor        string                 `protobuf:"bytes,1,opt,name=cursor,proto3" json:"cursor,omitempty"` // opaque resume token; empty = start from now (no replay)
+	Vault         string                 `protobuf:"bytes,2,opt,name=vault,proto3" json:"vault,omitempty"`   // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1758,6 +1854,13 @@ func (*WatchRequest) Descriptor() ([]byte, []int) {
 func (x *WatchRequest) GetCursor() string {
 	if x != nil {
 		return x.Cursor
+	}
+	return ""
+}
+
+func (x *WatchRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
 	}
 	return ""
 }
@@ -2380,6 +2483,7 @@ func (x *QueryResponse) GetEffectiveMode() string {
 
 type StatusRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Vault         string                 `protobuf:"bytes,1,opt,name=vault,proto3" json:"vault,omitempty"` // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2412,6 +2516,13 @@ func (x *StatusRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use StatusRequest.ProtoReflect.Descriptor instead.
 func (*StatusRequest) Descriptor() ([]byte, []int) {
 	return file_gorag_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *StatusRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
 }
 
 type StatusResponse struct {
@@ -2627,7 +2738,8 @@ func (x *PoolUtilization) GetSaturated() uint64 {
 type AddRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
-	Glob          string                 `protobuf:"bytes,2,opt,name=glob,proto3" json:"glob,omitempty"` // optional file-pattern filter (e.g. "*.pdf"); empty = "*"
+	Glob          string                 `protobuf:"bytes,2,opt,name=glob,proto3" json:"glob,omitempty"`   // optional file-pattern filter (e.g. "*.pdf"); empty = "*"
+	Vault         string                 `protobuf:"bytes,3,opt,name=vault,proto3" json:"vault,omitempty"` // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2676,8 +2788,16 @@ func (x *AddRequest) GetGlob() string {
 	return ""
 }
 
+func (x *AddRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
+}
+
 type ScanRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Vault         string                 `protobuf:"bytes,1,opt,name=vault,proto3" json:"vault,omitempty"` // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2712,9 +2832,17 @@ func (*ScanRequest) Descriptor() ([]byte, []int) {
 	return file_gorag_proto_rawDescGZIP(), []int{36}
 }
 
+func (x *ScanRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
+}
+
 type ReprocessRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Vault         string                 `protobuf:"bytes,2,opt,name=vault,proto3" json:"vault,omitempty"` // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2756,8 +2884,16 @@ func (x *ReprocessRequest) GetPath() string {
 	return ""
 }
 
+func (x *ReprocessRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
+}
+
 type MigrateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Vault         string                 `protobuf:"bytes,1,opt,name=vault,proto3" json:"vault,omitempty"` // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2792,10 +2928,18 @@ func (*MigrateRequest) Descriptor() ([]byte, []int) {
 	return file_gorag_proto_rawDescGZIP(), []int{38}
 }
 
-// H24/spec 028: read-only migration preview request (no args). Mirrors the
+func (x *MigrateRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
+}
+
+// H24/spec 028: read-only migration preview request. Mirrors the
 // REST POST /v1/migrate/plan and the MCP go_rag_migrate_plan tool.
 type MigratePlanRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Vault         string                 `protobuf:"bytes,1,opt,name=vault,proto3" json:"vault,omitempty"` // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2828,6 +2972,13 @@ func (x *MigratePlanRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use MigratePlanRequest.ProtoReflect.Descriptor instead.
 func (*MigratePlanRequest) Descriptor() ([]byte, []int) {
 	return file_gorag_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *MigratePlanRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
 }
 
 // MigrationPlan is the read-only migration preview (H24/spec 028). Mirrors
@@ -3182,6 +3333,7 @@ func (x *IngestSummary) GetErrors() int32 {
 
 type FilesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Vault         string                 `protobuf:"bytes,1,opt,name=vault,proto3" json:"vault,omitempty"` // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3214,6 +3366,13 @@ func (x *FilesRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use FilesRequest.ProtoReflect.Descriptor instead.
 func (*FilesRequest) Descriptor() ([]byte, []int) {
 	return file_gorag_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *FilesRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
 }
 
 type FileEntry struct {
@@ -3330,6 +3489,7 @@ func (x *FilesResponse) GetFiles() []*FileEntry {
 
 type DirsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Vault         string                 `protobuf:"bytes,1,opt,name=vault,proto3" json:"vault,omitempty"` // vault scope (empty = default vault)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3362,6 +3522,13 @@ func (x *DirsRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use DirsRequest.ProtoReflect.Descriptor instead.
 func (*DirsRequest) Descriptor() ([]byte, []int) {
 	return file_gorag_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *DirsRequest) GetVault() string {
+	if x != nil {
+		return x.Vault
+	}
+	return ""
 }
 
 type DirEntry struct {
@@ -3908,7 +4075,7 @@ var File_gorag_proto protoreflect.FileDescriptor
 
 const file_gorag_proto_rawDesc = "" +
 	"\n" +
-	"\vgorag.proto\x12\x05gorag\"\xfc\x02\n" +
+	"\vgorag.proto\x12\x05gorag\"\xaa\x03\n" +
 	"\fQueryRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\f\n" +
 	"\x01k\x18\x02 \x01(\x05R\x01k\x12\x12\n" +
@@ -3924,7 +4091,9 @@ const file_gorag_proto_rawDesc = "" +
 	"\bno_cache\x18\v \x01(\bR\anoCache\x12/\n" +
 	"\x13include_quarantined\x18\f \x01(\bR\x12includeQuarantined\x12\x1b\n" +
 	"\tpool_size\x18\r \x01(\x05R\bpoolSize\x12\x14\n" +
-	"\x05dedup\x18\x0e \x01(\bR\x05dedup\"\xb2\x04\n" +
+	"\x05dedup\x18\x0e \x01(\bR\x05dedup\x12\x14\n" +
+	"\x05vault\x18\x0f \x01(\tR\x05vault\x12\x16\n" +
+	"\x06vaults\x18\x10 \x03(\tR\x06vaults\"\xb2\x04\n" +
 	"\bQueryHit\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x1f\n" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +
@@ -3960,8 +4129,9 @@ const file_gorag_proto_rawDesc = "" +
 	"repetition\x18\x01 \x01(\x01R\n" +
 	"repetition\x12\x1a\n" +
 	"\bstuffing\x18\x02 \x01(\x01R\bstuffing\x12 \n" +
-	"\vinstruction\x18\x03 \x01(\x01R\vinstruction\"\x15\n" +
-	"\x13ListPoisonedRequest\"F\n" +
+	"\vinstruction\x18\x03 \x01(\x01R\vinstruction\"+\n" +
+	"\x13ListPoisonedRequest\x12\x14\n" +
+	"\x05vault\x18\x01 \x01(\tR\x05vault\"F\n" +
 	"\x14ListPoisonedResponse\x12.\n" +
 	"\aflagged\x18\x01 \x03(\v2\x14.gorag.PoisonedChunkR\aflagged\"\x91\x01\n" +
 	"\rPoisonedChunk\x12\x19\n" +
@@ -3969,63 +4139,73 @@ const file_gorag_proto_rawDesc = "" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +
 	"documentId\x12\x18\n" +
 	"\apreview\x18\x03 \x01(\tR\apreview\x12*\n" +
-	"\averdict\x18\x04 \x01(\v2\x10.gorag.PoisoningR\averdict\"0\n" +
+	"\averdict\x18\x04 \x01(\v2\x10.gorag.PoisoningR\averdict\"F\n" +
 	"\x13ReleaseChunkRequest\x12\x19\n" +
-	"\bchunk_id\x18\x01 \x01(\tR\achunkId\".\n" +
+	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x14\n" +
+	"\x05vault\x18\x02 \x01(\tR\x05vault\"D\n" +
 	"\x11ResetChunkRequest\x12\x19\n" +
-	"\bchunk_id\x18\x01 \x01(\tR\achunkId\"I\n" +
+	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x14\n" +
+	"\x05vault\x18\x02 \x01(\tR\x05vault\"I\n" +
 	"\x14PoisonActionResponse\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x16\n" +
-	"\x06status\x18\x02 \x01(\tR\x06status\"\x18\n" +
-	"\x16RescanPoisoningRequest\"O\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\".\n" +
+	"\x16RescanPoisoningRequest\x12\x14\n" +
+	"\x05vault\x18\x01 \x01(\tR\x05vault\"O\n" +
 	"\x17RescanPoisoningResponse\x12\x1a\n" +
 	"\brescored\x18\x01 \x01(\x05R\brescored\x12\x18\n" +
-	"\aflagged\x18\x02 \x01(\x05R\aflagged\",\n" +
+	"\aflagged\x18\x02 \x01(\x05R\aflagged\"B\n" +
 	"\x0fGetChunkRequest\x12\x19\n" +
-	"\bchunk_id\x18\x01 \x01(\tR\achunkId\"g\n" +
+	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x14\n" +
+	"\x05vault\x18\x02 \x01(\tR\x05vault\"g\n" +
 	"\x10GetChunkResponse\x12\"\n" +
 	"\x05chunk\x18\x01 \x01(\v2\f.gorag.ChunkR\x05chunk\x12/\n" +
-	"\bdocument\x18\x02 \x01(\v2\x13.gorag.DocumentMetaR\bdocument\"K\n" +
+	"\bdocument\x18\x02 \x01(\v2\x13.gorag.DocumentMetaR\bdocument\"a\n" +
 	"\x16GetChunkContextRequest\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x16\n" +
-	"\x06window\x18\x02 \x01(\x05R\x06window\"\x93\x01\n" +
+	"\x06window\x18\x02 \x01(\x05R\x06window\x12\x14\n" +
+	"\x05vault\x18\x03 \x01(\tR\x05vault\"\x93\x01\n" +
 	"\x17GetChunkContextResponse\x12$\n" +
 	"\x06chunks\x18\x01 \x03(\v2\f.gorag.ChunkR\x06chunks\x12!\n" +
 	"\ftarget_index\x18\x02 \x01(\x05R\vtargetIndex\x12/\n" +
-	"\bdocument\x18\x03 \x01(\v2\x13.gorag.DocumentMetaR\bdocument\"4\n" +
+	"\bdocument\x18\x03 \x01(\v2\x13.gorag.DocumentMetaR\bdocument\"J\n" +
 	"\x15BatchGetChunksRequest\x12\x1b\n" +
-	"\tchunk_ids\x18\x01 \x03(\tR\bchunkIds\"\x9c\x01\n" +
+	"\tchunk_ids\x18\x01 \x03(\tR\bchunkIds\x12\x14\n" +
+	"\x05vault\x18\x02 \x01(\tR\x05vault\"\x9c\x01\n" +
 	"\x14BatchGetChunksResult\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\"\n" +
 	"\x05chunk\x18\x02 \x01(\v2\f.gorag.ChunkR\x05chunk\x12\x14\n" +
 	"\x05error\x18\x03 \x01(\tR\x05error\x12/\n" +
 	"\bdocument\x18\x04 \x01(\v2\x13.gorag.DocumentMetaR\bdocument\"O\n" +
 	"\x16BatchGetChunksResponse\x125\n" +
-	"\aresults\x18\x01 \x03(\v2\x1b.gorag.BatchGetChunksResultR\aresults\"\x94\x01\n" +
+	"\aresults\x18\x01 \x03(\v2\x1b.gorag.BatchGetChunksResultR\aresults\"\xaa\x01\n" +
 	"\x14ListDocumentsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x14\n" +
 	"\x05after\x18\x03 \x01(\tR\x05after\x12\x16\n" +
 	"\x06status\x18\x04 \x01(\tR\x06status\x12\x12\n" +
-	"\x04tags\x18\x05 \x03(\tR\x04tags\"r\n" +
+	"\x04tags\x18\x05 \x03(\tR\x04tags\x12\x14\n" +
+	"\x05vault\x18\x06 \x01(\tR\x05vault\"r\n" +
 	"\x15ListDocumentsResponse\x121\n" +
 	"\tdocuments\x18\x01 \x03(\v2\x13.gorag.DocumentMetaR\tdocuments\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"p\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x86\x01\n" +
 	"\x11ListChunksRequest\x12\x1f\n" +
 	"\vdocument_id\x18\x01 \x01(\tR\n" +
 	"documentId\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x03 \x01(\tR\tpageToken\"b\n" +
+	"page_token\x18\x03 \x01(\tR\tpageToken\x12\x14\n" +
+	"\x05vault\x18\x04 \x01(\tR\x05vault\"b\n" +
 	"\x12ListChunksResponse\x12$\n" +
 	"\x06chunks\x18\x01 \x03(\v2\f.gorag.ChunkR\x06chunks\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\".\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"D\n" +
 	"\x15DeleteDocumentRequest\x12\x15\n" +
-	"\x06doc_id\x18\x01 \x01(\tR\x05docId\"\x18\n" +
-	"\x16DeleteDocumentResponse\"&\n" +
+	"\x06doc_id\x18\x01 \x01(\tR\x05docId\x12\x14\n" +
+	"\x05vault\x18\x02 \x01(\tR\x05vault\"\x18\n" +
+	"\x16DeleteDocumentResponse\"<\n" +
 	"\fWatchRequest\x12\x16\n" +
-	"\x06cursor\x18\x01 \x01(\tR\x06cursor\"\x9b\x02\n" +
+	"\x06cursor\x18\x01 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05vault\x18\x02 \x01(\tR\x05vault\"\x9b\x02\n" +
 	"\rDocumentEvent\x12,\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x18.gorag.DocumentEventTypeR\x04type\x12\x1f\n" +
 	"\vdocument_id\x18\x02 \x01(\tR\n" +
@@ -4105,8 +4285,9 @@ const file_gorag_proto_rawDesc = "" +
 	"\veffective_k\x18\x03 \x01(\x05R\n" +
 	"effectiveK\x12%\n" +
 	"\x0eeffective_pool\x18\x04 \x01(\x05R\reffectivePool\x12%\n" +
-	"\x0eeffective_mode\x18\x05 \x01(\tR\reffectiveMode\"\x0f\n" +
-	"\rStatusRequest\"\x85\x04\n" +
+	"\x0eeffective_mode\x18\x05 \x01(\tR\reffectiveMode\"%\n" +
+	"\rStatusRequest\x12\x14\n" +
+	"\x05vault\x18\x01 \x01(\tR\x05vault\"\x85\x04\n" +
 	"\x0eStatusResponse\x12\x1c\n" +
 	"\tdocuments\x18\x01 \x01(\x05R\tdocuments\x12\x16\n" +
 	"\x06chunks\x18\x02 \x01(\x05R\x06chunks\x12\x1e\n" +
@@ -4132,16 +4313,21 @@ const file_gorag_proto_rawDesc = "" +
 	"\vavg_fetched\x18\x02 \x01(\x01R\n" +
 	"avgFetched\x12\x19\n" +
 	"\bavg_kept\x18\x03 \x01(\x01R\aavgKept\x12\x1c\n" +
-	"\tsaturated\x18\x04 \x01(\x04R\tsaturated\"4\n" +
+	"\tsaturated\x18\x04 \x01(\x04R\tsaturated\"J\n" +
 	"\n" +
 	"AddRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
-	"\x04glob\x18\x02 \x01(\tR\x04glob\"\r\n" +
-	"\vScanRequest\"&\n" +
+	"\x04glob\x18\x02 \x01(\tR\x04glob\x12\x14\n" +
+	"\x05vault\x18\x03 \x01(\tR\x05vault\"#\n" +
+	"\vScanRequest\x12\x14\n" +
+	"\x05vault\x18\x01 \x01(\tR\x05vault\"<\n" +
 	"\x10ReprocessRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"\x10\n" +
-	"\x0eMigrateRequest\"\x14\n" +
-	"\x12MigratePlanRequest\"\x94\x02\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x14\n" +
+	"\x05vault\x18\x02 \x01(\tR\x05vault\"&\n" +
+	"\x0eMigrateRequest\x12\x14\n" +
+	"\x05vault\x18\x01 \x01(\tR\x05vault\"*\n" +
+	"\x12MigratePlanRequest\x12\x14\n" +
+	"\x05vault\x18\x01 \x01(\tR\x05vault\"\x94\x02\n" +
 	"\rMigrationPlan\x12!\n" +
 	"\ftarget_model\x18\x01 \x01(\tR\vtargetModel\x12\x14\n" +
 	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x1f\n" +
@@ -4173,8 +4359,9 @@ const file_gorag_proto_rawDesc = "" +
 	"\askipped\x18\x02 \x01(\x05R\askipped\x12\x1a\n" +
 	"\bmodified\x18\x03 \x01(\x05R\bmodified\x12\x18\n" +
 	"\adeleted\x18\x04 \x01(\x05R\adeleted\x12\x16\n" +
-	"\x06errors\x18\x05 \x01(\x05R\x06errors\"\x0e\n" +
-	"\fFilesRequest\"~\n" +
+	"\x06errors\x18\x05 \x01(\x05R\x06errors\"$\n" +
+	"\fFilesRequest\x12\x14\n" +
+	"\x05vault\x18\x01 \x01(\tR\x05vault\"~\n" +
 	"\tFileEntry\x12\x1b\n" +
 	"\tfile_path\x18\x01 \x01(\tR\bfilePath\x12\x1b\n" +
 	"\tfile_type\x18\x02 \x01(\tR\bfileType\x12\x16\n" +
@@ -4182,8 +4369,9 @@ const file_gorag_proto_rawDesc = "" +
 	"\vchunk_count\x18\x04 \x01(\x05R\n" +
 	"chunkCount\"7\n" +
 	"\rFilesResponse\x12&\n" +
-	"\x05files\x18\x01 \x03(\v2\x10.gorag.FileEntryR\x05files\"\r\n" +
-	"\vDirsRequest\"J\n" +
+	"\x05files\x18\x01 \x03(\v2\x10.gorag.FileEntryR\x05files\"#\n" +
+	"\vDirsRequest\x12\x14\n" +
+	"\x05vault\x18\x01 \x01(\tR\x05vault\"J\n" +
 	"\bDirEntry\x12\x10\n" +
 	"\x03dir\x18\x01 \x01(\tR\x03dir\x12\x14\n" +
 	"\x05files\x18\x02 \x01(\x05R\x05files\x12\x16\n" +

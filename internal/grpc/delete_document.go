@@ -17,7 +17,7 @@ import (
 // success (the doc + its chunks are gone); InvalidArgument on an empty id;
 // the engine's ErrNotFound maps through toStatusErr.
 func (a *Adapter) DeleteDocument(ctx context.Context, req *goragpb.DeleteDocumentRequest) (*goragpb.DeleteDocumentResponse, error) {
-	if err := a.eng.DeleteDoc(ctx, "default", req.GetDocId()); err != nil {
+	if err := a.eng.DeleteDoc(ctx, vaultOrDefault(req.GetVault()), req.GetDocId()); err != nil {
 		return nil, toStatusErr(err)
 	}
 	return &goragpb.DeleteDocumentResponse{}, nil

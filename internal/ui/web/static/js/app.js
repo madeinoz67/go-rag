@@ -15,6 +15,7 @@
   'use strict';
 
   var GORAG_TOKEN_KEY = 'goragToken';
+  var GORAG_VAULT_KEY = 'goragVault';
   // Same-origin by default; empty string keeps fetch paths relative.
   var GORAG_API_BASE = '';
 
@@ -27,6 +28,13 @@
       login: { username: '', password: '' },
       error: '',
       loading: false,
+
+      // === Vault selection ==================================================
+      // Active vault (default "default"). Sent as X-Go-Rag-Vault on every
+      // /api/* fetch (see api()). For now the picker offers only "default";
+      // spec 050 (Vaults view) will populate `vaults` from the server.
+      vault: 'default',
+      vaults: ['default'],
 
       // === Auth gate ========================================================
 
@@ -48,9 +56,44 @@
         if (stored) {
           this.token = stored;
         }
+        // Restore the last-selected vault (best-effort; defaults to "default").
+        try {
+          if (window.localStorage) {
+            var v = localStorage.getItem(GORAG_VAULT_KEY);
+            if (v) this.vault = v;
+          }
+        } catch (_e) {
+          // storage unavailable — keep the in-memory default
+        }
         if (this.isAuthed()) {
           this.loadDashboard();
         }
+      },
+
+      /** Persist + activate a vault selection, then refresh the current view. */
+      switchVault: function (v) {
+        v = String(v || '').trim() || 'default';
+        if (v === this.vault) return;
+        this.vault = v;
+        try {
+          if (window.localStorage) {
+            localStorage.setItem(GORAG_VAULT_KEY, v);
+          }
+        } catch (_e) {
+          // storage unavailable — in-memory only
+        }
+        // Drop any cached per-vault state, then reload the active view.
+        this.stats = {};
+        this.docs = [];
+        this.docsNextToken = '';
+        this.searchMode = false;
+        this.searchResults = [];
+        this.queryResult = null;
+        this.selectedHit = null;
+        this.selectedDoc = null;
+        this.bridgeStats = null;
+        this.bridgeActivity = [];
+        this.switchView(this.currentView);
       },
 
       // === Network ==========================================================
@@ -72,6 +115,11 @@
         }
         if (this.token) {
           headers['Authorization'] = 'Bearer ' + this.token;
+        }
+        // Pin the active vault on every API call so the server handler targets
+        // the operator's chosen vault (vaultFromRequest reads this header).
+        if (this.vault) {
+          headers['X-Go-Rag-Vault'] = this.vault;
         }
 
         var res;

@@ -41,7 +41,11 @@ func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 		}
 		req.PageSize = n
 	}
-	res, err := s.eng.ListDocuments("default", req)
+	vault := q.Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	res, err := s.eng.ListDocuments(vault, req)
 	if err != nil {
 		writeEngineErr(w, err) // ErrInvalid → 400
 		return

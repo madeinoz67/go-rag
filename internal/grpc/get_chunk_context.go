@@ -22,7 +22,7 @@ func (a *Adapter) GetChunkContext(_ context.Context, req *goragpb.GetChunkContex
 	if window == 0 {
 		window = engine.DefaultChunkContextWindow()
 	}
-	res, err := a.eng.GetChunkContext("default", req.GetChunkId(), window)
+	res, err := a.eng.GetChunkContext(vaultOrDefault(req.GetVault()), req.GetChunkId(), window)
 	if err != nil {
 		return nil, toStatusErr(err)
 	}

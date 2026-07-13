@@ -108,6 +108,8 @@ message QueryRequest {
   bool include_quarantined = 12; // H04/spec 019: return chunks flagged as injection-poisoning (excluded by default)
   int32 pool_size = 13;          // H22/spec 024: reranker candidate-pool override; 0 = config/default (60); shrinks with classifier-recommended k
   bool dedup = 14;               // H20/spec 026: collapse near-duplicate hits (default false)
+  string vault = 15;             // vault scope (empty = default vault)
+  repeated string vaults = 16;   // cross-vault query (empty = single vault above)
 }
 message QueryHit {
   string chunk_id = 1;
@@ -153,7 +155,9 @@ message PoisoningSignals {
 
 // H04/spec 019: quarantine management (US2, FR-006). Mirrors engine.ListPoisoned /
 // ReleaseChunk / ResetChunk (also REST /v1/poison, MCP poison_*).
-message ListPoisonedRequest {}
+message ListPoisonedRequest {
+  string vault = 1; // vault scope (empty = default vault)
+}
 message ListPoisonedResponse {
   repeated PoisonedChunk flagged = 1;
 }
@@ -165,25 +169,29 @@ message PoisonedChunk {
 }
 message ReleaseChunkRequest {
   string chunk_id = 1;
+  string vault = 2; // vault scope (empty = default vault)
 }
 message ResetChunkRequest {
   string chunk_id = 1;
+  string vault = 2; // vault scope (empty = default vault)
 }
 message PoisonActionResponse {
   string chunk_id = 1;
   string status = 2; // "released" | "reset"
 }
-message RescanPoisoningRequest {}
+message RescanPoisoningRequest {
+  string vault = 1; // vault scope (empty = default vault)
+}
 message RescanPoisoningResponse {
   int32 rescored = 1; // chunks (re)scored
   int32 flagged = 2;  // now flagged (suspicious/quarantine)
 }
 
-// spec 035 (BL-001): fetch a single chunk by content-addressed ID. The request
-// carries only chunk_id — the engine is single-vault-per-process, so (unlike the
-// bridge backlog's draft) there is NO vault field; mirrors ReleaseChunkRequest.
+// spec 035 (BL-001): fetch a single chunk by content-addressed ID. Carries
+// chunk_id + vault scope (multi-vault); mirrors ReleaseChunkRequest.
 message GetChunkRequest {
   string chunk_id = 1;
+  string vault = 2; // vault scope (empty = default vault)
 }
 
 // GetChunkResponse carries the resolved chunk and its parent document metadata
@@ -198,6 +206,7 @@ message GetChunkResponse {
 message GetChunkContextRequest {
   string chunk_id = 1;
   int32  window   = 2; // default 2, clamped [0,10]; >10 → INVALID_ARGUMENT
+  string vault = 3; // vault scope (empty = default vault)
 }
 
 // spec 037 (BL-002): the ordered context window [predecessors][target][successors],
@@ -208,9 +217,10 @@ message GetChunkContextResponse {
   DocumentMeta   document     = 3;
 }
 
-// spec 038 (BL-003): request up to 100 content-addressed chunk ids (no vault).
+// spec 038 (BL-003): request up to 100 content-addressed chunk ids.
 message BatchGetChunksRequest {
   repeated string chunk_ids = 1; // max 100; >100 / empty / empty-element → INVALID_ARGUMENT
+  string vault = 2; // vault scope (empty = default vault)
 }
 
 // spec 038 (BL-003): one positional result entry — the requested id, its chunk
@@ -236,6 +246,7 @@ message ListDocumentsRequest {
   string after      = 3; // RFC3339; only docs with ingested_at > after; "" → all
   string status     = 4; // embedded|pending|error|"" (all); AND with after
   repeated string tags = 5; // spec 047: tag filter, match-any (doc has ≥1 of these); empty = no constraint
+  string vault = 6; // vault scope (empty = default vault)
 }
 
 // spec 039 (BL-007): one page of documents + the cursor for the next page.
@@ -249,6 +260,7 @@ message ListChunksRequest {
   string document_id = 1; // required; empty → INVALID_ARGUMENT
   int32  page_size   = 2; // default 50, max 200; <1 or >200 → INVALID_ARGUMENT
   string page_token  = 3; // opaque; empty → first page
+  string vault = 4; // vault scope (empty = default vault)
 }
 
 // spec 047 (Slice 1): one page of chunks + the cursor for the next page.
@@ -262,6 +274,7 @@ message ListChunksResponse {
 // untouched (index-only). Empty response — the doc is gone when the RPC returns.
 message DeleteDocumentRequest {
   string doc_id = 1; // required; empty → INVALID_ARGUMENT; unknown → NOT_FOUND
+  string vault = 2; // vault scope (empty = default vault)
 }
 
 // spec 050 (Slice 4): an empty response — deletion is synchronous and complete
@@ -280,6 +293,7 @@ enum DocumentEventType {
 // spec 040 (BL-008): open a long-lived stream; cursor resumes after a prior event.
 message WatchRequest {
   string cursor = 1; // opaque resume token; empty = start from now (no replay)
+  string vault = 2; // vault scope (empty = default vault)
 }
 
 // spec 040 (BL-008): one document lifecycle event on the WatchDocuments stream.
@@ -368,7 +382,9 @@ message QueryResponse {
 
 // ---- Status ----
 
-message StatusRequest {}
+message StatusRequest {
+  string vault = 1; // vault scope (empty = default vault)
+}
 message StatusResponse {
   int32 documents = 1;
   int32 chunks = 2;
@@ -399,14 +415,24 @@ message PoolUtilization {
 message AddRequest {
   string path = 1;
   string glob = 2; // optional file-pattern filter (e.g. "*.pdf"); empty = "*"
+  string vault = 3; // vault scope (empty = default vault)
 }
-message ScanRequest {}
-message ReprocessRequest { string path = 1; }
-message MigrateRequest {}
+message ScanRequest {
+  string vault = 1; // vault scope (empty = default vault)
+}
+message ReprocessRequest {
+  string path = 1;
+  string vault = 2; // vault scope (empty = default vault)
+}
+message MigrateRequest {
+  string vault = 1; // vault scope (empty = default vault)
+}
 
-// H24/spec 028: read-only migration preview request (no args). Mirrors the
+// H24/spec 028: read-only migration preview request. Mirrors the
 // REST POST /v1/migrate/plan and the MCP go_rag_migrate_plan tool.
-message MigratePlanRequest {}
+message MigratePlanRequest {
+  string vault = 1; // vault scope (empty = default vault)
+}
 
 // MigrationPlan is the read-only migration preview (H24/spec 028). Mirrors
 // engine.MigrationPlan 1:1.
@@ -445,7 +471,9 @@ message IngestSummary {
 
 // ---- Files / Dirs ----
 
-message FilesRequest {}
+message FilesRequest {
+  string vault = 1; // vault scope (empty = default vault)
+}
 message FileEntry {
   string file_path = 1;
   string file_type = 2;
@@ -454,7 +482,9 @@ message FileEntry {
 }
 message FilesResponse { repeated FileEntry files = 1; }
 
-message DirsRequest {}
+message DirsRequest {
+  string vault = 1; // vault scope (empty = default vault)
+}
 message DirEntry {
   string dir = 1;
   int32 files = 2;

@@ -172,17 +172,18 @@ var validActivityTypes = map[string]struct{}{
 // always has a status). Engine error → writeEngineErr (existing helper, same
 // package). last_activity is best-effort: the newest audit timestamp via a
 // tail:1 read, empty when the log is missing/empty (never a stats error).
-func (s *Server) handleBridgeOpsStats(w http.ResponseWriter, _ *http.Request) {
-	info, err := s.eng.Status("default")
+func (s *Server) handleBridgeOpsStats(w http.ResponseWriter, r *http.Request) {
+	vault := vaultFromRequest(r)
+	info, err := s.eng.Status(vault)
 	if err != nil {
 		writeEngineErr(w, err)
 		return
 	}
 	lastActivity := ""
-	if evs, aerr := s.eng.AuditRead("default", audit.ReadOptions{Tail: 1}); aerr == nil && len(evs) > 0 {
+	if evs, aerr := s.eng.AuditRead(vault, audit.ReadOptions{Tail: 1}); aerr == nil && len(evs) > 0 {
 		lastActivity = evs[len(evs)-1].TS.UTC().Format(time.RFC3339)
 	}
-	writeJSON(w, http.StatusOK, toBridgeOpsStats(info, s.deriveVault(), s.eng.Config().WatchDirs, lastActivity))
+	writeJSON(w, http.StatusOK, toBridgeOpsStats(info, vault, s.eng.Config().WatchDirs, lastActivity))
 }
 
 // handleBridgeOpsActivity — bounded recent audit feed. tail clamped to [0,100]
@@ -199,7 +200,7 @@ func (s *Server) handleBridgeOpsActivity(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid type")
 		return
 	}
-	events, err := s.eng.AuditRead("default", audit.ReadOptions{Type: etype, Tail: tail})
+	events, err := s.eng.AuditRead(vaultFromRequest(r), audit.ReadOptions{Type: etype, Tail: tail})
 	if err != nil {
 		writeEngineErr(w, err)
 		return

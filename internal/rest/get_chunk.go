@@ -152,7 +152,11 @@ func toDocumentMetaDTO(d model.Document, src model.Source) *documentMetaDTO {
 // (ErrNotFound); empty/whitespace → 400 (ErrInvalid).
 func (s *Server) handleGetChunk(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	res, err := s.eng.GetChunk("default", id)
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	res, err := s.eng.GetChunk(vault, id)
 	if err != nil {
 		writeEngineErr(w, err)
 		return

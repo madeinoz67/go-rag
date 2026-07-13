@@ -217,6 +217,22 @@
     <!-- ============ MAIN CONTENT ============ -->
     <main class="main">
 
+      <!-- ====== SHELL HEADER — global vault picker (always visible) ====== -->
+      <div class="shell-header">
+        <label class="vault-picker" for="gorag-vault-select">
+          <span class="vault-picker-label">Vault</span>
+          <select id="gorag-vault-select"
+                  class="input vault-picker-select"
+                  x-model="vault"
+                  @change="switchVault($event.target.value)"
+                  aria-label="Active vault">
+            <template x-for="v in vaults" :key="v">
+              <option :value="v" x-text="v"></option>
+            </template>
+          </select>
+        </label>
+      </div>
+
       <!-- ====== DASHBOARD (the one real view in Slice 0) ====== -->
       <section x-show="currentView === 'dashboard'" class="view">
         <header class="view-header">

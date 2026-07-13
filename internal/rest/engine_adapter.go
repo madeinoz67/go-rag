@@ -9,12 +9,16 @@ import (
 
 // handleQuery is the REST projection of engine.Query.
 func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
 	var req queryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	res, err := s.eng.Query(r.Context(), "default", engine.QueryRequest{
+	res, err := s.eng.Query(r.Context(), vault, engine.QueryRequest{
 		Query:              req.Query,
 		K:                  req.K,
 		Mode:               req.Mode,
@@ -81,8 +85,12 @@ func toQueryHits(hits []engine.QueryHit) []queryHit {
 }
 
 // handleStatus is the REST projection of engine.Status (GET /v1/status).
-func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
-	st, err := s.eng.Status("default")
+func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	st, err := s.eng.Status(vault)
 	if err != nil {
 		writeEngineErr(w, err)
 		return
@@ -113,7 +121,11 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 // (async-after-ACK); the response carries the durable-store counts while
 // embeddings continue on background workers.
 func (s *Server) handleAdd(w http.ResponseWriter, r *http.Request) {
-	res, err := s.eng.Add(r.Context(), "default", decodePath(w, r), "")
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	res, err := s.eng.Add(r.Context(), vault, decodePath(w, r), "")
 	if err != nil {
 		writeEngineErr(w, err)
 		return
@@ -148,7 +160,11 @@ func decodePath(w http.ResponseWriter, r *http.Request) string {
 
 // handleScan is the REST projection of engine.Scan (POST /v1/scan).
 func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
-	res, err := s.eng.Scan(r.Context(), "default")
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	res, err := s.eng.Scan(r.Context(), vault)
 	if err != nil {
 		writeEngineErr(w, err)
 		return
@@ -158,7 +174,11 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 
 // handleReprocess is the REST projection of engine.Reprocess (POST /v1/reprocess).
 func (s *Server) handleReprocess(w http.ResponseWriter, r *http.Request) {
-	res, err := s.eng.Reprocess(r.Context(), "default", decodePath(w, r))
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	res, err := s.eng.Reprocess(r.Context(), vault, decodePath(w, r))
 	if err != nil {
 		writeEngineErr(w, err)
 		return
@@ -168,7 +188,11 @@ func (s *Server) handleReprocess(w http.ResponseWriter, r *http.Request) {
 
 // handleMigrate is the REST projection of engine.Migrate (POST /v1/migrate).
 func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
-	res, err := s.eng.Migrate(r.Context(), "default")
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	res, err := s.eng.Migrate(r.Context(), vault)
 	if err != nil {
 		writeEngineErr(w, err)
 		return
@@ -179,8 +203,12 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 // handleMigratePlan is the REST projection of engine.MigratePlan (POST
 // /v1/migrate/plan) — the read-only migration preview (H24/spec 028). It never
 // re-embeds and needs no embedding backend (FR-003/FR-004).
-func (s *Server) handleMigratePlan(w http.ResponseWriter, _ *http.Request) {
-	plan, err := s.eng.MigratePlan("default")
+func (s *Server) handleMigratePlan(w http.ResponseWriter, r *http.Request) {
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	plan, err := s.eng.MigratePlan(vault)
 	if err != nil {
 		writeEngineErr(w, err)
 		return
@@ -243,8 +271,12 @@ type estimateJSON struct {
 }
 
 // handleFiles is the REST projection of engine.Files (GET /v1/files).
-func (s *Server) handleFiles(w http.ResponseWriter, _ *http.Request) {
-	files, err := s.eng.Files("default")
+func (s *Server) handleFiles(w http.ResponseWriter, r *http.Request) {
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	files, err := s.eng.Files(vault)
 	if err != nil {
 		writeEngineErr(w, err)
 		return
@@ -257,8 +289,12 @@ func (s *Server) handleFiles(w http.ResponseWriter, _ *http.Request) {
 }
 
 // handleDirs is the REST projection of engine.Dirs (GET /v1/dirs).
-func (s *Server) handleDirs(w http.ResponseWriter, _ *http.Request) {
-	dirs, err := s.eng.Dirs("default")
+func (s *Server) handleDirs(w http.ResponseWriter, r *http.Request) {
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	dirs, err := s.eng.Dirs(vault)
 	if err != nil {
 		writeEngineErr(w, err)
 		return
@@ -272,7 +308,11 @@ func (s *Server) handleDirs(w http.ResponseWriter, _ *http.Request) {
 
 // handleConfigGet is the REST projection of engine.GetConfig (GET /v1/config?key=).
 func (s *Server) handleConfigGet(w http.ResponseWriter, r *http.Request) {
-	vals, err := s.eng.GetConfig("default", r.URL.Query().Get("key"))
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	vals, err := s.eng.GetConfig(vault, r.URL.Query().Get("key"))
 	if err != nil {
 		writeEngineErr(w, err)
 		return
@@ -287,7 +327,11 @@ func (s *Server) handleConfigSet(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := s.eng.SetConfig("default", req.Key, req.Value); err != nil {
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	if err := s.eng.SetConfig(vault, req.Key, req.Value); err != nil {
 		writeEngineErr(w, err)
 		return
 	}
@@ -295,8 +339,12 @@ func (s *Server) handleConfigSet(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleVaults is the REST projection of engine.ListVaults (GET /v1/vaults).
-func (s *Server) handleVaults(w http.ResponseWriter, _ *http.Request) {
-	vaults, err := s.eng.ListVaults("default")
+func (s *Server) handleVaults(w http.ResponseWriter, r *http.Request) {
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	vaults, err := s.eng.ListVaults(vault)
 	if err != nil {
 		writeEngineErr(w, err)
 		return
@@ -309,8 +357,12 @@ func (s *Server) handleVaults(w http.ResponseWriter, _ *http.Request) {
 }
 
 // handlePoisonList is the REST projection of engine.ListPoisoned (GET /v1/poison).
-func (s *Server) handlePoisonList(w http.ResponseWriter, _ *http.Request) {
-	flagged, err := s.eng.ListPoisoned("default")
+func (s *Server) handlePoisonList(w http.ResponseWriter, r *http.Request) {
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	flagged, err := s.eng.ListPoisoned(vault)
 	if err != nil {
 		writeEngineErr(w, err)
 		return
@@ -326,7 +378,11 @@ func (s *Server) handlePoisonList(w http.ResponseWriter, _ *http.Request) {
 // (POST /v1/poison/{id}/release) — a false-positive override.
 func (s *Server) handlePoisonRelease(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if err := s.eng.ReleaseChunk("default", id); err != nil {
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	if err := s.eng.ReleaseChunk(vault, id); err != nil {
 		writeEngineErr(w, err)
 		return
 	}
@@ -337,7 +393,11 @@ func (s *Server) handlePoisonRelease(w http.ResponseWriter, r *http.Request) {
 // (POST /v1/poison/{id}/reset) — undo a release.
 func (s *Server) handlePoisonReset(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if err := s.eng.ResetChunk("default", id); err != nil {
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	if err := s.eng.ResetChunk(vault, id); err != nil {
 		writeEngineErr(w, err)
 		return
 	}
@@ -346,8 +406,12 @@ func (s *Server) handlePoisonReset(w http.ResponseWriter, r *http.Request) {
 
 // handlePoisonRescan is the REST projection of engine.RescanPoisoning
 // (POST /v1/poison/rescan) — re-score the whole corpus (idempotent; no re-ingest).
-func (s *Server) handlePoisonRescan(w http.ResponseWriter, _ *http.Request) {
-	rescored, flagged, err := s.eng.RescanPoisoning("default")
+func (s *Server) handlePoisonRescan(w http.ResponseWriter, r *http.Request) {
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	rescored, flagged, err := s.eng.RescanPoisoning(vault)
 	if err != nil {
 		writeEngineErr(w, err)
 		return

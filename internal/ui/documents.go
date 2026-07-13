@@ -190,7 +190,7 @@ func (s *Server) handleDocumentsList(w http.ResponseWriter, r *http.Request) {
 		}
 		req.PageSize = n
 	}
-	res, err := s.eng.ListDocuments("default", req)
+	res, err := s.eng.ListDocuments(vaultFromRequest(r), req)
 	if err != nil {
 		writeEngineErr(w, err) // ErrInvalid → 400
 		return
@@ -215,7 +215,7 @@ func (s *Server) handleDocumentDetail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid")
 		return
 	}
-	res, err := s.eng.GetDocument("default", id)
+	res, err := s.eng.GetDocument(vaultFromRequest(r), id)
 	if err != nil {
 		writeEngineErr(w, err) // ErrNotFound → 404
 		return
@@ -238,7 +238,7 @@ func (s *Server) handleDocumentChunks(w http.ResponseWriter, r *http.Request) {
 		}
 		req.PageSize = n
 	}
-	res, err := s.eng.ListChunks("default", id, req)
+	res, err := s.eng.ListChunks(vaultFromRequest(r), id, req)
 	if err != nil {
 		writeEngineErr(w, err) // ErrInvalid (bad page_size/token) → 400
 		return
@@ -263,7 +263,7 @@ func (s *Server) handleChunkContext(w http.ResponseWriter, r *http.Request) {
 		}
 		window = n
 	}
-	res, err := s.eng.GetChunkContext("default", chunkID, window)
+	res, err := s.eng.GetChunkContext(vaultFromRequest(r), chunkID, window)
 	if err != nil {
 		writeEngineErr(w, err) // ErrInvalid (bad window/empty id) → 400; ErrNotFound (chunk) → 404
 		return
@@ -323,7 +323,8 @@ func (s *Server) handleDocumentsSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = n
 	}
-	res, err := s.eng.Query(r.Context(), "default", engine.QueryRequest{Query: q, K: limit})
+	vault := vaultFromRequest(r)
+	res, err := s.eng.Query(r.Context(), vault, engine.QueryRequest{Query: q, K: limit})
 	if err != nil {
 		writeEngineErr(w, err)
 		return
@@ -337,7 +338,7 @@ func (s *Server) handleDocumentsSearch(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		seen[h.DocumentID] = true
-		d, err := s.eng.GetDocument("default", h.DocumentID)
+		d, err := s.eng.GetDocument(vault, h.DocumentID)
 		if err != nil {
 			continue
 		}

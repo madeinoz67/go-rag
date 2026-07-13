@@ -2,7 +2,6 @@ package ui
 
 import (
 	"net/http"
-	"path/filepath"
 
 	"github.com/madeinoz67/go-rag/internal/engine"
 )
@@ -36,13 +35,14 @@ type dashboardDTO struct {
 // handleDashboardStats projects engine.Status() into a DashboardDTO. Read-only;
 // it mutates nothing and triggers no bridge/MuninnDB call (Slice 0 is
 // go-rag-native only). 500 with a generic body on engine failure (no leakage).
-func (s *Server) handleDashboardStats(w http.ResponseWriter, _ *http.Request) {
-	info, err := s.eng.Status("default")
+func (s *Server) handleDashboardStats(w http.ResponseWriter, r *http.Request) {
+	vault := vaultFromRequest(r)
+	info, err := s.eng.Status(vault)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal")
 		return
 	}
-	writeJSON(w, http.StatusOK, toDashboardDTO(info, s.deriveVault()))
+	writeJSON(w, http.StatusOK, toDashboardDTO(info, vault))
 }
 
 func toDashboardDTO(i *engine.StatusInfo, vault string) dashboardDTO {
@@ -66,16 +66,3 @@ func toDashboardDTO(i *engine.StatusInfo, vault string) dashboardDTO {
 }
 
 // deriveVault returns the active vault name from the engine's config DBPath.
-// The Pebble data dir lives under <vault>/data, so when the configured path is
-// the data dir, the vault name is its parent's base. No engine method exposes
-// the vault today; this edge derivation avoids changing the engine for Slice 0.
-func (s *Server) deriveVault() string {
-	if s.eng == nil {
-		return ""
-	}
-	dbPath := s.eng.Config().DBPath
-	if filepath.Base(dbPath) == "data" {
-		dbPath = filepath.Dir(dbPath)
-	}
-	return filepath.Base(dbPath)
-}

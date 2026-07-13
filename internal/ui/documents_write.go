@@ -79,7 +79,7 @@ func (s *Server) handleDocumentAdd(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "path required")
 		return
 	}
-	res, err := s.eng.Add(r.Context(), "default", req.Path, req.Glob)
+	res, err := s.eng.Add(r.Context(), vaultFromRequest(r), req.Path, req.Glob)
 	if err != nil {
 		writeEngineErr(w, err) // ErrInvalid → 400; else 500
 		return
@@ -99,7 +99,7 @@ func (s *Server) handleDocumentRemove(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid")
 		return
 	}
-	if err := s.eng.DeleteDoc(r.Context(), "default", id); err != nil {
+	if err := s.eng.DeleteDoc(r.Context(), vaultFromRequest(r), id); err != nil {
 		writeEngineErr(w, err) // ErrInvalid (empty) → 400; ErrNotFound → 404
 		return
 	}
@@ -124,7 +124,8 @@ func (s *Server) handleDocumentReingest(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid")
 		return
 	}
-	res, err := s.eng.GetDocument("default", id)
+	vault := vaultFromRequest(r)
+	res, err := s.eng.GetDocument(vault, id)
 	if err != nil {
 		writeEngineErr(w, err) // ErrNotFound → 404 (unknown id)
 		return
@@ -139,7 +140,7 @@ func (s *Server) handleDocumentReingest(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusNotFound, "source not found")
 		return
 	}
-	sum, err := s.eng.Reprocess(r.Context(), "default", sourcePath)
+	sum, err := s.eng.Reprocess(r.Context(), vault, sourcePath)
 	if err != nil {
 		writeEngineErr(w, err)
 		return

@@ -14,7 +14,11 @@ import (
 // success (the doc + its chunks are gone); 400 on an empty id; 404 on an unknown
 // id; 401 via the guard.
 func (s *Server) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
-	if err := s.eng.DeleteDoc(r.Context(), "default", r.PathValue("id")); err != nil {
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	if err := s.eng.DeleteDoc(r.Context(), vault, r.PathValue("id")); err != nil {
 		writeEngineErr(w, err) // ErrInvalid (empty id) → 400; ErrNotFound → 404
 		return
 	}

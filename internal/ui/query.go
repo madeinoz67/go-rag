@@ -220,7 +220,7 @@ func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
 		IncludeQuarantined: req.IncludeQuarantined,
 		Dedup:              req.Dedup,
 	}
-	res, err := s.eng.Query(r.Context(), "default", engReq)
+	res, err := s.eng.Query(r.Context(), vaultFromRequest(r), engReq)
 	if err != nil {
 		writeQueryEngineErr(w, err)
 		return

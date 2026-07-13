@@ -225,31 +225,31 @@ func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any
 	case "go_rag_query":
 		return s.renderQuery(eng, args)
 	case "go_rag_status":
-		return s.renderStatus(eng)
+		return s.renderStatus(eng, args)
 	case "go_rag_add":
 		return s.renderAdd(eng, args)
 	case "go_rag_scan":
-		return s.renderScan(eng)
+		return s.renderScan(eng, args)
 	case "go_rag_config":
 		return s.renderConfig(eng, args)
 	case "go_rag_files":
-		return s.renderFiles(eng)
+		return s.renderFiles(eng, args)
 	case "go_rag_dirs":
-		return s.renderDirs(eng)
+		return s.renderDirs(eng, args)
 	case "go_rag_reprocess":
 		return s.renderReprocess(eng, args)
 	case "go_rag_migrate":
-		return s.renderMigrate(eng)
+		return s.renderMigrate(eng, args)
 	case "go_rag_migrate_plan":
-		return s.renderMigratePlan(eng) // H24/spec 028
+		return s.renderMigratePlan(eng, args) // H24/spec 028
 	case "go_rag_poison_list":
-		return s.renderPoisonList(eng)
+		return s.renderPoisonList(eng, args)
 	case "go_rag_poison_release":
 		return s.renderPoisonRelease(eng, args)
 	case "go_rag_poison_reset":
 		return s.renderPoisonReset(eng, args)
 	case "go_rag_poison_rescan":
-		return s.renderPoisonRescan(eng)
+		return s.renderPoisonRescan(eng, args)
 	case "go_rag_get_chunk":
 		return s.renderGetChunk(eng, args) // spec 035
 	case "go_rag_get_chunk_context":
@@ -264,6 +264,17 @@ func (s *Server) dispatchDB(eng *engine.Engine, name string, args map[string]any
 		return s.renderDeleteDocument(eng, args) // spec 050 / T008
 	}
 	return "", fmt.Errorf("unknown tool: %s", name)
+}
+
+// vaultArg extracts the optional vault selector from a tool's args, defaulting
+// to "default" when absent or empty (the single-vault common case). Every
+// vault-scoped MCP tool accepts `vault` so an agent can target a non-default
+// vault without reconfiguring the daemon.
+func vaultArg(args map[string]any) string {
+	if v, ok := args["vault"].(string); ok && v != "" {
+		return v
+	}
+	return "default"
 }
 
 // renderEval measures retrieval quality over a golden dataset. It is read-only
@@ -307,6 +318,7 @@ func (s *Server) renderEval(_ *engine.Engine, args map[string]any) (string, erro
 }
 
 func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
 	req := engine.QueryRequest{Mode: "hybrid"} // H22/spec 024: K omitted → engine resolves (default 5, or classifier-recommended when adaptive depth is on)
 	req.Query, _ = args["query"].(string)
 	if v, ok := args["k"].(float64); ok {
@@ -353,7 +365,7 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 	if v, ok := args["include_quarantined"].(bool); ok { // H04/spec 019: return poisoning-flagged chunks
 		req.IncludeQuarantined = v
 	}
-	res, err := eng.Query(context.Background(), "default", req)
+	res, err := eng.Query(context.Background(), vault, req)
 	if err != nil {
 		return "", err
 	}
@@ -389,8 +401,9 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 	return strings.TrimSpace(b.String()), nil
 }
 
-func (s *Server) renderStatus(eng *engine.Engine) (string, error) {
-	st, err := eng.Status("default")
+func (s *Server) renderStatus(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
+	st, err := eng.Status(vault)
 	if err != nil {
 		return "", err
 	}
@@ -450,16 +463,18 @@ func cacheSummary(c engine.CacheStats) string {
 }
 
 func (s *Server) renderAdd(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
 	path, _ := args["path"].(string)
-	res, err := eng.Add(context.Background(), "default", path, "")
+	res, err := eng.Add(context.Background(), vault, path, "")
 	if err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("new=%d skipped=%d errors=%d", res.New, res.Skipped, res.Errors), nil
 }
 
-func (s *Server) renderScan(eng *engine.Engine) (string, error) {
-	res, err := eng.Scan(context.Background(), "default")
+func (s *Server) renderScan(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
+	res, err := eng.Scan(context.Background(), vault)
 	if err != nil {
 		return "", err
 	}
@@ -467,8 +482,9 @@ func (s *Server) renderScan(eng *engine.Engine) (string, error) {
 }
 
 func (s *Server) renderReprocess(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
 	path, _ := args["path"].(string)
-	res, err := eng.Reprocess(context.Background(), "default", path)
+	res, err := eng.Reprocess(context.Background(), vault, path)
 	if err != nil {
 		return "", err
 	}
@@ -481,15 +497,17 @@ func (s *Server) renderReprocess(eng *engine.Engine, args map[string]any) (strin
 // Mirrors renderReprocess's arg + error surface; returns a one-line confirmation
 // (the structured cross-transport contract is the empty gRPC response / REST 204).
 func (s *Server) renderDeleteDocument(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
 	docID, _ := args["doc_id"].(string)
-	if err := eng.DeleteDoc(context.Background(), "default", docID); err != nil {
+	if err := eng.DeleteDoc(context.Background(), vault, docID); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("deleted document %s", docID), nil
 }
 
-func (s *Server) renderMigrate(eng *engine.Engine) (string, error) {
-	res, err := eng.Migrate(context.Background(), "default")
+func (s *Server) renderMigrate(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
+	res, err := eng.Migrate(context.Background(), vault)
 	if err != nil {
 		return "", err
 	}
@@ -501,8 +519,9 @@ func (s *Server) renderMigrate(eng *engine.Engine) (string, error) {
 
 // renderMigratePlan is the read-only migration preview (H24/spec 028): shows what
 // a migrate would do and cost without re-embedding (and without a backend).
-func (s *Server) renderMigratePlan(eng *engine.Engine) (string, error) {
-	plan, err := eng.MigratePlan("default")
+func (s *Server) renderMigratePlan(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
+	plan, err := eng.MigratePlan(vault)
 	if err != nil {
 		return "", err
 	}
@@ -533,8 +552,9 @@ func (s *Server) renderMigratePlan(eng *engine.Engine) (string, error) {
 }
 
 // renderPoisonList lists chunks flagged as injection-poisoning (H04/spec 019).
-func (s *Server) renderPoisonList(eng *engine.Engine) (string, error) {
-	flagged, err := eng.ListPoisoned("default")
+func (s *Server) renderPoisonList(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
+	flagged, err := eng.ListPoisoned(vault)
 	if err != nil {
 		return "", err
 	}
@@ -549,11 +569,12 @@ func (s *Server) renderPoisonList(eng *engine.Engine) (string, error) {
 }
 
 func (s *Server) renderPoisonRelease(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
 	id, _ := args["chunk_id"].(string)
 	if id == "" {
 		return "", fmt.Errorf("chunk_id required")
 	}
-	if err := eng.ReleaseChunk("default", id); err != nil {
+	if err := eng.ReleaseChunk(vault, id); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("released %s — now retrievable by default", id), nil
@@ -565,11 +586,12 @@ func (s *Server) renderPoisonRelease(eng *engine.Engine, args map[string]any) (s
 // is the human/agent text surface. Returns engine.GetChunk's error verbatim —
 // callTool maps ErrNotFound to JSON-RPC -32001.
 func (s *Server) renderGetChunk(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
 	id, _ := args["chunk_id"].(string)
 	if id == "" {
 		return "", fmt.Errorf("chunk_id required")
 	}
-	res, err := eng.GetChunk("default", id)
+	res, err := eng.GetChunk(vault, id)
 	if err != nil {
 		return "", err
 	}
@@ -605,6 +627,7 @@ func (s *Server) renderGetChunk(eng *engine.Engine, args map[string]any) (string
 // to 2 when absent; explicit 0..10 (0 = exactly the target). Mirrors GetChunk's
 // render + error surface (NotFound → -32001 via callTool).
 func (s *Server) renderGetChunkContext(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
 	id, _ := args["chunk_id"].(string)
 	if strings.TrimSpace(id) == "" {
 		return "", fmt.Errorf("chunk_id required")
@@ -623,7 +646,7 @@ func (s *Server) renderGetChunkContext(eng *engine.Engine, args map[string]any) 
 			return "", fmt.Errorf("window must be 0..%d, got %d", engine.MaxChunkContextWindow(), window)
 		}
 	}
-	res, err := eng.GetChunkContext("default", id, window)
+	res, err := eng.GetChunkContext(vault, id, window)
 	if err != nil {
 		return "", err
 	}
@@ -648,6 +671,7 @@ func (s *Server) renderGetChunkContext(eng *engine.Engine, args map[string]any) 
 // string). Per-id tolerance: the call never fails for a missing id. The engine's
 // call-level error (ErrInvalid) returns verbatim → -32603 via callTool.
 func (s *Server) renderBatchGetChunks(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
 	raw, _ := args["chunk_ids"].([]any)
 	if len(raw) == 0 {
 		return "", fmt.Errorf("chunk_ids is required (max %d)", engine.MaxBatchGetChunks())
@@ -663,7 +687,7 @@ func (s *Server) renderBatchGetChunks(eng *engine.Engine, args map[string]any) (
 		}
 		ids = append(ids, id)
 	}
-	res, err := eng.BatchGetChunks("default", ids)
+	res, err := eng.BatchGetChunks(vault, ids)
 	if err != nil {
 		return "", err
 	}
@@ -687,6 +711,7 @@ func (s *Server) renderBatchGetChunks(eng *engine.Engine, args map[string]any) (
 // ingested_at ascending order, then a next_page_token line when more remain.
 // Args (all optional): page_size, page_token, after, status.
 func (s *Server) renderListDocuments(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
 	req := engine.ListDocumentsRequest{}
 	if v, ok := args["page_size"].(float64); ok && v > 0 {
 		req.PageSize = int(v)
@@ -708,7 +733,7 @@ func (s *Server) renderListDocuments(eng *engine.Engine, args map[string]any) (s
 			}
 		}
 	}
-	res, err := eng.ListDocuments("default", req)
+	res, err := eng.ListDocuments(vault, req)
 	if err != nil {
 		return "", err
 	}
@@ -728,6 +753,7 @@ func (s *Server) renderListDocuments(eng *engine.Engine, args map[string]any) (s
 // an error), matching the engine's contract. Mirrors renderListDocuments's TSV
 // shape; reuses the chunk fields surfaced by renderGetChunk (kind/page/section).
 func (s *Server) renderListChunks(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
 	documentID, _ := args["document_id"].(string)
 	if strings.TrimSpace(documentID) == "" {
 		return "", fmt.Errorf("document_id required")
@@ -739,7 +765,7 @@ func (s *Server) renderListChunks(eng *engine.Engine, args map[string]any) (stri
 	if v, ok := args["page_token"].(string); ok {
 		req.PageToken = v
 	}
-	res, err := eng.ListChunks("default", documentID, req)
+	res, err := eng.ListChunks(vault, documentID, req)
 	if err != nil {
 		return "", err
 	}
@@ -767,11 +793,12 @@ func (s *Server) renderListChunks(eng *engine.Engine, args map[string]any) (stri
 }
 
 func (s *Server) renderPoisonReset(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
 	id, _ := args["chunk_id"].(string)
 	if id == "" {
 		return "", fmt.Errorf("chunk_id required")
 	}
-	if err := eng.ResetChunk("default", id); err != nil {
+	if err := eng.ResetChunk(vault, id); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("reset %s — re-evaluated against thresholds", id), nil
@@ -779,8 +806,9 @@ func (s *Server) renderPoisonReset(eng *engine.Engine, args map[string]any) (str
 
 // renderPoisonRescan re-scores the whole corpus against the current detector
 // (US3, FR-007, and the US4 T031 manual trigger).
-func (s *Server) renderPoisonRescan(eng *engine.Engine) (string, error) {
-	rescored, flagged, err := eng.RescanPoisoning("default")
+func (s *Server) renderPoisonRescan(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
+	rescored, flagged, err := eng.RescanPoisoning(vault)
 	if err != nil {
 		return "", err
 	}
@@ -788,23 +816,24 @@ func (s *Server) renderPoisonRescan(eng *engine.Engine) (string, error) {
 }
 
 func (s *Server) renderConfig(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
 	action, _ := args["action"].(string)
 	if action == "set" {
 		key, _ := args["key"].(string)
 		val, _ := args["value"].(string)
-		if err := eng.SetConfig("default", key, val); err != nil {
+		if err := eng.SetConfig(vault, key, val); err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("%s=%s (saved)", key, val), nil
 	}
 	if key, ok := args["key"].(string); ok && key != "" {
-		vals, err := eng.GetConfig("default", key)
+		vals, err := eng.GetConfig(vault, key)
 		if err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("%s=%s", key, vals[key]), nil
 	}
-	vals, err := eng.GetConfig("default", "")
+	vals, err := eng.GetConfig(vault, "")
 	if err != nil {
 		return "", err
 	}
@@ -817,8 +846,9 @@ func (s *Server) renderConfig(eng *engine.Engine, args map[string]any) (string, 
 	return strings.TrimSpace(b.String()), nil
 }
 
-func (s *Server) renderFiles(eng *engine.Engine) (string, error) {
-	files, err := eng.Files("default")
+func (s *Server) renderFiles(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
+	files, err := eng.Files(vault)
 	if err != nil {
 		return "", err
 	}
@@ -833,8 +863,9 @@ func (s *Server) renderFiles(eng *engine.Engine) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
-func (s *Server) renderDirs(eng *engine.Engine) (string, error) {
-	dirs, err := eng.Dirs("default")
+func (s *Server) renderDirs(eng *engine.Engine, args map[string]any) (string, error) {
+	vault := vaultArg(args)
+	dirs, err := eng.Dirs(vault)
 	if err != nil {
 		return "", err
 	}
@@ -1000,6 +1031,7 @@ func toolDefs() []map[string]any {
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					"vault":               map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
 					"query":               map[string]any{"type": "string"},
 					"k":                   map[string]any{"type": "integer", "default": 5},
 					"mode":                map[string]any{"type": "string", "enum": []string{"hybrid", "semantic", "keyword"}},
@@ -1020,15 +1052,20 @@ func toolDefs() []map[string]any {
 		{
 			"name":        "go_rag_status",
 			"description": "Report document/chunk/embedding counts, model, dimensions, and reranker status.",
-			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{
+				"vault": map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+			}},
 		},
 		{
 			"name":        "go_rag_add",
 			"description": "Ingest a file or directory path into the database.",
 			"inputSchema": map[string]any{
-				"type":       "object",
-				"properties": map[string]any{"path": map[string]any{"type": "string"}},
-				"required":   []string{"path"},
+				"type": "object",
+				"properties": map[string]any{
+					"vault": map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+					"path":  map[string]any{"type": "string"},
+				},
+				"required": []string{"path"},
 			},
 		},
 		{
@@ -1056,7 +1093,9 @@ func toolDefs() []map[string]any {
 		{
 			"name":        "go_rag_scan",
 			"description": "Scan watched directories once for added/modified/deleted files and apply changes.",
-			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{
+				"vault": map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+			}},
 		},
 		{
 			"name":        "go_rag_config",
@@ -1064,6 +1103,7 @@ func toolDefs() []map[string]any {
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					"vault":  map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
 					"action": map[string]any{"type": "string", "enum": []string{"get", "set"}},
 					"key":    map[string]any{"type": "string"},
 					"value":  map[string]any{"type": "string"},
@@ -1074,67 +1114,91 @@ func toolDefs() []map[string]any {
 		{
 			"name":        "go_rag_files",
 			"description": "List the file paths of every ingested document.",
-			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{
+				"vault": map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+			}},
 		},
 		{
 			"name":        "go_rag_dirs",
 			"description": "List ingested directories with file and chunk counts.",
-			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{
+				"vault": map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+			}},
 		},
 		{
 			"name":        "go_rag_reprocess",
 			"description": "Force re-ingest of a directory (applies the current reader/embedder; bypasses dedup).",
 			"inputSchema": map[string]any{
-				"type":       "object",
-				"properties": map[string]any{"path": map[string]any{"type": "string"}},
-				"required":   []string{"path"},
+				"type": "object",
+				"properties": map[string]any{
+					"vault": map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+					"path":  map[string]any{"type": "string"},
+				},
+				"required": []string{"path"},
 			},
 		},
 		{
 			"name":        "go_rag_migrate",
 			"description": "Re-embed all documents whose embeddings use a different model than the current one.",
-			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{
+				"vault": map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+			}},
 		},
 		{
 			"name":        "go_rag_migrate_plan",
 			"description": "Preview a migration: which embeddings are stale, the model/dimensionality change, and an estimate — without re-embedding (read-only, no embedding backend needed).",
-			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{
+				"vault": map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+			}},
 		},
 		{
 			"name":        "go_rag_poison_list",
 			"description": "List chunks flagged as injection-poisoning (excluded from default results), with the per-signal verdict breakdown.",
-			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{
+				"vault": map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+			}},
 		},
 		{
 			"name":        "go_rag_poison_release",
 			"description": "Release a flagged chunk (false-positive override) — makes it retrievable by default.",
 			"inputSchema": map[string]any{
-				"type":       "object",
-				"properties": map[string]any{"chunk_id": map[string]any{"type": "string"}},
-				"required":   []string{"chunk_id"},
+				"type": "object",
+				"properties": map[string]any{
+					"vault":    map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+					"chunk_id": map[string]any{"type": "string"},
+				},
+				"required": []string{"chunk_id"},
 			},
 		},
 		{
 			"name":        "go_rag_poison_reset",
 			"description": "Undo a release — re-quarantines the chunk if its score is flagged.",
 			"inputSchema": map[string]any{
-				"type":       "object",
-				"properties": map[string]any{"chunk_id": map[string]any{"type": "string"}},
-				"required":   []string{"chunk_id"},
+				"type": "object",
+				"properties": map[string]any{
+					"vault":    map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+					"chunk_id": map[string]any{"type": "string"},
+				},
+				"required": []string{"chunk_id"},
 			},
 		},
 		{
 			"name":        "go_rag_poison_rescan",
 			"description": "Re-score the whole corpus against the current detector (idempotent; no re-ingest). Scores pre-feature chunks and applies threshold/list changes to the back-catalog.",
-			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{
+				"vault": map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+			}},
 		},
 		{
 			"name":        "go_rag_get_chunk",
 			"description": "Fetch a single chunk by its content-addressed ID, with its parent document metadata (spec 035). Returns not-found (-32001) if the id is absent from this vault.",
 			"inputSchema": map[string]any{
-				"type":       "object",
-				"properties": map[string]any{"chunk_id": map[string]any{"type": "string"}},
-				"required":   []string{"chunk_id"},
+				"type": "object",
+				"properties": map[string]any{
+					"vault":    map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+					"chunk_id": map[string]any{"type": "string"},
+				},
+				"required": []string{"chunk_id"},
 			},
 		},
 		{
@@ -1143,6 +1207,7 @@ func toolDefs() []map[string]any {
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					"vault":    map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
 					"chunk_id": map[string]any{"type": "string"},
 					"window":   map[string]any{"type": "integer", "minimum": 0, "maximum": 10, "default": 2},
 				},
@@ -1155,6 +1220,7 @@ func toolDefs() []map[string]any {
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					"vault":     map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
 					"chunk_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "maxItems": 100},
 				},
 				"required": []string{"chunk_ids"},
@@ -1166,6 +1232,7 @@ func toolDefs() []map[string]any {
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					"vault":      map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
 					"page_size":  map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
 					"page_token": map[string]any{"type": "string"},
 					"after":      map[string]any{"type": "string", "format": "date-time"},
@@ -1180,6 +1247,7 @@ func toolDefs() []map[string]any {
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
+					"vault":       map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
 					"document_id": map[string]any{"type": "string"},
 					"page_size":   map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
 					"page_token":  map[string]any{"type": "string"},
@@ -1191,9 +1259,12 @@ func toolDefs() []map[string]any {
 			"name":        "go_rag_delete_document",
 			"description": "Delete a document and all its chunks/embeddings from the index by content-addressed document ID (spec 050). Index-only — the source file on disk is NOT touched. Returns not-found if the id is absent from this vault. doc_id is required.",
 			"inputSchema": map[string]any{
-				"type":       "object",
-				"properties": map[string]any{"doc_id": map[string]any{"type": "string"}},
-				"required":   []string{"doc_id"},
+				"type": "object",
+				"properties": map[string]any{
+					"vault":  map[string]any{"type": "string", "default": "default", "description": "vault name (defaults to \"default\")"},
+					"doc_id": map[string]any{"type": "string"},
+				},
+				"required": []string{"doc_id"},
 			},
 		},
 		{

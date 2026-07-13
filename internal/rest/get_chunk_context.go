@@ -39,7 +39,11 @@ func (s *Server) handleGetChunkContext(w http.ResponseWriter, r *http.Request) {
 		}
 		window = n
 	}
-	res, err := s.eng.GetChunkContext("default", id, window)
+	vault := r.URL.Query().Get("vault")
+	if vault == "" {
+		vault = "default"
+	}
+	res, err := s.eng.GetChunkContext(vault, id, window)
 	if err != nil {
 		writeEngineErr(w, err)
 		return

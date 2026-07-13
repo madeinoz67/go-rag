@@ -17,7 +17,7 @@ import (
 // INVALID_ARGUMENT for structural input errors via toStatusErr). This is the key
 // delta from GetChunk/GetChunkContext, which return status.NotFound for a miss.
 func (a *Adapter) BatchGetChunks(_ context.Context, req *goragpb.BatchGetChunksRequest) (*goragpb.BatchGetChunksResponse, error) {
-	res, err := a.eng.BatchGetChunks("default", req.GetChunkIds())
+	res, err := a.eng.BatchGetChunks(vaultOrDefault(req.GetVault()), req.GetChunkIds())
 	if err != nil {
 		return nil, toStatusErr(err) // ErrInvalid → InvalidArgument
 	}
