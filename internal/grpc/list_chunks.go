@@ -14,7 +14,7 @@ import (
 // (cross-transport parity). Empty result is NOT an error (unknown document →
 // empty chunks + empty next_page_token), matching engine.ListChunks semantics.
 func (a *Adapter) ListChunks(_ context.Context, req *goragpb.ListChunksRequest) (*goragpb.ListChunksResponse, error) {
-	res, err := a.eng.ListChunks(req.GetDocumentId(), engine.ListChunksRequest{
+	res, err := a.eng.ListChunks("default", req.GetDocumentId(), engine.ListChunksRequest{
 		PageSize:  int(req.GetPageSize()),
 		PageToken: req.GetPageToken(),
 	})

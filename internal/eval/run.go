@@ -118,7 +118,7 @@ func (r *Runner) Run(ctx context.Context, golden []GoldenQuery, mode string, k i
 			continue
 		}
 
-		res, err := eng.Query(ctx, engine.QueryRequest{
+		res, err := eng.Query(ctx, "default", engine.QueryRequest{
 			Query: gq.Query, K: k, Mode: mode, NoRerank: noRerank,
 		})
 		if err != nil {
@@ -279,7 +279,7 @@ func ProvisionCorpus(ctx context.Context, corpusDir string, em embed.Embedder, p
 	}
 	// Ingest the corpus with the same embedder eval will query with.
 	eng := engine.NewWithEmbedder(cfg, db, em)
-	if _, err := eng.Add(ctx, corpusDir, "*"); err != nil {
+	if _, err := eng.Add(ctx, "default", corpusDir, "*"); err != nil {
 		eng.Close()
 		db.Close()
 		os.RemoveAll(tmp)

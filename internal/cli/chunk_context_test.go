@@ -66,7 +66,7 @@ func TestCLI_ChunkContext(t *testing.T) {
 	var id string
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		res, qerr := eng.Query(context.Background(), engine.QueryRequest{Query: "authentication", Mode: "keyword", K: 5, IncludeQuarantined: true})
+		res, qerr := eng.Query(context.Background(), "default", engine.QueryRequest{Query: "authentication", Mode: "keyword", K: 5, IncludeQuarantined: true})
 		if qerr == nil && len(res.Hits) > 0 {
 			id = res.Hits[0].ChunkID
 			break
@@ -79,7 +79,7 @@ func TestCLI_ChunkContext(t *testing.T) {
 	// Pick the middle chunk of the linked list → interior, so window=2 returns 5.
 	head := id
 	for {
-		c, werr := eng.GetChunk(head)
+		c, werr := eng.GetChunk("default", head)
 		if werr != nil || c.Chunk.PreviousChunkID == "" {
 			break
 		}
@@ -89,7 +89,7 @@ func TestCLI_ChunkContext(t *testing.T) {
 	cur := head
 	for {
 		ordered = append(ordered, cur)
-		c, werr := eng.GetChunk(cur)
+		c, werr := eng.GetChunk("default", cur)
 		if werr != nil || c.Chunk.NextChunkID == "" {
 			break
 		}

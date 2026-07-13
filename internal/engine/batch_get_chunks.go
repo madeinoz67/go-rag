@@ -75,8 +75,8 @@ type BatchResult struct {
 // are resolved independently per position (no de-duplication). An orphan chunk
 // (chunk present, parent document absent) is not an error: the chunk is returned
 // with a zero-valued Document/Source.
-func (e *Engine) BatchGetChunks(chunkIDs []string) (*BatchResult, error) {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) BatchGetChunks(vault string, chunkIDs []string) (*BatchResult, error) {
+	ws := e.db.ResolveVaultPrefix(vault)
 	if len(chunkIDs) == 0 {
 		return nil, fmt.Errorf("chunk_ids is required: %w", ErrInvalid)
 	}

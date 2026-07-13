@@ -37,7 +37,7 @@ func newPoisonRescanCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			rescored, flagged, err := engine.NewWithDB(cfg, db).RescanPoisoning()
+			rescored, flagged, err := engine.NewWithDB(cfg, db).RescanPoisoning(vaultName)
 			if err != nil {
 				return err
 			}
@@ -58,7 +58,7 @@ func newPoisonListCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			flagged, err := engine.NewWithDB(cfg, db).ListPoisoned()
+			flagged, err := engine.NewWithDB(cfg, db).ListPoisoned(vaultName)
 			if err != nil {
 				return err
 			}
@@ -94,7 +94,7 @@ func newPoisonReleaseCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			if err := engine.NewWithDB(cfg, db).ReleaseChunk(args[0]); err != nil {
+			if err := engine.NewWithDB(cfg, db).ReleaseChunk(vaultName, args[0]); err != nil {
 				return err
 			}
 			fmt.Printf("Released %s — now retrievable by default.\n", args[0])
@@ -114,7 +114,7 @@ func newPoisonResetCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			if err := engine.NewWithDB(cfg, db).ResetChunk(args[0]); err != nil {
+			if err := engine.NewWithDB(cfg, db).ResetChunk(vaultName, args[0]); err != nil {
 				return err
 			}
 			fmt.Printf("Reset %s — re-evaluated against thresholds.\n", args[0])

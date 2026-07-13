@@ -83,7 +83,7 @@ func ingestDoc(t *testing.T, eng *engine.Engine, dir, name, content string) stri
 	if err := os.WriteFile(dp, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", name, err)
 	}
-	if _, err := eng.Add(context.Background(), dp, "*"); err != nil {
+	if _, err := eng.Add(context.Background(), "default", dp, "*"); err != nil {
 		t.Fatalf("ingest %s: %v", name, err)
 	}
 	waitForIndex(t, eng)
@@ -99,7 +99,7 @@ func waitForIndex(t *testing.T, eng *engine.Engine) {
 	var prev struct{ chunks, emb int }
 	stable := 0
 	for time.Now().Before(deadline) {
-		st, err := eng.Status()
+		st, err := eng.Status("default")
 		if err != nil {
 			t.Fatalf("status during drain: %v", err)
 		}
@@ -121,7 +121,7 @@ func waitForIndex(t *testing.T, eng *engine.Engine) {
 // docIDByPath finds the ingested document id whose FilePath matches path.
 func docIDByPath(t *testing.T, eng *engine.Engine, path string) string {
 	t.Helper()
-	res, err := eng.ListDocuments(engine.ListDocumentsRequest{})
+	res, err := eng.ListDocuments("default", engine.ListDocumentsRequest{})
 	if err != nil {
 		t.Fatalf("ListDocuments: %v", err)
 	}
@@ -574,7 +574,7 @@ func TestUIQuery_Parity(t *testing.T) {
 	body := map[string]any{"query": q, "k": 5, "mode": "hybrid", "no_cache": true}
 
 	// Engine-direct reference.
-	ref, err := eng.Query(context.Background(), engine.QueryRequest{Query: q, K: 5, Mode: "hybrid", NoCache: true})
+	ref, err := eng.Query(context.Background(), "default", engine.QueryRequest{Query: q, K: 5, Mode: "hybrid", NoCache: true})
 	if err != nil {
 		t.Fatalf("engine.Query: %v", err)
 	}
@@ -643,7 +643,7 @@ func TestUIQuery_ReadOnly(t *testing.T) {
 	ingestDoc(t, eng, t.TempDir(), "design.md", retrievalMD)
 	srvURL, tok := authedDocServer(t, eng)
 
-	before, err := eng.Status()
+	before, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("status before: %v", err)
 	}
@@ -656,7 +656,7 @@ func TestUIQuery_ReadOnly(t *testing.T) {
 	} {
 		_ = uiQuery(t, srvURL, tok, body)
 	}
-	after, err := eng.Status()
+	after, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("status after: %v", err)
 	}

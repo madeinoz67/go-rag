@@ -48,8 +48,8 @@ type ChunkResult struct {
 //
 // An orphan chunk (chunk present, parent document absent) is NOT an error: the
 // chunk is returned with a zero-valued Document/Source.
-func (e *Engine) GetChunk(chunkID string) (*ChunkResult, error) {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) GetChunk(vault, chunkID string) (*ChunkResult, error) {
+	ws := e.db.ResolveVaultPrefix(vault)
 	if strings.TrimSpace(chunkID) == "" {
 		return nil, fmt.Errorf("chunk_id is required: %w", ErrInvalid)
 	}

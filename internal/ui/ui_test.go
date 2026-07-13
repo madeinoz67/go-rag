@@ -207,7 +207,7 @@ func TestDashboardStats_ProjectsStatus(t *testing.T) {
 		t.Fatalf("decode dto: %v", err)
 	}
 
-	want, err := eng.Status()
+	want, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("eng.Status: %v", err)
 	}

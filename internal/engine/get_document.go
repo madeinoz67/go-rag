@@ -37,8 +37,8 @@ type DocumentResult struct {
 //
 // A document whose source record is missing is NOT an error: the document is
 // returned with a zero-valued Source (source_path empty).
-func (e *Engine) GetDocument(docID string) (*DocumentResult, error) {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) GetDocument(vault, docID string) (*DocumentResult, error) {
+	ws := e.db.ResolveVaultPrefix(vault)
 	if strings.TrimSpace(docID) == "" {
 		return nil, fmt.Errorf("document_id is required: %w", ErrInvalid)
 	}

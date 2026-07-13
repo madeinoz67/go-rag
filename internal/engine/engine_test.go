@@ -34,7 +34,7 @@ func newTestEngine(t *testing.T) (*Engine, string) {
 
 func TestEngine_Status_EmptyDB(t *testing.T) {
 	eng, _ := newTestEngine(t)
-	st, err := eng.Status()
+	st, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}
@@ -51,11 +51,11 @@ func TestEngine_Status_EmptyDB(t *testing.T) {
 
 func TestEngine_FilesDirs_Empty(t *testing.T) {
 	eng, _ := newTestEngine(t)
-	files, err := eng.Files()
+	files, err := eng.Files("default")
 	if err != nil || len(files) != 0 {
 		t.Fatalf("Files() = %v, %v", files, err)
 	}
-	dirs, err := eng.Dirs()
+	dirs, err := eng.Dirs("default")
 	if err != nil || len(dirs) != 0 {
 		t.Fatalf("Dirs() = %v, %v", dirs, err)
 	}
@@ -63,7 +63,7 @@ func TestEngine_FilesDirs_Empty(t *testing.T) {
 
 func TestEngine_GetConfig_All(t *testing.T) {
 	eng, _ := newTestEngine(t)
-	vals, err := eng.GetConfig("")
+	vals, err := eng.GetConfig("default", "")
 	if err != nil {
 		t.Fatalf("GetConfig: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestEngine_GetConfig_All(t *testing.T) {
 
 func TestEngine_SetConfig_Persists(t *testing.T) {
 	eng, dir := newTestEngine(t)
-	if err := eng.SetConfig("chunk_size", "256"); err != nil {
+	if err := eng.SetConfig("default", "chunk_size", "256"); err != nil {
 		t.Fatalf("SetConfig: %v", err)
 	}
 	// Re-loaded config from disk reflects the change (engine wrote config.json).
@@ -94,7 +94,7 @@ func TestEngine_SetConfig_Persists(t *testing.T) {
 
 func TestEngine_ListVaults_NoError(t *testing.T) {
 	eng, _ := newTestEngine(t)
-	vaults, err := eng.ListVaults()
+	vaults, err := eng.ListVaults("default")
 	if err != nil {
 		t.Fatalf("ListVaults: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestEngine_ListVaults_NoError(t *testing.T) {
 func TestEngine_Query_Keyword_EmptyDB(t *testing.T) {
 	eng, _ := newTestEngine(t)
 	// Keyword mode does not invoke the embedder, so this runs without Ollama.
-	res, err := eng.Query(t.Context(), QueryRequest{Query: "anything", Mode: "keyword", K: 5})
+	res, err := eng.Query(t.Context(), "default", QueryRequest{Query: "anything", Mode: "keyword", K: 5})
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestEngine_Query_Keyword_EmptyDB(t *testing.T) {
 
 func TestEngine_Query_RejectsEmpty(t *testing.T) {
 	eng, _ := newTestEngine(t)
-	if _, err := eng.Query(t.Context(), QueryRequest{Query: ""}); err == nil {
+	if _, err := eng.Query(t.Context(), "default", QueryRequest{Query: ""}); err == nil {
 		t.Fatal("expected error for empty query")
 	}
 }
@@ -128,7 +128,7 @@ func TestEngine_Query_RejectsEmpty(t *testing.T) {
 func TestEngine_Query_KClamped(t *testing.T) {
 	eng, _ := newTestEngine(t)
 	// K > 100 is clamped to 100 (no panic, no error) on an empty DB.
-	res, err := eng.Query(t.Context(), QueryRequest{Query: "x", Mode: "keyword", K: 9999})
+	res, err := eng.Query(t.Context(), "default", QueryRequest{Query: "x", Mode: "keyword", K: 9999})
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}

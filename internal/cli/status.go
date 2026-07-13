@@ -116,7 +116,7 @@ func formatBoundAddrs(addrs daemon.Addrs) string {
 }
 
 func gatherStats(db *storage.DB, cfg config.Config) statusInfo {
-	ws := db.ResolveVaultPrefix("default")
+	ws := db.ResolveVaultPrefix(vaultName)
 	info := statusInfo{
 		Sources:   countPrefix(db, ws, storage.PrefixSource),
 		Documents: countPrefix(db, ws, storage.PrefixDocument),

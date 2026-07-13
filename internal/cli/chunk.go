@@ -84,7 +84,7 @@ func newChunkListCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			res, err := engine.NewWithDB(cfg, db).ListChunks(args[0], engine.ListChunksRequest{
+			res, err := engine.NewWithDB(cfg, db).ListChunks(vaultName, args[0], engine.ListChunksRequest{
 				PageSize: pageSize, PageToken: pageToken,
 			})
 			if err != nil {
@@ -133,7 +133,7 @@ func newChunkGetCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			res, err := engine.NewWithDB(cfg, db).GetChunk(args[0])
+			res, err := engine.NewWithDB(cfg, db).GetChunk(vaultName, args[0])
 			if err != nil {
 				return err
 			}
@@ -330,7 +330,7 @@ func newChunkContextCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			res, err := engine.NewWithDB(cfg, db).GetChunkContext(args[0], window)
+			res, err := engine.NewWithDB(cfg, db).GetChunkContext(vaultName, args[0], window)
 			if err != nil {
 				return err
 			}
@@ -410,7 +410,7 @@ func newChunkBatchCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			res, err := engine.NewWithDB(cfg, db).BatchGetChunks(args)
+			res, err := engine.NewWithDB(cfg, db).BatchGetChunks(vaultName, args)
 			if err != nil {
 				return err
 			}

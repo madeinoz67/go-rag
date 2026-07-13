@@ -95,7 +95,7 @@ func newQueryCmd() *cobra.Command {
 			// MCP/REST/gRPC — including the embedding mismatch guard (audit H03),
 			// which refuses a query whose model/dim doesn't match the corpus.
 			eng := engine.NewWithDB(cfg, db)
-			res, err := eng.Query(context.Background(), engine.QueryRequest{
+			res, err := eng.Query(context.Background(), vaultName, engine.QueryRequest{
 				Query: q, K: k, Mode: modeStr, NoRerank: noRerank, Threshold: threshold, RRFK: rrfK, PoolSize: poolSize, Filter: filt, ContextWindow: cw, NoCache: noCache, IncludeQuarantined: includeQuar, Dedup: dedup,
 			})
 			if err != nil {

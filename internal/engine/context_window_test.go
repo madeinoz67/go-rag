@@ -25,13 +25,13 @@ func TestQuery_ContextWindow_Expansion(t *testing.T) {
 	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.Add(context.Background(), path, "*"); err != nil {
+	if _, err := e.Add(context.Background(), "default", path, "*"); err != nil {
 		t.Fatal(err)
 	}
 	waitEmbedded(t, e)
 
 	// Query with ContextWindow=1: each hit should have context.
-	res, err := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5, ContextWindow: 1})
+	res, err := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "keyword", K: 5, ContextWindow: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,10 +65,10 @@ func TestQuery_ContextWindow_Zero_NoContext(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "doc.txt")
 	os.WriteFile(path, []byte("alpha beta gamma delta epsilon zeta eta theta."), 0o644)
-	e.Add(context.Background(), path, "*")
+	e.Add(context.Background(), "default", path, "*")
 	waitEmbedded(t, e)
 
-	res, _ := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
+	res, _ := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
 	for _, h := range res.Hits {
 		if len(h.Context) > 0 {
 			t.Error("ContextWindow=0 should produce no context")
@@ -82,11 +82,11 @@ func TestQuery_ContextWindow_TopK_Unchanged(t *testing.T) {
 	path := filepath.Join(dir, "doc.txt")
 	text := strings.Repeat("alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu. ", 30)
 	os.WriteFile(path, []byte(text), 0o644)
-	e.Add(context.Background(), path, "*")
+	e.Add(context.Background(), "default", path, "*")
 	waitEmbedded(t, e)
 
-	without, _ := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
-	withC, _ := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5, ContextWindow: 2})
+	without, _ := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
+	withC, _ := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "keyword", K: 5, ContextWindow: 2})
 	if len(without.Hits) != len(withC.Hits) {
 		t.Errorf("top-k changed: without=%d withContext=%d", len(without.Hits), len(withC.Hits))
 	}

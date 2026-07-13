@@ -54,8 +54,8 @@ const estimateNote = "estimate — an effort proxy (re-embedding count), not a t
 // MigratePlan is the engine-bound preview: it delegates to MigratePlanFor with
 // the configured target model. Read-only; used by the transports and by Migrate
 // (FR-008: Migrate calls this first so preview and execution share one path).
-func (e *Engine) MigratePlan() (*MigrationPlan, error) {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) MigratePlan(vault string) (*MigrationPlan, error) {
+	ws := e.db.ResolveVaultPrefix(vault)
 	return MigratePlanFor(ws, e.db, e.cfg.EmbeddingModel)
 }
 

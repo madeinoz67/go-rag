@@ -75,7 +75,7 @@ func newServeCmd() *cobra.Command {
 			bootstrapAuth(auth.NewStore(db), dbPath)
 			// spec 030: start the embedder eagerly so the startup scan recovers any
 			// pending 0x14 embeddings from a previous crash.
-			if err := eng.EnsureEmbedder(); err != nil {
+			if err := eng.EnsureEmbedder(vaultName); err != nil {
 				return err
 			}
 			// Drain the engine's background ingest workers (async-after-ACK writes)
@@ -110,7 +110,7 @@ func newServeCmd() *cobra.Command {
 			// convention mismatch) makes readiness NOT READY (Health.Ready) while
 			// liveness stays OK — the daemon starts degraded so the operator can run
 			// migrate in place; soft (ollama-version) change warns but stays ready.
-			if v := eng.RefreshDriftVerdict(context.Background()); v.Hard || v.Verdict == engine.VerdictVersionWarning {
+			if v := eng.RefreshDriftVerdict(context.Background(), vaultName); v.Hard || v.Verdict == engine.VerdictVersionWarning {
 				detail := v.Verdict
 				if len(v.Reasons) > 0 {
 					detail += " (" + strings.Join(v.Reasons, "; ") + ")"
@@ -140,7 +140,7 @@ func newServeCmd() *cobra.Command {
 					dir := dir
 					go func() {
 						fmt.Fprintf(os.Stderr, "go-rag daemon watching %s (poll %s)\n", dir, poll)
-						if err := eng.Watch(watchCtx, dir, glob, poll); err != nil {
+						if err := eng.Watch(watchCtx, vaultName, dir, glob, poll); err != nil {
 							fmt.Fprintf(os.Stderr, "go-rag watch %s ended: %v\n", dir, err)
 						}
 					}()

@@ -155,7 +155,7 @@ func TestUIWrite_AddDocument(t *testing.T) {
 
 	// Parity: re-adding the SAME path via the engine directly is an idempotent
 	// no-op (content-addressed) — UI add and engine.Add target the same identity.
-	again, err := eng.Add(context.Background(), src, "")
+	again, err := eng.Add(context.Background(), "default", src, "")
 	if err != nil {
 		t.Fatalf("engine re-add: %v", err)
 	}

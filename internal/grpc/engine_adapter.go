@@ -46,7 +46,7 @@ func toIngestSummary(s *engine.IngestSummary) *goragpb.IngestSummary {
 
 // Query is the gRPC projection of engine.Query.
 func (a *Adapter) Query(ctx context.Context, req *goragpb.QueryRequest) (*goragpb.QueryResponse, error) {
-	res, err := a.eng.Query(ctx, engine.QueryRequest{
+	res, err := a.eng.Query(ctx, "default", engine.QueryRequest{
 		Query:              req.GetQuery(),
 		K:                  int(req.GetK()),
 		Mode:               req.GetMode(),
@@ -121,7 +121,7 @@ func toPoisoningPB(v *model.PoisonVerdict) *goragpb.Poisoning {
 // onto the response in US2 (toDocumentMetaPB); here `document` is left nil so US1
 // stays a focused, independently testable increment.
 func (a *Adapter) GetChunk(_ context.Context, req *goragpb.GetChunkRequest) (*goragpb.GetChunkResponse, error) {
-	res, err := a.eng.GetChunk(req.GetChunkId())
+	res, err := a.eng.GetChunk("default", req.GetChunkId())
 	if err != nil {
 		return nil, toStatusErr(err)
 	}
@@ -166,7 +166,7 @@ func toChunkPB(c model.Chunk) *goragpb.Chunk {
 
 // Status is the gRPC projection of engine.Status.
 func (a *Adapter) Status(_ context.Context, _ *goragpb.StatusRequest) (*goragpb.StatusResponse, error) {
-	st, err := a.eng.Status()
+	st, err := a.eng.Status("default")
 	if err != nil {
 		return nil, toStatusErr(err)
 	}
@@ -200,7 +200,7 @@ func toPoolUtilizationPB(u engine.PoolUtilization) *goragpb.PoolUtilization {
 // Add is the gRPC projection of engine.Add. It ACKs fast (async-after-ACK);
 // embeddings finish on the engine's background workers after the response.
 func (a *Adapter) Add(ctx context.Context, req *goragpb.AddRequest) (*goragpb.IngestSummary, error) {
-	res, err := a.eng.Add(ctx, req.GetPath(), req.GetGlob())
+	res, err := a.eng.Add(ctx, "default", req.GetPath(), req.GetGlob())
 	if err != nil {
 		return nil, toStatusErr(err)
 	}
@@ -209,7 +209,7 @@ func (a *Adapter) Add(ctx context.Context, req *goragpb.AddRequest) (*goragpb.In
 
 // Scan is the gRPC projection of engine.Scan.
 func (a *Adapter) Scan(ctx context.Context, _ *goragpb.ScanRequest) (*goragpb.IngestSummary, error) {
-	res, err := a.eng.Scan(ctx)
+	res, err := a.eng.Scan(ctx, "default")
 	if err != nil {
 		return nil, toStatusErr(err)
 	}
@@ -218,7 +218,7 @@ func (a *Adapter) Scan(ctx context.Context, _ *goragpb.ScanRequest) (*goragpb.In
 
 // Reprocess is the gRPC projection of engine.Reprocess.
 func (a *Adapter) Reprocess(ctx context.Context, req *goragpb.ReprocessRequest) (*goragpb.IngestSummary, error) {
-	res, err := a.eng.Reprocess(ctx, req.GetPath())
+	res, err := a.eng.Reprocess(ctx, "default", req.GetPath())
 	if err != nil {
 		return nil, toStatusErr(err)
 	}
@@ -227,7 +227,7 @@ func (a *Adapter) Reprocess(ctx context.Context, req *goragpb.ReprocessRequest) 
 
 // Migrate is the gRPC projection of engine.Migrate.
 func (a *Adapter) Migrate(ctx context.Context, _ *goragpb.MigrateRequest) (*goragpb.IngestSummary, error) {
-	res, err := a.eng.Migrate(ctx)
+	res, err := a.eng.Migrate(ctx, "default")
 	if err != nil {
 		return nil, toStatusErr(err)
 	}
@@ -237,7 +237,7 @@ func (a *Adapter) Migrate(ctx context.Context, _ *goragpb.MigrateRequest) (*gora
 // MigratePlan is the gRPC projection of engine.MigratePlan (H24/spec 028) — the
 // read-only migration preview. It never re-embeds and needs no backend.
 func (a *Adapter) MigratePlan(_ context.Context, _ *goragpb.MigratePlanRequest) (*goragpb.MigrationPlan, error) {
-	plan, err := a.eng.MigratePlan()
+	plan, err := a.eng.MigratePlan("default")
 	if err != nil {
 		return nil, toStatusErr(err)
 	}
@@ -275,7 +275,7 @@ func toMigrationPlanPB(p *engine.MigrationPlan) *goragpb.MigrationPlan {
 
 // Files is the gRPC projection of engine.Files.
 func (a *Adapter) Files(_ context.Context, _ *goragpb.FilesRequest) (*goragpb.FilesResponse, error) {
-	files, err := a.eng.Files()
+	files, err := a.eng.Files("default")
 	if err != nil {
 		return nil, toStatusErr(err)
 	}
@@ -293,7 +293,7 @@ func (a *Adapter) Files(_ context.Context, _ *goragpb.FilesRequest) (*goragpb.Fi
 
 // Dirs is the gRPC projection of engine.Dirs.
 func (a *Adapter) Dirs(_ context.Context, _ *goragpb.DirsRequest) (*goragpb.DirsResponse, error) {
-	dirs, err := a.eng.Dirs()
+	dirs, err := a.eng.Dirs("default")
 	if err != nil {
 		return nil, toStatusErr(err)
 	}
@@ -310,7 +310,7 @@ func (a *Adapter) Dirs(_ context.Context, _ *goragpb.DirsRequest) (*goragpb.Dirs
 
 // GetConfig is the gRPC projection of engine.GetConfig.
 func (a *Adapter) GetConfig(_ context.Context, req *goragpb.GetConfigRequest) (*goragpb.GetConfigResponse, error) {
-	vals, err := a.eng.GetConfig(req.GetKey())
+	vals, err := a.eng.GetConfig("default", req.GetKey())
 	if err != nil {
 		return nil, toStatusErr(err)
 	}
@@ -319,7 +319,7 @@ func (a *Adapter) GetConfig(_ context.Context, req *goragpb.GetConfigRequest) (*
 
 // SetConfig is the gRPC projection of engine.SetConfig.
 func (a *Adapter) SetConfig(_ context.Context, req *goragpb.SetConfigRequest) (*goragpb.SetConfigResponse, error) {
-	if err := a.eng.SetConfig(req.GetKey(), req.GetValue()); err != nil {
+	if err := a.eng.SetConfig("default", req.GetKey(), req.GetValue()); err != nil {
 		return nil, toStatusErr(err)
 	}
 	return &goragpb.SetConfigResponse{Key: req.GetKey(), Value: req.GetValue()}, nil
@@ -327,7 +327,7 @@ func (a *Adapter) SetConfig(_ context.Context, req *goragpb.SetConfigRequest) (*
 
 // ListVaults is the gRPC projection of engine.ListVaults.
 func (a *Adapter) ListVaults(_ context.Context, _ *goragpb.ListVaultsRequest) (*goragpb.ListVaultsResponse, error) {
-	vaults, err := a.eng.ListVaults()
+	vaults, err := a.eng.ListVaults("default")
 	if err != nil {
 		return nil, toStatusErr(err)
 	}
@@ -340,7 +340,7 @@ func (a *Adapter) ListVaults(_ context.Context, _ *goragpb.ListVaultsRequest) (*
 
 // Health is the gRPC projection of engine.Health (liveness/readiness).
 func (a *Adapter) Health(ctx context.Context, _ *goragpb.HealthRequest) (*goragpb.HealthResponse, error) {
-	h := a.eng.Health(ctx)
+	h := a.eng.Health(ctx, "default")
 	return &goragpb.HealthResponse{
 		Ok:                h.OK,
 		StorageOpen:       h.StorageOpen,
@@ -352,7 +352,7 @@ func (a *Adapter) Health(ctx context.Context, _ *goragpb.HealthRequest) (*goragp
 
 // ListPoisoned is the gRPC projection of engine.ListPoisoned (H04/spec 019).
 func (a *Adapter) ListPoisoned(_ context.Context, _ *goragpb.ListPoisonedRequest) (*goragpb.ListPoisonedResponse, error) {
-	flagged, err := a.eng.ListPoisoned()
+	flagged, err := a.eng.ListPoisoned("default")
 	if err != nil {
 		return nil, toStatusErr(err)
 	}
@@ -370,7 +370,7 @@ func (a *Adapter) ListPoisoned(_ context.Context, _ *goragpb.ListPoisonedRequest
 
 // ReleaseChunk is the gRPC projection of engine.ReleaseChunk (H04/spec 019).
 func (a *Adapter) ReleaseChunk(_ context.Context, req *goragpb.ReleaseChunkRequest) (*goragpb.PoisonActionResponse, error) {
-	if err := a.eng.ReleaseChunk(req.GetChunkId()); err != nil {
+	if err := a.eng.ReleaseChunk("default", req.GetChunkId()); err != nil {
 		return nil, toStatusErr(err)
 	}
 	return &goragpb.PoisonActionResponse{ChunkId: req.GetChunkId(), Status: "released"}, nil
@@ -378,7 +378,7 @@ func (a *Adapter) ReleaseChunk(_ context.Context, req *goragpb.ReleaseChunkReque
 
 // ResetChunk is the gRPC projection of engine.ResetChunk (H04/spec 019).
 func (a *Adapter) ResetChunk(_ context.Context, req *goragpb.ResetChunkRequest) (*goragpb.PoisonActionResponse, error) {
-	if err := a.eng.ResetChunk(req.GetChunkId()); err != nil {
+	if err := a.eng.ResetChunk("default", req.GetChunkId()); err != nil {
 		return nil, toStatusErr(err)
 	}
 	return &goragpb.PoisonActionResponse{ChunkId: req.GetChunkId(), Status: "reset"}, nil
@@ -386,7 +386,7 @@ func (a *Adapter) ResetChunk(_ context.Context, req *goragpb.ResetChunkRequest) 
 
 // RescanPoisoning is the gRPC projection of engine.RescanPoisoning (H04/spec 019).
 func (a *Adapter) RescanPoisoning(_ context.Context, _ *goragpb.RescanPoisoningRequest) (*goragpb.RescanPoisoningResponse, error) {
-	rescored, flagged, err := a.eng.RescanPoisoning()
+	rescored, flagged, err := a.eng.RescanPoisoning("default")
 	if err != nil {
 		return nil, toStatusErr(err)
 	}

@@ -18,7 +18,7 @@ import "github.com/madeinoz67/go-rag/internal/audit"
 // (<dbPath>/audit/audit.log). Read-only — it opens no DB write and mutates
 // nothing. A missing or disabled log returns an empty slice with no error
 // (healthy empty, mirroring audit.Read and the CLI).
-func (e *Engine) AuditRead(opts audit.ReadOptions) ([]audit.Event, error) {
+func (e *Engine) AuditRead(_ string, opts audit.ReadOptions) ([]audit.Event, error) {
 	path := e.cfg.AuditPath
 	if path == "" {
 		path = audit.DefaultPath(e.cfg.DBPath)

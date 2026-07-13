@@ -25,8 +25,8 @@ func fromResult(r pipeline.Result) IngestSummary {
 // commit completes (async-after-ACK, Principle IV); embedding and indexing
 // continue on the engine's background workers after this call returns. Call
 // Close to wait for that background work to finish.
-func (e *Engine) Add(ctx context.Context, path, glob string) (sum *IngestSummary, err error) {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) Add(ctx context.Context, vault, path, glob string) (sum *IngestSummary, err error) {
+	ws := e.db.ResolveVaultPrefix(vault)
 	if glob == "" {
 		glob = "*"
 	}
@@ -58,7 +58,7 @@ func (e *Engine) Add(ctx context.Context, path, glob string) (sum *IngestSummary
 // Scan runs a single change-detection pass over the configured watch directory
 // and applies adds/modifications/deletions. Like Add, it ACKs after the durable
 // store commits and embeds asynchronously.
-func (e *Engine) Scan(ctx context.Context) (sum *IngestSummary, err error) {
+func (e *Engine) Scan(ctx context.Context, _ string) (sum *IngestSummary, err error) {
 	ctx, span := observe.StartSpan(ctx, observe.SpanIngest, observe.OpAttr("scan"))
 	start := time.Now()
 	defer func() {
@@ -98,7 +98,7 @@ func (e *Engine) Scan(ctx context.Context) (sum *IngestSummary, err error) {
 
 // Reprocess force-re-ingests a path, bypassing SHA-256 dedup (applies the
 // current reader/embedder).
-func (e *Engine) Reprocess(ctx context.Context, path string) (sum *IngestSummary, err error) {
+func (e *Engine) Reprocess(ctx context.Context, _, path string) (sum *IngestSummary, err error) {
 	ctx, span := observe.StartSpan(ctx, observe.SpanIngest, observe.OpAttr("reprocess"))
 	start := time.Now()
 	defer func() {
@@ -126,7 +126,7 @@ func (e *Engine) Reprocess(ctx context.Context, path string) (sum *IngestSummary
 
 // Migrate re-embeds documents whose embeddings use a different model than the
 // configured one. If everything is current, returns a zero summary.
-func (e *Engine) Migrate(ctx context.Context) (sum *IngestSummary, err error) {
+func (e *Engine) Migrate(ctx context.Context, vault string) (sum *IngestSummary, err error) {
 	ctx, span := observe.StartSpan(ctx, observe.SpanMigrate)
 	start := time.Now()
 	defer func() {
@@ -140,7 +140,7 @@ func (e *Engine) Migrate(ctx context.Context) (sum *IngestSummary, err error) {
 	// H24/spec 028: the stale set is computed once via MigratePlan and shared with
 	// the dry-run preview, so preview and execution can never disagree (FR-008).
 	// Proceed only when there is stale work to do.
-	plan, err := e.MigratePlan()
+	plan, err := e.MigratePlan(vault)
 	if err != nil {
 		return nil, err
 	}

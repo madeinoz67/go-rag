@@ -66,7 +66,7 @@ func addDoc(t *testing.T, e *Engine, content string) string {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)
 	}
-	if _, err := e.Add(context.Background(), path, "*"); err != nil {
+	if _, err := e.Add(context.Background(), "default", path, "*"); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	waitEmbedded(t, e)
@@ -78,7 +78,7 @@ func waitEmbedded(t *testing.T, e *Engine) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		st, _ := e.Status()
+		st, _ := e.Status("default")
 		if st.Embeddings > 0 && st.EmbeddingsComplete {
 			return
 		}
@@ -129,14 +129,14 @@ func TestQuery_ReusesSharedIndex(t *testing.T) {
 		t.Fatal("indexes() must return the same shared *FTS/*Vector across calls (seed-once / no per-query rebuild)")
 	}
 
-	r1, err := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
+	r1, err := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
 	if len(r1.Hits) == 0 {
 		t.Fatal("expected >=1 hit for 'alpha'")
 	}
-	r2, _ := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
+	r2, _ := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
 	if !hitsEqual(r1.Hits, r2.Hits) {
 		t.Errorf("repeated queries must return identical results: %v vs %v", r1.Hits, r2.Hits)
 	}
@@ -150,7 +150,7 @@ func TestQuery_ReusesSharedIndex(t *testing.T) {
 func TestQuery_ReadAfterWrite_Ingest(t *testing.T) {
 	e := newCacheEngine(t)
 	addDoc(t, e, "the quick brown fox jumps over the lazy dog")
-	res, err := e.Query(context.Background(), QueryRequest{Query: "fox", Mode: "keyword", K: 5})
+	res, err := e.Query(context.Background(), "default", QueryRequest{Query: "fox", Mode: "keyword", K: 5})
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestQuery_AfterDelete_NoPhantomHits(t *testing.T) {
 	e := newCacheEngine(t)
 	path := addDoc(t, e, "uniquezword to find then delete from the index")
 
-	res, _ := e.Query(context.Background(), QueryRequest{Query: "uniquezword", Mode: "keyword", K: 5})
+	res, _ := e.Query(context.Background(), "default", QueryRequest{Query: "uniquezword", Mode: "keyword", K: 5})
 	if len(res.Hits) == 0 {
 		t.Fatal("precondition: doc should be queryable before delete")
 	}
@@ -179,7 +179,7 @@ func TestQuery_AfterDelete_NoPhantomHits(t *testing.T) {
 		t.Fatalf("DeleteDoc: %v", err)
 	}
 
-	after, _ := e.Query(context.Background(), QueryRequest{Query: "uniquezword", Mode: "keyword", K: 5})
+	after, _ := e.Query(context.Background(), "default", QueryRequest{Query: "uniquezword", Mode: "keyword", K: 5})
 	if len(after.Hits) != 0 {
 		t.Errorf("delete must remove chunks from the shared index; got %d phantom hits: %+v", len(after.Hits), after.Hits)
 	}
@@ -195,10 +195,10 @@ func TestQuery_AfterMigrate_IndexIntact(t *testing.T) {
 	e := newCacheEngine(t)
 	addDoc(t, e, "migrate consistency corpus document about retrieval")
 
-	if _, err := e.Migrate(context.Background()); err != nil {
+	if _, err := e.Migrate(context.Background(), "default"); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	res, err := e.Query(context.Background(), QueryRequest{Query: "migrate", Mode: "keyword", K: 5})
+	res, err := e.Query(context.Background(), "default", QueryRequest{Query: "migrate", Mode: "keyword", K: 5})
 	if err != nil {
 		t.Fatalf("query after migrate: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestQuery_ConcurrentSafe_UnderBackgroundIngest(t *testing.T) {
 	addDone := make(chan struct{})
 	go func() {
 		defer close(addDone)
-		_, _ = e.Add(context.Background(), bgPath, "*") // returns after sync store + enqueue
+		_, _ = e.Add(context.Background(), "default", bgPath, "*") // returns after sync store + enqueue
 	}()
 
 	const q = 32
@@ -237,7 +237,7 @@ func TestQuery_ConcurrentSafe_UnderBackgroundIngest(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := e.Query(context.Background(), QueryRequest{Query: "baseline", Mode: "keyword", K: 5}); err != nil {
+			if _, err := e.Query(context.Background(), "default", QueryRequest{Query: "baseline", Mode: "keyword", K: 5}); err != nil {
 				errs <- err
 			}
 		}()

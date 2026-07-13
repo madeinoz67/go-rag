@@ -44,7 +44,7 @@ func TestEngine_Query_EffectivePool_Resolution(t *testing.T) {
 	eng, _ := newTestEngineCfg(t, nil) // default cfg: PoolSize 60
 
 	// PoolSize 0 → config default 60; effK defaults to 5; mode echoed.
-	res, err := eng.Query(t.Context(), QueryRequest{Query: "x", Mode: "keyword", NoCache: true})
+	res, err := eng.Query(t.Context(), "default", QueryRequest{Query: "x", Mode: "keyword", NoCache: true})
 	if err != nil {
 		t.Fatalf("query: %v", err)
 	}
@@ -59,19 +59,19 @@ func TestEngine_Query_EffectivePool_Resolution(t *testing.T) {
 	}
 
 	// Per-query override 30 wins over config.
-	res, _ = eng.Query(t.Context(), QueryRequest{Query: "x", Mode: "keyword", PoolSize: 30, NoCache: true})
+	res, _ = eng.Query(t.Context(), "default", QueryRequest{Query: "x", Mode: "keyword", PoolSize: 30, NoCache: true})
 	if res.EffectivePool != 30 {
 		t.Errorf("override: EffectivePool=%d want 30", res.EffectivePool)
 	}
 
 	// A raised config ceiling (100) applies when no override is set.
 	eng2, _ := newTestEngineCfg(t, func(c *config.Config) { c.PoolSize = 100 })
-	res, _ = eng2.Query(t.Context(), QueryRequest{Query: "x", Mode: "keyword", NoCache: true})
+	res, _ = eng2.Query(t.Context(), "default", QueryRequest{Query: "x", Mode: "keyword", NoCache: true})
 	if res.EffectivePool != 100 {
 		t.Errorf("cfg ceiling: EffectivePool=%d want 100", res.EffectivePool)
 	}
 	// Per-query override still beats the raised config.
-	res, _ = eng2.Query(t.Context(), QueryRequest{Query: "x", Mode: "keyword", PoolSize: 20, NoCache: true})
+	res, _ = eng2.Query(t.Context(), "default", QueryRequest{Query: "x", Mode: "keyword", PoolSize: 20, NoCache: true})
 	if res.EffectivePool != 20 {
 		t.Errorf("override>cfg: EffectivePool=%d want 20", res.EffectivePool)
 	}
@@ -86,24 +86,24 @@ func TestEngine_Query_EffectiveK_Resolution(t *testing.T) {
 	engC, _ := newTestEngineCfg(t, func(c *config.Config) { c.AdaptiveDepthEnabled = true })
 
 	// Factoid, no explicit k → recommended 3.
-	res, _ := engC.Query(t.Context(), QueryRequest{Query: "max batch size", Mode: "keyword", NoCache: true})
+	res, _ := engC.Query(t.Context(), "default", QueryRequest{Query: "max batch size", Mode: "keyword", NoCache: true})
 	if res.EffectiveK != 3 {
 		t.Errorf("factoid recommended: EffectiveK=%d want 3", res.EffectiveK)
 	}
 	// Explicit k=8 beats the classifier.
-	res, _ = engC.Query(t.Context(), QueryRequest{Query: "max batch size", Mode: "keyword", K: 8, NoCache: true})
+	res, _ = engC.Query(t.Context(), "default", QueryRequest{Query: "max batch size", Mode: "keyword", K: 8, NoCache: true})
 	if res.EffectiveK != 8 {
 		t.Errorf("explicit wins: EffectiveK=%d want 8", res.EffectiveK)
 	}
 	// Comparative, no explicit k → no recommendation → default 5.
-	res, _ = engC.Query(t.Context(), QueryRequest{Query: "compare caching and drift approaches", Mode: "keyword", NoCache: true})
+	res, _ = engC.Query(t.Context(), "default", QueryRequest{Query: "compare caching and drift approaches", Mode: "keyword", NoCache: true})
 	if res.EffectiveK != 5 {
 		t.Errorf("comparative default: EffectiveK=%d want 5", res.EffectiveK)
 	}
 
 	// Classifier disabled → factoid uses the default (no classification).
 	eng, _ := newTestEngineCfg(t, nil)
-	res, _ = eng.Query(t.Context(), QueryRequest{Query: "max batch size", Mode: "keyword", NoCache: true})
+	res, _ = eng.Query(t.Context(), "default", QueryRequest{Query: "max batch size", Mode: "keyword", NoCache: true})
 	if res.EffectiveK != 5 {
 		t.Errorf("disabled factoid: EffectiveK=%d want 5", res.EffectiveK)
 	}
@@ -118,17 +118,17 @@ func TestEngine_Query_FR011_PoolShrinksWithRecommendedK(t *testing.T) {
 	eng, _ := newTestEngineCfg(t, func(c *config.Config) { c.AdaptiveDepthEnabled = true })
 
 	// Factoid (recommended k=3) → pool = EffectivePoolFor(3, 10, 20, 60) = 20.
-	res, _ := eng.Query(t.Context(), QueryRequest{Query: "max batch size", Mode: "keyword", NoCache: true})
+	res, _ := eng.Query(t.Context(), "default", QueryRequest{Query: "max batch size", Mode: "keyword", NoCache: true})
 	if res.EffectivePool != 20 {
 		t.Errorf("factoid shrunk pool: EffectivePool=%d want 20", res.EffectivePool)
 	}
 	// Comparative (no recommendation) → full ceiling 60.
-	res, _ = eng.Query(t.Context(), QueryRequest{Query: "compare caching and drift approaches", Mode: "keyword", NoCache: true})
+	res, _ = eng.Query(t.Context(), "default", QueryRequest{Query: "compare caching and drift approaches", Mode: "keyword", NoCache: true})
 	if res.EffectivePool != 60 {
 		t.Errorf("comparative full pool: EffectivePool=%d want 60", res.EffectivePool)
 	}
 	// Per-query override beats classifier-derived shrinking.
-	res, _ = eng.Query(t.Context(), QueryRequest{Query: "max batch size", Mode: "keyword", PoolSize: 50, NoCache: true})
+	res, _ = eng.Query(t.Context(), "default", QueryRequest{Query: "max batch size", Mode: "keyword", PoolSize: 50, NoCache: true})
 	if res.EffectivePool != 50 {
 		t.Errorf("override>classifier: EffectivePool=%d want 50", res.EffectivePool)
 	}

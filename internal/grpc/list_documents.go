@@ -14,7 +14,7 @@ import (
 // entry is byte-identical to GetChunk's document projection (cross-transport
 // parity). Empty result is NOT an error (empty documents + empty next_page_token).
 func (a *Adapter) ListDocuments(_ context.Context, req *goragpb.ListDocumentsRequest) (*goragpb.ListDocumentsResponse, error) {
-	res, err := a.eng.ListDocuments(engine.ListDocumentsRequest{
+	res, err := a.eng.ListDocuments("default", engine.ListDocumentsRequest{
 		PageSize:  int(req.GetPageSize()),
 		PageToken: req.GetPageToken(),
 		After:     req.GetAfter(),

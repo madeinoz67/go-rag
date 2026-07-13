@@ -33,7 +33,7 @@ func addMarkdown(t *testing.T, e *Engine, body string) string {
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)
 	}
-	if _, err := e.Add(context.Background(), path, "*"); err != nil {
+	if _, err := e.Add(context.Background(), "default", path, "*"); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	waitEmbedded(t, e)
@@ -45,7 +45,7 @@ func TestGetChunk_SurfacesWikilinks(t *testing.T) {
 	body := "# Auth\n\nSee [[authentication]] and [[JWT tokens]] for detail.\n"
 	addMarkdown(t, e, body)
 
-	q, err := e.Query(context.Background(), QueryRequest{Query: "authentication", Mode: "keyword", K: 5})
+	q, err := e.Query(context.Background(), "default", QueryRequest{Query: "authentication", Mode: "keyword", K: 5})
 	if err != nil || len(q.Hits) == 0 {
 		t.Fatalf("setup query failed: err=%v hits=%d", err, len(q.Hits))
 	}
@@ -55,7 +55,7 @@ func TestGetChunk_SurfacesWikilinks(t *testing.T) {
 		t.Errorf("query hit Wikilinks = %v, want authentication + JWT tokens", q.Hits[0].Wikilinks)
 	}
 	// GetChunk surfaces the same Wikilinks on the resolved chunk.
-	res, err := e.GetChunk(q.Hits[0].ChunkID)
+	res, err := e.GetChunk("default", q.Hits[0].ChunkID)
 	if err != nil {
 		t.Fatalf("GetChunk: %v", err)
 	}
@@ -70,11 +70,11 @@ func TestGetChunk_NoWikilinks_IsAbsent(t *testing.T) {
 	e := newCacheEngine(t)
 	addMarkdown(t, e, "# Plain\n\nNo links anywhere in this body text.\n")
 
-	q, err := e.Query(context.Background(), QueryRequest{Query: "plain", Mode: "keyword", K: 5})
+	q, err := e.Query(context.Background(), "default", QueryRequest{Query: "plain", Mode: "keyword", K: 5})
 	if err != nil || len(q.Hits) == 0 {
 		t.Fatalf("setup query failed: err=%v hits=%d", err, len(q.Hits))
 	}
-	res, err := e.GetChunk(q.Hits[0].ChunkID)
+	res, err := e.GetChunk("default", q.Hits[0].ChunkID)
 	if err != nil {
 		t.Fatalf("GetChunk: %v", err)
 	}
@@ -95,11 +95,11 @@ func TestWikilinks_DeterministicAndIdentitySafe(t *testing.T) {
 	e2 := newCacheEngine(t)
 	addMarkdown(t, e2, body)
 
-	q1, err := e1.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
+	q1, err := e1.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
 	if err != nil || len(q1.Hits) == 0 {
 		t.Fatalf("e1 query: err=%v hits=%d", err, len(q1.Hits))
 	}
-	q2, err := e2.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
+	q2, err := e2.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "keyword", K: 5})
 	if err != nil || len(q2.Hits) == 0 {
 		t.Fatalf("e2 query: err=%v hits=%d", err, len(q2.Hits))
 	}
@@ -121,7 +121,7 @@ func TestWikilinks_DeterministicAndIdentitySafe(t *testing.T) {
 func TestWikilinks_NonMarkdownIsAbsent(t *testing.T) {
 	e := newCacheEngine(t)
 	addDoc(t, e, "plain text with no wikilinks at all, just prose about authentication tokens")
-	q, err := e.Query(context.Background(), QueryRequest{Query: "authentication", Mode: "keyword", K: 5})
+	q, err := e.Query(context.Background(), "default", QueryRequest{Query: "authentication", Mode: "keyword", K: 5})
 	if err != nil || len(q.Hits) == 0 {
 		t.Fatalf("setup query failed: err=%v hits=%d", err, len(q.Hits))
 	}

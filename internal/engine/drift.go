@@ -49,7 +49,7 @@ type driftCache struct {
 // live Ollama version). Called at boot (serve.go) and after Migrate. Safe to
 // call on an engine with no baseline yet (returns n/a / backfill is handled in
 // computeDriftVerdict).
-func (e *Engine) RefreshDriftVerdict(ctx context.Context) DriftVerdict {
+func (e *Engine) RefreshDriftVerdict(ctx context.Context, _ string) DriftVerdict {
 	v := e.computeDriftVerdict(ctx)
 	e.drift.mu.Lock()
 	e.drift.verdict = v
@@ -69,7 +69,7 @@ func (e *Engine) currentVerdict() DriftVerdict {
 // CachedLiveVersion returns the live Ollama version from the last refresh (used
 // when writing the baseline on first embed, to avoid a per-embed fetch). May be
 // "" (offline) or "unknown" (unreachable).
-func (e *Engine) CachedLiveVersion() string {
+func (e *Engine) CachedLiveVersion(_ string) string {
 	e.drift.mu.RLock()
 	defer e.drift.mu.RUnlock()
 	return e.drift.liveVersion

@@ -50,8 +50,8 @@ type ThreatImportResult struct {
 }
 
 // ListThreatSources returns all managed phrase sources (sorted by ID).
-func (e *Engine) ListThreatSources() ([]ThreatSource, error) {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) ListThreatSources(vault string) ([]ThreatSource, error) {
+	ws := e.db.ResolveVaultPrefix(vault)
 	var out []ThreatSource
 	err := e.db.ScanThreatSources(ws, func(_ string, val []byte) bool {
 		var s ThreatSource
@@ -88,17 +88,17 @@ func (e *Engine) getThreatSource(id string) (ThreatSource, bool, error) {
 
 // RemoveThreatSource removes a source by ID and triggers a rescan (a removed
 // source may un-flag chunks that only matched its phrases).
-func (e *Engine) RemoveThreatSource(id string) error {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) RemoveThreatSource(vault, id string) error {
+	ws := e.db.ResolveVaultPrefix(vault)
 	if err := e.db.Delete(keys.ThreatSourceKey(ws, id)); err != nil {
 		return err
 	}
-	_, _, _ = e.RescanPoisoning()
+	_, _, _ = e.RescanPoisoning(vault)
 	return nil
 }
 
 // SetThreatSourceEnabled toggles a source and triggers a rescan.
-func (e *Engine) SetThreatSourceEnabled(id string, enabled bool) error {
+func (e *Engine) SetThreatSourceEnabled(vault, id string, enabled bool) error {
 	s, ok, err := e.getThreatSource(id)
 	if err != nil {
 		return err
@@ -110,13 +110,13 @@ func (e *Engine) SetThreatSourceEnabled(id string, enabled bool) error {
 	if err := e.putThreatSource(s); err != nil {
 		return err
 	}
-	_, _, _ = e.RescanPoisoning()
+	_, _, _ = e.RescanPoisoning(vault)
 	return nil
 }
 
 // AddPhrases appends phrases to the "user" (manual) source and triggers a rescan
 // (FR-012 add). Phrases are lowercased + deduped.
-func (e *Engine) AddPhrases(phrases []string) (ThreatImportResult, error) {
+func (e *Engine) AddPhrases(vault string, phrases []string) (ThreatImportResult, error) {
 	src, _, _ := e.getThreatSource(threatUserID)
 	src.ID = threatUserID
 	if src.Origin == "" {
@@ -130,7 +130,7 @@ func (e *Engine) AddPhrases(phrases []string) (ThreatImportResult, error) {
 	if err := e.putThreatSource(src); err != nil {
 		return ThreatImportResult{}, err
 	}
-	resc, flagged, _ := e.RescanPoisoning()
+	resc, flagged, _ := e.RescanPoisoning(vault)
 	return ThreatImportResult{ID: src.ID, Origin: src.Origin, Added: len(merged), Rescored: resc, Flagged: flagged}, nil
 }
 
@@ -138,7 +138,7 @@ func (e *Engine) AddPhrases(phrases []string) (ThreatImportResult, error) {
 // triggers a rescan (the closed loop). URL fetch is the ONLY network egress in
 // go-rag (Constitution I). Re-importing the same origin updates the source in
 // place (idempotent on origin).
-func (e *Engine) ImportThreatSource(origin string) (ThreatImportResult, error) {
+func (e *Engine) ImportThreatSource(vault, origin string) (ThreatImportResult, error) {
 	phrases, err := readPhrases(origin)
 	if err != nil {
 		return ThreatImportResult{}, err
@@ -155,7 +155,7 @@ func (e *Engine) ImportThreatSource(origin string) (ThreatImportResult, error) {
 	if err := e.putThreatSource(s); err != nil {
 		return ThreatImportResult{}, err
 	}
-	resc, flagged, _ := e.RescanPoisoning()
+	resc, flagged, _ := e.RescanPoisoning(vault)
 	return ThreatImportResult{ID: s.ID, Origin: origin, Added: len(phrases), Rescored: resc, Flagged: flagged}, nil
 }
 
@@ -174,7 +174,7 @@ func (e *Engine) mergedPhrases() []string {
 	for _, p := range poison.DefaultPhrases {
 		add(p)
 	}
-	if srcs, err := e.ListThreatSources(); err == nil {
+	if srcs, err := e.ListThreatSources("default"); err == nil {
 		for _, s := range srcs {
 			if !s.Enabled {
 				continue

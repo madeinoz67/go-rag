@@ -67,7 +67,7 @@ func TestEmbedCache_ReusedOnResultMiss(t *testing.T) {
 	// First query (hybrid → embeds the query): one Embed call, vector cached.
 	// (Reset first: addDoc embedded the document chunks via the same embedder.)
 	emb.calls.Store(0)
-	if _, err := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "hybrid", K: 5}); err != nil {
+	if _, err := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "hybrid", K: 5}); err != nil {
 		t.Fatal(err)
 	}
 	if got := emb.calls.Load(); got != 1 {
@@ -76,7 +76,7 @@ func TestEmbedCache_ReusedOnResultMiss(t *testing.T) {
 
 	// Same query text, different k → result-cache MISS, but embedding cache HIT:
 	// Embed must not be called again.
-	if _, err := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "hybrid", K: 6}); err != nil {
+	if _, err := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "hybrid", K: 6}); err != nil {
 		t.Fatal(err)
 	}
 	if got := emb.calls.Load(); got != 1 {
@@ -96,7 +96,7 @@ func TestEmbedCache_IngestDoesNotFlush(t *testing.T) {
 
 	// First query embeds once (reset clears the ingest document-embed count).
 	emb.calls.Store(0)
-	if _, err := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "hybrid", K: 5}); err != nil {
+	if _, err := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "hybrid", K: 5}); err != nil {
 		t.Fatal(err)
 	}
 	if got := emb.calls.Load(); got != 1 {
@@ -110,7 +110,7 @@ func TestEmbedCache_IngestDoesNotFlush(t *testing.T) {
 	// Same query → result miss (epoch advanced) but embedding cache HIT, so the
 	// query embeds ZERO times.
 	emb.calls.Store(0)
-	if _, err := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "hybrid", K: 5}); err != nil {
+	if _, err := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "hybrid", K: 5}); err != nil {
 		t.Fatal(err)
 	}
 	if got := emb.calls.Load(); got != 0 {
@@ -125,7 +125,7 @@ func TestEmbedCache_MigrateFlushes(t *testing.T) {
 	e := newCacheEngineEmb(t, emb)
 	addDoc(t, e, "migrate document content for the embedding cache")
 
-	if _, err := e.Query(context.Background(), QueryRequest{Query: "migrate", Mode: "hybrid", K: 5}); err != nil {
+	if _, err := e.Query(context.Background(), "default", QueryRequest{Query: "migrate", Mode: "hybrid", K: 5}); err != nil {
 		t.Fatal(err)
 	}
 	if e.embedCache.Len() == 0 {
@@ -134,7 +134,7 @@ func TestEmbedCache_MigrateFlushes(t *testing.T) {
 
 	// Force a real migration (stored model "fake" != configured "different").
 	e.cfg.EmbeddingModel = "different-model"
-	if _, err := e.Migrate(context.Background()); err != nil {
+	if _, err := e.Migrate(context.Background(), "default"); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
 	if e.embedCache.Len() != 0 {

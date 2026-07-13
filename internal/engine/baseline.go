@@ -71,7 +71,7 @@ func (e *Engine) handleFirstEmbed(model string, dim int, convention string) {
 		Model:         model,
 		Dim:           dim,
 		Convention:    convention,
-		OllamaVersion: e.CachedLiveVersion(),
+		OllamaVersion: e.CachedLiveVersion("default"),
 	})
 }
 
@@ -91,7 +91,7 @@ func (e *Engine) refreshBaselineAfterMigrate(ctx context.Context) {
 	if pre := e.cfg.Prefixer(); pre != nil {
 		conv = pre.Convention()
 	}
-	live := e.CachedLiveVersion()
+	live := e.CachedLiveVersion("default")
 	if live == "" {
 		live = ollamaVersion(ctx, e.cfg.OllamaURL)
 	}
@@ -99,5 +99,5 @@ func (e *Engine) refreshBaselineAfterMigrate(ctx context.Context) {
 	_ = SaveBaseline(e.db, ws, &CorpusBaseline{
 		Model: model, Dim: dim, Convention: conv, OllamaVersion: live,
 	})
-	e.RefreshDriftVerdict(ctx)
+	e.RefreshDriftVerdict(ctx, "default")
 }

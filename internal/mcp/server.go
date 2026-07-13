@@ -353,7 +353,7 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 	if v, ok := args["include_quarantined"].(bool); ok { // H04/spec 019: return poisoning-flagged chunks
 		req.IncludeQuarantined = v
 	}
-	res, err := eng.Query(context.Background(), req)
+	res, err := eng.Query(context.Background(), "default", req)
 	if err != nil {
 		return "", err
 	}
@@ -390,7 +390,7 @@ func (s *Server) renderQuery(eng *engine.Engine, args map[string]any) (string, e
 }
 
 func (s *Server) renderStatus(eng *engine.Engine) (string, error) {
-	st, err := eng.Status()
+	st, err := eng.Status("default")
 	if err != nil {
 		return "", err
 	}
@@ -451,7 +451,7 @@ func cacheSummary(c engine.CacheStats) string {
 
 func (s *Server) renderAdd(eng *engine.Engine, args map[string]any) (string, error) {
 	path, _ := args["path"].(string)
-	res, err := eng.Add(context.Background(), path, "")
+	res, err := eng.Add(context.Background(), "default", path, "")
 	if err != nil {
 		return "", err
 	}
@@ -459,7 +459,7 @@ func (s *Server) renderAdd(eng *engine.Engine, args map[string]any) (string, err
 }
 
 func (s *Server) renderScan(eng *engine.Engine) (string, error) {
-	res, err := eng.Scan(context.Background())
+	res, err := eng.Scan(context.Background(), "default")
 	if err != nil {
 		return "", err
 	}
@@ -468,7 +468,7 @@ func (s *Server) renderScan(eng *engine.Engine) (string, error) {
 
 func (s *Server) renderReprocess(eng *engine.Engine, args map[string]any) (string, error) {
 	path, _ := args["path"].(string)
-	res, err := eng.Reprocess(context.Background(), path)
+	res, err := eng.Reprocess(context.Background(), "default", path)
 	if err != nil {
 		return "", err
 	}
@@ -482,14 +482,14 @@ func (s *Server) renderReprocess(eng *engine.Engine, args map[string]any) (strin
 // (the structured cross-transport contract is the empty gRPC response / REST 204).
 func (s *Server) renderDeleteDocument(eng *engine.Engine, args map[string]any) (string, error) {
 	docID, _ := args["doc_id"].(string)
-	if err := eng.DeleteDoc(context.Background(), docID); err != nil {
+	if err := eng.DeleteDoc(context.Background(), "default", docID); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("deleted document %s", docID), nil
 }
 
 func (s *Server) renderMigrate(eng *engine.Engine) (string, error) {
-	res, err := eng.Migrate(context.Background())
+	res, err := eng.Migrate(context.Background(), "default")
 	if err != nil {
 		return "", err
 	}
@@ -502,7 +502,7 @@ func (s *Server) renderMigrate(eng *engine.Engine) (string, error) {
 // renderMigratePlan is the read-only migration preview (H24/spec 028): shows what
 // a migrate would do and cost without re-embedding (and without a backend).
 func (s *Server) renderMigratePlan(eng *engine.Engine) (string, error) {
-	plan, err := eng.MigratePlan()
+	plan, err := eng.MigratePlan("default")
 	if err != nil {
 		return "", err
 	}
@@ -534,7 +534,7 @@ func (s *Server) renderMigratePlan(eng *engine.Engine) (string, error) {
 
 // renderPoisonList lists chunks flagged as injection-poisoning (H04/spec 019).
 func (s *Server) renderPoisonList(eng *engine.Engine) (string, error) {
-	flagged, err := eng.ListPoisoned()
+	flagged, err := eng.ListPoisoned("default")
 	if err != nil {
 		return "", err
 	}
@@ -553,7 +553,7 @@ func (s *Server) renderPoisonRelease(eng *engine.Engine, args map[string]any) (s
 	if id == "" {
 		return "", fmt.Errorf("chunk_id required")
 	}
-	if err := eng.ReleaseChunk(id); err != nil {
+	if err := eng.ReleaseChunk("default", id); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("released %s — now retrievable by default", id), nil
@@ -569,7 +569,7 @@ func (s *Server) renderGetChunk(eng *engine.Engine, args map[string]any) (string
 	if id == "" {
 		return "", fmt.Errorf("chunk_id required")
 	}
-	res, err := eng.GetChunk(id)
+	res, err := eng.GetChunk("default", id)
 	if err != nil {
 		return "", err
 	}
@@ -623,7 +623,7 @@ func (s *Server) renderGetChunkContext(eng *engine.Engine, args map[string]any) 
 			return "", fmt.Errorf("window must be 0..%d, got %d", engine.MaxChunkContextWindow(), window)
 		}
 	}
-	res, err := eng.GetChunkContext(id, window)
+	res, err := eng.GetChunkContext("default", id, window)
 	if err != nil {
 		return "", err
 	}
@@ -663,7 +663,7 @@ func (s *Server) renderBatchGetChunks(eng *engine.Engine, args map[string]any) (
 		}
 		ids = append(ids, id)
 	}
-	res, err := eng.BatchGetChunks(ids)
+	res, err := eng.BatchGetChunks("default", ids)
 	if err != nil {
 		return "", err
 	}
@@ -708,7 +708,7 @@ func (s *Server) renderListDocuments(eng *engine.Engine, args map[string]any) (s
 			}
 		}
 	}
-	res, err := eng.ListDocuments(req)
+	res, err := eng.ListDocuments("default", req)
 	if err != nil {
 		return "", err
 	}
@@ -739,7 +739,7 @@ func (s *Server) renderListChunks(eng *engine.Engine, args map[string]any) (stri
 	if v, ok := args["page_token"].(string); ok {
 		req.PageToken = v
 	}
-	res, err := eng.ListChunks(documentID, req)
+	res, err := eng.ListChunks("default", documentID, req)
 	if err != nil {
 		return "", err
 	}
@@ -771,7 +771,7 @@ func (s *Server) renderPoisonReset(eng *engine.Engine, args map[string]any) (str
 	if id == "" {
 		return "", fmt.Errorf("chunk_id required")
 	}
-	if err := eng.ResetChunk(id); err != nil {
+	if err := eng.ResetChunk("default", id); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("reset %s — re-evaluated against thresholds", id), nil
@@ -780,7 +780,7 @@ func (s *Server) renderPoisonReset(eng *engine.Engine, args map[string]any) (str
 // renderPoisonRescan re-scores the whole corpus against the current detector
 // (US3, FR-007, and the US4 T031 manual trigger).
 func (s *Server) renderPoisonRescan(eng *engine.Engine) (string, error) {
-	rescored, flagged, err := eng.RescanPoisoning()
+	rescored, flagged, err := eng.RescanPoisoning("default")
 	if err != nil {
 		return "", err
 	}
@@ -792,19 +792,19 @@ func (s *Server) renderConfig(eng *engine.Engine, args map[string]any) (string, 
 	if action == "set" {
 		key, _ := args["key"].(string)
 		val, _ := args["value"].(string)
-		if err := eng.SetConfig(key, val); err != nil {
+		if err := eng.SetConfig("default", key, val); err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("%s=%s (saved)", key, val), nil
 	}
 	if key, ok := args["key"].(string); ok && key != "" {
-		vals, err := eng.GetConfig(key)
+		vals, err := eng.GetConfig("default", key)
 		if err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("%s=%s", key, vals[key]), nil
 	}
-	vals, err := eng.GetConfig("")
+	vals, err := eng.GetConfig("default", "")
 	if err != nil {
 		return "", err
 	}
@@ -818,7 +818,7 @@ func (s *Server) renderConfig(eng *engine.Engine, args map[string]any) (string, 
 }
 
 func (s *Server) renderFiles(eng *engine.Engine) (string, error) {
-	files, err := eng.Files()
+	files, err := eng.Files("default")
 	if err != nil {
 		return "", err
 	}
@@ -834,7 +834,7 @@ func (s *Server) renderFiles(eng *engine.Engine) (string, error) {
 }
 
 func (s *Server) renderDirs(eng *engine.Engine) (string, error) {
-	dirs, err := eng.Dirs()
+	dirs, err := eng.Dirs("default")
 	if err != nil {
 		return "", err
 	}
@@ -850,7 +850,7 @@ func (s *Server) renderDirs(eng *engine.Engine) (string, error) {
 
 // renderVaults lists all vaults with doc counts. No specific vault's DB required.
 func (s *Server) renderVaults() (string, error) {
-	vaults, err := engine.NewWithDB(config.Config{}, nil).ListVaults()
+	vaults, err := engine.NewWithDB(config.Config{}, nil).ListVaults("default")
 	if err != nil {
 		return "", err
 	}
@@ -882,7 +882,7 @@ func (s *Server) guide() (string, error) {
 	defer db.Close()
 
 	eng := engine.NewWithDB(cfg, db)
-	st, _ := eng.Status()
+	st, _ := eng.Status("default")
 	pct := 0
 	if st.Documents > 0 {
 		pct = st.Embeddings * 100 / st.Documents

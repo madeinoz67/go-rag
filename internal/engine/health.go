@@ -28,7 +28,7 @@ type HealthInfo struct {
 // refused loopback connection returns immediately). Readiness reads the cached
 // drift verdict (FR-011); call RefreshDriftVerdict at boot / after migrate to
 // keep it current.
-func (e *Engine) Health(ctx context.Context) HealthInfo {
+func (e *Engine) Health(ctx context.Context, _ string) HealthInfo {
 	storageOpen := e.db != nil
 	v := e.currentVerdict()
 	return HealthInfo{

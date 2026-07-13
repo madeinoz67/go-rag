@@ -76,7 +76,7 @@ func TestQuery_AppliesQueryPrefix(t *testing.T) {
 	// Query through the engine — the query path builds its own prefixer from cfg.
 	eng := engine.NewWithEmbedder(cfg, db, em)
 	t.Cleanup(eng.Close)
-	res, err := eng.Query(context.Background(), engine.QueryRequest{
+	res, err := eng.Query(context.Background(), "default", engine.QueryRequest{
 		Query: "what is retrieval augmented generation",
 		Mode:  "semantic",
 		K:     5,

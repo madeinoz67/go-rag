@@ -62,10 +62,10 @@ func TestCLI_ChunkBatch(t *testing.T) {
 	var live0, live1 string
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		res, qerr := eng.Query(context.Background(), engine.QueryRequest{Query: "authentication", Mode: "keyword", K: 5, IncludeQuarantined: true})
+		res, qerr := eng.Query(context.Background(), "default", engine.QueryRequest{Query: "authentication", Mode: "keyword", K: 5, IncludeQuarantined: true})
 		if qerr == nil && len(res.Hits) > 0 {
 			live0 = res.Hits[0].ChunkID
-			if c, e := eng.GetChunk(live0); e == nil && c.Chunk.NextChunkID != "" {
+			if c, e := eng.GetChunk("default", live0); e == nil && c.Chunk.NextChunkID != "" {
 				live1 = c.Chunk.NextChunkID
 			}
 			break

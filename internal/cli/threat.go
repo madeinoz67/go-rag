@@ -33,7 +33,7 @@ func newThreatImportCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			res, err := engine.NewWithDB(cfg, db).ImportThreatSource(args[0])
+			res, err := engine.NewWithDB(cfg, db).ImportThreatSource(vaultName, args[0])
 			if err != nil {
 				return err
 			}
@@ -55,7 +55,7 @@ func newThreatListCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			srcs, err := engine.NewWithDB(cfg, db).ListThreatSources()
+			srcs, err := engine.NewWithDB(cfg, db).ListThreatSources(vaultName)
 			if err != nil {
 				return err
 			}
@@ -87,7 +87,7 @@ func newThreatAddCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			res, err := engine.NewWithDB(cfg, db).AddPhrases([]string{args[0]})
+			res, err := engine.NewWithDB(cfg, db).AddPhrases(vaultName, []string{args[0]})
 			if err != nil {
 				return err
 			}
@@ -109,7 +109,7 @@ func newThreatRemoveCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			if err := engine.NewWithDB(cfg, db).RemoveThreatSource(args[0]); err != nil {
+			if err := engine.NewWithDB(cfg, db).RemoveThreatSource(vaultName, args[0]); err != nil {
 				return err
 			}
 			fmt.Printf("Removed source %s.\n", args[0])

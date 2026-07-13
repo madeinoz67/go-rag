@@ -37,7 +37,7 @@ type dashboardDTO struct {
 // it mutates nothing and triggers no bridge/MuninnDB call (Slice 0 is
 // go-rag-native only). 500 with a generic body on engine failure (no leakage).
 func (s *Server) handleDashboardStats(w http.ResponseWriter, _ *http.Request) {
-	info, err := s.eng.Status()
+	info, err := s.eng.Status("default")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal")
 		return

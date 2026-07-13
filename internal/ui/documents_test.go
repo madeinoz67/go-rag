@@ -92,7 +92,7 @@ func TestDocuments_ListAndFilter(t *testing.T) {
 		t.Errorf("order: got %v want [d1 d2 d3]", got)
 	}
 	// Cross-source parity: count matches a direct engine.ListDocuments call.
-	res, err := eng.ListDocuments(engine.ListDocumentsRequest{})
+	res, err := eng.ListDocuments("default", engine.ListDocumentsRequest{})
 	if err != nil {
 		t.Fatalf("eng.ListDocuments: %v", err)
 	}

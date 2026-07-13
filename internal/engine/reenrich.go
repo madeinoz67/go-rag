@@ -20,7 +20,7 @@ import (
 // cheap relative to a full re-ingest. Each document's outcome is terminal-
 // statused (enriched/failed/nothing-to-enrich); transient errors (model
 // unreachable, circuit open) skip that document for a later retry.
-func (e *Engine) ReEnrich(ctx context.Context) (*IngestSummary, error) {
+func (e *Engine) ReEnrich(ctx context.Context, vault string) (*IngestSummary, error) {
 	sum := &IngestSummary{}
 	if !e.cfg.EffectiveEnrichmentEnabled() {
 		return sum, nil
@@ -32,7 +32,7 @@ func (e *Engine) ReEnrich(ctx context.Context) (*IngestSummary, error) {
 	en := enrich.New(e.cfg.EnrichmentProvider, enrEndpoint, e.cfg.EnrichmentModel, e.cfg.EnrichmentAPIKey)
 
 	// Gather chunk text per document (bounded) from the stored chunks.
-	ws := e.db.ResolveVaultPrefix("default") // spec 052: default vault
+	ws := e.db.ResolveVaultPrefix(vault) // spec 052: per-call vault
 	docText := map[string]string{}
 	chLo, chHi, _ := keys.VaultKindRange(storage.PrefixChunk, ws)
 	_ = e.db.RangeScan(chLo, chHi, func(_, val []byte) bool {

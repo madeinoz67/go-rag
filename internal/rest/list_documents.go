@@ -41,7 +41,7 @@ func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 		}
 		req.PageSize = n
 	}
-	res, err := s.eng.ListDocuments(req)
+	res, err := s.eng.ListDocuments("default", req)
 	if err != nil {
 		writeEngineErr(w, err) // ErrInvalid → 400
 		return

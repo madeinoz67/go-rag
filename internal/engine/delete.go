@@ -34,8 +34,8 @@ import (
 // single point Get over prefix 0x02; the benign TOCTOU (doc vanishes between the
 // check and the delegate) collapses to a no-op delete, which is correct either
 // way — the doc is gone.
-func (e *Engine) DeleteDoc(_ context.Context, docID string) error {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) DeleteDoc(_ context.Context, vault, docID string) error {
+	ws := e.db.ResolveVaultPrefix(vault)
 	if strings.TrimSpace(docID) == "" {
 		return fmt.Errorf("document_id is required: %w", ErrInvalid)
 	}

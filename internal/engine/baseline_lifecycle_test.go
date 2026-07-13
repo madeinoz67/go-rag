@@ -64,7 +64,7 @@ func TestBaseline_BackfillOnFirstBoot(t *testing.T) {
 	}
 
 	// The next drift check backfills from CorpusProfile (the stored majority).
-	e.RefreshDriftVerdict(context.Background())
+	e.RefreshDriftVerdict(context.Background(), "default")
 	b, ok := LoadBaseline(e.db, ws)
 	if !ok {
 		t.Fatal("baseline not backfilled on first drift check")

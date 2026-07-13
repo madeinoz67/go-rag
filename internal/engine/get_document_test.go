@@ -38,7 +38,7 @@ func TestGetDocument_ResolvesDocAndSource(t *testing.T) {
 	e := newCacheEngine(t)
 	putDocWithSource(t, e, "doc1", "src1", "/abs/source/dir")
 
-	res, err := e.GetDocument("doc1")
+	res, err := e.GetDocument("default", "doc1")
 	if err != nil {
 		t.Fatalf("GetDocument: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestGetDocument_ResolvesDocAndSource(t *testing.T) {
 
 func TestGetDocument_UnknownID(t *testing.T) {
 	e := newCacheEngine(t)
-	if _, err := e.GetDocument("nope"); !errors.Is(err, ErrNotFound) {
+	if _, err := e.GetDocument("default", "nope"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("unknown id: err=%v want ErrNotFound", err)
 	}
 }
@@ -60,7 +60,7 @@ func TestGetDocument_UnknownID(t *testing.T) {
 func TestGetDocument_EmptyID(t *testing.T) {
 	e := newCacheEngine(t)
 	for _, id := range []string{"", "  "} {
-		if _, err := e.GetDocument(id); !errors.Is(err, ErrInvalid) {
+		if _, err := e.GetDocument("default", id); !errors.Is(err, ErrInvalid) {
 			t.Errorf("id=%q: err=%v want ErrInvalid", id, err)
 		}
 	}
@@ -75,7 +75,7 @@ func TestGetDocument_ToleratesMissingSource(t *testing.T) {
 	if err := e.db.Set(keys.DocumentKey(ws, "orphan"), raw); err != nil {
 		t.Fatalf("set: %v", err)
 	}
-	res, err := e.GetDocument("orphan")
+	res, err := e.GetDocument("default", "orphan")
 	if err != nil {
 		t.Fatalf("orphan doc: %v", err)
 	}

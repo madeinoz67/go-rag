@@ -50,7 +50,7 @@ func TestQuery_RefusesConventionMismatch_LegacyCorpus(t *testing.T) {
 	eng := engine.NewWithEmbedder(cfg, db, &recordingEmbed{})
 	t.Cleanup(eng.Close)
 
-	_, err = eng.Query(context.Background(), engine.QueryRequest{Query: "q", Mode: "semantic", K: 5})
+	_, err = eng.Query(context.Background(), "default", engine.QueryRequest{Query: "q", Mode: "semantic", K: 5})
 	if err == nil {
 		t.Fatal("query against a legacy corpus with prefixes on must be refused")
 	}
@@ -78,7 +78,7 @@ func TestQuery_RefusesMixedConventionCorpus(t *testing.T) {
 	eng := engine.NewWithEmbedder(cfg, db, &recordingEmbed{})
 	t.Cleanup(eng.Close)
 
-	_, err = eng.Query(context.Background(), engine.QueryRequest{Query: "q", Mode: "semantic", K: 5})
+	_, err = eng.Query(context.Background(), "default", engine.QueryRequest{Query: "q", Mode: "semantic", K: 5})
 	if err == nil {
 		t.Fatal("query against a mixed-convention corpus must be refused")
 	}
@@ -103,7 +103,7 @@ func TestStatus_SurfacesConvention(t *testing.T) {
 	cfg.EmbeddingModel = "nomic-embed-text"
 	eng := engine.NewWithDB(cfg, db)
 
-	st, err := eng.Status()
+	st, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}

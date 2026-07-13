@@ -33,7 +33,7 @@ func TestAudit_QueryIngestEvents(t *testing.T) {
 	addDoc(t, e, "audit test document about local retrieval and search ranking")
 
 	// A query (→ query event) — the ingest above already produced an ingest event.
-	if _, err := e.Query(context.Background(), QueryRequest{Query: q, Mode: "keyword", K: 5}); err != nil {
+	if _, err := e.Query(context.Background(), "default", QueryRequest{Query: q, Mode: "keyword", K: 5}); err != nil {
 		t.Fatal(err)
 	}
 

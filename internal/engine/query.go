@@ -19,8 +19,8 @@ import (
 // Query runs hybrid/semantic/keyword retrieval and returns ranked, cited hits.
 // It is the single implementation shared by the CLI, MCP, REST, and gRPC
 // adapters — extracted from the former inline mcp/server.go:query.
-func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult, err error) {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) Query(ctx context.Context, vault string, req QueryRequest) (res *QueryResult, err error) {
+	ws := e.db.ResolveVaultPrefix(vault)
 	ctx, span := observe.StartSpan(ctx, observe.SpanQuery, observe.ModeAttr(req.Mode), observe.KAttr(req.K))
 	start := time.Now()
 	defer func() {

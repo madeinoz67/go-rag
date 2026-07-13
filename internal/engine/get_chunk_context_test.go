@@ -37,14 +37,14 @@ func TestGetChunkContext_WindowMatchesLinkedList(t *testing.T) {
 	e := newCacheEngine(t)
 	addDoc(t, e, variedDoc("authentication"))
 
-	q, err := e.Query(context.Background(), QueryRequest{Query: "authentication", Mode: "keyword", K: 5, IncludeQuarantined: true})
+	q, err := e.Query(context.Background(), "default", QueryRequest{Query: "authentication", Mode: "keyword", K: 5, IncludeQuarantined: true})
 	if err != nil || len(q.Hits) == 0 {
 		t.Fatalf("setup query failed: err=%v hits=%d", err, len(q.Hits))
 	}
 	const window = 2
 	id := q.Hits[0].ChunkID
 
-	res, err := e.GetChunkContext(id, window)
+	res, err := e.GetChunkContext("default", id, window)
 	if err != nil {
 		t.Fatalf("GetChunkContext(%s, %d): %v", id, window, err)
 	}
@@ -53,7 +53,7 @@ func TestGetChunkContext_WindowMatchesLinkedList(t *testing.T) {
 	var prevs []string
 	cur := id
 	for i := 0; i < window; i++ {
-		c, err := e.GetChunk(cur)
+		c, err := e.GetChunk("default", cur)
 		if err != nil {
 			t.Fatalf("GetChunk walk (back): %v", err)
 		}
@@ -67,7 +67,7 @@ func TestGetChunkContext_WindowMatchesLinkedList(t *testing.T) {
 	want = append(want, id)
 	cur = id
 	for i := 0; i < window; i++ {
-		c, err := e.GetChunk(cur)
+		c, err := e.GetChunk("default", cur)
 		if err != nil {
 			t.Fatalf("GetChunk walk (forward): %v", err)
 		}
@@ -126,7 +126,7 @@ func headTail(t *testing.T, e *Engine, id string) (head, tail string) {
 	t.Helper()
 	cur := id
 	for {
-		c, err := e.GetChunk(cur)
+		c, err := e.GetChunk("default", cur)
 		if err != nil {
 			t.Fatalf("headTail walk (back): %v", err)
 		}
@@ -138,7 +138,7 @@ func headTail(t *testing.T, e *Engine, id string) (head, tail string) {
 	}
 	cur = id
 	for {
-		c, err := e.GetChunk(cur)
+		c, err := e.GetChunk("default", cur)
 		if err != nil {
 			t.Fatalf("headTail walk (fwd): %v", err)
 		}
@@ -159,7 +159,7 @@ func TestGetChunkContext_Boundaries(t *testing.T) {
 	e := newCacheEngine(t)
 	addDoc(t, e, variedDoc("authentication"))
 
-	q, err := e.Query(context.Background(), QueryRequest{Query: "authentication", Mode: "keyword", K: 5, IncludeQuarantined: true})
+	q, err := e.Query(context.Background(), "default", QueryRequest{Query: "authentication", Mode: "keyword", K: 5, IncludeQuarantined: true})
 	if err != nil || len(q.Hits) == 0 {
 		t.Fatalf("setup query failed: err=%v hits=%d", err, len(q.Hits))
 	}
@@ -167,7 +167,7 @@ func TestGetChunkContext_Boundaries(t *testing.T) {
 	head, tail := headTail(t, e, mid)
 
 	// (a) first chunk, window=5 → target_index=0, successors only.
-	res, err := e.GetChunkContext(head, 5)
+	res, err := e.GetChunkContext("default", head, 5)
 	if err != nil {
 		t.Fatalf("first chunk: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestGetChunkContext_Boundaries(t *testing.T) {
 	}
 
 	// (b) last chunk → predecessors only (target at the end of the window).
-	res, err = e.GetChunkContext(tail, 5)
+	res, err = e.GetChunkContext("default", tail, 5)
 	if err != nil {
 		t.Fatalf("last chunk: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestGetChunkContext_Boundaries(t *testing.T) {
 	}
 
 	// (c) window=0 → exactly [target], target_index=0 (≡ GetChunk, FR-003).
-	res, err = e.GetChunkContext(mid, 0)
+	res, err = e.GetChunkContext("default", mid, 0)
 	if err != nil {
 		t.Fatalf("window=0: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestGetChunkContext_Boundaries(t *testing.T) {
 
 	// (g) window larger than the document → the whole document, target at its
 	// real index, linked-list contiguity preserved.
-	res, err = e.GetChunkContext(mid, MaxChunkContextWindow())
+	res, err = e.GetChunkContext("default", mid, MaxChunkContextWindow())
 	if err != nil {
 		t.Fatalf("window>doc: %v", err)
 	}
@@ -220,13 +220,13 @@ func TestGetChunkContext_Boundaries(t *testing.T) {
 func TestGetChunkContext_SingleChunkDoc(t *testing.T) {
 	e := newCacheEngine(t)
 	addDoc(t, e, "a single short sentence about retrieval.") // < one chunk (512/50)
-	q, err := e.Query(context.Background(), QueryRequest{Query: "retrieval", Mode: "keyword", K: 5, IncludeQuarantined: true})
+	q, err := e.Query(context.Background(), "default", QueryRequest{Query: "retrieval", Mode: "keyword", K: 5, IncludeQuarantined: true})
 	if err != nil || len(q.Hits) == 0 {
 		t.Fatalf("setup query failed: err=%v hits=%d", err, len(q.Hits))
 	}
 	id := q.Hits[0].ChunkID
 	for _, w := range []int{0, 2, MaxChunkContextWindow()} {
-		res, err := e.GetChunkContext(id, w)
+		res, err := e.GetChunkContext("default", id, w)
 		if err != nil {
 			t.Fatalf("single-chunk window=%d: %v", w, err)
 		}
@@ -242,27 +242,27 @@ func TestGetChunkContext_SingleChunkDoc(t *testing.T) {
 func TestGetChunkContext_InvalidWindowAndID(t *testing.T) {
 	e := newCacheEngine(t)
 	addDoc(t, e, variedDoc("tokens"))
-	q, err := e.Query(context.Background(), QueryRequest{Query: "tokens", Mode: "keyword", K: 5, IncludeQuarantined: true})
+	q, err := e.Query(context.Background(), "default", QueryRequest{Query: "tokens", Mode: "keyword", K: 5, IncludeQuarantined: true})
 	if err != nil || len(q.Hits) == 0 {
 		t.Fatalf("setup query failed: err=%v hits=%d", err, len(q.Hits))
 	}
 	id := q.Hits[0].ChunkID
 
 	// (d) window=11 → ErrInvalid; (e) negative window → ErrInvalid.
-	if _, err := e.GetChunkContext(id, MaxChunkContextWindow()+1); !errors.Is(err, ErrInvalid) {
+	if _, err := e.GetChunkContext("default", id, MaxChunkContextWindow()+1); !errors.Is(err, ErrInvalid) {
 		t.Errorf("window=11: err=%v, want ErrInvalid", err)
 	}
-	if _, err := e.GetChunkContext(id, -1); !errors.Is(err, ErrInvalid) {
+	if _, err := e.GetChunkContext("default", id, -1); !errors.Is(err, ErrInvalid) {
 		t.Errorf("window=-1: err=%v, want ErrInvalid", err)
 	}
 	// (h) empty / whitespace chunk_id → ErrInvalid (FR-007, no lookup).
 	for _, bad := range []string{"", "   ", "\t"} {
-		if _, err := e.GetChunkContext(bad, 2); !errors.Is(err, ErrInvalid) {
+		if _, err := e.GetChunkContext("default", bad, 2); !errors.Is(err, ErrInvalid) {
 			t.Errorf("chunk_id=%q: err=%v, want ErrInvalid", bad, err)
 		}
 	}
 	// (i) missing chunk_id → ErrNotFound (FR-006; also the cross-vault path).
-	if _, err := e.GetChunkContext("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef00", 2); !errors.Is(err, ErrNotFound) {
+	if _, err := e.GetChunkContext("default", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef00", 2); !errors.Is(err, ErrNotFound) {
 		t.Errorf("missing id: err=%v, want ErrNotFound", err)
 	}
 }
@@ -274,14 +274,14 @@ func TestGetChunkContext_InvalidWindowAndID(t *testing.T) {
 func TestGetChunkContext_OrphanChunkTolerant(t *testing.T) {
 	e := newCacheEngine(t)
 	addDoc(t, e, variedDoc("orphan"))
-	q, err := e.Query(context.Background(), QueryRequest{Query: "orphan", Mode: "keyword", K: 5, IncludeQuarantined: true})
+	q, err := e.Query(context.Background(), "default", QueryRequest{Query: "orphan", Mode: "keyword", K: 5, IncludeQuarantined: true})
 	if err != nil || len(q.Hits) == 0 {
 		t.Fatalf("setup query failed: err=%v hits=%d", err, len(q.Hits))
 	}
 	target := q.Hits[0].ChunkID
 
 	// Sanity: the document resolves before we orphan the chunk.
-	res, err := e.GetChunkContext(target, 2)
+	res, err := e.GetChunkContext("default", target, 2)
 	if err != nil {
 		t.Fatalf("pre-orphan: %v", err)
 	}
@@ -295,7 +295,7 @@ func TestGetChunkContext_OrphanChunkTolerant(t *testing.T) {
 		t.Fatalf("delete doc: %v", err)
 	}
 
-	res, err = e.GetChunkContext(target, 2)
+	res, err = e.GetChunkContext("default", target, 2)
 	if err != nil {
 		t.Fatalf("orphan GetChunkContext: %v (want no error)", err)
 	}

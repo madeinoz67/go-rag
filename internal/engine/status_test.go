@@ -15,7 +15,7 @@ func TestEngine_Status_AdaptiveKnobs_ReflectConfig(t *testing.T) {
 		c.AdaptiveDepthEnabled = true
 		c.PoolSize = 90
 	})
-	st, err := eng.Status()
+	st, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestEngine_Status_AdaptiveKnobs_ReflectConfig(t *testing.T) {
 
 	// Default posture: classifier off, pool 60.
 	eng2, _ := newTestEngineCfg(t, nil)
-	st2, _ := eng2.Status()
+	st2, _ := eng2.Status("default")
 	if st2.AdaptiveDepthEnabled {
 		t.Errorf("default AdaptiveDepthEnabled=true want false")
 	}
@@ -46,7 +46,7 @@ func TestEngine_Status_PoolUtilization(t *testing.T) {
 	eng, _ := newTestEngineCfg(t, nil) // default PoolSize 60
 
 	// Fresh engine: nothing observed yet.
-	st, err := eng.Status()
+	st, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
@@ -62,14 +62,14 @@ func TestEngine_Status_PoolUtilization(t *testing.T) {
 
 	// Two non-cached queries with distinct pools (NoCache forces fresh computation
 	// so both are observed). Empty corpus ⇒ 0 hits each, effK=5 ⇒ both saturated.
-	if _, err := eng.Query(t.Context(), QueryRequest{Query: "a", Mode: "keyword", PoolSize: 40, NoCache: true}); err != nil {
+	if _, err := eng.Query(t.Context(), "default", QueryRequest{Query: "a", Mode: "keyword", PoolSize: 40, NoCache: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := eng.Query(t.Context(), QueryRequest{Query: "b", Mode: "keyword", PoolSize: 60, NoCache: true}); err != nil {
+	if _, err := eng.Query(t.Context(), "default", QueryRequest{Query: "b", Mode: "keyword", PoolSize: 60, NoCache: true}); err != nil {
 		t.Fatal(err)
 	}
 
-	st, _ = eng.Status()
+	st, _ = eng.Status("default")
 	if st.PoolUtilization.Queries != 2 {
 		t.Errorf("Queries=%d want 2", st.PoolUtilization.Queries)
 	}
@@ -85,10 +85,10 @@ func TestEngine_Status_PoolUtilization(t *testing.T) {
 
 	// A cache HIT must not double-count: repeating the first query without
 	// NoCache serves from the result cache (same key) and leaves the counters.
-	if _, err := eng.Query(t.Context(), QueryRequest{Query: "a", Mode: "keyword", PoolSize: 40}); err != nil {
+	if _, err := eng.Query(t.Context(), "default", QueryRequest{Query: "a", Mode: "keyword", PoolSize: 40}); err != nil {
 		t.Fatal(err)
 	}
-	st, _ = eng.Status()
+	st, _ = eng.Status("default")
 	if st.PoolUtilization.Queries != 2 {
 		t.Errorf("cache hit double-counted: Queries=%d want 2", st.PoolUtilization.Queries)
 	}

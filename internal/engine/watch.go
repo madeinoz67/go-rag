@@ -22,7 +22,7 @@ import (
 // lazily here (the same path Add takes), which also starts the background
 // embedder — so this requires an embedding model to be configured (bundled or
 // Ollama), exactly like /v1/add.
-func (e *Engine) Watch(ctx context.Context, root, glob string, poll time.Duration) error {
+func (e *Engine) Watch(ctx context.Context, _, root, glob string, poll time.Duration) error {
 	pl, err := e.pipeline()
 	if err != nil {
 		return err

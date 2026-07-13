@@ -27,7 +27,7 @@ func newEnrichCmd() *cobra.Command {
 				return nil
 			}
 			eng := engine.NewWithDB(cfg, db)
-			res, err := eng.ReEnrich(context.Background())
+			res, err := eng.ReEnrich(context.Background(), vaultName)
 			if err != nil {
 				return err
 			}

@@ -64,7 +64,7 @@ func TestSmoke_EnrichRealDoc(t *testing.T) {
 	}
 
 	eng := NewWithDB(cfg, db)
-	if _, err := eng.Add(context.Background(), docPath, "*"); err != nil {
+	if _, err := eng.Add(context.Background(), "default", docPath, "*"); err != nil {
 		t.Fatalf("engine.Add: %v", err)
 	}
 	eng.Close() // drain async embed + enrich
@@ -117,7 +117,7 @@ func TestSmoke_EnrichRealDoc(t *testing.T) {
 	// BESS doc must survive the pre-fusion tag filter and be returned.
 	eng2 := NewWithDB(cfg, db)
 	defer eng2.Close()
-	res, err := eng2.Query(context.Background(), QueryRequest{
+	res, err := eng2.Query(context.Background(), "default", QueryRequest{
 		Query:  "battery",
 		K:      5,
 		Filter: NewFilter("", "", []string{"solar"}), // an auto-generated tag

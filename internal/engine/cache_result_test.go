@@ -52,7 +52,7 @@ func TestResultCache_RepeatIsHit(t *testing.T) {
 	waitForEpochStable(t, e)
 
 	req := QueryRequest{Query: "alpha", Mode: "keyword", K: 5}
-	cold, err := e.Query(context.Background(), req)
+	cold, err := e.Query(context.Background(), "default", req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestResultCache_RepeatIsHit(t *testing.T) {
 		t.Fatalf("first query misses = %d, want 1", got)
 	}
 
-	cached, err := e.Query(context.Background(), req)
+	cached, err := e.Query(context.Background(), "default", req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestResultCache_KeyComponentsMiss(t *testing.T) {
 	addDoc(t, e, "alpha retrieval document about searching and ranking")
 
 	base := QueryRequest{Query: "alpha", Mode: "keyword", K: 5}
-	if _, err := e.Query(context.Background(), base); err != nil {
+	if _, err := e.Query(context.Background(), "default", base); err != nil {
 		t.Fatal(err)
 	}
 	hitsBefore := e.resultCache.Stats().Hits
@@ -97,7 +97,7 @@ func TestResultCache_KeyComponentsMiss(t *testing.T) {
 		{Query: "beta", Mode: "keyword", K: 5},                                       // different query
 	}
 	for i, v := range variants {
-		if _, err := e.Query(context.Background(), v); err != nil {
+		if _, err := e.Query(context.Background(), "default", v); err != nil {
 			t.Fatalf("variant %d: %v", i, err)
 		}
 		if e.resultCache.Stats().Hits != hitsBefore {
@@ -115,14 +115,14 @@ func TestResultCache_Eviction(t *testing.T) {
 
 	// Query A (fills the single slot), then query B (evicts A), then query A
 	// again — must be a miss (A was evicted), proving bounded LRU, not unbounded.
-	if _, err := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5}); err != nil {
+	if _, err := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "keyword", K: 5}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.Query(context.Background(), QueryRequest{Query: "beta", Mode: "keyword", K: 5}); err != nil {
+	if _, err := e.Query(context.Background(), "default", QueryRequest{Query: "beta", Mode: "keyword", K: 5}); err != nil {
 		t.Fatal(err)
 	}
 	hitsBefore := e.resultCache.Stats().Hits
-	if _, err := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5}); err != nil {
+	if _, err := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "keyword", K: 5}); err != nil {
 		t.Fatal(err)
 	}
 	if e.resultCache.Stats().Hits != hitsBefore {
@@ -144,7 +144,7 @@ func TestResultCache_NoCacheBypass(t *testing.T) {
 	// First query is NoCache: must NOT be served (cache is empty anyway), and
 	// must still STORE the result (D5).
 	hitsBefore := e.resultCache.Stats().Hits
-	if _, err := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5, NoCache: true}); err != nil {
+	if _, err := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "keyword", K: 5, NoCache: true}); err != nil {
 		t.Fatal(err)
 	}
 	if e.resultCache.Stats().Hits != hitsBefore {
@@ -152,7 +152,7 @@ func TestResultCache_NoCacheBypass(t *testing.T) {
 	}
 
 	// Next NORMAL query of the same key must HIT — NoCache stored the result.
-	if _, err := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "keyword", K: 5}); err != nil {
+	if _, err := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "keyword", K: 5}); err != nil {
 		t.Fatal(err)
 	}
 	if got, want := e.resultCache.Stats().Hits, hitsBefore+1; got != want {
@@ -171,7 +171,7 @@ func TestResultCache_RerankFailedNotCached(t *testing.T) {
 	addDoc(t, e, "alpha retrieval document about searching and ranking")
 
 	req := QueryRequest{Query: "alpha", Mode: "keyword", K: 5}
-	res1, err := e.Query(context.Background(), req)
+	res1, err := e.Query(context.Background(), "default", req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestResultCache_RerankFailedNotCached(t *testing.T) {
 
 	// Second identical query must NOT be served from cache.
 	hitsBefore := e.resultCache.Stats().Hits
-	if _, err := e.Query(context.Background(), req); err != nil {
+	if _, err := e.Query(context.Background(), "default", req); err != nil {
 		t.Fatal(err)
 	}
 	if e.resultCache.Stats().Hits != hitsBefore {
@@ -199,11 +199,11 @@ func TestResultCache_Disabled(t *testing.T) {
 	addDoc(t, e, "alpha retrieval document about searching")
 
 	req := QueryRequest{Query: "alpha", Mode: "keyword", K: 5}
-	r1, err := e.Query(context.Background(), req)
+	r1, err := e.Query(context.Background(), "default", req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	r2, err := e.Query(context.Background(), req)
+	r2, err := e.Query(context.Background(), "default", req)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -39,7 +39,7 @@ func (s *Server) handleGetChunkContext(w http.ResponseWriter, r *http.Request) {
 		}
 		window = n
 	}
-	res, err := s.eng.GetChunkContext(id, window)
+	res, err := s.eng.GetChunkContext("default", id, window)
 	if err != nil {
 		writeEngineErr(w, err)
 		return

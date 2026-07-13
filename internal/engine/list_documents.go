@@ -104,7 +104,7 @@ func decodePageToken(s string) (time.Time, string, error) {
 // Errors (all ErrInvalid): page_size <1 or >200 (0 → default 50); after non-empty
 // and not RFC3339; status not in {embedded,pending,error,""}; page_token non-empty
 // and malformed. An empty result is NOT an error (empty Documents + empty token).
-func (e *Engine) ListDocuments(req ListDocumentsRequest) (*ListDocumentsResult, error) {
+func (e *Engine) ListDocuments(vault string, req ListDocumentsRequest) (*ListDocumentsResult, error) {
 	// Validate page_size (0 → default).
 	pageSize := req.PageSize
 	if pageSize == 0 {
@@ -140,7 +140,7 @@ func (e *Engine) ListDocuments(req ListDocumentsRequest) (*ListDocumentsResult, 
 	}
 
 	// 1. Scan this vault's documents (one range scan over 0x02|ws).
-	ws := e.db.ResolveVaultPrefix("default")
+	ws := e.db.ResolveVaultPrefix(vault)
 	lower, upper, _ := keys.VaultKindRange(storage.PrefixDocument, ws)
 	var docs []model.Document
 	_ = e.db.RangeScan(lower, upper, func(_, val []byte) bool {

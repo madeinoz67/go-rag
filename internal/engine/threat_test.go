@@ -22,17 +22,17 @@ func TestThreat_AddPhrases_TriggersRescan(t *testing.T) {
 	addDoc(t, e, "benign retrieval document about search and ranking")
 	waitEmbedded(t, e)
 
-	if f, _ := e.ListPoisoned(); len(f) != 0 {
+	if f, _ := e.ListPoisoned("default"); len(f) != 0 {
 		t.Fatalf("expected 0 flagged pre-add, got %d", len(f))
 	}
-	res, err := e.AddPhrases([]string{"purple dragon override sequence"})
+	res, err := e.AddPhrases("default", []string{"purple dragon override sequence"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.Flagged == 0 {
 		t.Error("AddPhrases should flag the now-matching chunk via the triggered rescan")
 	}
-	flagged, _ := e.ListPoisoned()
+	flagged, _ := e.ListPoisoned("default")
 	if len(flagged) != 1 {
 		t.Errorf("post-add ListPoisoned want 1, got %d", len(flagged))
 	}
@@ -51,14 +51,14 @@ func TestThreat_Import_URL_AirGap(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := e.ImportThreatSource(srv.URL + "/p.txt"); err != nil {
+	if _, err := e.ImportThreatSource("default", srv.URL+"/p.txt"); err != nil {
 		t.Fatalf("ImportThreatSource: %v", err)
 	}
 	if hits != 1 {
 		t.Fatalf("URL import should hit the named source exactly once, got %d", hits)
 	}
 	// Rescan must NOT re-fetch (the phrases are stored locally; no polling).
-	if _, _, err := e.RescanPoisoning(); err != nil {
+	if _, _, err := e.RescanPoisoning("default"); err != nil {
 		t.Fatal(err)
 	}
 	if hits != 1 {
@@ -78,7 +78,7 @@ func TestThreat_Import_File(t *testing.T) {
 	if err := os.WriteFile(path, []byte("purple dragon override sequence\n# comment\n\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	res, err := e.ImportThreatSource(path)
+	res, err := e.ImportThreatSource("default", path)
 	if err != nil {
 		t.Fatal(err)
 	}

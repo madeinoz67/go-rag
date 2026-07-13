@@ -57,7 +57,7 @@ func deleteFixtureEngine(t *testing.T) (*engine.Engine, string, string) {
 	t.Cleanup(eng.Close)
 	// Resolve the doc ID via the engine's list (Ingest's Result carries counts,
 	// not IDs).
-	res, err := eng.ListDocuments(engine.ListDocumentsRequest{})
+	res, err := eng.ListDocuments("default", engine.ListDocumentsRequest{})
 	if err != nil {
 		t.Fatalf("ListDocuments: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestDeleteDoc_RemovesDocAndChunks(t *testing.T) {
 	eng, _, docID := deleteFixtureEngine(t)
 
 	// Pre-condition: the distinctive term matches.
-	before, err := eng.Query(context.Background(), engine.QueryRequest{Query: "tariff deficit", Mode: "keyword", K: 5, NoCache: true})
+	before, err := eng.Query(context.Background(), "default", engine.QueryRequest{Query: "tariff deficit", Mode: "keyword", K: 5, NoCache: true})
 	if err != nil {
 		t.Fatalf("query before: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestDeleteDoc_RemovesDocAndChunks(t *testing.T) {
 		t.Fatal("setup: expected a keyword hit before delete")
 	}
 
-	chunksBefore, err := eng.ListChunks(docID, engine.ListChunksRequest{})
+	chunksBefore, err := eng.ListChunks("default", docID, engine.ListChunksRequest{})
 	if err != nil {
 		t.Fatalf("ListChunks before: %v", err)
 	}
@@ -90,12 +90,12 @@ func TestDeleteDoc_RemovesDocAndChunks(t *testing.T) {
 		t.Fatal("setup: doc has no chunks")
 	}
 
-	if err := eng.DeleteDoc(context.Background(), docID); err != nil {
+	if err := eng.DeleteDoc(context.Background(), "default", docID); err != nil {
 		t.Fatalf("DeleteDoc: %v", err)
 	}
 
 	// Doc is gone from the list.
-	docs, err := eng.ListDocuments(engine.ListDocumentsRequest{})
+	docs, err := eng.ListDocuments("default", engine.ListDocumentsRequest{})
 	if err != nil {
 		t.Fatalf("ListDocuments after: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestDeleteDoc_RemovesDocAndChunks(t *testing.T) {
 	}
 
 	// Chunks are gone (empty page — a tolerant empty result, not an error).
-	chunksAfter, err := eng.ListChunks(docID, engine.ListChunksRequest{})
+	chunksAfter, err := eng.ListChunks("default", docID, engine.ListChunksRequest{})
 	if err != nil {
 		t.Fatalf("ListChunks after: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestDeleteDoc_RemovesDocAndChunks(t *testing.T) {
 	}
 
 	// Keyword query returns no hit — the live FTS index was cleared.
-	after, err := eng.Query(context.Background(), engine.QueryRequest{Query: "tariff deficit", Mode: "keyword", K: 5, NoCache: true})
+	after, err := eng.Query(context.Background(), "default", engine.QueryRequest{Query: "tariff deficit", Mode: "keyword", K: 5, NoCache: true})
 	if err != nil {
 		t.Fatalf("query after: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestDeleteDoc_RemovesDocAndChunks(t *testing.T) {
 // the engine wrapper adds the existence check so transports can map a 404.)
 func TestDeleteDoc_UnknownID(t *testing.T) {
 	eng, _, _ := deleteFixtureEngine(t)
-	err := eng.DeleteDoc(context.Background(), "definitely-not-a-real-doc-id")
+	err := eng.DeleteDoc(context.Background(), "default", "definitely-not-a-real-doc-id")
 	if !errors.Is(err, engine.ErrNotFound) {
 		t.Errorf("unknown ID: err=%v, want ErrNotFound", err)
 	}
@@ -143,7 +143,7 @@ func TestDeleteDoc_UnknownID(t *testing.T) {
 func TestDeleteDoc_EmptyID(t *testing.T) {
 	eng, _, _ := deleteFixtureEngine(t)
 	for _, bad := range []string{"", "   ", "\t"} {
-		if err := eng.DeleteDoc(context.Background(), bad); !errors.Is(err, engine.ErrInvalid) {
+		if err := eng.DeleteDoc(context.Background(), "default", bad); !errors.Is(err, engine.ErrInvalid) {
 			t.Errorf("DeleteDoc(%q): err=%v, want ErrInvalid", bad, err)
 		}
 	}
@@ -157,7 +157,7 @@ func TestDeleteDoc_SourceFileUntouched(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read src before: %v", err)
 	}
-	if err := eng.DeleteDoc(context.Background(), docID); err != nil {
+	if err := eng.DeleteDoc(context.Background(), "default", docID); err != nil {
 		t.Fatalf("DeleteDoc: %v", err)
 	}
 	got, err := os.ReadFile(src)

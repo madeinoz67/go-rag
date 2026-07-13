@@ -31,8 +31,8 @@ func baselineRecordedAt(t time.Time) string {
 // H11/spec 017: also reports the corpus baseline vs live (model/dim/convention/
 // ollama-version) and the drift verdict, computed LIVE on each call (distinct
 // from the cached boot verdict /health reads).
-func (e *Engine) Status() (*StatusInfo, error) {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) Status(vault string) (*StatusInfo, error) {
+	ws := e.db.ResolveVaultPrefix(vault)
 	docs := countPrefix(e.db, ws, storage.PrefixDocument)
 	chunks := countPrefix(e.db, ws, storage.PrefixChunk)
 	embs := countPrefix(e.db, ws, storage.PrefixEmbedding)
@@ -98,7 +98,7 @@ func (e *Engine) Status() (*StatusInfo, error) {
 		}
 		return true
 	})
-	poisonSrcs, _ := e.ListThreatSources()
+	poisonSrcs, _ := e.ListThreatSources(vault)
 	return &StatusInfo{
 		Documents:                docs,
 		Chunks:                   chunks,
@@ -174,8 +174,8 @@ func (e *Engine) poolUtilization() PoolUtilization {
 }
 
 // Files lists every ingested document, sorted by file path.
-func (e *Engine) Files() ([]FileEntry, error) {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) Files(vault string) ([]FileEntry, error) {
+	ws := e.db.ResolveVaultPrefix(vault)
 	var out []FileEntry
 	lower, upper, err := keys.VaultKindRange(storage.PrefixDocument, ws)
 	if err == nil {
@@ -197,8 +197,8 @@ func (e *Engine) Files() ([]FileEntry, error) {
 }
 
 // Dirs groups ingested documents by directory, returning file/chunk counts.
-func (e *Engine) Dirs() ([]DirEntry, error) {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) Dirs(vault string) ([]DirEntry, error) {
+	ws := e.db.ResolveVaultPrefix(vault)
 	type counts struct{ files, chunks int }
 	m := map[string]*counts{}
 	lower, upper, err := keys.VaultKindRange(storage.PrefixDocument, ws)

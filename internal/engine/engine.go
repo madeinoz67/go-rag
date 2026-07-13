@@ -310,8 +310,8 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 // crash-recovery scan runs before serving — a restart after a crash recovers
 // pending 0x14 embeddings even if no write triggers pipeline(). Tests don't call
 // this (no goroutine leak); the daemon and CLI one-shots do.
-func (e *Engine) EnsureEmbedder() error {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) EnsureEmbedder(vault string) error {
+	ws := e.db.ResolveVaultPrefix(vault)
 	_, vec, err := e.indexes(ws)
 	if err != nil {
 		return err

@@ -27,7 +27,7 @@ func newReprocessCmd() *cobra.Command {
 			// consistently with the daemon: poisoning detection, redaction,
 			// near-dup clustering, AND document enrichment (spec 029) when enabled.
 			eng := engine.NewWithDB(cfg, db)
-			res, err := eng.Reprocess(context.Background(), path)
+			res, err := eng.Reprocess(context.Background(), vaultName, path)
 			eng.Close() // drain async embed + enrich + index
 			if err != nil {
 				return err

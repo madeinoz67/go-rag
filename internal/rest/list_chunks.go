@@ -38,7 +38,7 @@ func (s *Server) handleListChunks(w http.ResponseWriter, r *http.Request) {
 		}
 		req.PageSize = n
 	}
-	res, err := s.eng.ListChunks(r.PathValue("document_id"), req)
+	res, err := s.eng.ListChunks("default", r.PathValue("document_id"), req)
 	if err != nil {
 		writeEngineErr(w, err) // ErrInvalid → 400
 		return

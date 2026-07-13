@@ -31,8 +31,8 @@ type PoisonedChunk struct {
 // the 0x11 quarantine index populated async at ingest (O(flagged)). Each entry's
 // verdict is read fresh from the chunk record (the source of truth), so a release
 // is reflected even if the index briefly lags.
-func (e *Engine) ListPoisoned() ([]PoisonedChunk, error) {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) ListPoisoned(vault string) ([]PoisonedChunk, error) {
+	ws := e.db.ResolveVaultPrefix(vault)
 	var out []PoisonedChunk
 	err := e.db.ScanQuarantine(ws, func(chunkID string, _ []byte) bool {
 		c, ok := lookupChunk(e.db, ws, chunkID)
@@ -57,8 +57,8 @@ func (e *Engine) ListPoisoned() ([]PoisonedChunk, error) {
 // retained, only the level flips to `released` (sticky across rescans). Idempotent.
 // Bumps the index epoch so cached default-query results invalidate (the released
 // chunk may now appear).
-func (e *Engine) ReleaseChunk(chunkID string) error {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) ReleaseChunk(vault, chunkID string) error {
+	ws := e.db.ResolveVaultPrefix(vault)
 	c, ok := lookupChunk(e.db, ws, chunkID)
 	if !ok {
 		return fmt.Errorf("%w: chunk %s", ErrNotFound, chunkID)
@@ -77,8 +77,8 @@ func (e *Engine) ReleaseChunk(chunkID string) error {
 
 // ResetChunk undoes a release (FR-006): re-derives the scored level from the stored
 // score and re-quarantines if flagged. Non-destructive; idempotent.
-func (e *Engine) ResetChunk(chunkID string) error {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) ResetChunk(vault, chunkID string) error {
+	ws := e.db.ResolveVaultPrefix(vault)
 	c, ok := lookupChunk(e.db, ws, chunkID)
 	if !ok {
 		return fmt.Errorf("%w: chunk %s", ErrNotFound, chunkID)
@@ -121,8 +121,8 @@ func (e *Engine) putChunk(ws [8]byte, c model.Chunk) error {
 // This is the single re-score operation behind the manual `poison rescan` surface
 // (US3/US4 T031) and the threat-list-change background rescan (US4 T029). It bumps
 // the index epoch so cached query results invalidate (verdicts may have changed).
-func (e *Engine) RescanPoisoning() (rescored, flagged int, err error) {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) RescanPoisoning(vault string) (rescored, flagged int, err error) {
+	ws := e.db.ResolveVaultPrefix(vault)
 	if !e.cfg.EffectivePoisoningEnabled() {
 		return 0, 0, nil
 	}

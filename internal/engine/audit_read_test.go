@@ -67,7 +67,7 @@ func writeAuditEvents(t *testing.T, path string, events ...audit.Event) {
 // before/after equality check (the read-only invariant).
 func snapCounts(t *testing.T, eng *Engine) string {
 	t.Helper()
-	s, err := eng.Status()
+	s, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestAuditRead_DefaultPathResolution(t *testing.T) {
 	}
 	writeAuditEvents(t, audit.DefaultPath(dir), want...)
 
-	got, err := eng.AuditRead(audit.ReadOptions{All: true})
+	got, err := eng.AuditRead("default", audit.ReadOptions{All: true})
 	if err != nil {
 		t.Fatalf("AuditRead: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestAuditRead_ConfiguredPath(t *testing.T) {
 		t.Fatal("default audit path should not exist when AuditPath is set")
 	}
 
-	got, err := eng.AuditRead(audit.ReadOptions{})
+	got, err := eng.AuditRead("default", audit.ReadOptions{})
 	if err != nil {
 		t.Fatalf("AuditRead: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestAuditRead_TailAndType_PassThrough(t *testing.T) {
 	)
 
 	opts := audit.ReadOptions{Type: audit.TypeIngest, Tail: 2}
-	got, err := eng.AuditRead(opts)
+	got, err := eng.AuditRead("default", opts)
 	if err != nil {
 		t.Fatalf("AuditRead: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestAuditRead_TailAndType_PassThrough(t *testing.T) {
 // quiet or audit-disabled vault is not an error state).
 func TestAuditRead_MissingLogIsEmpty(t *testing.T) {
 	eng, _ := newAuditReadEngine(t)
-	got, err := eng.AuditRead(audit.ReadOptions{Type: audit.TypeIngest, Tail: 20})
+	got, err := eng.AuditRead("default", audit.ReadOptions{Type: audit.TypeIngest, Tail: 20})
 	if err != nil {
 		t.Fatalf("AuditRead on missing log: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestAuditRead_IsReadOnly(t *testing.T) {
 		audit.QueryEvent("q", "hybrid", 5, 1, nil),
 	)
 	before := snapCounts(t, eng)
-	if _, err := eng.AuditRead(audit.ReadOptions{All: true, Type: audit.TypeIngest, Tail: 5}); err != nil {
+	if _, err := eng.AuditRead("default", audit.ReadOptions{All: true, Type: audit.TypeIngest, Tail: 5}); err != nil {
 		t.Fatalf("AuditRead: %v", err)
 	}
 	after := snapCounts(t, eng)

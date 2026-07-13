@@ -32,7 +32,7 @@ func newDirsCmd() *cobra.Command {
 			defer db.Close()
 
 			counts := map[string]*dirEntry{}
-			ws := db.ResolveVaultPrefix("default") // spec 052: default vault
+			ws := db.ResolveVaultPrefix(vaultName) // spec 052: selected vault
 			dLo, dHi, _ := keys.VaultKindRange(storage.PrefixDocument, ws)
 			_ = db.RangeScan(dLo, dHi, func(_, val []byte) bool {
 				var d model.Document

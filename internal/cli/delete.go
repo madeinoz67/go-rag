@@ -33,7 +33,7 @@ and go_rag_delete_document (MCP).`,
 			}
 			defer db.Close()
 			eng := engine.NewWithDB(cfg, db)
-			if err := eng.DeleteDoc(context.Background(), docID); err != nil {
+			if err := eng.DeleteDoc(context.Background(), vaultName, docID); err != nil {
 				eng.Close() // drain even on the error path
 				return err
 			}

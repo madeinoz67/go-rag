@@ -88,7 +88,7 @@ func TestEpoch_IngestInvalidates(t *testing.T) {
 	req := QueryRequest{Query: "uniqueingestterm", Mode: "keyword", K: 5}
 
 	// Cold: no such term in the corpus → empty result, cached.
-	r0, err := e.Query(context.Background(), req)
+	r0, err := e.Query(context.Background(), "default", req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestEpoch_IngestInvalidates(t *testing.T) {
 
 	// Same query: must reflect the new document (not the cached empty result).
 	hitsBefore := e.resultCache.Stats().Hits
-	r1, err := e.Query(context.Background(), req)
+	r1, err := e.Query(context.Background(), "default", req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestEpoch_DeleteInvalidates(t *testing.T) {
 	path := addDoc(t, e, "deleteme document about deletable content")
 	req := QueryRequest{Query: "deletable", Mode: "keyword", K: 5}
 
-	r0, err := e.Query(context.Background(), req)
+	r0, err := e.Query(context.Background(), "default", req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestEpoch_DeleteInvalidates(t *testing.T) {
 
 	// Same query: must reflect the deletion (empty), served as a recomputation.
 	hitsBefore := e.resultCache.Stats().Hits
-	r1, err := e.Query(context.Background(), req)
+	r1, err := e.Query(context.Background(), "default", req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestEpoch_MigrateFlushesCaches(t *testing.T) {
 
 	// Warm the result cache with a query (embedder model "fake" matches corpus).
 	req := QueryRequest{Query: "migrate", Mode: "keyword", K: 5}
-	if _, err := e.Query(context.Background(), req); err != nil {
+	if _, err := e.Query(context.Background(), "default", req); err != nil {
 		t.Fatal(err)
 	}
 	if e.resultCache.Len() == 0 {
@@ -196,7 +196,7 @@ func TestEpoch_MigrateFlushesCaches(t *testing.T) {
 	// them all stale and Migrate proceeds past its no-op short-circuit.
 	e.cfg.EmbeddingModel = "different-model"
 
-	if _, err := e.Migrate(context.Background()); err != nil {
+	if _, err := e.Migrate(context.Background(), "default"); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
 	if e.resultCache.Len() != 0 {

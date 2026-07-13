@@ -57,7 +57,7 @@ func addDocToEngine(t *testing.T, eng *engine.Engine, content string) string {
 	if err := os.WriteFile(dp, []byte(content), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)
 	}
-	if _, err := eng.Add(context.Background(), dp, "*"); err != nil {
+	if _, err := eng.Add(context.Background(), "default", dp, "*"); err != nil {
 		t.Fatalf("engine.Add: %v", err)
 	}
 	return dp

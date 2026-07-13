@@ -4,7 +4,7 @@ package ui
 // of the Operations view against the live in-process engine + audit log. The
 // harness (newTestEngine/newUITest/bearerGet/login) is shared with ui_test.go.
 //
-// Parity is the spine: stats values match eng.Status() (the source `go-rag
+// Parity is the spine: stats values match eng.Status("default") (the source `go-rag
 // status` reads) and activity matches audit.Read on the resolved path (the
 // source `go-rag audit` reads). Read-only + GET-only + no-Node invariants are
 // pinned for the slice.
@@ -73,11 +73,11 @@ func drainAndClose(resp *http.Response) {
 // --- US1: stats (T008) ------------------------------------------------------
 
 // TestBridgeOpsStats_ProjectsStatus — 200 + the operational fields present and
-// matching eng.Status() (parity with `go-rag status`).
+// matching eng.Status("default") (parity with `go-rag status`).
 func TestBridgeOpsStats_ProjectsStatus(t *testing.T) {
 	srv, tok, eng := bridgeOpsSetup(t)
 
-	want, err := eng.Status()
+	want, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("eng.Status: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestBridgeOpsStats_ProjectsStatus(t *testing.T) {
 // verdict present, no error (a quiet vault is healthy, not broken).
 func TestBridgeOpsStats_EmptyVault(t *testing.T) {
 	srv, tok, eng := bridgeOpsSetup(t)
-	want, err := eng.Status()
+	want, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("eng.Status: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestBridgeOpsActivity_MissingLogIsEmpty(t *testing.T) {
 // only the verdict; Operations adds the detail — R6).
 func TestBridgeOpsStats_DriftDetail(t *testing.T) {
 	srv, tok, eng := bridgeOpsSetup(t)
-	want, err := eng.Status()
+	want, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("eng.Status: %v", err)
 	}
@@ -336,7 +336,7 @@ func TestBridgeOpsStats_DriftDetail(t *testing.T) {
 // an error).
 func TestBridgeOpsStats_CachesAndAdaptive(t *testing.T) {
 	srv, tok, eng := bridgeOpsSetup(t)
-	want, err := eng.Status()
+	want, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("eng.Status: %v", err)
 	}
@@ -367,7 +367,7 @@ func TestBridgeOpsStats_CachesAndAdaptive(t *testing.T) {
 // --- US4: read-only + GET-only + no-Node + 401 (T013) ----------------------
 
 // TestBridgeOps_NoWrite — a stats + activity fetch mutates nothing (snapshot
-// eng.Status() counts before/after → identical). The read-only invariant.
+// eng.Status("default") counts before/after → identical). The read-only invariant.
 func TestBridgeOps_NoWrite(t *testing.T) {
 	srv, tok, eng := bridgeOpsSetup(t)
 	writeBridgeAudit(t, eng,
@@ -389,7 +389,7 @@ func TestBridgeOps_NoWrite(t *testing.T) {
 // snapUI captures the mutable Status() counts for a before/after check.
 func snapUI(t *testing.T, eng *engine.Engine) string {
 	t.Helper()
-	s, err := eng.Status()
+	s, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}

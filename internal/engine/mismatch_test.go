@@ -72,7 +72,7 @@ func ingestUnder(t *testing.T, em testEmbedder) (*storage.DB, config.Config, fun
 	cfg.ChunkSize = 8 // small → multiple chunks so the majority is unambiguous
 	cfg.ChunkOverlap = 2
 	eng := NewWithEmbedder(cfg, db, em)
-	if _, err := eng.Add(context.Background(), corpusDir, "*"); err != nil {
+	if _, err := eng.Add(context.Background(), "default", corpusDir, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
 	eng.Close() // drain async-after-ACK embeddings
@@ -99,7 +99,7 @@ func TestQuery_RefusesModelMismatch(t *testing.T) {
 	db, cfg, cleanup := ingestUnder(t, testEmbedder{model: "alpha", dim: 4})
 	defer cleanup()
 	eng := NewWithEmbedder(cfg, db, testEmbedder{model: "beta", dim: 4}) // same dim, different model
-	_, err := eng.Query(context.Background(), QueryRequest{Query: "retrieval", K: 5, Mode: "hybrid"})
+	_, err := eng.Query(context.Background(), "default", QueryRequest{Query: "retrieval", K: 5, Mode: "hybrid"})
 	if !errors.Is(err, ErrEmbeddingMismatch) {
 		t.Fatalf("expected ErrEmbeddingMismatch for different model, got %v", err)
 	}
@@ -109,7 +109,7 @@ func TestQuery_RefusesDimMismatch(t *testing.T) {
 	db, cfg, cleanup := ingestUnder(t, testEmbedder{model: "alpha", dim: 4})
 	defer cleanup()
 	eng := NewWithEmbedder(cfg, db, testEmbedder{model: "alpha", dim: 8}) // same model, different dim
-	_, err := eng.Query(context.Background(), QueryRequest{Query: "retrieval", K: 5, Mode: "hybrid"})
+	_, err := eng.Query(context.Background(), "default", QueryRequest{Query: "retrieval", K: 5, Mode: "hybrid"})
 	if !errors.Is(err, ErrEmbeddingMismatch) {
 		t.Fatalf("expected ErrEmbeddingMismatch for different dim, got %v", err)
 	}
@@ -120,7 +120,7 @@ func TestQuery_RefusesSameDimDifferentModel(t *testing.T) {
 	db, cfg, cleanup := ingestUnder(t, testEmbedder{model: "alpha", dim: 4})
 	defer cleanup()
 	eng := NewWithEmbedder(cfg, db, testEmbedder{model: "gamma", dim: 4})
-	_, err := eng.Query(context.Background(), QueryRequest{Query: "retrieval", K: 5})
+	_, err := eng.Query(context.Background(), "default", QueryRequest{Query: "retrieval", K: 5})
 	if !errors.Is(err, ErrEmbeddingMismatch) {
 		t.Fatalf("expected refusal for same-dim different-model, got %v", err)
 	}
@@ -130,7 +130,7 @@ func TestQuery_HappyPathMatchingModel(t *testing.T) {
 	db, cfg, cleanup := ingestUnder(t, testEmbedder{model: "alpha", dim: 4})
 	defer cleanup()
 	eng := NewWithEmbedder(cfg, db, testEmbedder{model: "alpha", dim: 4}) // matches
-	res, err := eng.Query(context.Background(), QueryRequest{Query: "retrieval", K: 5, Mode: "hybrid"})
+	res, err := eng.Query(context.Background(), "default", QueryRequest{Query: "retrieval", K: 5, Mode: "hybrid"})
 	if err != nil {
 		t.Fatalf("matching query must not error, got %v", err)
 	}
@@ -148,7 +148,7 @@ func TestQuery_EmptyCorpusNoError(t *testing.T) {
 	cfg := config.Default()
 	cfg.DBPath = dir
 	eng := NewWithEmbedder(cfg, db, testEmbedder{model: "alpha", dim: 4})
-	res, err := eng.Query(context.Background(), QueryRequest{Query: "anything", K: 5})
+	res, err := eng.Query(context.Background(), "default", QueryRequest{Query: "anything", K: 5})
 	if err != nil {
 		t.Fatalf("empty corpus must not error, got %v", err)
 	}
@@ -164,7 +164,7 @@ func TestStatus_ReportsDrift(t *testing.T) {
 	defer cleanup()
 
 	// Consistent corpus: no drift.
-	st, err := NewWithDB(cfg, db).Status()
+	st, err := NewWithDB(cfg, db).Status("default")
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestStatus_ReportsDrift(t *testing.T) {
 	plantEmbedding(t, db, "stale1", "beta", 8)
 	plantEmbedding(t, db, "stale2", "beta", 8)
 
-	st2, _ := NewWithDB(cfg, db).Status()
+	st2, _ := NewWithDB(cfg, db).Status("default")
 	if !st2.EmbeddingDrift {
 		t.Fatalf("mixed corpus must report drift")
 	}
@@ -199,7 +199,7 @@ func TestQuery_PartialMajoritySucceeds(t *testing.T) {
 
 	// Querying under the MAJORITY (alpha/4) must succeed (minority skipped), not refuse.
 	eng := NewWithEmbedder(cfg, db, testEmbedder{model: "alpha", dim: 4})
-	if _, err := eng.Query(context.Background(), QueryRequest{Query: "retrieval", K: 5}); err != nil {
+	if _, err := eng.Query(context.Background(), "default", QueryRequest{Query: "retrieval", K: 5}); err != nil {
 		t.Fatalf("majority query over mixed corpus must not fail, got %v", err)
 	}
 }
@@ -212,7 +212,7 @@ func TestQuery_PartialMinorityRefused(t *testing.T) {
 
 	// Querying under the MINORITY (beta/8) must be refused (it does not match the majority).
 	eng := NewWithEmbedder(cfg, db, testEmbedder{model: "beta", dim: 8})
-	_, err := eng.Query(context.Background(), QueryRequest{Query: "retrieval", K: 5})
+	_, err := eng.Query(context.Background(), "default", QueryRequest{Query: "retrieval", K: 5})
 	if !errors.Is(err, ErrEmbeddingMismatch) {
 		t.Fatalf("minority query must be refused, got %v", err)
 	}

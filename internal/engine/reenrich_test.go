@@ -57,7 +57,7 @@ func TestReEnrich_DisabledIsNoop(t *testing.T) {
 	defer cleanup()
 	eng := NewWithEmbedder(cfg, db, testEmbedder{model: "alpha", dim: 4})
 
-	sum, err := eng.ReEnrich(context.Background())
+	sum, err := eng.ReEnrich(context.Background(), "default")
 	if err != nil {
 		t.Fatalf("ReEnrich: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestReEnrich_SkipsAlreadyEnriched(t *testing.T) {
 	reSetEnrichment(t, db, doc.ID, &model.EnrichInfo{Tags: []string{"planted"}, Status: model.EnrichStatusDone, Model: "fake-gen"})
 
 	eng := NewWithEmbedder(cfg, db, testEmbedder{model: "alpha", dim: 4})
-	sum, err := eng.ReEnrich(context.Background())
+	sum, err := eng.ReEnrich(context.Background(), "default")
 	if err != nil {
 		t.Fatalf("ReEnrich: %v", err)
 	}

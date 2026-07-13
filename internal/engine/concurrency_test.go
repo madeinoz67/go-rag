@@ -79,7 +79,7 @@ func TestConcurrent_AddQuery_NoCorruption(t *testing.T) {
 	}
 
 	// Single-writer invariant: each distinct file ingested exactly once.
-	st, err := eng.Status()
+	st, err := eng.Status("default")
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}

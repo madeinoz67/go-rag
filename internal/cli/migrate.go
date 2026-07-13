@@ -28,7 +28,7 @@ func newMigrateCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			ws := db.ResolveVaultPrefix("default")
+			ws := db.ResolveVaultPrefix(vaultName)
 
 			// The plan is computed once, read-only, from stored metadata (no embedding,
 			// no backend). --dry-run renders it and exits; a real migrate renders the

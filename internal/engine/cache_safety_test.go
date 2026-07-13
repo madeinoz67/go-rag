@@ -38,7 +38,7 @@ func TestCache_ConcurrentSafe(t *testing.T) {
 			defer wg.Done()
 			queries := []string{"alpha", "retrieval", "ranking"}
 			for i := 0; i < 50; i++ {
-				_, _ = e.Query(context.Background(), QueryRequest{Query: queries[n%3], Mode: "keyword", K: 5})
+				_, _ = e.Query(context.Background(), "default", QueryRequest{Query: queries[n%3], Mode: "keyword", K: 5})
 			}
 		}(g)
 	}
@@ -47,7 +47,7 @@ func TestCache_ConcurrentSafe(t *testing.T) {
 		wg.Add(1)
 		go func(path string) {
 			defer wg.Done()
-			_, _ = e.Add(context.Background(), path, "*")
+			_, _ = e.Add(context.Background(), "default", path, "*")
 		}(p)
 	}
 	wg.Wait()
@@ -68,7 +68,7 @@ func TestCache_RestartEmpty(t *testing.T) {
 	}
 
 	addDoc(t, e, "alpha retrieval document about searching")
-	if _, err := e.Query(context.Background(), QueryRequest{Query: "alpha", Mode: "hybrid", K: 5}); err != nil {
+	if _, err := e.Query(context.Background(), "default", QueryRequest{Query: "alpha", Mode: "hybrid", K: 5}); err != nil {
 		t.Fatal(err)
 	}
 	if e.resultCache.Len() == 0 {

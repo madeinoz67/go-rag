@@ -28,14 +28,14 @@ func TestQuery_CustomTransformer_Honored(t *testing.T) {
 
 	// Baseline: default normalizer. "auth" (4 chars, no prefix expansion) is not in
 	// the doc → no keyword hits.
-	base, err := e.Query(context.Background(), QueryRequest{Query: "auth", Mode: "keyword", K: 5})
+	base, err := e.Query(context.Background(), "default", QueryRequest{Query: "auth", Mode: "keyword", K: 5})
 	if err != nil {
 		t.Fatalf("baseline query: %v", err)
 	}
 
 	// Swap in a transformer that appends "credential" → effective query "auth credential".
 	e.qTransformer = appendingTransformer{suffix: "credential"}
-	got, err := e.Query(context.Background(), QueryRequest{Query: "auth", Mode: "keyword", K: 5})
+	got, err := e.Query(context.Background(), "default", QueryRequest{Query: "auth", Mode: "keyword", K: 5})
 	if err != nil {
 		t.Fatalf("transformed query: %v", err)
 	}

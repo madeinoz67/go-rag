@@ -78,8 +78,8 @@ func MaxChunkContextWindow() int { return maxChunkContextWindow }
 // window is returned with a zero-valued Document/Source. A broken linked-list
 // hop (a neighbour ID that does not resolve) is tolerated — the unbroken run up
 // to the requested window is returned, not an error.
-func (e *Engine) GetChunkContext(chunkID string, window int) (*ContextResult, error) {
-	ws := e.db.ResolveVaultPrefix("default")
+func (e *Engine) GetChunkContext(vault, chunkID string, window int) (*ContextResult, error) {
+	ws := e.db.ResolveVaultPrefix(vault)
 	if strings.TrimSpace(chunkID) == "" {
 		return nil, fmt.Errorf("chunk_id is required: %w", ErrInvalid)
 	}

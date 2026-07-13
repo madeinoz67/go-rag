@@ -193,7 +193,7 @@ func (s *Server) guard(h http.HandlerFunc) http.HandlerFunc {
 // token. HTTP stays 200 on drift (liveness) — readiness is in the body, not the
 // status code, to avoid restart-loops if /health is used as a liveness probe.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	h := s.eng.Health(r.Context())
+	h := s.eng.Health(r.Context(), "default")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":                 h.OK,
 		"ready":              h.Ready,

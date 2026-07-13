@@ -332,7 +332,7 @@ func TestREST_MetricsEndpoint(t *testing.T) {
 	defer srv.Close()
 
 	// Drive a query so the query-duration metric records (status=ok regardless of hits).
-	if _, err := eng.Query(context.Background(), engine.QueryRequest{Query: "retrieval", Mode: "keyword", K: 5}); err != nil {
+	if _, err := eng.Query(context.Background(), "default", engine.QueryRequest{Query: "retrieval", Mode: "keyword", K: 5}); err != nil {
 		t.Fatalf("Query: %v", err)
 	}
 

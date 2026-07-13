@@ -40,7 +40,7 @@ func (s *Server) handleBatchGetChunks(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
 		return
 	}
-	res, err := s.eng.BatchGetChunks(req.ChunkIDs)
+	res, err := s.eng.BatchGetChunks("default", req.ChunkIDs)
 	if err != nil {
 		writeEngineErr(w, err) // ErrInvalid → 400 (no 404 path for batch)
 		return

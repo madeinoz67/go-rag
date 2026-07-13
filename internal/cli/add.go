@@ -37,7 +37,7 @@ func newAddCmd() *cobra.Command {
 			// enrichment_enabled. (The raw-pipeline path the CLI used before bound
 			// none of these, so `go-rag add` never enriched.)
 			eng := engine.NewWithDB(cfg, db)
-			res, err := eng.Add(context.Background(), path, glob)
+			res, err := eng.Add(context.Background(), vaultName, path, glob)
 			eng.Close() // drain async embed + enrich + index
 			if err != nil {
 				return err

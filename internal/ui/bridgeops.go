@@ -173,13 +173,13 @@ var validActivityTypes = map[string]struct{}{
 // package). last_activity is best-effort: the newest audit timestamp via a
 // tail:1 read, empty when the log is missing/empty (never a stats error).
 func (s *Server) handleBridgeOpsStats(w http.ResponseWriter, _ *http.Request) {
-	info, err := s.eng.Status()
+	info, err := s.eng.Status("default")
 	if err != nil {
 		writeEngineErr(w, err)
 		return
 	}
 	lastActivity := ""
-	if evs, aerr := s.eng.AuditRead(audit.ReadOptions{Tail: 1}); aerr == nil && len(evs) > 0 {
+	if evs, aerr := s.eng.AuditRead("default", audit.ReadOptions{Tail: 1}); aerr == nil && len(evs) > 0 {
 		lastActivity = evs[len(evs)-1].TS.UTC().Format(time.RFC3339)
 	}
 	writeJSON(w, http.StatusOK, toBridgeOpsStats(info, s.deriveVault(), s.eng.Config().WatchDirs, lastActivity))
@@ -199,7 +199,7 @@ func (s *Server) handleBridgeOpsActivity(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "invalid type")
 		return
 	}
-	events, err := s.eng.AuditRead(audit.ReadOptions{Type: etype, Tail: tail})
+	events, err := s.eng.AuditRead("default", audit.ReadOptions{Type: etype, Tail: tail})
 	if err != nil {
 		writeEngineErr(w, err)
 		return

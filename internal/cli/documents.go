@@ -52,7 +52,7 @@ func newDocumentsListCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			res, err := engine.NewWithDB(cfg, db).ListDocuments(engine.ListDocumentsRequest{
+			res, err := engine.NewWithDB(cfg, db).ListDocuments(vaultName, engine.ListDocumentsRequest{
 				PageSize: pageSize, PageToken: pageToken, After: after, Status: status,
 			})
 			if err != nil {

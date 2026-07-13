@@ -32,7 +32,7 @@ func newFilesCmd() *cobra.Command {
 			defer db.Close()
 
 			var entries []fileEntry
-			ws := db.ResolveVaultPrefix("default") // spec 052: default vault
+			ws := db.ResolveVaultPrefix(vaultName) // spec 052: selected vault
 			fLo, fHi, _ := keys.VaultKindRange(storage.PrefixDocument, ws)
 			_ = db.RangeScan(fLo, fHi, func(_, val []byte) bool {
 				var d model.Document

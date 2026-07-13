@@ -6,7 +6,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/storage"
-	"github.com/madeinoz67/go-rag/internal/vault"
+	vaultpkg "github.com/madeinoz67/go-rag/internal/vault"
 )
 
 // knownConfigKeys is the public, ordered set of config keys surfaced to
@@ -22,7 +22,7 @@ var knownConfigKeys = []string{
 
 // GetConfig returns config values as strings. If key is non-empty, only that
 // key is returned (error if unknown); otherwise all known keys are returned.
-func (e *Engine) GetConfig(key string) (map[string]string, error) {
+func (e *Engine) GetConfig(_, key string) (map[string]string, error) {
 	if key != "" {
 		v, ok := e.cfg.Get(key)
 		if !ok {
@@ -41,7 +41,7 @@ func (e *Engine) GetConfig(key string) (map[string]string, error) {
 
 // SetConfig updates one config value, validates it, persists it to the
 // database's config.json, and updates the engine's in-memory config.
-func (e *Engine) SetConfig(key, val string) error {
+func (e *Engine) SetConfig(_, key, val string) error {
 	if err := e.cfg.Set(key, val); err != nil {
 		return err
 	}
@@ -56,13 +56,14 @@ func (e *Engine) SetConfig(key, val string) error {
 }
 
 // ListVaults lists every vault with its document count. It does not require the
-// engine's own database to be open.
-func (e *Engine) ListVaults() ([]VaultEntry, error) {
-	names := vault.List()
+// engine's own database to be open. The vault param carries the requesting
+// caller's vault context (auth scope); enumeration is global.
+func (e *Engine) ListVaults(_ string) ([]VaultEntry, error) {
+	names := vaultpkg.List()
 	out := make([]VaultEntry, 0, len(names))
 	for _, n := range names {
 		docs := 0
-		if _, db, err := Open(vault.Path(n)); err == nil {
+		if _, db, err := Open(vaultpkg.Path(n)); err == nil {
 			ws := db.ResolveVaultPrefix("default")
 			docs = countPrefix(db, ws, storage.PrefixDocument)
 			db.Close()

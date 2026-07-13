@@ -55,7 +55,7 @@ func TestListDocuments_CursorAndFilter(t *testing.T) {
 	mid := docBase.Add(3 * time.Second).Format(time.RFC3339)
 
 	// (a) after=mid → docs with ingested_at > mid, ascending: d4, d5.
-	res, err := e.ListDocuments(ListDocumentsRequest{After: mid})
+	res, err := e.ListDocuments("default", ListDocumentsRequest{After: mid})
 	if err != nil {
 		t.Fatalf("after: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestListDocuments_CursorAndFilter(t *testing.T) {
 	}
 
 	// (b) status=embedded → only embedded docs, ascending: d1, d3, d5.
-	res, err = e.ListDocuments(ListDocumentsRequest{Status: "embedded"})
+	res, err = e.ListDocuments("default", ListDocumentsRequest{Status: "embedded"})
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestListDocuments_CursorAndFilter(t *testing.T) {
 	}
 
 	// (c) after + status AND → embedded docs after mid: d5.
-	res, err = e.ListDocuments(ListDocumentsRequest{After: mid, Status: "embedded"})
+	res, err = e.ListDocuments("default", ListDocumentsRequest{After: mid, Status: "embedded"})
 	if err != nil {
 		t.Fatalf("after+status: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestListDocuments_CursorAndFilter(t *testing.T) {
 	}
 
 	// (e) empty result (after far future) → empty slice, no error, empty token.
-	res, err = e.ListDocuments(ListDocumentsRequest{After: docBase.Add(1 * time.Hour).Format(time.RFC3339)})
+	res, err = e.ListDocuments("default", ListDocumentsRequest{After: docBase.Add(1 * time.Hour).Format(time.RFC3339)})
 	if err != nil {
 		t.Fatalf("future after: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestListDocuments_Pagination(t *testing.T) {
 	var got []string
 	tok := ""
 	for page := 0; page < 5; page++ { // guard against infinite loop
-		res, err := e.ListDocuments(ListDocumentsRequest{PageSize: 3, PageToken: tok, Status: "embedded"})
+		res, err := e.ListDocuments("default", ListDocumentsRequest{PageSize: 3, PageToken: tok, Status: "embedded"})
 		if err != nil {
 			t.Fatalf("page %d: %v", page, err)
 		}
@@ -139,7 +139,7 @@ func TestListDocuments_Pagination(t *testing.T) {
 	got = nil
 	tok = ""
 	for page := 0; page < 5; page++ {
-		res, err := e.ListDocuments(ListDocumentsRequest{PageSize: 2, PageToken: tok, After: docBase.Add(3 * time.Second).Format(time.RFC3339), Status: "embedded"})
+		res, err := e.ListDocuments("default", ListDocumentsRequest{PageSize: 2, PageToken: tok, After: docBase.Add(3 * time.Second).Format(time.RFC3339), Status: "embedded"})
 		if err != nil {
 			t.Fatalf("after+page %d: %v", page, err)
 		}
@@ -154,13 +154,13 @@ func TestListDocuments_Pagination(t *testing.T) {
 	}
 
 	// (c) page_size boundaries.
-	if _, err := e.ListDocuments(ListDocumentsRequest{PageSize: MaxListPageSize()}); err != nil {
+	if _, err := e.ListDocuments("default", ListDocumentsRequest{PageSize: MaxListPageSize()}); err != nil {
 		t.Errorf("page_size=%d: %v", MaxListPageSize(), err)
 	}
-	if _, err := e.ListDocuments(ListDocumentsRequest{PageSize: MaxListPageSize() + 1}); !errors.Is(err, ErrInvalid) {
+	if _, err := e.ListDocuments("default", ListDocumentsRequest{PageSize: MaxListPageSize() + 1}); !errors.Is(err, ErrInvalid) {
 		t.Errorf("page_size=%d: err=%v want ErrInvalid", MaxListPageSize()+1, err)
 	}
-	if _, err := e.ListDocuments(ListDocumentsRequest{PageSize: 0}); err != nil {
+	if _, err := e.ListDocuments("default", ListDocumentsRequest{PageSize: 0}); err != nil {
 		t.Errorf("page_size=0 (default): err=%v", err) // 0 → default 50
 	}
 
@@ -168,7 +168,7 @@ func TestListDocuments_Pagination(t *testing.T) {
 	e2 := newCacheEngine(t)
 	putDoc(t, e2, "zzz", docBase, "embedded")
 	putDoc(t, e2, "aaa", docBase, "embedded")
-	res, err := e2.ListDocuments(ListDocumentsRequest{})
+	res, err := e2.ListDocuments("default", ListDocumentsRequest{})
 	if err != nil {
 		t.Fatalf("tie: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestListDocuments_Pagination(t *testing.T) {
 	}
 
 	// (e) malformed page_token → ErrInvalid.
-	if _, err := e.ListDocuments(ListDocumentsRequest{PageToken: "not-valid-base64!!!"}); !errors.Is(err, ErrInvalid) {
+	if _, err := e.ListDocuments("default", ListDocumentsRequest{PageToken: "not-valid-base64!!!"}); !errors.Is(err, ErrInvalid) {
 		t.Errorf("malformed token: err=%v want ErrInvalid", err)
 	}
 
@@ -204,7 +204,7 @@ func TestListDocuments_InvalidInput(t *testing.T) {
 		{"malformed token", ListDocumentsRequest{PageToken: "!!!"}},
 	}
 	for _, c := range cases {
-		if _, err := e.ListDocuments(c.req); !errors.Is(err, ErrInvalid) {
+		if _, err := e.ListDocuments("default", c.req); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%s: err=%v want ErrInvalid", c.name, err)
 		}
 	}

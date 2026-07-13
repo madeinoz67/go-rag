@@ -19,13 +19,13 @@ func TestGetChunk_Found_MatchesIngestion(t *testing.T) {
 	addDoc(t, e, "the go-rag get-chunk primitive resolves a content-addressed chunk identifier")
 	ctx := context.Background()
 
-	q, err := e.Query(ctx, QueryRequest{Query: "primitive", Mode: "keyword", K: 5})
+	q, err := e.Query(ctx, "default", QueryRequest{Query: "primitive", Mode: "keyword", K: 5})
 	if err != nil || len(q.Hits) == 0 {
 		t.Fatalf("setup query to obtain a chunk_id failed: err=%v hits=%d", err, len(q.Hits))
 	}
 	id := q.Hits[0].ChunkID
 
-	res, err := e.GetChunk(id)
+	res, err := e.GetChunk("default", id)
 	if err != nil {
 		t.Fatalf("GetChunk(%s): %v", id, err)
 	}
@@ -44,7 +44,7 @@ func TestGetChunk_Found_MatchesIngestion(t *testing.T) {
 
 func TestGetChunk_Missing_IsErrNotFound(t *testing.T) {
 	e := newCacheEngine(t)
-	_, err := e.GetChunk("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef00")
+	_, err := e.GetChunk("default", "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef00")
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound for a missing id, got %v", err)
 	}
@@ -53,7 +53,7 @@ func TestGetChunk_Missing_IsErrNotFound(t *testing.T) {
 func TestGetChunk_Empty_IsErrInvalid(t *testing.T) {
 	e := newCacheEngine(t)
 	for _, bad := range []string{"", "   ", "\t\n"} {
-		if _, err := e.GetChunk(bad); !errors.Is(err, ErrInvalid) {
+		if _, err := e.GetChunk("default", bad); !errors.Is(err, ErrInvalid) {
 			t.Errorf("GetChunk(%q) expected ErrInvalid, got %v", bad, err)
 		}
 	}
@@ -67,7 +67,7 @@ func TestGetChunk_OrphanChunk_Tolerant(t *testing.T) {
 	addDoc(t, e, "orphan probe text for the get-chunk tolerant read path")
 	ctx := context.Background()
 
-	q, _ := e.Query(ctx, QueryRequest{Query: "orphan", Mode: "keyword", K: 5})
+	q, _ := e.Query(ctx, "default", QueryRequest{Query: "orphan", Mode: "keyword", K: 5})
 	if len(q.Hits) == 0 {
 		t.Fatal("setup: no hit for orphan probe")
 	}
@@ -77,7 +77,7 @@ func TestGetChunk_OrphanChunk_Tolerant(t *testing.T) {
 	if err := e.db.Delete(keys.DocumentKey(e.db.ResolveVaultPrefix("default"), docID)); err != nil {
 		t.Fatalf("remove parent document: %v", err)
 	}
-	res, err := e.GetChunk(id)
+	res, err := e.GetChunk("default", id)
 	if err != nil {
 		t.Fatalf("orphan GetChunk should succeed, got %v", err)
 	}

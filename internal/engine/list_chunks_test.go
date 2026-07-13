@@ -66,7 +66,7 @@ func TestListChunks_PaginationAndOrder(t *testing.T) {
 	var got []string
 	tok := ""
 	for page := 0; page < 5; page++ { // guard against infinite loop
-		res, err := e.ListChunks("docA", ListChunksRequest{PageSize: 2, PageToken: tok})
+		res, err := e.ListChunks("default", "docA", ListChunksRequest{PageSize: 2, PageToken: tok})
 		if err != nil {
 			t.Fatalf("page %d: %v", page, err)
 		}
@@ -87,7 +87,7 @@ func TestListChunks_PaginationAndOrder(t *testing.T) {
 	}
 
 	// (b) docB → exactly its 2 chunks (isolation: docA's 5 excluded).
-	res, err := e.ListChunks("docB", ListChunksRequest{})
+	res, err := e.ListChunks("default", "docB", ListChunksRequest{})
 	if err != nil {
 		t.Fatalf("docB: %v", err)
 	}
@@ -96,13 +96,13 @@ func TestListChunks_PaginationAndOrder(t *testing.T) {
 	}
 
 	// (c) unknown doc → empty result, no error, empty token.
-	res, err = e.ListChunks("nope", ListChunksRequest{})
+	res, err = e.ListChunks("default", "nope", ListChunksRequest{})
 	if err != nil || len(res.Chunks) != 0 || res.NextPageToken != "" {
 		t.Errorf("unknown doc: res=%+v err=%v want empty/no-error", res, err)
 	}
 
 	// (d) default page_size (0 → 50): docA's 5 chunks in one page.
-	res, err = e.ListChunks("docA", ListChunksRequest{PageSize: 0})
+	res, err = e.ListChunks("default", "docA", ListChunksRequest{PageSize: 0})
 	if err != nil || len(res.Chunks) != 5 {
 		t.Errorf("default page_size: got %d chunks err=%v want 5", len(res.Chunks), err)
 	}
@@ -123,7 +123,7 @@ func TestListChunks_InvalidInput(t *testing.T) {
 		{"malformed token", "docA", ListChunksRequest{PageToken: "!!!"}},
 	}
 	for _, c := range cases {
-		if _, err := e.ListChunks(c.doc, c.req); !errors.Is(err, ErrInvalid) {
+		if _, err := e.ListChunks("default", c.doc, c.req); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%s: err=%v want ErrInvalid", c.name, err)
 		}
 	}
@@ -168,7 +168,7 @@ func TestListDocuments_TagFilter(t *testing.T) {
 	putDoc(t, e, "t4", docBase, "embedded") // un-enriched (no tags)
 
 	// match-any single: tags=[security] → t1, t2.
-	res, err := e.ListDocuments(ListDocumentsRequest{Tags: []string{"security"}})
+	res, err := e.ListDocuments("default", ListDocumentsRequest{Tags: []string{"security"}})
 	if err != nil {
 		t.Fatalf("security: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestListDocuments_TagFilter(t *testing.T) {
 	}
 
 	// match-any union across multiple: tags=[auth,networking] → t1, t3.
-	res, err = e.ListDocuments(ListDocumentsRequest{Tags: []string{"auth", "networking"}})
+	res, err = e.ListDocuments("default", ListDocumentsRequest{Tags: []string{"auth", "networking"}})
 	if err != nil {
 		t.Fatalf("auth+net: %v", err)
 	}
@@ -188,13 +188,13 @@ func TestListDocuments_TagFilter(t *testing.T) {
 	}
 
 	// no match → empty.
-	res, err = e.ListDocuments(ListDocumentsRequest{Tags: []string{"nonexistent"}})
+	res, err = e.ListDocuments("default", ListDocumentsRequest{Tags: []string{"nonexistent"}})
 	if err != nil || len(res.Documents) != 0 {
 		t.Errorf("no-match: docs=%d err=%v want 0", len(res.Documents), err)
 	}
 
 	// nil Tags → no filter (all 4 docs).
-	res, err = e.ListDocuments(ListDocumentsRequest{Tags: nil})
+	res, err = e.ListDocuments("default", ListDocumentsRequest{Tags: nil})
 	if err != nil || len(res.Documents) != 4 {
 		t.Errorf("nil tags: docs=%d err=%v want 4", len(res.Documents), err)
 	}

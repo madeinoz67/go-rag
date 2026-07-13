@@ -61,7 +61,7 @@ func TestNearDup_Collapse_E2E(t *testing.T) {
 	eng := sharedNearDupEngine(t)
 	q := "keyword retrieval"
 
-	without, err := eng.Query(context.Background(), engine.QueryRequest{Query: q, Mode: "keyword", K: 5, NoCache: true})
+	without, err := eng.Query(context.Background(), "default", engine.QueryRequest{Query: q, Mode: "keyword", K: 5, NoCache: true})
 	if err != nil {
 		t.Fatalf("query without dedup: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestNearDup_Collapse_E2E(t *testing.T) {
 		t.Fatalf("want >=2 hits without dedup, got %d", len(without.Hits))
 	}
 
-	withDedup, err := eng.Query(context.Background(), engine.QueryRequest{Query: q, Mode: "keyword", K: 5, Dedup: true, NoCache: true})
+	withDedup, err := eng.Query(context.Background(), "default", engine.QueryRequest{Query: q, Mode: "keyword", K: 5, Dedup: true, NoCache: true})
 	if err != nil {
 		t.Fatalf("query with dedup: %v", err)
 	}

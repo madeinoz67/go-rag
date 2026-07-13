@@ -31,7 +31,7 @@ func TestMigratePlan_ReadOnly_NoMutation(t *testing.T) {
 	ws := defaultWS(db)
 
 	before := CorpusProfile(ws, db)
-	if _, err := eng.MigratePlan(); err != nil {
+	if _, err := eng.MigratePlan("default"); err != nil {
 		t.Fatalf("MigratePlan: %v", err)
 	}
 	after := CorpusProfile(ws, db)
@@ -48,7 +48,7 @@ func TestMigratePlan_NoBackendRequired(t *testing.T) {
 	// Re-open the engine with an embedder that always fails. MigratePlan must
 	// still succeed and report the plan.
 	eng := NewWithEmbedder(cfg, db, errEmbedder{model: "alpha", dim: 4})
-	plan, err := eng.MigratePlan()
+	plan, err := eng.MigratePlan("default")
 	if err != nil {
 		t.Fatalf("MigratePlan must succeed with no backend, got %v", err)
 	}
@@ -66,9 +66,9 @@ func TestMigratePlan_Deterministic(t *testing.T) {
 	plantEmbedding(t, db, "stale2", "gamma", 8)
 	eng := NewWithEmbedder(cfg, db, testEmbedder{model: "alpha", dim: 4})
 
-	first, _ := eng.MigratePlan()
+	first, _ := eng.MigratePlan("default")
 	for i := 0; i < 10; i++ {
-		again, _ := eng.MigratePlan()
+		again, _ := eng.MigratePlan("default")
 		if !reflect.DeepEqual(first, again) {
 			t.Fatalf("MigratePlan is not deterministic\nfirst=%+v\nagain =%+v", first, again)
 		}
@@ -87,7 +87,7 @@ func TestMigratePlan_EstimateAndBreakdown(t *testing.T) {
 	plantEmbedding(t, db, "stale2", "beta", 8)
 	eng := NewWithEmbedder(cfg, db, testEmbedder{model: "alpha", dim: 4}) // target = alpha
 
-	plan, _ := eng.MigratePlan()
+	plan, _ := eng.MigratePlan("default")
 	if plan.TargetModel != "alpha" {
 		t.Errorf("TargetModel = %q, want alpha", plan.TargetModel)
 	}
@@ -119,7 +119,7 @@ func TestMigratePlan_EstimateAndBreakdown(t *testing.T) {
 	db2, cfg2, cleanup2 := ingestUnder(t, testEmbedder{model: "alpha", dim: 4})
 	defer cleanup2()
 	eng2 := NewWithEmbedder(cfg2, db2, testEmbedder{model: "alpha", dim: 4})
-	clean, _ := eng2.MigratePlan()
+	clean, _ := eng2.MigratePlan("default")
 	if clean.StaleTotal != 0 {
 		t.Errorf("clean corpus StaleTotal = %d, want 0", clean.StaleTotal)
 	}
@@ -143,14 +143,14 @@ func TestMigratePlan_PreviewMatchesExecution(t *testing.T) {
 	eng := NewWithEmbedder(cfg, db, testEmbedder{model: "newmodel", dim: 4})
 	defer eng.Close() // drain async-after-ACK re-embedding before the deferred db.Close
 
-	before, _ := eng.MigratePlan()
+	before, _ := eng.MigratePlan("default")
 	if before.StaleTotal == 0 {
 		t.Fatal("preview must show stale work before a migrate (gate would proceed)")
 	}
 	staleBefore := before.StaleTotal
 
 	// Real migrate: re-embeds everything onto newmodel (testEmbedder, no network).
-	sum, err := eng.Migrate(context.Background())
+	sum, err := eng.Migrate(context.Background(), "default")
 	if err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestMigratePlan_PreviewMatchesExecution(t *testing.T) {
 	}
 
 	// After: every embedding is now newmodel → preview shows zero stale.
-	after, _ := eng.MigratePlan()
+	after, _ := eng.MigratePlan("default")
 	if after.StaleTotal != 0 {
 		t.Errorf("after migrate, StaleTotal = %d (was %d before); preview must show 0", after.StaleTotal, staleBefore)
 	}

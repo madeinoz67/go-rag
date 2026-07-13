@@ -53,7 +53,7 @@ func TestDrift_HardDrift_ModelMismatch(t *testing.T) {
 	}
 	e.cfg.EmbeddingModel = "mxbai-embed-large"
 
-	v := e.RefreshDriftVerdict(context.Background())
+	v := e.RefreshDriftVerdict(context.Background(), "default")
 	if v.Verdict != VerdictHardDrift || !v.Hard {
 		t.Fatalf("verdict=%q hard=%v, want hard-drift/true", v.Verdict, v.Hard)
 	}
@@ -61,7 +61,7 @@ func TestDrift_HardDrift_ModelMismatch(t *testing.T) {
 		t.Fatalf("hard drift must list reasons, got none")
 	}
 
-	h := e.Health(context.Background())
+	h := e.Health(context.Background(), "default")
 	if !h.OK {
 		t.Errorf("Health.OK = false, want true (liveness stays OK on drift)")
 	}
@@ -81,11 +81,11 @@ func TestDrift_HardDrift_DimMismatch(t *testing.T) {
 	if err := SaveBaseline(e.db, ws, &CorpusBaseline{Model: "fake", Dim: 768, Convention: ""}); err != nil {
 		t.Fatal(err)
 	}
-	v := e.RefreshDriftVerdict(context.Background())
+	v := e.RefreshDriftVerdict(context.Background(), "default")
 	if v.Verdict != VerdictHardDrift {
 		t.Fatalf("verdict=%q, want hard-drift (dim mismatch)", v.Verdict)
 	}
-	if e.Health(context.Background()).Ready {
+	if e.Health(context.Background(), "default").Ready {
 		t.Errorf("Ready=true on dim mismatch; want false")
 	}
 }
@@ -97,11 +97,11 @@ func TestDrift_Clean(t *testing.T) {
 	if err := SaveBaseline(e.db, ws, &CorpusBaseline{Model: "fake", Dim: 2, Convention: ""}); err != nil {
 		t.Fatal(err)
 	}
-	v := e.RefreshDriftVerdict(context.Background())
+	v := e.RefreshDriftVerdict(context.Background(), "default")
 	if v.Verdict != VerdictClean {
 		t.Fatalf("verdict=%q, want clean", v.Verdict)
 	}
-	h := e.Health(context.Background())
+	h := e.Health(context.Background(), "default")
 	if !h.OK || !h.Ready {
 		t.Fatalf("Health OK=%v Ready=%v, want both true (clean)", h.OK, h.Ready)
 	}
@@ -111,11 +111,11 @@ func TestDrift_Clean(t *testing.T) {
 // readiness stays ready (nothing to compare; liveness OK).
 func TestDrift_NoBaselineNA(t *testing.T) {
 	e := newDriftEngine(t, "")
-	v := e.RefreshDriftVerdict(context.Background())
+	v := e.RefreshDriftVerdict(context.Background(), "default")
 	if v.Verdict != VerdictNA {
 		t.Fatalf("verdict=%q, want n/a (no baseline)", v.Verdict)
 	}
-	h := e.Health(context.Background())
+	h := e.Health(context.Background(), "default")
 	if !h.Ready {
 		t.Errorf("Ready=false with no baseline; want true (nothing to compare)")
 	}
@@ -145,7 +145,7 @@ func TestDrift_VersionWarning(t *testing.T) {
 	if err := SaveBaseline(e.db, ws, &CorpusBaseline{Model: "fake", Dim: 2, Convention: "", OllamaVersion: "0.1.0"}); err != nil {
 		t.Fatal(err)
 	}
-	v := e.RefreshDriftVerdict(context.Background())
+	v := e.RefreshDriftVerdict(context.Background(), "default")
 	if v.Verdict != VerdictVersionWarning {
 		t.Fatalf("verdict=%q, want version-warning", v.Verdict)
 	}
@@ -155,7 +155,7 @@ func TestDrift_VersionWarning(t *testing.T) {
 	if v.LiveVersion != "0.5.0" || v.BaselineVersion != "0.1.0" {
 		t.Errorf("versions baseline=%q live=%q", v.BaselineVersion, v.LiveVersion)
 	}
-	h := e.Health(context.Background())
+	h := e.Health(context.Background(), "default")
 	if !h.Ready || !h.OK {
 		t.Errorf("Health Ready=%v OK=%v, want both true (soft drift serves)", h.Ready, h.OK)
 	}
@@ -170,11 +170,11 @@ func TestDrift_HardWinsOverVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.cfg.EmbeddingModel = "mxbai-embed-large" // model mismatch too
-	v := e.RefreshDriftVerdict(context.Background())
+	v := e.RefreshDriftVerdict(context.Background(), "default")
 	if v.Verdict != VerdictHardDrift || !v.Hard {
 		t.Fatalf("verdict=%q hard=%v, want hard-drift/true (hard wins over version)", v.Verdict, v.Hard)
 	}
-	if e.Health(context.Background()).Ready {
+	if e.Health(context.Background(), "default").Ready {
 		t.Errorf("Ready=true; want false (hard drift)")
 	}
 }
@@ -188,7 +188,7 @@ func TestDrift_OllamaUnreachable(t *testing.T) {
 	if err := SaveBaseline(e.db, ws, &CorpusBaseline{Model: "fake", Dim: 2, Convention: "", OllamaVersion: "0.1.0"}); err != nil {
 		t.Fatal(err)
 	}
-	v := e.RefreshDriftVerdict(context.Background()) // must not hang/error
+	v := e.RefreshDriftVerdict(context.Background(), "default") // must not hang/error
 	if v.LiveVersion != "unknown" {
 		t.Fatalf("LiveVersion=%q, want unknown (unreachable)", v.LiveVersion)
 	}
@@ -198,7 +198,7 @@ func TestDrift_OllamaUnreachable(t *testing.T) {
 	if v.Hard {
 		t.Errorf("Hard=true on unreachable; want false (model/convention match)")
 	}
-	if !e.Health(context.Background()).Ready {
+	if !e.Health(context.Background(), "default").Ready {
 		t.Errorf("Ready=false on unreachable; want true (not hard)")
 	}
 }
@@ -211,7 +211,7 @@ func TestDrift_OfflineEmbedderSkipsVersion(t *testing.T) {
 	if err := SaveBaseline(e.db, ws, &CorpusBaseline{Model: "fake", Dim: 2, Convention: "", OllamaVersion: "0.1.0"}); err != nil {
 		t.Fatal(err)
 	}
-	v := e.RefreshDriftVerdict(context.Background())
+	v := e.RefreshDriftVerdict(context.Background(), "default")
 	if v.LiveVersion != "" {
 		t.Fatalf("LiveVersion=%q, want \"\" (offline)", v.LiveVersion)
 	}

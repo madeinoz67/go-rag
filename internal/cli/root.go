@@ -29,15 +29,19 @@ by default; a local Ollama is optional for alternative embedding models.
 Full specification: PRD_RAG_Database.md`,
 	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-		dbPathChanged := cmd.Flags().Changed("db-path")
-		if vaultName != "" && !dbPathChanged {
-			// Explicit --vault: resolve to that vault's directory.
-			dbPath = vault.Path(vaultName)
-		} else if !dbPathChanged && vaultName == "" {
-			// Neither --vault nor --db-path: default to the default vault.
-			vault.EnsureDefault()
-			dbPath = vault.Path("default")
+		// Normalise: an unspecified --vault means "default" — used both to
+		// resolve dbPath and as the vault argument passed to every Engine
+		// method downstream (spec 052 multi-vault threading).
+		if vaultName == "" {
+			vaultName = "default"
 		}
+		if cmd.Flags().Changed("db-path") {
+			return nil // explicit --db-path wins; vaultName is still the logical name
+		}
+		if vaultName == "default" {
+			vault.EnsureDefault()
+		}
+		dbPath = vault.Path(vaultName)
 		return nil
 	},
 	RunE: func(_ *cobra.Command, _ []string) error {

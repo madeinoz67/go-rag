@@ -76,7 +76,7 @@ func decodeChunkPageToken(s string) (int, string, error) {
 // 50); page_token non-empty and malformed. An empty result is NOT an error
 // (unknown document_id, or a document with no chunks → empty Chunks + empty
 // token).
-func (e *Engine) ListChunks(documentID string, req ListChunksRequest) (*ListChunksResult, error) {
+func (e *Engine) ListChunks(vault, documentID string, req ListChunksRequest) (*ListChunksResult, error) {
 	// Validate document_id.
 	if strings.TrimSpace(documentID) == "" {
 		return nil, fmt.Errorf("document_id must be non-empty: %w", ErrInvalid)
@@ -101,7 +101,7 @@ func (e *Engine) ListChunks(documentID string, req ListChunksRequest) (*ListChun
 	}
 
 	// 1. Scan this vault's chunks (one range scan over 0x03|ws).
-	ws := e.db.ResolveVaultPrefix("default")
+	ws := e.db.ResolveVaultPrefix(vault)
 	cLower, cUpper, _ := keys.VaultKindRange(storage.PrefixChunk, ws)
 	var chunks []model.Chunk
 	_ = e.db.RangeScan(cLower, cUpper, func(_, val []byte) bool {
