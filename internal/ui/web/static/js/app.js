@@ -93,6 +93,8 @@
         this.selectedDoc = null;
         this.bridgeStats = null;
         this.bridgeActivity = [];
+        this.quarChunks = [];
+        this.quarSelected = null;
         this.switchView(this.currentView);
       },
 
@@ -249,6 +251,9 @@
         if (view === 'operations') {
           this.loadBridgeOps();
         }
+        if (view === 'quarantine') {
+          this.loadQuarantine();
+        }
       },
 
       // === Documents (spec 047 US1) =======================================
@@ -404,36 +409,63 @@
         this.confirmDialog.open = false;
       },
 
-      /** Execute the confirmed action (remove or reingest). Never proceeds
-       *  without an explicit confirm — the dialog is the gate. */
+      /** Execute the confirmed action (remove, reingest, or a quarantine op). Never
+       *  proceeds without an explicit confirm — the dialog is the gate. */
       doConfirm: async function () {
         var cd = this.confirmDialog;
-        var id = cd.targetId;
-        if (!id || !cd.open) return;
+        if (!cd.open) return;
         cd.busy = true;
         this.error = '';
         try {
-          if (cd.action === 'remove') {
-            var del = await this.api('/api/documents/' + encodeURIComponent(id), { method: 'DELETE' });
-            if (!del || del.status === 401) return;
-            if (del.status === 404) { this.error = 'Document not found (already removed?).'; }
-            else if (!del.ok && del.status !== 204) { this.error = 'Remove failed (HTTP ' + del.status + ').'; }
-          } else if (cd.action === 'reingest') {
-            var re = await this.api('/api/documents/' + encodeURIComponent(id) + '/reingest', { method: 'POST' });
-            if (!re || re.status === 401) return;
-            if (re.status === 404) {
-              var e = await re.json().catch(function () { return {}; });
-              this.error = e.error === 'source not found' ? 'Source file no longer exists.' : 'Document not found.';
-            } else if (!re.ok) {
-              this.error = 'Reingest failed (HTTP ' + re.status + ').';
+          // Vault-wide rescan has no target id.
+          if (cd.action === 'quar-rescan') {
+            var rsc = await this.api('/api/quarantine/rescan', { method: 'POST' });
+            if (!rsc || rsc.status === 401) return;
+            if (!rsc.ok && rsc.status !== 204) { this.error = 'Rescan failed (HTTP ' + rsc.status + ').'; }
+            this.quarScanning = false;
+          } else {
+            var id = cd.targetId;
+            if (!id) { this.confirmDialog.open = false; return; }
+            if (cd.action === 'remove') {
+              var del = await this.api('/api/documents/' + encodeURIComponent(id), { method: 'DELETE' });
+              if (!del || del.status === 401) return;
+              if (del.status === 404) { this.error = 'Document not found (already removed?).'; }
+              else if (!del.ok && del.status !== 204) { this.error = 'Remove failed (HTTP ' + del.status + ').'; }
+            } else if (cd.action === 'reingest') {
+              var re = await this.api('/api/documents/' + encodeURIComponent(id) + '/reingest', { method: 'POST' });
+              if (!re || re.status === 401) return;
+              if (re.status === 404) {
+                var reErr = await re.json().catch(function () { return {}; });
+                this.error = reErr.error === 'source not found' ? 'Source file no longer exists.' : 'Document not found.';
+              } else if (!re.ok) {
+                this.error = 'Reingest failed (HTTP ' + re.status + ').';
+              }
+            } else if (cd.action === 'quar-release') {
+              var rel = await this.api('/api/quarantine/' + encodeURIComponent(id) + '/release', { method: 'POST' });
+              if (!rel || rel.status === 401) return;
+              if (rel.status === 404) { this.error = 'Chunk not found (already released?).'; }
+              else if (!rel.ok && rel.status !== 204) { this.error = 'Release failed (HTTP ' + rel.status + ').'; }
+            } else if (cd.action === 'quar-reset') {
+              var rst = await this.api('/api/quarantine/' + encodeURIComponent(id) + '/reset', { method: 'POST' });
+              if (!rst || rst.status === 401) return;
+              if (rst.status === 404) { this.error = 'Chunk not found.'; }
+              else if (!rst.ok && rst.status !== 204) { this.error = 'Reset failed (HTTP ' + rst.status + ').'; }
             }
           }
           this.confirmDialog.open = false;
-          // If the open document was removed, drop back to the list before refresh.
+          // Drop a detail pane if its object was removed/released before refresh.
           if (cd.action === 'remove' && this.selectedDoc && this.selectedDoc.id === id) {
             this.closeDocument();
           }
-          await this.loadDocuments('');
+          if (cd.action === 'quar-release' && this.quarSelected && this.quarSelected.chunk_id === id) {
+            this.closeQuarChunk();
+          }
+          // Refresh the owning view's data.
+          if (cd.action === 'quar-release' || cd.action === 'quar-reset' || cd.action === 'quar-rescan') {
+            await this.loadQuarantine();
+          } else {
+            await this.loadDocuments('');
+          }
         } catch (_e) {
           this.error = 'Network error during ' + cd.action + '.';
         } finally {
@@ -854,6 +886,129 @@
       fmtTS: function (ts) {
         if (!ts) return '';
         return ts.replace('T', ' ').replace(/Z$/, '');
+      },
+
+      // === Quarantine (spec 053) ============================================
+      // The dedicated quarantine-management surface: list flagged chunks, inspect
+      // the verdict (per-signal scores + matched-phrase highlights), and
+      // release/reset/rescan with confirmation. Reuses the shared confirmDialog
+      // (doConfirm dispatches quar-release/quar-reset/quar-rescan). Read + confirmed-
+      // write; the active vault flows via the X-Go-Rag-Vault header api() pins on
+      // every call, so the list is isolated per vault (FR-005).
+      quarChunks: [],
+      quarLoading: false,
+      quarError: '',
+      quarSelected: null, // quarantineDetailDTO open in the detail pane (null = list)
+      quarScanning: false, // vault rescan in progress (UI hint until refresh)
+
+      /** GET /api/quarantine/list → {chunks, count}. Always 200 (empty = healthy). */
+      loadQuarantine: async function () {
+        this.quarError = '';
+        this.quarLoading = true;
+        try {
+          var res = await this.api('/api/quarantine/list');
+          if (!res || res.status === 401) return;
+          if (!res.ok) { this.quarError = 'Failed to load quarantine (HTTP ' + res.status + ').'; return; }
+          var data = await res.json();
+          this.quarChunks = (data && data.chunks) || [];
+        } catch (_e) {
+          this.quarError = 'Network error loading quarantine.';
+        } finally {
+          this.quarLoading = false;
+        }
+      },
+
+      /** Open a flagged chunk's detail: full text + verdict (US2). */
+      openQuarChunk: async function (chunkID) {
+        this.quarError = '';
+        this.quarSelected = null;
+        var res = await this.api('/api/quarantine/' + encodeURIComponent(chunkID) + '/detail');
+        if (!res || res.status === 401) return;
+        if (res.status === 404) { this.quarError = 'Chunk not found (released?).'; return; }
+        if (!res.ok) { this.quarError = 'Failed to load chunk detail (HTTP ' + res.status + ').'; return; }
+        this.quarSelected = await res.json();
+      },
+
+      /** Close the detail pane; return to the list. */
+      closeQuarChunk: function () {
+        this.quarSelected = null;
+      },
+
+      /** Confirm releasing a false positive (permanent override — sticky across
+       *  rescans; the chunk re-enters default retrieval). */
+      confirmQuarRelease: function (chunk, ev) {
+        if (ev) ev.stopPropagation();
+        this.confirmDialog = {
+          open: true,
+          title: 'Release flagged chunk',
+          message: 'Release this chunk back into the default query pool? This is a permanent false-positive override — it stays retrievable even after a rescan. The chunk text and its score are preserved.',
+          confirmLabel: 'Release',
+          danger: false,
+          busy: false,
+          action: 'quar-release',
+          targetId: chunk.chunk_id,
+          targetLabel: chunk.preview || '',
+        };
+      },
+
+      /** Confirm a reset (force re-scan — may restore quarantine). */
+      confirmQuarReset: function (chunk, ev) {
+        if (ev) ev.stopPropagation();
+        this.confirmDialog = {
+          open: true,
+          title: 'Reset chunk verdict',
+          message: 'Force a re-scan of this chunk? Its level is recomputed from the stored score under the current thresholds — it may be re-quarantined. Use this to undo a release.',
+          confirmLabel: 'Reset',
+          danger: false,
+          busy: false,
+          action: 'quar-reset',
+          targetId: chunk.chunk_id,
+          targetLabel: chunk.preview || '',
+        };
+      },
+
+      /** Confirm a vault-wide rescan (re-score every chunk; idempotent). */
+      confirmQuarRescan: function () {
+        this.confirmDialog = {
+          open: true,
+          title: 'Rescan vault',
+          message: 'Re-score every chunk in this vault under the current detector and thresholds? Unchanged verdicts are a no-op. The list refreshes when complete.',
+          confirmLabel: 'Rescan',
+          danger: false,
+          busy: false,
+          action: 'quar-rescan',
+          targetId: '',
+          targetLabel: '',
+        };
+      },
+
+      /** Render chunk content with matched phrases highlighted (US2). The verdict's
+       *  matched_phrases is a flat list (instruction-phrase hits — the model carries
+       *  no per-phrase signal tag), so a single highlight colour is used; the per-
+       *  signal breakdown renders alongside. HTML-escaped BEFORE marking, so chunk
+       *  text can never inject markup (safe under x-html). */
+      highlightPhrases: function (content, phrases) {
+        var s = String(content || '');
+        var esc = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        var list = (phrases || []).slice();
+        // Longest-first so a longer phrase wins over its substrings.
+        list.sort(function (a, b) { return String(b).length - String(a).length; });
+        for (var i = 0; i < list.length; i++) {
+          var p = String(list[i] || '').trim();
+          if (!p) continue;
+          var escP = p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          var re = new RegExp(escP.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+          esc = esc.replace(re, '<mark class="poison-mark">$&</mark>');
+        }
+        return esc;
+      },
+
+      /** Badge class for a poison level (quarantine=red, suspicious=amber, released=green). */
+      quarLevelBadge: function (level) {
+        if (level === 'quarantine') return 'badge-danger';
+        if (level === 'suspicious') return 'badge-warn';
+        if (level === 'released') return 'badge-success';
+        return '';
       },
 
       // === Token storage helpers ===========================================

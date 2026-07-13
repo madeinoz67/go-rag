@@ -82,6 +82,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/query", s.guard(s.handleQuery))                                         // spec 048
 	mux.HandleFunc("GET /api/bridge-ops/stats", s.guard(s.handleBridgeOpsStats))                      // spec 049
 	mux.HandleFunc("GET /api/bridge-ops/activity", s.guard(s.handleBridgeOpsActivity))                // spec 049
+	mux.HandleFunc("GET /api/quarantine/list", s.guard(s.handleQuarantineList))                       // spec 053 US1
+	mux.HandleFunc("GET /api/quarantine/{id}/detail", s.guard(s.handleQuarantineDetail))              // spec 053 US2
+	mux.HandleFunc("POST /api/quarantine/{id}/release", s.guard(s.handleQuarantineRelease))           // spec 053 US3
+	mux.HandleFunc("POST /api/quarantine/{id}/reset", s.guard(s.handleQuarantineReset))               // spec 053 US3
+	mux.HandleFunc("POST /api/quarantine/rescan", s.guard(s.handleQuarantineRescan))                  // spec 053 US3
 	mux.HandleFunc("GET /api/placeholder/{view}", s.guard(s.handlePlaceholder))
 	mux.HandleFunc("POST /logout", s.guard(s.handleLogout))
 	return mux

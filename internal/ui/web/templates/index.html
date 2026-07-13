@@ -150,6 +150,19 @@
 
         <button type="button"
                 class="nav-item"
+                :class="{ 'active': currentView === 'quarantine' }"
+                @click="switchView('quarantine')"
+                aria-label="Quarantine">
+          <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2L4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z"/>
+            <line x1="12" y1="8" x2="12" y2="12.5"/>
+            <circle cx="12" cy="15.8" r="0.9"/>
+          </svg>
+          <span class="nav-label">Quarantine</span>
+        </button>
+
+        <button type="button"
+                class="nav-item"
                 :class="{ 'active': currentView === 'vaults' }"
                 @click="switchView('vaults')"
                 aria-label="Vaults">
@@ -851,6 +864,104 @@
             <span class="doc-muted" x-show="bridgeStats && bridgeStats.watch.dirs.length === 0">(none configured)</span>
           </div>
         </div>
+      </section>
+
+      <!-- ====== QUARANTINE (spec 053 — real view: poisoning triage) ====== -->
+      <section x-show="currentView === 'quarantine'" class="view" x-cloak>
+
+        <!-- List: every flagged chunk with verdict + score (US1) -->
+        <div x-show="!quarSelected">
+          <header class="view-header">
+            <h1 class="page-title">Quarantine</h1>
+            <span class="badge badge-warn" x-show="!quarLoading" x-text="quarChunks.length + ' flagged'"></span>
+            <button type="button" class="btn" :disabled="quarLoading" @click="loadQuarantine()">Refresh</button>
+            <button type="button" class="btn" title="Re-score every chunk under the current thresholds"
+                    @click="confirmQuarRescan()">Rescan vault</button>
+          </header>
+
+          <p class="dashboard-empty" x-show="!quarLoading && quarChunks.length === 0">
+            No flagged chunks in this vault — the corpus is clean.
+          </p>
+          <p class="dashboard-empty" x-show="quarError" x-text="quarError"></p>
+
+          <div class="card" x-show="quarChunks.length > 0" x-cloak>
+            <table class="doc-table">
+              <thead>
+                <tr>
+                  <th>Document</th>
+                  <th>Preview</th>
+                  <th>Level</th>
+                  <th class="num">Score</th>
+                  <th class="doc-actions-col">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="c in quarChunks" :key="c.chunk_id">
+                  <tr @click="openQuarChunk(c.chunk_id)" class="doc-row">
+                    <td>
+                      <div class="doc-name" x-text="c.document_id"></div>
+                      <div class="doc-muted" x-text="c.chunk_id"></div>
+                    </td>
+                    <td><div class="doc-path" x-text="c.preview"></div></td>
+                    <td>
+                      <span class="badge" :class="quarLevelBadge(c.verdict.level)" x-text="c.verdict.level"></span>
+                    </td>
+                    <td class="num" x-text="fmtScore(c.verdict.score)"></td>
+                    <td class="doc-actions" @click.stop>
+                      <button type="button" class="btn btn-mini" title="Release: permanent false-positive override (stays retrievable)"
+                              @click="confirmQuarRelease(c, $event)">Release</button>
+                      <button type="button" class="btn btn-mini" title="Reset: force re-scan (may restore quarantine)"
+                              @click="confirmQuarReset(c, $event)">Reset</button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Detail: full text + matched-phrase highlights + signal breakdown (US2) -->
+        <div x-show="quarSelected" x-cloak>
+          <header class="view-header">
+            <button type="button" class="btn" @click="closeQuarChunk()">← Back to quarantine</button>
+            <h1 class="page-title">Flagged chunk</h1>
+          </header>
+
+          <div class="doc-meta">
+            <span><b>Document:</b> <span x-text="quarSelected ? quarSelected.document_name : ''"></span></span>
+            <span><b>Level:</b>
+              <span class="badge" :class="quarSelected ? quarLevelBadge(quarSelected.verdict.level) : ''"
+                    x-text="quarSelected ? quarSelected.verdict.level : ''"></span>
+            </span>
+            <span><b>Score:</b> <span x-text="quarSelected ? fmtScore(quarSelected.verdict.score) : ''"></span></span>
+          </div>
+
+          <h3 class="doc-section-title">Content <span class="doc-muted">(matched phrases highlighted)</span></h3>
+          <div class="doc-chunk-text"
+               x-html="quarSelected ? highlightPhrases(quarSelected.content, quarSelected.verdict.matched_phrases) : ''"></div>
+
+          <div class="query-provenance">
+            <h4 class="doc-section-title">Signal breakdown</h4>
+            <div class="doc-meta">
+              <span><b>Repetition:</b> <span x-text="quarSelected ? fmtScore(quarSelected.verdict.signals.repetition) : ''"></span></span>
+              <span><b>Stuffing:</b> <span x-text="quarSelected ? fmtScore(quarSelected.verdict.signals.stuffing) : ''"></span></span>
+              <span><b>Instruction:</b> <span x-text="quarSelected ? fmtScore(quarSelected.verdict.signals.instruction) : ''"></span></span>
+            </div>
+            <div class="doc-tags" x-show="quarSelected && quarSelected.verdict.matched_phrases && quarSelected.verdict.matched_phrases.length">
+              <template x-for="p in (quarSelected ? (quarSelected.verdict.matched_phrases || []) : [])" :key="p">
+                <span class="tag-chip" x-text="p"></span>
+              </template>
+            </div>
+          </div>
+
+          <div class="doc-actions">
+            <button type="button" class="btn" title="Release: permanent false-positive override"
+                    @click="confirmQuarRelease(quarSelected, $event)">Release</button>
+            <button type="button" class="btn" title="Reset: force re-scan"
+                    @click="confirmQuarReset(quarSelected, $event)">Reset</button>
+          </div>
+        </div>
+
       </section>
 
       <!-- ====== PLACEHOLDER VIEWS (later specs 050..053) ====== -->

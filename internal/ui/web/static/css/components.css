@@ -630,6 +630,11 @@
 .doc-chunk-head { display: flex; gap: var(--space-2, 0.5rem); align-items: baseline; margin-bottom: var(--space-1, 0.25rem); }
 .chunk-breadcrumb { font-size: 0.75rem; color: var(--text-muted, #9aa0a6); }
 .doc-chunk-text { font-size: 0.85rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word; color: var(--text-primary, #e6e6e6); }
+
+/* spec 053 — matched-phrase highlight in the Quarantine detail view. Amber
+ * stands out against the dark console theme; inherited text colour keeps it
+ * legible. (matched_phrases is a flat list — one colour, not per-signal.) */
+.poison-mark { background: rgba(245, 158, 11, 0.35); color: inherit; padding: 0 0.15em; border-radius: 0.2em; }
 .chunk-context { margin-top: var(--space-4, 1rem); padding-top: var(--space-3, 0.75rem); border-top: 1px solid var(--border, rgba(127,127,127,0.18)); }
 
 /* Search results (spec 047 US3) */
