@@ -591,6 +591,8 @@
 }
 .doc-table th.sortable { cursor: pointer; user-select: none; }
 .doc-table th.sortable:hover { color: var(--text-primary, #e6e6e6); }
+.doc-table th.sortable.active { color: var(--text-primary, #e6e6e6); font-weight: 600; }
+.doc-table th.sortable .sort-arrow { margin-left: 2px; font-size: 0.85em; opacity: 0.8; }
 .doc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .doc-name { font-weight: 600; color: var(--text-primary, #e6e6e6); word-break: break-all; }
 .doc-path { font-size: 0.78rem; color: var(--text-muted, #9aa0a6); word-break: break-all; }

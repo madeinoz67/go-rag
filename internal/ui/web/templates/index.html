@@ -345,12 +345,12 @@
           <table class="doc-table">
             <thead>
               <tr>
-                <th class="sortable" @click="setDocSort('file_name')">Name</th>
-                <th class="sortable" @click="setDocSort('status')">Status</th>
-                <th class="sortable num" @click="setDocSort('chunk_count')">Chunks</th>
-                <th class="sortable num" @click="setDocSort('file_size')">Size</th>
+                <th class="sortable" :class="{ active: docSortKey==='file_name' }" @click="setDocSort('file_name')">Name <span class="sort-arrow" x-show="docSortKey==='file_name'" x-text="docSortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="sortable" :class="{ active: docSortKey==='status' }" @click="setDocSort('status')">Status <span class="sort-arrow" x-show="docSortKey==='status'" x-text="docSortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="sortable num" :class="{ active: docSortKey==='chunk_count' }" @click="setDocSort('chunk_count')">Chunks <span class="sort-arrow" x-show="docSortKey==='chunk_count'" x-text="docSortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="sortable num" :class="{ active: docSortKey==='file_size' }" @click="setDocSort('file_size')">Size <span class="sort-arrow" x-show="docSortKey==='file_size'" x-text="docSortDir==='asc'?'↑':'↓'"></span></th>
                 <th>Tags</th>
-                <th class="sortable" @click="setDocSort('ingested_at')">Ingested</th>
+                <th class="sortable" :class="{ active: docSortKey==='ingested_at' }" @click="setDocSort('ingested_at')">Ingested <span class="sort-arrow" x-show="docSortKey==='ingested_at'" x-text="docSortDir==='asc'?'↑':'↓'"></span></th>
                 <th class="doc-actions-col">Actions</th>
               </tr>
             </thead>
