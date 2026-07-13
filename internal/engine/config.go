@@ -63,7 +63,8 @@ func (e *Engine) ListVaults() ([]VaultEntry, error) {
 	for _, n := range names {
 		docs := 0
 		if _, db, err := Open(vault.Path(n)); err == nil {
-			docs = countPrefix(db, storage.PrefixDocument)
+			ws := db.ResolveVaultPrefix("default")
+			docs = countPrefix(db, ws, storage.PrefixDocument)
 			db.Close()
 		}
 		out = append(out, VaultEntry{Name: n, Documents: docs})

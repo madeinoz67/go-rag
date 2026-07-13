@@ -1,6 +1,10 @@
 package storage
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
+)
 
 // EmbedQueueItem is the pending-embed work-queue record (spec 030, prefix 0x14).
 // Written atomically with the chunk (0x03) on ACK; removed when the embedding lands
@@ -17,21 +21,22 @@ const (
 	EmbedQueueFailed  = "failed"
 )
 
-// PutEmbedQueue enqueues a pending-embed record: key = chunkID, value = JSON item.
-func (d *DB) PutEmbedQueue(chunkID string, item []byte) error {
-	return d.SetWithPrefix(PrefixEmbedQueue, []byte(chunkID), item)
+// PutEmbedQueue enqueues a pending-embed record for one vault:
+// key = keys.EmbedQueueKey(ws, chunkID) (`0x14|ws|chunkID`), value = JSON item.
+func (d *DB) PutEmbedQueue(ws [8]byte, chunkID string, item []byte) error {
+	return d.Set(keys.EmbedQueueKey(ws, chunkID), item)
 }
 
 // PutEmbedQueueItem is a convenience that marshals the item before storing.
-func (d *DB) PutEmbedQueueItem(chunkID, model string) error {
+func (d *DB) PutEmbedQueueItem(ws [8]byte, chunkID, model string) error {
 	rec, _ := json.Marshal(EmbedQueueItem{Model: model, Status: EmbedQueuePending})
-	return d.PutEmbedQueue(chunkID, rec)
+	return d.PutEmbedQueue(ws, chunkID, rec)
 }
 
 // GetEmbedQueue reads a pending-embed record. ok=false if absent (already embedded
 // or never queued).
-func (d *DB) GetEmbedQueue(chunkID string) (item EmbedQueueItem, ok bool, err error) {
-	val, found, e := d.GetWithPrefix(PrefixEmbedQueue, []byte(chunkID))
+func (d *DB) GetEmbedQueue(ws [8]byte, chunkID string) (item EmbedQueueItem, ok bool, err error) {
+	val, found, e := d.Get(keys.EmbedQueueKey(ws, chunkID))
 	if !found || e != nil {
 		return EmbedQueueItem{}, false, e
 	}
@@ -42,25 +47,31 @@ func (d *DB) GetEmbedQueue(chunkID string) (item EmbedQueueItem, ok bool, err er
 }
 
 // DeleteEmbedQueue removes a pending-embed record (called after the embedding lands).
-func (d *DB) DeleteEmbedQueue(chunkID string) error {
-	return d.DeleteWithPrefix(PrefixEmbedQueue, []byte(chunkID))
+func (d *DB) DeleteEmbedQueue(ws [8]byte, chunkID string) error {
+	return d.Delete(keys.EmbedQueueKey(ws, chunkID))
 }
 
-// ScanEmbedQueue iterates the pending-embed queue, invoking fn(chunkID, item) per
-// entry. Iteration stops if fn returns false.
-func (d *DB) ScanEmbedQueue(fn func(chunkID string, item EmbedQueueItem) bool) error {
-	return d.PrefixScanByte(PrefixEmbedQueue, func(key, val []byte) bool {
+// ScanEmbedQueue iterates ONE vault's pending-embed queue, invoking fn(chunkID, item)
+// per entry. Iteration stops if fn returns false. Bounds come from
+// keys.VaultKindRange so the scan never crosses into another vault's queue.
+func (d *DB) ScanEmbedQueue(ws [8]byte, fn func(chunkID string, item EmbedQueueItem) bool) error {
+	lower, upper, err := keys.VaultKindRange(PrefixEmbedQueue, ws)
+	if err != nil {
+		return err
+	}
+	return d.RangeScan(lower, upper, func(key, val []byte) bool {
 		var item EmbedQueueItem
 		if json.Unmarshal(val, &item) != nil {
 			return true // skip unparseable
 		}
-		return fn(string(key[1:]), item) // strip prefix byte
+		return fn(string(key[9:]), item) // strip `kind|ws` (1+8 bytes)
 	})
 }
 
-// CountEmbedQueue counts pending-embed records (the backlog — surfaced in status).
-func (d *DB) CountEmbedQueue() int {
+// CountEmbedQueue counts ONE vault's pending-embed records (the backlog — surfaced
+// in status).
+func (d *DB) CountEmbedQueue(ws [8]byte) int {
 	n := 0
-	_ = d.ScanEmbedQueue(func(_ string, _ EmbedQueueItem) bool { n++; return true })
+	_ = d.ScanEmbedQueue(ws, func(_ string, _ EmbedQueueItem) bool { n++; return true })
 	return n
 }

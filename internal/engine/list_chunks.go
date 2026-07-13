@@ -10,6 +10,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // list_chunks.go implements spec 047 (Slice 1): ListChunks — a paginated listing
@@ -99,9 +100,11 @@ func (e *Engine) ListChunks(documentID string, req ListChunksRequest) (*ListChun
 		resumeIdx, resumeID = idx, id
 	}
 
-	// 1. Scan this document's chunks (one PrefixScan over prefix 0x03).
+	// 1. Scan this vault's chunks (one range scan over 0x03|ws).
+	ws := e.db.ResolveVaultPrefix("default")
+	cLower, cUpper, _ := keys.VaultKindRange(storage.PrefixChunk, ws)
 	var chunks []model.Chunk
-	_ = e.db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
+	_ = e.db.RangeScan(cLower, cUpper, func(_, val []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(val, &c) == nil && c.DocumentID == documentID {
 			chunks = append(chunks, c)

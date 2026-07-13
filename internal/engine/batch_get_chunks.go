@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/model"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // batch_get_chunks.go implements spec 038 (bridge backlog BL-003): BatchGetChunks
@@ -76,6 +76,7 @@ type BatchResult struct {
 // (chunk present, parent document absent) is not an error: the chunk is returned
 // with a zero-valued Document/Source.
 func (e *Engine) BatchGetChunks(chunkIDs []string) (*BatchResult, error) {
+	ws := e.db.ResolveVaultPrefix("default")
 	if len(chunkIDs) == 0 {
 		return nil, fmt.Errorf("chunk_ids is required: %w", ErrInvalid)
 	}
@@ -90,7 +91,7 @@ func (e *Engine) BatchGetChunks(chunkIDs []string) (*BatchResult, error) {
 
 	results := make([]BatchItem, 0, len(chunkIDs))
 	for _, id := range chunkIDs {
-		c, ok := lookupChunk(e.db, id)
+		c, ok := lookupChunk(e.db, ws, id)
 		if !ok {
 			results = append(results, BatchItem{ChunkID: id, Err: "not found"})
 			continue
@@ -98,9 +99,9 @@ func (e *Engine) BatchGetChunks(chunkIDs []string) (*BatchResult, error) {
 		item := BatchItem{ChunkID: id, Chunk: c}
 		// Parent document + source — tolerant of an orphan chunk (zero-valued,
 		// not an error). Mirrors GetChunk (spec 035).
-		if d, ok := lookupDoc(e.db, c.DocumentID); ok {
+		if d, ok := lookupDoc(e.db, ws, c.DocumentID); ok {
 			item.Document = d
-			if raw, ok, _ := e.db.GetWithPrefix(storage.PrefixSource, []byte(d.SourceID)); ok {
+			if raw, ok, _ := e.db.Get(keys.SourceKey(ws, d.SourceID)); ok {
 				_ = json.Unmarshal(raw, &item.Source)
 			}
 		}

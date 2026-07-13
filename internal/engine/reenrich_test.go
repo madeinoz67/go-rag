@@ -7,14 +7,20 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // reFirstDoc reads the (single) stored document (test helper).
 func reFirstDoc(t *testing.T, db *storage.DB) model.Document {
 	t.Helper()
+	ws := defaultWS(db)
 	var d model.Document
 	found := false
-	_ = db.PrefixScanByte(storage.PrefixDocument, func(_ []byte, val []byte) bool {
+	lo, hi, err := keys.VaultKindRange(storage.PrefixDocument, ws)
+	if err != nil {
+		t.Fatalf("document range: %v", err)
+	}
+	_ = db.RangeScan(lo, hi, func(_ []byte, val []byte) bool {
 		if json.Unmarshal(val, &d) == nil {
 			found = true
 			return false
@@ -30,7 +36,8 @@ func reFirstDoc(t *testing.T, db *storage.DB) model.Document {
 // reSetEnrichment plants an EnrichInfo sidecar on the stored document (test helper).
 func reSetEnrichment(t *testing.T, db *storage.DB, docID string, info *model.EnrichInfo) {
 	t.Helper()
-	raw, ok, _ := db.GetWithPrefix(storage.PrefixDocument, []byte(docID))
+	ws := defaultWS(db)
+	raw, ok, _ := db.Get(keys.DocumentKey(ws, docID))
 	if !ok {
 		t.Fatal("doc not found")
 	}
@@ -40,7 +47,7 @@ func reSetEnrichment(t *testing.T, db *storage.DB, docID string, info *model.Enr
 	}
 	d.Enrichment = info
 	dj, _ := json.Marshal(d)
-	_ = db.SetWithPrefix(storage.PrefixDocument, []byte(docID), dj)
+	_ = db.Set(keys.DocumentKey(ws, docID), dj)
 }
 
 // TestReEnrich_DisabledIsNoop (spec 029, US3 back-fill): with enrichment off,

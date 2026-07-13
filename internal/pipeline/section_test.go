@@ -128,14 +128,15 @@ func TestIngest_SectionContext_Attached(t *testing.T) {
 		"# Operations\n## Backups\nRetention keeps 30 days of incremental backups nightly.\n")
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
-	r, _ := p.Ingest(context.Background(), dir, "*")
+	r, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if r.New != 1 {
 		t.Fatalf("want 1 new doc, got %+v", r)
 	}
 
 	var chunks []model.Chunk
-	_ = p.db.PrefixScanByte(storage.PrefixChunk, func(_, v []byte) bool {
+	scanVaultKind(t, p.db, storage.PrefixChunk, ws, func(_, v []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(v, &c) == nil {
 			chunks = append(chunks, c)
@@ -162,16 +163,17 @@ func TestIngest_SectionContext_IdempotentReAdd(t *testing.T) {
 		"# Operations\n## Backups\nRetention keeps 30 days of incremental backups nightly.\n")
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
-	r1, _ := p.Ingest(context.Background(), dir, "*")
+	r1, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if r1.New != 1 {
 		t.Fatalf("first ingest: %+v", r1)
 	}
-	r2, _ := p.Ingest(context.Background(), dir, "*")
+	r2, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if r2.New != 0 || r2.Skipped != 1 {
 		t.Fatalf("re-add must be a no-op (skipped): got %+v", r2)
 	}
-	if n := p.CountDocuments(); n != 1 {
+	if n := p.CountDocuments(ws); n != 1 {
 		t.Errorf("want 1 document after re-add, got %d", n)
 	}
 }
@@ -187,13 +189,14 @@ func TestIngest_SectionContext_HeadinglessAbsent(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "code.md"), "```sh\necho hello world\n# not a heading inside a fence\n```\n")
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
-	r, _ := p.Ingest(context.Background(), dir, "*")
+	r, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if r.New != 2 {
 		t.Fatalf("want 2 new docs, got %+v", r)
 	}
 	var saw int
-	_ = p.db.PrefixScanByte(storage.PrefixChunk, func(_, v []byte) bool {
+	scanVaultKind(t, p.db, storage.PrefixChunk, ws, func(_, v []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(v, &c) == nil {
 			saw++
@@ -217,8 +220,9 @@ func TestIngest_SectionContext_ReprocessBackfill(t *testing.T) {
 		"# Operations\n## Backups\nRetention keeps thirty days of incremental backups nightly.\n")
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
-	if _, err := p.Ingest(context.Background(), dir, "*"); err != nil {
+	if _, err := p.Ingest(context.Background(), ws, dir, "*"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := p.Reprocess(context.Background(), dir, "*"); err != nil {
@@ -226,7 +230,7 @@ func TestIngest_SectionContext_ReprocessBackfill(t *testing.T) {
 	}
 	var got []string
 	var count int
-	_ = p.db.PrefixScanByte(storage.PrefixChunk, func(_, v []byte) bool {
+	scanVaultKind(t, p.db, storage.PrefixChunk, ws, func(_, v []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(v, &c) == nil {
 			count++

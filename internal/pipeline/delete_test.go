@@ -17,8 +17,9 @@ import (
 // not IDs). Used by the delete-event tests to target DeleteDoc.
 func docIDForPath(t *testing.T, p *Pipeline, filePath string) string {
 	t.Helper()
+	ws := wsOf(p)
 	var found string
-	_ = p.db.PrefixScanByte(storage.PrefixDocument, func(_ []byte, val []byte) bool {
+	scanVaultKind(t, p.db, storage.PrefixDocument, ws, func(_ []byte, val []byte) bool {
 		var d model.Document
 		if json.Unmarshal(val, &d) == nil && d.FilePath == filePath {
 			found = d.ID
@@ -63,6 +64,7 @@ func recvOrTimeout(t *testing.T, ch <-chan events.DocumentEvent, timeout time.Du
 func TestDeleteDoc_PublishesDeletedEvent(t *testing.T) {
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
 	// Mirror the engine's wiring (pipeline(): e.pipe.OnEvent = e.bus.Publish).
 	bus := events.New()
@@ -74,7 +76,7 @@ func TestDeleteDoc_PublishesDeletedEvent(t *testing.T) {
 	path := filepath.Join(dir, "delete-me.txt")
 	writeFile(t, path, "the watcher removes this file and the bus must report it as deleted")
 
-	if _, err := p.Ingest(context.Background(), dir, "*"); err != nil {
+	if _, err := p.Ingest(context.Background(), ws, dir, "*"); err != nil {
 		t.Fatalf("Ingest: %v", err)
 	}
 	docID := docIDForPath(t, p, path)

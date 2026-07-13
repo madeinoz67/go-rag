@@ -8,6 +8,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +32,9 @@ func newFilesCmd() *cobra.Command {
 			defer db.Close()
 
 			var entries []fileEntry
-			_ = db.PrefixScanByte(storage.PrefixDocument, func(_, val []byte) bool {
+			ws := db.ResolveVaultPrefix("default") // spec 052: default vault
+			fLo, fHi, _ := keys.VaultKindRange(storage.PrefixDocument, ws)
+			_ = db.RangeScan(fLo, fHi, func(_, val []byte) bool {
 				var d model.Document
 				if json.Unmarshal(val, &d) == nil {
 					entries = append(entries, fileEntry{Path: d.FilePath, Type: d.FileType, Status: d.Status, Chunks: d.ChunkCount})

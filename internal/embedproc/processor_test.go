@@ -12,6 +12,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // fakeEmbedder returns deterministic vectors and records call count + texts-per-call.
@@ -56,9 +57,10 @@ func openTestDB(t *testing.T) *storage.DB {
 
 func seedChunk(t *testing.T, db *storage.DB, id, text string) {
 	t.Helper()
+	ws := db.ResolveVaultPrefix("default")
 	cj, _ := json.Marshal(model.Chunk{ID: id, Content: text})
-	_ = db.SetWithPrefix(storage.PrefixChunk, []byte(id), cj)
-	_ = db.PutEmbedQueueItem(id, "fake")
+	_ = db.Set(keys.ChunkKey(ws, id), cj)
+	_ = db.PutEmbedQueueItem(ws, id, "fake")
 }
 
 // TestProcessor_CrashRecovery (spec 030, US1 / SC-001): a chunk with a pending
@@ -66,6 +68,7 @@ func seedChunk(t *testing.T, db *storage.DB, id, text string) {
 // recovered by the embedder's initial scan on Start.
 func TestProcessor_CrashRecovery(t *testing.T) {
 	db := openTestDB(t)
+	ws := db.ResolveVaultPrefix("default")
 	em := &fakeEmbedder{}
 	vec := index.NewVector()
 	seedChunk(t, db, "chunk1", "alpha beta gamma delta epsilon")
@@ -79,10 +82,10 @@ func TestProcessor_CrashRecovery(t *testing.T) {
 	if em.calls == 0 {
 		t.Fatal("embedder never called — crash recovery failed")
 	}
-	if _, ok, _ := db.GetWithPrefix(storage.PrefixEmbedding, []byte("chunk1")); !ok {
+	if _, ok, _ := db.Get(keys.EmbeddingKey(ws, "chunk1")); !ok {
 		t.Error("expected 0x04 embedding record after recovery")
 	}
-	if q, ok, _ := db.GetEmbedQueue("chunk1"); ok && q.Status == storage.EmbedQueuePending {
+	if q, ok, _ := db.GetEmbedQueue(ws, "chunk1"); ok && q.Status == storage.EmbedQueuePending {
 		t.Error("0x14 should have been removed after embedding")
 	}
 }
@@ -116,6 +119,7 @@ func TestProcessor_StopBoundedWhenDrainStuck(t *testing.T) {
 // embedded chunk is harmless — the queue record is removed again.
 func TestProcessor_IdempotentReEmbed(t *testing.T) {
 	db := openTestDB(t)
+	ws := db.ResolveVaultPrefix("default")
 	em := &fakeEmbedder{}
 	vec := index.NewVector()
 	seedChunk(t, db, "chunk1", "alpha beta gamma")
@@ -129,14 +133,14 @@ func TestProcessor_IdempotentReEmbed(t *testing.T) {
 		t.Fatalf("expected 1 embed call, got %d", em.calls)
 	}
 
-	_ = db.PutEmbedQueueItem("chunk1", "fake")
+	_ = db.PutEmbedQueueItem(ws, "chunk1", "fake")
 	p2 := New(db, em, nil, vec, nil)
 	p2.Start(context.Background())
 	defer p2.Stop()
 	time.Sleep(150 * time.Millisecond)
 	p2.Stop()
 
-	if q, ok, _ := db.GetEmbedQueue("chunk1"); ok && q.Status == storage.EmbedQueuePending {
+	if q, ok, _ := db.GetEmbedQueue(ws, "chunk1"); ok && q.Status == storage.EmbedQueuePending {
 		t.Error("0x14 should have been removed after the second embed")
 	}
 }
@@ -145,6 +149,7 @@ func TestProcessor_IdempotentReEmbed(t *testing.T) {
 // embed in 4 calls (⌈100/32⌉), not 100.
 func TestProcessor_CrossDocBatching(t *testing.T) {
 	db := openTestDB(t)
+	ws := db.ResolveVaultPrefix("default")
 	em := &fakeEmbedder{}
 	vec := index.NewVector()
 	for i := 0; i < 100; i++ {
@@ -163,7 +168,7 @@ func TestProcessor_CrossDocBatching(t *testing.T) {
 	if calls != 4 {
 		t.Errorf("expected 4 embed calls (⌈100/32⌉), got %d", calls)
 	}
-	if pending := db.CountEmbedQueue(); pending != 0 {
+	if pending := db.CountEmbedQueue(ws); pending != 0 {
 		t.Errorf("expected 0 pending after drain, got %d", pending)
 	}
 }
@@ -172,6 +177,7 @@ func TestProcessor_CrossDocBatching(t *testing.T) {
 // embedder opens the circuit; pending chunks stay pending (transient, not failed).
 func TestProcessor_CircuitBreaker(t *testing.T) {
 	db := openTestDB(t)
+	ws := db.ResolveVaultPrefix("default")
 	vec := index.NewVector()
 	for i := 0; i < 10; i++ {
 		seedChunk(t, db, "f"+strconv.Itoa(i), "text "+strconv.Itoa(i))
@@ -183,7 +189,7 @@ func TestProcessor_CircuitBreaker(t *testing.T) {
 	time.Sleep(400 * time.Millisecond)
 	p.Stop()
 
-	if pending := db.CountEmbedQueue(); pending != 10 {
+	if pending := db.CountEmbedQueue(ws); pending != 10 {
 		t.Errorf("expected 10 pending (transient failures stay pending), got %d", pending)
 	}
 }

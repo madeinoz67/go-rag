@@ -7,7 +7,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/events"
 	"github.com/madeinoz67/go-rag/internal/model"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // reingest.go threads the OLD chunk set + their PrefixEmbedding records from
@@ -25,11 +25,11 @@ type reingestCapture struct {
 // captureReingest stores the old chunks + embeddings for a path before
 // DeleteDoc. Called by Reprocess/ReprocessAll + ReingestPath; consumed by
 // processFile via takeReingest.
-func (p *Pipeline) captureReingest(path, docID string) {
-	chunks := p.chunksOfDoc(docID)
+func (p *Pipeline) captureReingest(ws [8]byte, path, docID string) {
+	chunks := p.chunksOfDoc(ws, docID)
 	embeds := map[string][]byte{}
 	for _, c := range chunks {
-		if raw, ok, _ := p.db.GetWithPrefix(storage.PrefixEmbedding, []byte(c.ID)); ok {
+		if raw, ok, _ := p.db.Get(keys.EmbeddingKey(ws, c.ID)); ok {
 			embeds[c.ID] = raw
 		}
 	}
@@ -59,13 +59,14 @@ func (p *Pipeline) takeReingest(path string) (reingestCapture, bool) {
 // re-ingests — the single-file re-ingest path (spec 043 / BL-010). Used by the
 // watcher for MODIFIED files.
 func (p *Pipeline) ReingestPath(ctx context.Context, path, docID string) error {
+	ws := p.db.ResolveVaultPrefix("default")
 	unlock := p.docLock(docID) // spec 044: serialize the full capture+delete+ingest critical section
 	defer unlock()
-	p.captureReingest(path, docID)
-	if err := p.deleteDocLocked(docID); err != nil { // already holding the docLock
+	p.captureReingest(ws, path, docID)
+	if err := p.deleteDocLocked(ws, docID); err != nil { // already holding the docLock
 		return err
 	}
-	_, err := p.Ingest(ctx, path, "*")
+	_, err := p.Ingest(ctx, ws, path, "*")
 	return err
 }
 
@@ -74,7 +75,7 @@ func (p *Pipeline) ReingestPath(ctx context.Context, path, docID string) error {
 // / BL-010 US2, T013+T014). The embedder (T015) finds the copied record →
 // vec.Add + skip the Ollama call. If the model drifted or there's no old
 // embedding, the chunk is left for normal embedding.
-func (p *Pipeline) preserveEmbeds(oldEmbeds map[string][]byte, remap map[string]string) {
+func (p *Pipeline) preserveEmbeds(ws [8]byte, oldEmbeds map[string][]byte, remap map[string]string) {
 	curModel := ""
 	if p.embed != nil {
 		curModel = p.embed.Model()
@@ -90,7 +91,7 @@ func (p *Pipeline) preserveEmbeds(oldEmbeds map[string][]byte, remap map[string]
 			continue // model drifted → normal embed
 		}
 		// Copy the PrefixEmbedding record (includes the vector JSON) to the new cid.
-		_ = p.db.SetWithPrefix(storage.PrefixEmbedding, []byte(newCID), raw)
+		_ = p.db.Set(keys.EmbeddingKey(ws, newCID), raw)
 	}
 }
 

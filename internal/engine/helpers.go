@@ -9,6 +9,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 	"github.com/madeinoz67/go-rag/internal/storage/migrate"
 )
 
@@ -34,30 +35,39 @@ func Open(base string) (config.Config, *storage.DB, error) {
 	return cfg, db, nil
 }
 
-// countPrefix returns the number of keys under a single-byte prefix.
-func countPrefix(db *storage.DB, prefix byte) int {
+// countPrefix returns the number of keys under one vault-kind range
+// (`prefix|ws` ≤ key < `prefix|wsPlus`). Spec 052: vault-scoped, never crosses
+// vaults.
+func countPrefix(db *storage.DB, ws [8]byte, prefix byte) int {
+	lower, upper, err := keys.VaultKindRange(prefix, ws)
+	if err != nil {
+		return 0
+	}
 	n := 0
-	_ = db.PrefixScanByte(prefix, func(_, _ []byte) bool { n++; return true })
+	_ = db.RangeScan(lower, upper, func(_, _ []byte) bool { n++; return true })
 	return n
 }
 
-// docOf builds a chunkID -> documentID map from persisted chunks, used to
-// collapse retrieval hits to one per document.
-func docOf(db *storage.DB) func(string) string {
+// docOf builds a chunkID -> documentID map from ONE vault's persisted chunks,
+// used to collapse retrieval hits to one per document.
+func docOf(db *storage.DB, ws [8]byte) func(string) string {
 	m := map[string]string{}
-	_ = db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
-		var c model.Chunk
-		if json.Unmarshal(val, &c) == nil {
-			m[c.ID] = c.DocumentID
-		}
-		return true
-	})
+	lower, upper, err := keys.VaultKindRange(storage.PrefixChunk, ws)
+	if err == nil {
+		_ = db.RangeScan(lower, upper, func(_, val []byte) bool {
+			var c model.Chunk
+			if json.Unmarshal(val, &c) == nil {
+				m[c.ID] = c.DocumentID
+			}
+			return true
+		})
+	}
 	return func(id string) string { return m[id] }
 }
 
-// lookupChunk returns a stored Chunk by ID.
-func lookupChunk(db *storage.DB, chunkID string) (model.Chunk, bool) {
-	raw, ok, _ := db.GetWithPrefix(storage.PrefixChunk, []byte(chunkID))
+// lookupChunk returns a stored Chunk by ID within one vault.
+func lookupChunk(db *storage.DB, ws [8]byte, chunkID string) (model.Chunk, bool) {
+	raw, ok, _ := db.Get(keys.ChunkKey(ws, chunkID))
 	if !ok {
 		return model.Chunk{}, false
 	}
@@ -68,9 +78,9 @@ func lookupChunk(db *storage.DB, chunkID string) (model.Chunk, bool) {
 	return c, true
 }
 
-// lookupDoc returns a stored Document by ID.
-func lookupDoc(db *storage.DB, docID string) (model.Document, bool) {
-	raw, ok, _ := db.GetWithPrefix(storage.PrefixDocument, []byte(docID))
+// lookupDoc returns a stored Document by ID within one vault.
+func lookupDoc(db *storage.DB, ws [8]byte, docID string) (model.Document, bool) {
+	raw, ok, _ := db.Get(keys.DocumentKey(ws, docID))
 	if !ok {
 		return model.Document{}, false
 	}

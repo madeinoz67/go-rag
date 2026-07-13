@@ -10,6 +10,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // batchFlakyEmbedder simulates the spec-032 failure mode: the whole-batch Embed
@@ -57,6 +58,7 @@ func (alwaysFailEmbedder) Model() string   { return "down" }
 // re-entering the retry set. Critically, the poison text does NOT kill the good ones.
 func TestProcessor_PerTextIsolation_MarksPoisonTerminal(t *testing.T) {
 	db := openTestDB(t)
+	ws := db.ResolveVaultPrefix("default")
 	em := &batchFlakyEmbedder{poison: "POISON"}
 	vec := index.NewVector()
 	seedChunk(t, db, "good1", "good text one")
@@ -82,15 +84,15 @@ func TestProcessor_PerTextIsolation_MarksPoisonTerminal(t *testing.T) {
 
 	// good1 + good2 must have embedding records (0x04) + be dequeued.
 	for _, id := range []string{"good1", "good2"} {
-		if _, ok, _ := db.GetWithPrefix(storage.PrefixEmbedding, []byte(id)); !ok {
+		if _, ok, _ := db.Get(keys.EmbeddingKey(ws, id)); !ok {
 			t.Errorf("good chunk %q should have an embedding after isolation", id)
 		}
-		if q, ok, _ := db.GetEmbedQueue(id); ok && q.Status == storage.EmbedQueuePending {
+		if q, ok, _ := db.GetEmbedQueue(ws, id); ok && q.Status == storage.EmbedQueuePending {
 			t.Errorf("good chunk %q should have been dequeued (still pending)", id)
 		}
 	}
 	// poison must be marked terminal (EmbedQueueFailed) — NOT pending, NOT dequeued.
-	q, ok, _ := db.GetEmbedQueue("poison")
+	q, ok, _ := db.GetEmbedQueue(ws, "poison")
 	if !ok {
 		t.Error("poison queue record should still exist (marked terminal, not deleted)")
 	} else if q.Status != storage.EmbedQueueFailed {
@@ -106,6 +108,7 @@ func TestProcessor_PerTextIsolation_MarksPoisonTerminal(t *testing.T) {
 // stay pending so the next tick retries them once the embedder recovers.
 func TestProcessor_PerTextIsolation_AllFailStaysPending(t *testing.T) {
 	db := openTestDB(t)
+	ws := db.ResolveVaultPrefix("default")
 	vec := index.NewVector()
 	for i := 0; i < 3; i++ {
 		seedChunk(t, db, "c"+strconv.Itoa(i), "text "+strconv.Itoa(i))
@@ -118,7 +121,7 @@ func TestProcessor_PerTextIsolation_AllFailStaysPending(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		id := "c" + strconv.Itoa(i)
-		q, ok, _ := db.GetEmbedQueue(id)
+		q, ok, _ := db.GetEmbedQueue(ws, id)
 		if !ok {
 			t.Errorf("chunk %q queue record vanished — must stay pending on embedder-wide failure", id)
 			continue

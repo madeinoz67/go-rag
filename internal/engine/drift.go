@@ -81,6 +81,7 @@ func (e *Engine) CachedLiveVersion() string {
 // US3 adds first-boot backfill. With no baseline (empty corpus, or a pre-H11
 // corpus before backfill lands) the verdict is n/a — nothing to compare.
 func (e *Engine) computeDriftVerdict(ctx context.Context) DriftVerdict {
+	ws := e.db.ResolveVaultPrefix("default")
 	v := DriftVerdict{Verdict: VerdictNA, ConfiguredModel: e.cfg.EmbeddingModel}
 	if pre := e.cfg.Prefixer(); pre != nil {
 		v.LiveConvention = pre.Convention()
@@ -93,20 +94,20 @@ func (e *Engine) computeDriftVerdict(ctx context.Context) DriftVerdict {
 	// unreachable — both cause the version comparison to be skipped.
 	v.LiveVersion = ollamaVersion(ctx, e.cfg.OllamaURL)
 
-	base, ok := LoadBaseline(e.db)
+	base, ok := LoadBaseline(e.db, ws)
 	if !ok {
 		// US3: backfill a baseline for a pre-H11 corpus (embeddings present, no
 		// baseline yet) from the stored majority profile + the live Ollama
 		// version — no re-ingestion (FR-007). An empty corpus has nothing to
 		// backfill, so the verdict stays n/a.
-		if prof := CorpusProfile(e.db); prof.Total > 0 {
+		if prof := CorpusProfile(ws, e.db); prof.Total > 0 {
 			base = &CorpusBaseline{
 				Model:         prof.MajorityModel,
 				Dim:           prof.MajorityDim,
 				Convention:    prof.MajorityConvention,
 				OllamaVersion: v.LiveVersion,
 			}
-			if err := SaveBaseline(e.db, base); err != nil {
+			if err := SaveBaseline(e.db, ws, base); err != nil {
 				return v // couldn't persist; n/a rather than crash
 			}
 		} else {

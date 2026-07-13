@@ -7,7 +7,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/model"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // documents_detail_test.go (package ui) proves spec 047 US2: the detail header
@@ -17,6 +17,7 @@ import (
 // prev/next neighbours assuming a 0..total-1 sequence (so GetChunkContext can walk).
 func putUIChunk(t *testing.T, eng *engine.Engine, docID string, idx, total int) {
 	t.Helper()
+	ws := eng.DB().ResolveVaultPrefix("default")
 	c := model.Chunk{
 		ID:          docID + "#" + strconvItoa(idx),
 		DocumentID:  docID,
@@ -34,7 +35,7 @@ func putUIChunk(t *testing.T, eng *engine.Engine, docID string, idx, total int) 
 	if err != nil {
 		t.Fatalf("marshal chunk: %v", err)
 	}
-	if err := eng.DB().SetWithPrefix(storage.PrefixChunk, []byte(c.ID), raw); err != nil {
+	if err := eng.DB().Set(keys.ChunkKey(ws, c.ID), raw); err != nil {
 		t.Fatalf("putUIChunk: %v", err)
 	}
 }
@@ -44,16 +45,17 @@ func putUIChunk(t *testing.T, eng *engine.Engine, docID string, idx, total int) 
 // total can be checked against chunk_count.
 func putUIDocDetail(t *testing.T, eng *engine.Engine, id, sourceID, sourcePath string, chunkCount int, enriched bool) {
 	t.Helper()
-	put := func(prefix byte, key string, v any) {
+	ws := eng.DB().ResolveVaultPrefix("default")
+	put := func(key []byte, v any) {
 		raw, err := json.Marshal(v)
 		if err != nil {
 			t.Fatalf("marshal: %v", err)
 		}
-		if err := eng.DB().SetWithPrefix(prefix, []byte(key), raw); err != nil {
+		if err := eng.DB().Set(key, raw); err != nil {
 			t.Fatalf("put: %v", err)
 		}
 	}
-	put(storage.PrefixSource, sourceID, model.Source{ID: sourceID, Path: sourcePath, Kind: "directory"})
+	put(keys.SourceKey(ws, sourceID), model.Source{ID: sourceID, Path: sourcePath, Kind: "directory"})
 	d := model.Document{
 		ID: id, SourceID: sourceID, FilePath: id + ".md", FileName: id + ".md",
 		FileType: "markdown", ContentHash: id, Status: "embedded", ChunkCount: chunkCount,
@@ -62,7 +64,7 @@ func putUIDocDetail(t *testing.T, eng *engine.Engine, id, sourceID, sourcePath s
 	if enriched {
 		d.Enrichment = &model.EnrichInfo{Summary: "doc summary", Tags: []string{"x"}, Status: model.EnrichStatusDone, Model: "test"}
 	}
-	put(storage.PrefixDocument, id, d)
+	put(keys.DocumentKey(ws, id), d)
 }
 
 // strconvItoa is a local int→string (avoid importing strconv solely for it).

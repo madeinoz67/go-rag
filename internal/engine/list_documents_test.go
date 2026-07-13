@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/madeinoz67/go-rag/internal/model"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // list_documents_test.go (package engine) proves spec 039: ListDocuments filters
@@ -19,6 +19,7 @@ import (
 // putDoc writes a document record under prefix 0x02 with the given id/time/status.
 func putDoc(t *testing.T, e *Engine, id string, ingestedAt time.Time, status string) {
 	t.Helper()
+	ws := engineWS(e)
 	d := model.Document{
 		ID:          id,
 		FilePath:    id + ".txt",
@@ -32,7 +33,7 @@ func putDoc(t *testing.T, e *Engine, id string, ingestedAt time.Time, status str
 	if err != nil {
 		t.Fatalf("marshal %s: %v", id, err)
 	}
-	if err := e.db.SetWithPrefix(storage.PrefixDocument, []byte(id), raw); err != nil {
+	if err := e.db.Set(keys.DocumentKey(ws, id), raw); err != nil {
 		t.Fatalf("putDoc %s: %v", id, err)
 	}
 }

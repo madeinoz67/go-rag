@@ -53,18 +53,19 @@ func TestIngest_Idempotent(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "a.txt"), "hello world from a test document with enough words")
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
-	r1, _ := p.Ingest(context.Background(), dir, "*")
+	r1, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if r1.New != 1 || r1.Skipped != 0 {
 		t.Fatalf("first ingest: want 1 new, got %+v", r1)
 	}
-	r2, _ := p.Ingest(context.Background(), dir, "*")
+	r2, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if r2.New != 0 || r2.Skipped != 1 {
 		t.Fatalf("second ingest must skip (idempotent): got %+v", r2)
 	}
 	// Allow async embedding to land.
 	time.Sleep(80 * time.Millisecond)
-	if n := p.CountDocuments(); n != 1 {
+	if n := p.CountDocuments(ws); n != 1 {
 		t.Fatalf("want 1 stored document, got %d", n)
 	}
 }
@@ -76,14 +77,15 @@ func TestIngest_ContentChangeReingests(t *testing.T) {
 
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
-	r1, _ := p.Ingest(context.Background(), dir, "*")
+	r1, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if r1.New != 1 {
 		t.Fatalf("first ingest: %+v", r1)
 	}
 	// Change the content -> different ContentHash -> re-ingest as NEW.
 	writeFile(t, path, "version two is completely different content")
-	r2, _ := p.Ingest(context.Background(), dir, "*")
+	r2, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if r2.New != 1 {
 		t.Fatalf("changed content must re-ingest as NEW: got %+v", r2)
 	}
@@ -95,9 +97,10 @@ func TestIngest_ACKReturnsBeforeEmbedding(t *testing.T) {
 
 	p, cleanup := newTestPipeline(t, 400*time.Millisecond) // slow embedder
 	defer cleanup()
+	ws := wsOf(p)
 
 	start := time.Now()
-	r, _ := p.Ingest(context.Background(), dir, "*")
+	r, _ := p.Ingest(context.Background(), ws, dir, "*")
 	elapsed := time.Since(start)
 
 	if r.New != 1 {
@@ -114,8 +117,9 @@ func TestIngest_UnsupportedExtensionSkipped(t *testing.T) {
 
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
-	r, _ := p.Ingest(context.Background(), dir, "*")
+	r, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if r.Unsupported != 1 {
 		t.Fatalf("unsupported extension should be unsupported (not error): got %+v", r)
 	}

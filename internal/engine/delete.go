@@ -35,10 +35,11 @@ import (
 // check and the delegate) collapses to a no-op delete, which is correct either
 // way — the doc is gone.
 func (e *Engine) DeleteDoc(_ context.Context, docID string) error {
+	ws := e.db.ResolveVaultPrefix("default")
 	if strings.TrimSpace(docID) == "" {
 		return fmt.Errorf("document_id is required: %w", ErrInvalid)
 	}
-	if _, ok := lookupDoc(e.db, docID); !ok {
+	if _, ok := lookupDoc(e.db, ws, docID); !ok {
 		return fmt.Errorf("%w: document %s", ErrNotFound, docID)
 	}
 	p, err := e.pipeline()

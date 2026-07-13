@@ -52,8 +52,9 @@ func kindsOf(changes []Change) []string {
 
 func TestScan_NewSkipModifyDelete(t *testing.T) {
 	dir := t.TempDir()
-	cd, pl, _ := newDetector(t)
+	cd, pl, db := newDetector(t)
 	defer pl.Close()
+	ws := db.ResolveVaultPrefix("default")
 	path := filepath.Join(dir, "a.txt")
 
 	// NEW
@@ -62,7 +63,7 @@ func TestScan_NewSkipModifyDelete(t *testing.T) {
 	if len(ch) != 1 || ch[0].Kind != "NEW" {
 		t.Fatalf("first scan: want [NEW], got %+v", kindsOf(ch))
 	}
-	if n := pl.CountDocuments(); n != 1 {
+	if n := pl.CountDocuments(ws); n != 1 {
 		t.Fatalf("after NEW: want 1 doc, got %d", n)
 	}
 
@@ -71,7 +72,7 @@ func TestScan_NewSkipModifyDelete(t *testing.T) {
 	if len(ch) != 1 || ch[0].Kind != "SKIPPED" {
 		t.Fatalf("second scan: want [SKIPPED], got %+v", kindsOf(ch))
 	}
-	if n := pl.CountDocuments(); n != 1 {
+	if n := pl.CountDocuments(ws); n != 1 {
 		t.Fatalf("after SKIP: want 1 doc, got %d", n)
 	}
 
@@ -81,7 +82,7 @@ func TestScan_NewSkipModifyDelete(t *testing.T) {
 	if len(ch) != 1 || ch[0].Kind != "MODIFIED" {
 		t.Fatalf("modified scan: want [MODIFIED], got %+v", kindsOf(ch))
 	}
-	if n := pl.CountDocuments(); n != 1 {
+	if n := pl.CountDocuments(ws); n != 1 {
 		t.Fatalf("after MODIFY: want 1 doc (old replaced), got %d", n)
 	}
 
@@ -93,7 +94,7 @@ func TestScan_NewSkipModifyDelete(t *testing.T) {
 	if len(ch) != 1 || ch[0].Kind != "DELETED" {
 		t.Fatalf("delete scan: want [DELETED], got %+v", kindsOf(ch))
 	}
-	if n := pl.CountDocuments(); n != 0 {
+	if n := pl.CountDocuments(ws); n != 0 {
 		t.Fatalf("after DELETE: want 0 docs, got %d", n)
 	}
 }

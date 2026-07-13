@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/model"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // get_document.go implements spec 047 US2 (Documents detail view): GetDocument —
@@ -38,17 +38,18 @@ type DocumentResult struct {
 // A document whose source record is missing is NOT an error: the document is
 // returned with a zero-valued Source (source_path empty).
 func (e *Engine) GetDocument(docID string) (*DocumentResult, error) {
+	ws := e.db.ResolveVaultPrefix("default")
 	if strings.TrimSpace(docID) == "" {
 		return nil, fmt.Errorf("document_id is required: %w", ErrInvalid)
 	}
-	d, ok := lookupDoc(e.db, docID)
+	d, ok := lookupDoc(e.db, ws, docID)
 	if !ok {
 		return nil, fmt.Errorf("%w: document %s", ErrNotFound, docID)
 	}
 	res := &DocumentResult{Document: d}
 	// Optional source read for source_path (absolute source dir). Constant-time
 	// point Get over prefix 0x01; tolerant of a missing/bad row.
-	if raw, ok, _ := e.db.GetWithPrefix(storage.PrefixSource, []byte(d.SourceID)); ok {
+	if raw, ok, _ := e.db.Get(keys.SourceKey(ws, d.SourceID)); ok {
 		_ = json.Unmarshal(raw, &res.Source)
 	}
 	return res, nil

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/madeinoz67/go-rag/internal/model"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // get_chunk_context_test.go (package engine) proves spec 037: GetChunkContext
@@ -291,7 +291,7 @@ func TestGetChunkContext_OrphanChunkTolerant(t *testing.T) {
 	docID := res.Document.ID
 
 	// Remove the parent document record → the chunk is now an orphan.
-	if err := e.db.DeleteWithPrefix(storage.PrefixDocument, []byte(docID)); err != nil {
+	if err := e.db.Delete(keys.DocumentKey(e.db.ResolveVaultPrefix("default"), docID)); err != nil {
 		t.Fatalf("delete doc: %v", err)
 	}
 

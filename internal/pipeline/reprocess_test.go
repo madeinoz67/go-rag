@@ -15,14 +15,15 @@ func TestReprocess_BypassesDedup(t *testing.T) {
 
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
 	// First Ingest: NEW.
-	r1, _ := p.Ingest(context.Background(), dir, "*")
+	r1, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if r1.New != 1 {
 		t.Fatalf("ingest: want 1 new, got %+v", r1)
 	}
 	// Second Ingest: idempotent -> SKIPPED (content-hash dedup).
-	r2, _ := p.Ingest(context.Background(), dir, "*")
+	r2, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if r2.New != 0 || r2.Skipped != 1 {
 		t.Fatalf("re-ingest: want 0 new 1 skipped, got %+v", r2)
 	}
@@ -32,7 +33,7 @@ func TestReprocess_BypassesDedup(t *testing.T) {
 		t.Fatalf("reprocess: want 1 new 0 skipped (bypass dedup), got %+v", r3)
 	}
 	// Re-processed, not duplicated.
-	if n := p.CountDocuments(); n != 1 {
+	if n := p.CountDocuments(ws); n != 1 {
 		t.Fatalf("want 1 document after reprocess, got %d", n)
 	}
 }
@@ -66,16 +67,17 @@ func TestReprocess_CleansStaleEntries(t *testing.T) {
 
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
-	_, _ = p.Ingest(context.Background(), dir, "*")
-	if n := p.CountDocuments(); n != 1 {
+	_, _ = p.Ingest(context.Background(), ws, dir, "*")
+	if n := p.CountDocuments(ws); n != 1 {
 		t.Fatalf("setup: want 1 doc, got %d", n)
 	}
 	if err := os.Remove(gone); err != nil {
 		t.Fatal(err)
 	}
 	_, _ = p.Reprocess(context.Background(), dir, "*")
-	if n := p.CountDocuments(); n != 0 {
+	if n := p.CountDocuments(ws); n != 0 {
 		t.Fatalf("after reprocess with the file deleted: want 0 docs, got %d", n)
 	}
 }

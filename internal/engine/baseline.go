@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // CorpusBaseline is the persisted snapshot of the embedding profile the corpus
@@ -29,10 +30,10 @@ type CorpusBaseline struct {
 // per vault; the prefix denotes the subsystem, matching the codebase idiom).
 const corpusBaselineKey = "default"
 
-// LoadBaseline reads the corpus baseline. ok is false when no baseline exists
-// (a pre-H11 corpus before backfill, or an empty vault).
-func LoadBaseline(db *storage.DB) (*CorpusBaseline, bool) {
-	raw, ok, _ := db.GetWithPrefix(storage.PrefixCorpusMeta, []byte(corpusBaselineKey))
+// LoadBaseline reads the corpus baseline for one vault. ok is false when no
+// baseline exists (a pre-H11 corpus before backfill, or an empty vault).
+func LoadBaseline(db *storage.DB, ws [8]byte) (*CorpusBaseline, bool) {
+	raw, ok, _ := db.Get(keys.CorpusMetaKey(ws, corpusBaselineKey))
 	if !ok || len(raw) == 0 {
 		return nil, false
 	}
@@ -43,9 +44,9 @@ func LoadBaseline(db *storage.DB) (*CorpusBaseline, bool) {
 	return &b, true
 }
 
-// SaveBaseline writes (overwrites) the corpus baseline, stamping RecordedAt to
-// now when unset.
-func SaveBaseline(db *storage.DB, b *CorpusBaseline) error {
+// SaveBaseline writes (overwrites) the corpus baseline for one vault, stamping
+// RecordedAt to now when unset.
+func SaveBaseline(db *storage.DB, ws [8]byte, b *CorpusBaseline) error {
 	if b.RecordedAt.IsZero() {
 		b.RecordedAt = time.Now().UTC()
 	}
@@ -53,7 +54,7 @@ func SaveBaseline(db *storage.DB, b *CorpusBaseline) error {
 	if err != nil {
 		return err
 	}
-	return db.SetWithPrefix(storage.PrefixCorpusMeta, []byte(corpusBaselineKey), data)
+	return db.Set(keys.CorpusMetaKey(ws, corpusBaselineKey), data)
 }
 
 // handleFirstEmbed persists the corpus baseline on the first successful embed
@@ -62,10 +63,11 @@ func SaveBaseline(db *storage.DB, b *CorpusBaseline) error {
 // the live Ollama version captured at boot (CachedLiveVersion). kept in the
 // engine package so the baseline store stays out of internal/pipeline.
 func (e *Engine) handleFirstEmbed(model string, dim int, convention string) {
-	if _, ok := LoadBaseline(e.db); ok {
+	ws := e.db.ResolveVaultPrefix("default") // spec 052: default vault; Step 4 threads a vault param
+	if _, ok := LoadBaseline(e.db, ws); ok {
 		return // baseline already exists — don't overwrite on routine ingests
 	}
-	_ = SaveBaseline(e.db, &CorpusBaseline{
+	_ = SaveBaseline(e.db, ws, &CorpusBaseline{
 		Model:         model,
 		Dim:           dim,
 		Convention:    convention,
@@ -93,7 +95,8 @@ func (e *Engine) refreshBaselineAfterMigrate(ctx context.Context) {
 	if live == "" {
 		live = ollamaVersion(ctx, e.cfg.OllamaURL)
 	}
-	_ = SaveBaseline(e.db, &CorpusBaseline{
+	ws := e.db.ResolveVaultPrefix("default") // spec 052: default vault
+	_ = SaveBaseline(e.db, ws, &CorpusBaseline{
 		Model: model, Dim: dim, Convention: conv, OllamaVersion: live,
 	})
 	e.RefreshDriftVerdict(ctx)

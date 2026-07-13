@@ -12,6 +12,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/eval/beir"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // RunBenchmark scores a BEIR dataset (e.g. SciFact) against a freshly provisioned
@@ -92,9 +93,11 @@ func writeBenchmarkCorpus(dir string, corpus map[string]beir.Doc) error {
 // corpusChunkMap derives corpus-doc-id -> go-rag chunk_ids from the stored
 // documents (FilePath carries the doc_id stem) and chunks (linked by DocumentID).
 func corpusChunkMap(db *storage.DB) (map[string][]string, error) {
+	ws := db.ResolveVaultPrefix("default") // spec 052: default vault
 	// doc_id (filename stem) -> DocumentID
 	stemToDoc := map[string]string{}
-	_ = db.PrefixScanByte(storage.PrefixDocument, func(_, val []byte) bool {
+	dLo, dHi, _ := keys.VaultKindRange(storage.PrefixDocument, ws)
+	_ = db.RangeScan(dLo, dHi, func(_, val []byte) bool {
 		var d model.Document
 		if json.Unmarshal(val, &d) == nil {
 			stem := strings.TrimSuffix(filepath.Base(d.FilePath), filepath.Ext(d.FilePath))
@@ -104,7 +107,8 @@ func corpusChunkMap(db *storage.DB) (map[string][]string, error) {
 	})
 	// DocumentID -> []chunkID
 	docToChunks := map[string][]string{}
-	_ = db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
+	cLo, cHi, _ := keys.VaultKindRange(storage.PrefixChunk, ws)
+	_ = db.RangeScan(cLo, cHi, func(_, val []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(val, &c) == nil {
 			docToChunks[c.DocumentID] = append(docToChunks[c.DocumentID], c.ID)

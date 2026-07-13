@@ -13,6 +13,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // MetricSet holds the dataset-wide averaged retrieval-quality metrics, each in
@@ -167,7 +168,9 @@ func existingChunkIDs(db *storage.DB) map[string]bool {
 	if db == nil {
 		return set
 	}
-	_ = db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
+	ws := db.ResolveVaultPrefix("default") // spec 052: default vault
+	cLo, cHi, _ := keys.VaultKindRange(storage.PrefixChunk, ws)
+	_ = db.RangeScan(cLo, cHi, func(_, val []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(val, &c) == nil {
 			set[c.ID] = true
@@ -199,13 +202,15 @@ type ChunkRef struct {
 // resolved get an empty file_path.
 func ListChunks(db *storage.DB) ([]ChunkRef, error) {
 	var refs []ChunkRef
-	err := db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
+	ws := db.ResolveVaultPrefix("default") // spec 052: default vault
+	cLo, cHi, _ := keys.VaultKindRange(storage.PrefixChunk, ws)
+	err := db.RangeScan(cLo, cHi, func(_, val []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(val, &c) != nil {
 			return true
 		}
 		path := ""
-		if raw, ok, _ := db.GetWithPrefix(storage.PrefixDocument, []byte(c.DocumentID)); ok {
+		if raw, ok, _ := db.Get(keys.DocumentKey(ws, c.DocumentID)); ok {
 			var d model.Document
 			if json.Unmarshal(raw, &d) == nil {
 				path = d.FilePath

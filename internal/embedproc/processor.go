@@ -17,6 +17,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // maxBatch is the cross-document micro-batch cap (spec 030 R4; mirrors H12's 32).
@@ -170,6 +171,8 @@ type pendingChunk struct {
 // down, network, OOM) and all records are left pending (transient) for the next
 // tick — the breaker, already tripped by the batch fail, backs off the embedder.
 func (p *Processor) embedOneByOne(ctx context.Context, texts []string, batch []pendingChunk) [][]float32 {
+	// spec 052: default vault; a later step threads a vault param.
+	ws := p.db.ResolveVaultPrefix("default")
 	vecs := make([][]float32, len(texts))
 	succeeded := 0
 	for i, t := range texts {
@@ -196,7 +199,7 @@ func (p *Processor) embedOneByOne(ctx context.Context, texts []string, batch []p
 			Model:  p.embedder.Model(),
 			Status: storage.EmbedQueueFailed,
 		})
-		_ = p.db.PutEmbedQueue(batch[i].id, rec)
+		_ = p.db.PutEmbedQueue(ws, batch[i].id, rec)
 	}
 	return vecs
 }
@@ -207,10 +210,12 @@ func (p *Processor) embedOneByOne(ctx context.Context, texts []string, batch []p
 // index epoch. On transient failure the queue records stay pending (retried next
 // pass); on permanent failure they are marked status=failed (terminal).
 func (p *Processor) processBatch(ctx context.Context) {
+	// spec 052: default vault; a later step threads a vault param.
+	ws := p.db.ResolveVaultPrefix("default")
 	for { // drain: process batches of maxBatch until the queue is empty
 		var batch []pendingChunk
 
-		_ = p.db.ScanEmbedQueue(func(chunkID string, item storage.EmbedQueueItem) bool {
+		_ = p.db.ScanEmbedQueue(ws, func(chunkID string, item storage.EmbedQueueItem) bool {
 			if len(batch) >= maxBatch {
 				return false // cap per pass; remaining picked up next tick
 			}
@@ -218,10 +223,10 @@ func (p *Processor) processBatch(ctx context.Context) {
 				return true // skip permanently failed
 			}
 			// Read the chunk text from 0x03.
-			raw, ok, _ := p.db.GetWithPrefix(storage.PrefixChunk, []byte(chunkID))
+			raw, ok, _ := p.db.Get(keys.ChunkKey(ws, chunkID))
 			if !ok {
 				// Chunk was deleted (orphan queue record) — clean up.
-				_ = p.db.DeleteEmbedQueue(chunkID)
+				_ = p.db.DeleteEmbedQueue(ws, chunkID)
 				return true
 			}
 			var c model.Chunk
@@ -231,11 +236,11 @@ func (p *Processor) processBatch(ctx context.Context) {
 			// spec 043 / BL-010 US2: if PrefixEmbedding already exists (copied from
 			// a prior version on re-ingest), skip the Ollama call — vec.Add the
 			// existing vector + dequeue.
-			if embRaw, ok, _ := p.db.GetWithPrefix(storage.PrefixEmbedding, []byte(chunkID)); ok {
+			if embRaw, ok, _ := p.db.Get(keys.EmbeddingKey(ws, chunkID)); ok {
 				var rec embedRecord
 				if json.Unmarshal(embRaw, &rec) == nil && len(rec.Vector) > 0 {
 					p.vec.Add(chunkID, rec.Vector)
-					_ = p.db.DeleteEmbedQueue(chunkID)
+					_ = p.db.DeleteEmbedQueue(ws, chunkID)
 					return true
 				}
 				// Malformed/empty vector — fall through to normal embed.
@@ -294,9 +299,9 @@ func (p *Processor) processBatch(ctx context.Context) {
 				Convention: conv,
 				Vector:     vecs[i],
 			})
-			_ = p.db.SetWithPrefix(storage.PrefixEmbedding, []byte(it.id), rec)
+			_ = p.db.Set(keys.EmbeddingKey(ws, it.id), rec)
 			p.vec.Add(it.id, vecs[i])
-			_ = p.db.DeleteEmbedQueue(it.id) // embedding landed — remove from queue
+			_ = p.db.DeleteEmbedQueue(ws, it.id) // embedding landed — remove from queue
 		}
 
 		// Bump the index epoch so the query result cache invalidates (H06).

@@ -127,6 +127,33 @@ func (d *DB) PrefixScan(prefix []byte, fn func(key, value []byte) bool) error {
 }
 
 // PrefixScanByte is a convenience wrapper for a single-byte prefix.
+//
+// NOTE (spec 052): this and PrefixScan above are retained ONLY for GLOBAL
+// prefixes (Config 0x09, Auth 0x17/0x18/0x19, VaultMeta 0x1A, VaultNameIndex
+// 0x1B). Vault-scoped access (0x01–0x15) MUST go through the keys-package
+// builders + bare Set/Get/Delete + RangeScan so wsPrefix is prepended. Calling
+// PrefixScanByte with a vault-scoped kind scans ALL vaults' data for that kind
+// — a cross-vault leak. Callers that need one vault's data use RangeScan with
+// bounds from keys.VaultKindRange.
 func (d *DB) PrefixScanByte(prefix byte, fn func(key, value []byte) bool) error {
 	return d.PrefixScan([]byte{prefix}, fn)
+}
+
+// RangeScan iterates over the inclusive-lower / exclusive-upper key range,
+// invoking fn for each key/value pair. It is the vault-scoped scan primitive:
+// callers pass bounds from keys.VaultKindRange(kind, ws) so the scan covers
+// exactly one vault's data for one kind (`kind|ws` ≤ key < `kind|wsPlus`).
+// Iteration stops if fn returns false.
+func (d *DB) RangeScan(lower, upper []byte, fn func(key, value []byte) bool) error {
+	iter, err := d.db.NewIter(&pebble.IterOptions{LowerBound: lower, UpperBound: upper})
+	if err != nil {
+		return err
+	}
+	defer iter.Close()
+	for iter.First(); iter.Valid(); iter.Next() {
+		if !fn(iter.Key(), iter.Value()) {
+			break
+		}
+	}
+	return iter.Error()
 }

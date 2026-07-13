@@ -28,12 +28,13 @@ func TestMigratePlan_ReadOnly_NoMutation(t *testing.T) {
 	defer cleanup()
 	plantEmbedding(t, db, "stale1", "beta", 8) // a stale minority
 	eng := NewWithEmbedder(cfg, db, testEmbedder{model: "alpha", dim: 4})
+	ws := defaultWS(db)
 
-	before := CorpusProfile(db)
+	before := CorpusProfile(ws, db)
 	if _, err := eng.MigratePlan(); err != nil {
 		t.Fatalf("MigratePlan: %v", err)
 	}
-	after := CorpusProfile(db)
+	after := CorpusProfile(ws, db)
 	if !reflect.DeepEqual(before, after) {
 		t.Fatalf("MigratePlan mutated the corpus profile\nbefore=%+v\nafter =%+v", before, after)
 	}

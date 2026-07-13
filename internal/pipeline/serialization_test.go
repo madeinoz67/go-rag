@@ -16,6 +16,7 @@ import (
 func TestSerialization_NoDoubleEvent(t *testing.T) {
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
 	dir := t.TempDir()
 	content := ""
@@ -24,7 +25,7 @@ func TestSerialization_NoDoubleEvent(t *testing.T) {
 	}
 	path := filepath.Join(dir, "doc.txt")
 	writeFile(t, path, content)
-	p.Ingest(context.Background(), dir, "*")
+	p.Ingest(context.Background(), ws, dir, "*")
 	docID := docIDForPath(t, p, path)
 
 	var mu sync.Mutex
@@ -80,6 +81,7 @@ func TestSerialization_NoDoubleEvent(t *testing.T) {
 func TestSerialization_NonBlockingQueuePush(t *testing.T) {
 	p, cleanup := newTestTestPipelineWithFullQueue(t)
 	defer cleanup()
+	ws := wsOf(p)
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "extra.txt")
@@ -91,7 +93,7 @@ func TestSerialization_NonBlockingQueuePush(t *testing.T) {
 
 	// processFile should return quickly even with a full queue.
 	start := time.Now()
-	r, err := p.Ingest(context.Background(), dir, "*")
+	r, err := p.Ingest(context.Background(), ws, dir, "*")
 	elapsed := time.Since(start)
 
 	if err != nil {

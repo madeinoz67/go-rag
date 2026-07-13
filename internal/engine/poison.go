@@ -13,6 +13,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/poison"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // PoisonedChunk is one entry in the quarantine listing: the chunk's identity, a
@@ -31,9 +32,10 @@ type PoisonedChunk struct {
 // verdict is read fresh from the chunk record (the source of truth), so a release
 // is reflected even if the index briefly lags.
 func (e *Engine) ListPoisoned() ([]PoisonedChunk, error) {
+	ws := e.db.ResolveVaultPrefix("default")
 	var out []PoisonedChunk
-	err := e.db.ScanQuarantine(func(chunkID string, _ []byte) bool {
-		c, ok := lookupChunk(e.db, chunkID)
+	err := e.db.ScanQuarantine(ws, func(chunkID string, _ []byte) bool {
+		c, ok := lookupChunk(e.db, ws, chunkID)
 		if !ok || c.Poisoning == nil {
 			return true // stale index entry (chunk gone/unscored) — skip
 		}
@@ -56,7 +58,8 @@ func (e *Engine) ListPoisoned() ([]PoisonedChunk, error) {
 // Bumps the index epoch so cached default-query results invalidate (the released
 // chunk may now appear).
 func (e *Engine) ReleaseChunk(chunkID string) error {
-	c, ok := lookupChunk(e.db, chunkID)
+	ws := e.db.ResolveVaultPrefix("default")
+	c, ok := lookupChunk(e.db, ws, chunkID)
 	if !ok {
 		return fmt.Errorf("%w: chunk %s", ErrNotFound, chunkID)
 	}
@@ -64,10 +67,10 @@ func (e *Engine) ReleaseChunk(chunkID string) error {
 		return nil // unscored/clean, or already released — idempotent no-op
 	}
 	c.Poisoning.Level = model.PoisonReleased
-	if err := e.putChunk(c); err != nil {
+	if err := e.putChunk(ws, c); err != nil {
 		return err
 	}
-	_ = e.db.DeleteQuarantine(chunkID)
+	_ = e.db.DeleteQuarantine(ws, chunkID)
 	e.markIndexChanged()
 	return nil
 }
@@ -75,7 +78,8 @@ func (e *Engine) ReleaseChunk(chunkID string) error {
 // ResetChunk undoes a release (FR-006): re-derives the scored level from the stored
 // score and re-quarantines if flagged. Non-destructive; idempotent.
 func (e *Engine) ResetChunk(chunkID string) error {
-	c, ok := lookupChunk(e.db, chunkID)
+	ws := e.db.ResolveVaultPrefix("default")
+	c, ok := lookupChunk(e.db, ws, chunkID)
 	if !ok {
 		return fmt.Errorf("%w: chunk %s", ErrNotFound, chunkID)
 	}
@@ -84,27 +88,27 @@ func (e *Engine) ResetChunk(chunkID string) error {
 	}
 	c.Poisoning.Level = poison.LevelFor(c.Poisoning.Score,
 		e.cfg.EffectivePoisonThresholdSuspicious(), e.cfg.EffectivePoisonThresholdQuarantine())
-	if err := e.putChunk(c); err != nil {
+	if err := e.putChunk(ws, c); err != nil {
 		return err
 	}
 	if c.Poisoning.Level.Quarantined() {
 		if vj, merr := json.Marshal(c.Poisoning); merr == nil {
-			_ = e.db.PutQuarantine(chunkID, vj)
+			_ = e.db.PutQuarantine(ws, chunkID, vj)
 		}
 	} else {
-		_ = e.db.DeleteQuarantine(chunkID)
+		_ = e.db.DeleteQuarantine(ws, chunkID)
 	}
 	e.markIndexChanged()
 	return nil
 }
 
 // putChunk writes a chunk record back to 0x03 (used by Release/Reset).
-func (e *Engine) putChunk(c model.Chunk) error {
+func (e *Engine) putChunk(ws [8]byte, c model.Chunk) error {
 	bj, err := json.Marshal(c)
 	if err != nil {
 		return err
 	}
-	return e.db.SetWithPrefix(storage.PrefixChunk, []byte(c.ID), bj)
+	return e.db.Set(keys.ChunkKey(ws, c.ID), bj)
 }
 
 // RescanPoisoning re-scores every stored chunk against the current detector
@@ -118,6 +122,7 @@ func (e *Engine) putChunk(c model.Chunk) error {
 // (US3/US4 T031) and the threat-list-change background rescan (US4 T029). It bumps
 // the index epoch so cached query results invalidate (verdicts may have changed).
 func (e *Engine) RescanPoisoning() (rescored, flagged int, err error) {
+	ws := e.db.ResolveVaultPrefix("default")
 	if !e.cfg.EffectivePoisoningEnabled() {
 		return 0, 0, nil
 	}
@@ -125,7 +130,11 @@ func (e *Engine) RescanPoisoning() (rescored, flagged int, err error) {
 
 	// Pass 1: load chunks (scan-then-write; avoid mutating keys during iteration).
 	var chunks []model.Chunk
-	if serr := e.db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
+	lower, upper, rangeErr := keys.VaultKindRange(storage.PrefixChunk, ws)
+	if rangeErr != nil {
+		return 0, 0, rangeErr
+	}
+	if serr := e.db.RangeScan(lower, upper, func(_, val []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(val, &c) == nil {
 			chunks = append(chunks, c)
@@ -151,15 +160,15 @@ func (e *Engine) RescanPoisoning() (rescored, flagged int, err error) {
 			c.Poisoning = &fresh
 			if fresh.Level.Quarantined() {
 				if vj, merr := json.Marshal(fresh); merr == nil {
-					_ = e.db.PutQuarantine(c.ID, vj)
+					_ = e.db.PutQuarantine(ws, c.ID, vj)
 				}
 				flagged++
 			} else {
-				_ = e.db.DeleteQuarantine(c.ID)
+				_ = e.db.DeleteQuarantine(ws, c.ID)
 			}
 		}
 		if bj, merr := json.Marshal(c); merr == nil {
-			_ = e.db.SetWithPrefix(storage.PrefixChunk, []byte(c.ID), bj)
+			_ = e.db.Set(keys.ChunkKey(ws, c.ID), bj)
 		}
 		rescored++
 	}

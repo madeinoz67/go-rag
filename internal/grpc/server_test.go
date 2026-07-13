@@ -66,7 +66,7 @@ func newEngineWithCorpus(t *testing.T, doc string) *engine.Engine {
 	if err := os.WriteFile(dp, []byte(doc), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)
 	}
-	if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
+	if _, err := p.Ingest(context.Background(), db.ResolveVaultPrefix("default"), dp, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
 	eng := engine.NewWithDB(cfg, db)

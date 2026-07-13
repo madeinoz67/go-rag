@@ -33,6 +33,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/rest"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // --- queryable-engine harness (mirrors engine/parity_test.go::sharedEngine,
@@ -137,7 +138,8 @@ func docIDByPath(t *testing.T, eng *engine.Engine, path string) string {
 // filter's tag dimension (which resolves the doc record) has something to match.
 func patchDocTags(t *testing.T, eng *engine.Engine, docID string, tags []string) {
 	t.Helper()
-	raw, ok, err := eng.DB().GetWithPrefix(storage.PrefixDocument, []byte(docID))
+	ws := eng.DB().ResolveVaultPrefix("default")
+	raw, ok, err := eng.DB().Get(keys.DocumentKey(ws, docID))
 	if err != nil {
 		t.Fatalf("get doc %s: %v", docID, err)
 	}
@@ -153,7 +155,7 @@ func patchDocTags(t *testing.T, eng *engine.Engine, docID string, tags []string)
 	if err != nil {
 		t.Fatalf("marshal doc %s: %v", docID, err)
 	}
-	if err := eng.DB().SetWithPrefix(storage.PrefixDocument, []byte(docID), out); err != nil {
+	if err := eng.DB().Set(keys.DocumentKey(ws, docID), out); err != nil {
 		t.Fatalf("set doc %s: %v", docID, err)
 	}
 }

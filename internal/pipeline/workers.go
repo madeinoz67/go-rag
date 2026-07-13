@@ -18,12 +18,13 @@ import (
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/near"
 	"github.com/madeinoz67/go-rag/internal/reader"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // job is a unit of async indexing work: embed a document's chunks and add them to
 // the FTS and vector indexes.
 type job struct {
+	ws          [8]byte
 	docID       string
 	chunks      []model.Chunk
 	images      []reader.ImageRef    // spec 031 US4: transient image bytes for post-ACK captioning (nil for non-PDF / image-less)
@@ -51,7 +52,7 @@ func (p *Pipeline) processJob(j job) {
 		// H04/spec 019: maintain the 0x11 quarantine index for O(flagged) listing.
 		if c.Poisoning != nil && c.Poisoning.Level.Quarantined() {
 			if vj, merr := json.Marshal(c.Poisoning); merr == nil {
-				_ = p.db.PutQuarantine(c.ID, vj)
+				_ = p.db.PutQuarantine(j.ws, c.ID, vj)
 			}
 		}
 	}
@@ -64,17 +65,17 @@ func (p *Pipeline) processJob(j job) {
 	if ndK <= 0 {
 		ndK = config.DefaultNearDupHamming
 	}
-	p.clusterNearDup(j.chunks, ndK)
+	p.clusterNearDup(j.ws, j.chunks, ndK)
 	// spec 031 US4: background image captioning (writes a synthetic caption chunk).
 	// Runs BEFORE enrichment so the enricher's tags + summary include the caption
 	// text (image-heavy docs get meaningful tags, not just sparse body text).
 	captions := p.captionImages(j)
 	// spec 029: background document enrichment (tags + summary) — includes captions.
-	p.enrichDocument(j.docID, j.chunks, captions)
+	p.enrichDocument(j.ws, j.docID, j.chunks, captions)
 	// Status is always "embedded" — the chunks are durably stored (0x03) + queued
 	// for embedding (0x14). An embed failure is the embedder's concern (it marks
 	// the 0x14 record status=failed); the document is "stored" regardless.
-	p.markStatus(j.docID, StatusEmbedded)
+	p.markStatus(j.ws, j.docID, StatusEmbedded)
 }
 
 // enrichDocument runs background document enrichment (spec 029): asks the bound
@@ -83,7 +84,7 @@ func (p *Pipeline) processJob(j job) {
 // is bound. Failures are terminal-statused (failed / nothing-to-enrich) so the
 // worker never loops; transient errors (model unreachable, circuit open, ctx
 // cancelled) leave the sidecar nil for a later back-fill retry.
-func (p *Pipeline) enrichDocument(docID string, chunks []model.Chunk, captions string) {
+func (p *Pipeline) enrichDocument(ws [8]byte, docID string, chunks []model.Chunk, captions string) {
 	if p.enricher == nil {
 		return
 	}
@@ -112,7 +113,7 @@ func (p *Pipeline) enrichDocument(docID string, chunks []model.Chunk, captions s
 	default: // transient: leave Enrichment nil this pass (retried on back-fill)
 		return
 	}
-	p.setEnrichment(docID, info)
+	p.setEnrichment(ws, docID, info)
 }
 
 // captionImages runs background image captioning (spec 031 US4): for each image
@@ -139,7 +140,7 @@ func (p *Pipeline) captionImages(j job) string {
 		// change triggers a re-caption.
 		h := sha256.Sum256(img.Bytes)
 		hashKey := hex.EncodeToString(h[:])
-		if cached, ok, _ := p.db.GetWithPrefix(storage.PrefixImageCaption, []byte(hashKey)); ok {
+		if cached, ok, _ := p.db.Get(keys.ImageCaptionKey(j.ws, hashKey)); ok {
 			var ci struct {
 				Caption string `json:"caption"`
 				Model   string `json:"model"`
@@ -159,7 +160,7 @@ func (p *Pipeline) captionImages(j job) string {
 				pages = append(pages, img.PageNr)
 				// Cache the caption for cross-document reuse.
 				cv, _ := json.Marshal(map[string]string{"caption": t, "model": p.captioner.Model()})
-				_ = p.db.SetWithPrefix(storage.PrefixImageCaption, []byte(hashKey), cv)
+				_ = p.db.Set(keys.ImageCaptionKey(j.ws, hashKey), cv)
 			}
 		case caption.IsNothing(err):
 			// terminal: skip this image
@@ -208,7 +209,7 @@ func (p *Pipeline) captionImages(j job) string {
 	defer p.mu.Unlock()
 
 	cj, _ := json.Marshal(cc)
-	if err := p.db.SetWithPrefix(storage.PrefixChunk, []byte(captionID), cj); err != nil {
+	if err := p.db.Set(keys.ChunkKey(j.ws, captionID), cj); err != nil {
 		slog.Warn("caption: store caption chunk", "err", err)
 		return ""
 	}
@@ -220,7 +221,7 @@ func (p *Pipeline) captionImages(j job) string {
 	if p.embed != nil {
 		embModel = p.embed.Model()
 	}
-	if err := p.db.PutEmbedQueueItem(captionID, embModel); err != nil {
+	if err := p.db.PutEmbedQueueItem(j.ws, captionID, embModel); err != nil {
 		slog.Warn("caption: queue caption for embed", "err", err)
 	}
 	p.fts.Index(captionID, map[string]string{"body": captionsText})
@@ -228,12 +229,12 @@ func (p *Pipeline) captionImages(j job) string {
 	// Point the last original chunk's NextChunkID at the caption (linked-list tail).
 	if n := len(j.chunks); n > 0 {
 		lastID := j.chunks[n-1].ID
-		if raw, ok, _ := p.db.GetWithPrefix(storage.PrefixChunk, []byte(lastID)); ok {
+		if raw, ok, _ := p.db.Get(keys.ChunkKey(j.ws, lastID)); ok {
 			var lc model.Chunk
 			if json.Unmarshal(raw, &lc) == nil {
 				lc.NextChunkID = captionID
 				if lj, merr := json.Marshal(lc); merr == nil {
-					if err := p.db.SetWithPrefix(storage.PrefixChunk, []byte(lastID), lj); err != nil {
+					if err := p.db.Set(keys.ChunkKey(j.ws, lastID), lj); err != nil {
 						slog.Warn("caption: link last chunk NextChunkID", "err", err)
 					}
 				}
@@ -242,13 +243,13 @@ func (p *Pipeline) captionImages(j job) string {
 	}
 
 	// Bump the document's ChunkCount (a non-identity statistic, like Status).
-	if raw, ok, _ := p.db.GetWithPrefix(storage.PrefixDocument, []byte(j.docID)); ok {
+	if raw, ok, _ := p.db.Get(keys.DocumentKey(j.ws, j.docID)); ok {
 		var d model.Document
 		if json.Unmarshal(raw, &d) == nil {
 			d.ChunkCount++
 			d.UpdatedAt = now
 			if dj, merr := json.Marshal(d); merr == nil {
-				if err := p.db.SetWithPrefix(storage.PrefixDocument, []byte(j.docID), dj); err != nil {
+				if err := p.db.Set(keys.DocumentKey(j.ws, j.docID), dj); err != nil {
 					slog.Warn("caption: bump document ChunkCount", "err", err)
 				}
 			}
@@ -265,10 +266,10 @@ func (p *Pipeline) captionImages(j job) string {
 // setEnrichment reads a Document, attaches the EnrichInfo sidecar, and writes it
 // back (read-modify-write under the pipeline mutex, mirroring markStatus). The
 // sidecar is a separate field from Metadata, so document identity is untouched.
-func (p *Pipeline) setEnrichment(docID string, info *model.EnrichInfo) {
+func (p *Pipeline) setEnrichment(ws [8]byte, docID string, info *model.EnrichInfo) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	raw, ok, _ := p.db.GetWithPrefix(storage.PrefixDocument, []byte(docID))
+	raw, ok, _ := p.db.Get(keys.DocumentKey(ws, docID))
 	if !ok {
 		return
 	}
@@ -278,7 +279,7 @@ func (p *Pipeline) setEnrichment(docID string, info *model.EnrichInfo) {
 	}
 	doc.Enrichment = info
 	dbj, _ := json.Marshal(doc)
-	_ = p.db.SetWithPrefix(storage.PrefixDocument, []byte(docID), dbj)
+	_ = p.db.Set(keys.DocumentKey(ws, docID), dbj)
 }
 
 // markStatus reads a Document, updates its status, and writes it back. The pipeline
@@ -286,11 +287,11 @@ func (p *Pipeline) setEnrichment(docID string, info *model.EnrichInfo) {
 // status is "embedded" (spec 040 / BL-008, absorbing BL-009), it publishes an
 // EMBEDDED event AFTER the durable write-back so the `after` projection reflects
 // status=embedded (Principle IV — the event never precedes the commit).
-func (p *Pipeline) markStatus(docID, status string) {
+func (p *Pipeline) markStatus(ws [8]byte, docID, status string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	raw, ok, _ := p.db.GetWithPrefix(storage.PrefixDocument, []byte(docID))
+	raw, ok, _ := p.db.Get(keys.DocumentKey(ws, docID))
 	if !ok {
 		return
 	}
@@ -301,7 +302,7 @@ func (p *Pipeline) markStatus(docID, status string) {
 	doc.Status = status
 	doc.UpdatedAt = time.Now().UTC()
 	dbj, _ := json.Marshal(doc)
-	_ = p.db.SetWithPrefix(storage.PrefixDocument, []byte(docID), dbj)
+	_ = p.db.Set(keys.DocumentKey(ws, docID), dbj)
 	// spec 040 / BL-008 (BL-009 absorbed): emit EMBEDDED after the status write-
 	// back. markStatus is also called for StatusError/StatusPending (e.g. on
 	// re-ingest); only the embedded transition fires the event — error/pending
@@ -328,26 +329,26 @@ const minNearDupTokens = 8
 // (spec 031 US4) relies on the same invariant for its new caption IDs. Any future
 // change that clusters ACROSS documents, or any other concurrent writer to
 // PrefixChunk by ID, MUST take p.mu (else last-writer-wins on the JSON blob).
-func (p *Pipeline) clusterNearDup(chunks []model.Chunk, k int) {
+func (p *Pipeline) clusterNearDup(ws [8]byte, chunks []model.Chunk, k int) {
 	// Pass 1: fingerprint + index under 0x13.
 	for _, c := range chunks {
 		if c.TokenCount < minNearDupTokens {
 			continue
 		}
-		_ = p.db.PutNearDup(c.ID, near.SimHash(c.Content))
+		_ = p.db.PutNearDup(ws, c.ID, near.SimHash(c.Content))
 	}
 	// Pass 2: scan for siblings; persist the sidecar on chunks that have any.
 	for _, c := range chunks {
 		if c.TokenCount < minNearDupTokens {
 			continue
 		}
-		fp, ok := p.db.GetNearDup(c.ID)
+		fp, ok := p.db.GetNearDup(ws, c.ID)
 		if !ok {
 			continue
 		}
 		var siblings []string
 		best := 0.0
-		_ = p.db.ScanNearDup(func(otherID string, otherFP uint64) bool {
+		_ = p.db.ScanNearDup(ws, func(otherID string, otherFP uint64) bool {
 			if otherID == c.ID {
 				return true
 			}
@@ -364,7 +365,7 @@ func (p *Pipeline) clusterNearDup(chunks []model.Chunk, k int) {
 		}
 		// Read-modify-write the chunk record to attach the sidecar (mirrors
 		// engine.putChunk / RescanPoisoning).
-		raw, ok, _ := p.db.GetWithPrefix(storage.PrefixChunk, []byte(c.ID))
+		raw, ok, _ := p.db.Get(keys.ChunkKey(ws, c.ID))
 		if !ok {
 			continue
 		}
@@ -374,7 +375,7 @@ func (p *Pipeline) clusterNearDup(chunks []model.Chunk, k int) {
 		}
 		stored.NearDup = &model.NearDupInfo{Siblings: siblings, Similarity: best}
 		if cj, merr := json.Marshal(stored); merr == nil {
-			_ = p.db.SetWithPrefix(storage.PrefixChunk, []byte(c.ID), cj)
+			_ = p.db.Set(keys.ChunkKey(ws, c.ID), cj)
 		}
 	}
 }

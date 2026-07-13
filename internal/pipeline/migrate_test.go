@@ -10,6 +10,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // TestEmbeddingModelRecorded verifies the worker now stores the embedding model
@@ -23,15 +24,16 @@ func TestEmbeddingModelRecorded(t *testing.T) {
 	}
 	defer db.Close()
 	p := New(db, chunk.NewSplitter(512, 50), &fakeEmbed{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
+	ws := wsOf(p)
 	var drainOnce sync.Once
 	drain := func() { drainOnce.Do(p.Close) }
 	defer drain() // safety net: drain async workers if a t.Fatal skips the in-body drain
-	_, _ = p.Ingest(context.Background(), dir, "*")
+	_, _ = p.Ingest(context.Background(), ws, dir, "*")
 	drain() // drain async embedding so the queue count check is stable (idempotent via drainOnce)
 
 	// spec 030: the pipeline now queues chunks for the background embedder (0x14),
 	// not embedding directly. Verify the queue has entries with the right model.
-	if n := db.CountEmbedQueue(); n == 0 {
+	if n := db.CountEmbedQueue(ws); n == 0 {
 		t.Fatalf("expected pending-embed queue entries (0x14), got 0")
 	}
 }
@@ -45,17 +47,18 @@ func TestLoadIndexReadsLegacyBareVector(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
+	ws := db.ResolveVaultPrefix("default")
 
 	bare, _ := json.Marshal([]float32{0.5, 0.5})
-	if err := db.SetWithPrefix(storage.PrefixEmbedding, []byte("legacy"), bare); err != nil {
+	if err := db.Set(keys.EmbeddingKey(ws, "legacy"), bare); err != nil {
 		t.Fatal(err)
 	}
 	cur, _ := json.Marshal(storedEmbedding{Model: "m", Vector: []float32{0.1, 0.2}})
-	if err := db.SetWithPrefix(storage.PrefixEmbedding, []byte("cur"), cur); err != nil {
+	if err := db.Set(keys.EmbeddingKey(ws, "cur"), cur); err != nil {
 		t.Fatal(err)
 	}
 
-	_, vec, err := LoadIndex(db)
+	_, vec, err := LoadIndex(ws, db)
 	if err != nil {
 		t.Fatal(err)
 	}

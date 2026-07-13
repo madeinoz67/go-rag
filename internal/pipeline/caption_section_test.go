@@ -16,6 +16,7 @@ func TestPipeline_CaptionImages_SectionContext(t *testing.T) {
 	p, db := newCaptionPipeline(t)
 	defer db.Close()
 	defer p.Close()
+	ws := wsOf(p)
 	p.SetCaptioner(fakeCaptioner{modelName: "fake-vision", caption: "a chart showing revenue growth"})
 	docID, oc := storeDocWithOneChunk(t, db)
 
@@ -26,6 +27,7 @@ func TestPipeline_CaptionImages_SectionContext(t *testing.T) {
 	pageOffsets := map[int]int{1: 0}
 
 	p.captionImages(job{
+		ws:          ws,
 		docID:       docID,
 		chunks:      []model.Chunk{oc},
 		images:      []reader.ImageRef{{PageNr: 1, Bytes: []byte("fake-jpeg"), FileType: "jpeg"}},
@@ -35,7 +37,7 @@ func TestPipeline_CaptionImages_SectionContext(t *testing.T) {
 	})
 
 	var caption *model.Chunk
-	db.PrefixScanByte(storage.PrefixChunk, func(_ []byte, v []byte) bool {
+	scanVaultKind(t, db, storage.PrefixChunk, ws, func(_ []byte, v []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(v, &c) == nil && c.Kind == "caption" && c.DocumentID == docID {
 			caption = &c

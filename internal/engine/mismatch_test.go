@@ -10,6 +10,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // testEmbedder is a configurable embed.Embedder for mismatch tests: its Model()
@@ -82,11 +83,12 @@ func ingestUnder(t *testing.T, em testEmbedder) (*storage.DB, config.Config, fun
 // mid-migration minority vector under a different model/dim.
 func plantEmbedding(t *testing.T, db *storage.DB, chunkID, model string, dim int) {
 	t.Helper()
+	ws := defaultWS(db)
 	rec, _ := json.Marshal(struct {
 		Model  string    `json:"model,omitempty"`
 		Vector []float32 `json:"vector"`
 	}{Model: model, Vector: make([]float32, dim)})
-	if err := db.SetWithPrefix(storage.PrefixEmbedding, []byte(chunkID), rec); err != nil {
+	if err := db.Set(keys.EmbeddingKey(ws, chunkID), rec); err != nil {
 		t.Fatalf("plant embedding: %v", err)
 	}
 }
@@ -224,14 +226,15 @@ func TestCorpusProfile_EmptyAndMajority(t *testing.T) {
 	os.MkdirAll(dataDir, 0o755)
 	db, _ := storage.Open(dataDir)
 	defer db.Close()
+	ws := defaultWS(db)
 
-	if p := CorpusProfile(db); p.Total != 0 || !p.Consistent {
+	if p := CorpusProfile(ws, db); p.Total != 0 || !p.Consistent {
 		t.Fatalf("empty corpus profile = %+v, want zero/consistent", p)
 	}
 	plantEmbedding(t, db, "c1", "alpha", 4)
 	plantEmbedding(t, db, "c2", "alpha", 4)
 	plantEmbedding(t, db, "c3", "beta", 8)
-	p := CorpusProfile(db)
+	p := CorpusProfile(ws, db)
 	if p.MajorityModel != "alpha" || p.MajorityDim != 4 || p.Consistent {
 		t.Fatalf("profile = %+v, want majority alpha/4 inconsistent", p)
 	}

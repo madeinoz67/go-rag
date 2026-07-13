@@ -49,6 +49,7 @@ func TestPipeline_EnrichsDocument(t *testing.T) {
 	defer db.Close()
 
 	p := New(db, chunk.NewSplitter(512, 50), fakeEmbedPI{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
+	ws := wsOf(p)
 	p.SetEnricher(fakeEnricher{})
 	var drainOnce sync.Once
 	drain := func() { drainOnce.Do(p.Close) }
@@ -59,7 +60,7 @@ func TestPipeline_EnrichsDocument(t *testing.T) {
 		"The retention window is thirty days of security-hardened snapshots stored locally."), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)
 	}
-	res, err := p.Ingest(context.Background(), dp, "*")
+	res, err := p.Ingest(context.Background(), ws, dp, "*")
 	if err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
@@ -71,7 +72,7 @@ func TestPipeline_EnrichsDocument(t *testing.T) {
 	// Read the document back; it must carry the Enrichment sidecar.
 	var doc model.Document
 	found := false
-	_ = db.PrefixScanByte(storage.PrefixDocument, func(_ []byte, val []byte) bool {
+	scanVaultKind(t, db, storage.PrefixDocument, ws, func(_ []byte, val []byte) bool {
 		if json.Unmarshal(val, &doc) == nil {
 			found = true
 			return false
@@ -110,6 +111,7 @@ func TestPipeline_NoEnricherIsNoop(t *testing.T) {
 	defer db.Close()
 
 	p := New(db, chunk.NewSplitter(512, 50), fakeEmbedPI{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
+	ws := wsOf(p)
 	// No SetEnricher — enrichment off.
 	var drainOnce sync.Once
 	drain := func() { drainOnce.Do(p.Close) }
@@ -119,13 +121,13 @@ func TestPipeline_NoEnricherIsNoop(t *testing.T) {
 	if err := os.WriteFile(dp, []byte("A document with no enrichment configured."), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)
 	}
-	if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
+	if _, err := p.Ingest(context.Background(), ws, dp, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
 	drain() // happy-path drain (idempotent via drainOnce)
 
 	var doc model.Document
-	_ = db.PrefixScanByte(storage.PrefixDocument, func(_ []byte, val []byte) bool {
+	scanVaultKind(t, db, storage.PrefixDocument, ws, func(_ []byte, val []byte) bool {
 		_ = json.Unmarshal(val, &doc)
 		return false
 	})

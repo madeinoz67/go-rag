@@ -55,7 +55,7 @@ func populateDB(t *testing.T, dbPath, ollamaURL, doc string) {
 	if err := os.WriteFile(dp, []byte(doc), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
+	if _, err := p.Ingest(context.Background(), db.ResolveVaultPrefix("default"), dp, "*"); err != nil {
 		t.Fatal(err)
 	}
 }

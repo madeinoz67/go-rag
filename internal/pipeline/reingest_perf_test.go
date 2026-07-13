@@ -18,6 +18,7 @@ import (
 func TestReingest_Performance_UnchangedRatio(t *testing.T) {
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
 	var mu sync.Mutex
 	var got []events.ChunkDelta
@@ -43,12 +44,12 @@ func TestReingest_Performance_UnchangedRatio(t *testing.T) {
 	writeFile(t, docPath, sb.String())
 
 	// Ingest.
-	r, _ := p.Ingest(context.Background(), dir, "*")
+	r, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if r.New != 1 {
 		t.Fatalf("ingest: want 1 new doc, got %+v", r)
 	}
 	docID := docIDForPath(t, p, docPath)
-	origCount := len(p.chunksOfDoc(docID))
+	origCount := len(p.chunksOfDoc(ws, docID))
 	t.Logf("original chunks: %d", origCount)
 
 	// Edit: change one section's content (in the middle of the doc).

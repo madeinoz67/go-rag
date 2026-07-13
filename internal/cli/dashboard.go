@@ -107,11 +107,12 @@ func printVaultsOverview() {
 		dim := 0
 		model := cfg.EmbeddingModel
 		if _, db, err := openDB(vp); err == nil {
-			docs = countPrefix(db, 0x02)
+			ws := db.ResolveVaultPrefix("default")
+			docs = countPrefix(db, ws, 0x02)
 			storage = dirSize(filepath.Join(vp, "data"))
 			// Stored majority model + dim (audit H03); falls back to the configured
 			// model when nothing is embedded yet.
-			if prof := engine.CorpusProfile(db); prof.Total > 0 {
+			if prof := engine.CorpusProfile(ws, db); prof.Total > 0 {
 				model = prof.MajorityModel
 				dim = prof.MajorityDim
 			}

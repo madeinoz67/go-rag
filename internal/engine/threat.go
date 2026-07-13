@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/madeinoz67/go-rag/internal/poison"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // ThreatSource is one managed instruction-phrase source.
@@ -51,8 +51,9 @@ type ThreatImportResult struct {
 
 // ListThreatSources returns all managed phrase sources (sorted by ID).
 func (e *Engine) ListThreatSources() ([]ThreatSource, error) {
+	ws := e.db.ResolveVaultPrefix("default")
 	var out []ThreatSource
-	err := e.db.ScanThreatSources(func(_ string, val []byte) bool {
+	err := e.db.ScanThreatSources(ws, func(_ string, val []byte) bool {
 		var s ThreatSource
 		if json.Unmarshal(val, &s) == nil {
 			out = append(out, s)
@@ -64,15 +65,17 @@ func (e *Engine) ListThreatSources() ([]ThreatSource, error) {
 }
 
 func (e *Engine) putThreatSource(s ThreatSource) error {
+	ws := e.db.ResolveVaultPrefix("default")
 	bj, err := json.Marshal(s)
 	if err != nil {
 		return err
 	}
-	return e.db.SetWithPrefix(storage.PrefixThreatSrc, []byte(s.ID), bj)
+	return e.db.Set(keys.ThreatSourceKey(ws, s.ID), bj)
 }
 
 func (e *Engine) getThreatSource(id string) (ThreatSource, bool, error) {
-	raw, ok, err := e.db.GetWithPrefix(storage.PrefixThreatSrc, []byte(id))
+	ws := e.db.ResolveVaultPrefix("default")
+	raw, ok, err := e.db.Get(keys.ThreatSourceKey(ws, id))
 	if err != nil || !ok {
 		return ThreatSource{}, false, err
 	}
@@ -86,7 +89,8 @@ func (e *Engine) getThreatSource(id string) (ThreatSource, bool, error) {
 // RemoveThreatSource removes a source by ID and triggers a rescan (a removed
 // source may un-flag chunks that only matched its phrases).
 func (e *Engine) RemoveThreatSource(id string) error {
-	if err := e.db.DeleteWithPrefix(storage.PrefixThreatSrc, []byte(id)); err != nil {
+	ws := e.db.ResolveVaultPrefix("default")
+	if err := e.db.Delete(keys.ThreatSourceKey(ws, id)); err != nil {
 		return err
 	}
 	_, _, _ = e.RescanPoisoning()

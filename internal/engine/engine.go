@@ -193,7 +193,8 @@ func (e *Engine) indexes() (*index.FTS, *index.Vector, error) {
 	e.idxMu.Lock()
 	defer e.idxMu.Unlock()
 	if e.idxFts == nil || e.idxVec == nil {
-		fts, vec, err := pipeline.LoadIndex(e.db)
+		ws := e.db.ResolveVaultPrefix("default")
+		fts, vec, err := pipeline.LoadIndex(ws, e.db)
 		if err != nil {
 			return nil, nil, err
 		}

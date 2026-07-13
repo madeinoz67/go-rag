@@ -18,6 +18,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/index"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // cacheFakeEmb returns a fixed dim-2 vector per text (deterministic, instant) —
@@ -89,7 +90,7 @@ func waitEmbedded(t *testing.T, e *Engine) {
 // docIDForPath resolves the document ID for an ingested path (PrefixPathDoc).
 func docIDForPath(t *testing.T, e *Engine, path string) string {
 	t.Helper()
-	raw, ok, _ := e.db.GetWithPrefix(storage.PrefixPathDoc, []byte(path))
+	raw, ok, _ := e.db.Get(keys.PathDocKey(e.db.ResolveVaultPrefix("default"), path))
 	if !ok {
 		t.Fatalf("no document indexed for path %s", path)
 	}

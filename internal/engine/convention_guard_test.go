@@ -15,6 +15,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // storeEmbed writes one 0x04 embedding record with the given model/convention.
@@ -26,7 +27,7 @@ func storeEmbed(t *testing.T, db *storage.DB, id, model, convention string, vec 
 		Vector     []float32 `json:"vector"`
 	}{Model: model, Convention: convention, Vector: vec}
 	b, _ := json.Marshal(rec)
-	if err := db.SetWithPrefix(storage.PrefixEmbedding, []byte(id), b); err != nil {
+	if err := db.Set(keys.EmbeddingKey(db.ResolveVaultPrefix("default"), id), b); err != nil {
 		t.Fatalf("store embed: %v", err)
 	}
 }

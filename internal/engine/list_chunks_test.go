@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/madeinoz67/go-rag/internal/model"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // list_chunks_test.go (package engine) proves spec 047 Slice 1:
@@ -22,6 +22,7 @@ import (
 // with a deterministic id "<docID>#<idx>".
 func putChunk(t *testing.T, e *Engine, docID string, idx int) {
 	t.Helper()
+	ws := engineWS(e)
 	c := model.Chunk{
 		ID:          docID + "#" + itoa(idx),
 		DocumentID:  docID,
@@ -33,7 +34,7 @@ func putChunk(t *testing.T, e *Engine, docID string, idx int) {
 	if err != nil {
 		t.Fatalf("marshal chunk %s: %v", c.ID, err)
 	}
-	if err := e.db.SetWithPrefix(storage.PrefixChunk, []byte(c.ID), raw); err != nil {
+	if err := e.db.Set(keys.ChunkKey(ws, c.ID), raw); err != nil {
 		t.Fatalf("putChunk %s: %v", c.ID, err)
 	}
 }
@@ -137,6 +138,7 @@ func TestListChunks_InvalidInput(t *testing.T) {
 // putDocWithTags writes a document with the given enrichment tags (spec 029 / 047 R3).
 func putDocWithTags(t *testing.T, e *Engine, id string, tags []string) {
 	t.Helper()
+	ws := engineWS(e)
 	d := model.Document{
 		ID:          id,
 		FilePath:    id + ".txt",
@@ -151,7 +153,7 @@ func putDocWithTags(t *testing.T, e *Engine, id string, tags []string) {
 	if err != nil {
 		t.Fatalf("marshal %s: %v", id, err)
 	}
-	if err := e.db.SetWithPrefix(storage.PrefixDocument, []byte(id), raw); err != nil {
+	if err := e.db.Set(keys.DocumentKey(ws, id), raw); err != nil {
 		t.Fatalf("putDocWithTags %s: %v", id, err)
 	}
 }

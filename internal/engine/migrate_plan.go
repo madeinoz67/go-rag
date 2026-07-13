@@ -55,7 +55,8 @@ const estimateNote = "estimate — an effort proxy (re-embedding count), not a t
 // the configured target model. Read-only; used by the transports and by Migrate
 // (FR-008: Migrate calls this first so preview and execution share one path).
 func (e *Engine) MigratePlan() (*MigrationPlan, error) {
-	return MigratePlanFor(e.db, e.cfg.EmbeddingModel)
+	ws := e.db.ResolveVaultPrefix("default")
+	return MigratePlanFor(ws, e.db, e.cfg.EmbeddingModel)
 }
 
 // MigratePlanFor computes a read-only migration plan from stored metadata alone
@@ -64,9 +65,9 @@ func (e *Engine) MigratePlan() (*MigrationPlan, error) {
 // Read-only and backend-free (FR-003/FR-004): it reaches only EmbeddingModelStats
 // + CorpusProfile, both Pebble prefix scans. Deterministic (FR-007): Sources and
 // Dimensions are sorted, so repeated calls on an unchanged corpus are identical.
-func MigratePlanFor(db *storage.DB, target string) (*MigrationPlan, error) {
-	stats := pipeline.EmbeddingModelStats(db)
-	prof := CorpusProfile(db)
+func MigratePlanFor(ws [8]byte, db *storage.DB, target string) (*MigrationPlan, error) {
+	stats := pipeline.EmbeddingModelStats(ws, db)
+	prof := CorpusProfile(ws, db)
 
 	plan := &MigrationPlan{
 		TargetModel: target,

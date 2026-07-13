@@ -15,6 +15,7 @@ func TestIngest_Progress(t *testing.T) {
 
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
 	var calls, lastDone, lastTotal int
 	p.OnProgress = func(done, total int, _ string, _ string) {
@@ -23,7 +24,7 @@ func TestIngest_Progress(t *testing.T) {
 		lastTotal = total
 	}
 
-	res, _ := p.Ingest(context.Background(), dir, "*")
+	res, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if res.New != 2 {
 		t.Fatalf("want 2 new, got %+v", res)
 	}

@@ -34,6 +34,7 @@ func TestPipeline_CaptionImages_ImageCache(t *testing.T) {
 	p, db := newCaptionPipeline(t)
 	defer db.Close()
 	defer p.Close()
+	ws := wsOf(p)
 
 	calls := 0
 	p.SetCaptioner(&countingCaptioner{model: "fake-vision", result: "a chart showing revenue", calls: &calls})
@@ -42,6 +43,7 @@ func TestPipeline_CaptionImages_ImageCache(t *testing.T) {
 	// Two IDENTICAL images (same bytes) on different pages.
 	sameBytes := []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10}
 	p.captionImages(job{
+		ws:     ws,
 		docID:  docID,
 		chunks: []model.Chunk{oc},
 		images: []reader.ImageRef{
@@ -59,7 +61,7 @@ func TestPipeline_CaptionImages_ImageCache(t *testing.T) {
 	// The caption chunk should reference BOTH pages (both captioned — one from the
 	// call, one from the cache).
 	var caption *model.Chunk
-	db.PrefixScanByte(storage.PrefixChunk, func(_ []byte, v []byte) bool {
+	scanVaultKind(t, db, storage.PrefixChunk, ws, func(_ []byte, v []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(v, &c) == nil && c.Kind == "caption" && c.DocumentID == docID {
 			caption = &c

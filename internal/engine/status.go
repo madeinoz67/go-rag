@@ -10,6 +10,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/embed"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // baselineRecordedAt formats the baseline timestamp for status display ("" when
@@ -31,10 +32,11 @@ func baselineRecordedAt(t time.Time) string {
 // ollama-version) and the drift verdict, computed LIVE on each call (distinct
 // from the cached boot verdict /health reads).
 func (e *Engine) Status() (*StatusInfo, error) {
-	docs := countPrefix(e.db, storage.PrefixDocument)
-	chunks := countPrefix(e.db, storage.PrefixChunk)
-	embs := countPrefix(e.db, storage.PrefixEmbedding)
-	prof := CorpusProfile(e.db)
+	ws := e.db.ResolveVaultPrefix("default")
+	docs := countPrefix(e.db, ws, storage.PrefixDocument)
+	chunks := countPrefix(e.db, ws, storage.PrefixChunk)
+	embs := countPrefix(e.db, ws, storage.PrefixEmbedding)
+	prof := CorpusProfile(ws, e.db)
 
 	// H11/spec 017: live drift verdict (re-fetches the Ollama version; this is
 	// the on-demand detailed view — /health reads the cached boot verdict).
@@ -60,29 +62,35 @@ func (e *Engine) Status() (*StatusInfo, error) {
 	}
 	// H04/spec 019: poisoning summary — flagged count (0x11 index), sources, merged
 	// phrase-list size, and the effective enabled/threshold state.
-	poisonFlagged := countPrefix(e.db, storage.PrefixPoisonQuar)
+	poisonFlagged := countPrefix(e.db, ws, storage.PrefixPoisonQuar)
 
 	// H20/spec 026: near-duplicate chunk count — chunks with NearDup siblings.
 	nearDupChunks := 0
-	_ = e.db.PrefixScanByte(storage.PrefixChunk, func(_, v []byte) bool {
-		var c model.Chunk
-		if json.Unmarshal(v, &c) == nil && c.NearDup != nil {
-			nearDupChunks++
-		}
-		return true
-	})
+	chunkLower, chunkUpper, err := keys.VaultKindRange(storage.PrefixChunk, ws)
+	if err == nil {
+		_ = e.db.RangeScan(chunkLower, chunkUpper, func(_, v []byte) bool {
+			var c model.Chunk
+			if json.Unmarshal(v, &c) == nil && c.NearDup != nil {
+				nearDupChunks++
+			}
+			return true
+		})
+	}
 	// spec 029: documents carrying a non-nil Enrichment sidecar.
 	enrichedDocs := 0
-	_ = e.db.PrefixScanByte(storage.PrefixDocument, func(_, v []byte) bool {
-		var d model.Document
-		if json.Unmarshal(v, &d) == nil && d.Enrichment != nil {
-			enrichedDocs++
-		}
-		return true
-	})
+	docLower, docUpper, err := keys.VaultKindRange(storage.PrefixDocument, ws)
+	if err == nil {
+		_ = e.db.RangeScan(docLower, docUpper, func(_, v []byte) bool {
+			var d model.Document
+			if json.Unmarshal(v, &d) == nil && d.Enrichment != nil {
+				enrichedDocs++
+			}
+			return true
+		})
+	}
 	// spec 030: embedder backlog — pending + failed counts from the 0x14 queue.
 	embedPending, embedFailed := 0, 0
-	_ = e.db.ScanEmbedQueue(func(_ string, item storage.EmbedQueueItem) bool {
+	_ = e.db.ScanEmbedQueue(ws, func(_ string, item storage.EmbedQueueItem) bool {
 		if item.Status == storage.EmbedQueueFailed {
 			embedFailed++
 		} else {
@@ -167,41 +175,49 @@ func (e *Engine) poolUtilization() PoolUtilization {
 
 // Files lists every ingested document, sorted by file path.
 func (e *Engine) Files() ([]FileEntry, error) {
+	ws := e.db.ResolveVaultPrefix("default")
 	var out []FileEntry
-	_ = e.db.PrefixScanByte(storage.PrefixDocument, func(_, val []byte) bool {
-		var d model.Document
-		if json.Unmarshal(val, &d) == nil {
-			out = append(out, FileEntry{
-				FilePath:   d.FilePath,
-				FileType:   d.FileType,
-				Status:     d.Status,
-				ChunkCount: d.ChunkCount,
-			})
-		}
-		return true
-	})
+	lower, upper, err := keys.VaultKindRange(storage.PrefixDocument, ws)
+	if err == nil {
+		_ = e.db.RangeScan(lower, upper, func(_, val []byte) bool {
+			var d model.Document
+			if json.Unmarshal(val, &d) == nil {
+				out = append(out, FileEntry{
+					FilePath:   d.FilePath,
+					FileType:   d.FileType,
+					Status:     d.Status,
+					ChunkCount: d.ChunkCount,
+				})
+			}
+			return true
+		})
+	}
 	sort.Slice(out, func(i, j int) bool { return out[i].FilePath < out[j].FilePath })
 	return out, nil
 }
 
 // Dirs groups ingested documents by directory, returning file/chunk counts.
 func (e *Engine) Dirs() ([]DirEntry, error) {
+	ws := e.db.ResolveVaultPrefix("default")
 	type counts struct{ files, chunks int }
 	m := map[string]*counts{}
-	_ = e.db.PrefixScanByte(storage.PrefixDocument, func(_, val []byte) bool {
-		var d model.Document
-		if json.Unmarshal(val, &d) == nil {
-			dir := filepath.Dir(d.FilePath)
-			entry := m[dir]
-			if entry == nil {
-				entry = &counts{}
-				m[dir] = entry
+	lower, upper, err := keys.VaultKindRange(storage.PrefixDocument, ws)
+	if err == nil {
+		_ = e.db.RangeScan(lower, upper, func(_, val []byte) bool {
+			var d model.Document
+			if json.Unmarshal(val, &d) == nil {
+				dir := filepath.Dir(d.FilePath)
+				entry := m[dir]
+				if entry == nil {
+					entry = &counts{}
+					m[dir] = entry
+				}
+				entry.files++
+				entry.chunks += d.ChunkCount
 			}
-			entry.files++
-			entry.chunks += d.ChunkCount
-		}
-		return true
-	})
+			return true
+		})
+	}
 	dirs := make([]string, 0, len(m))
 	for d := range m {
 		dirs = append(dirs, d)

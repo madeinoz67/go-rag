@@ -24,14 +24,15 @@ func TestIngest_SkipsGoRagDir(t *testing.T) {
 
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
-	res, err := p.Ingest(context.Background(), dir, "*")
+	ws := wsOf(p)
+	res, err := p.Ingest(context.Background(), ws, dir, "*")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.New != 1 {
 		t.Fatalf("only the real document should be ingested (.go-rag skipped); got %+v", res)
 	}
-	if n := p.CountDocuments(); n != 1 {
+	if n := p.CountDocuments(ws); n != 1 {
 		t.Fatalf("want 1 document, got %d", n)
 	}
 }
@@ -49,8 +50,9 @@ func TestIngest_ConcurrentWorkers(t *testing.T) {
 
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
-	res, err := p.Ingest(context.Background(), dir, "*")
+	res, err := p.Ingest(context.Background(), ws, dir, "*")
 	if err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
@@ -60,7 +62,7 @@ func TestIngest_ConcurrentWorkers(t *testing.T) {
 
 	// Give the two background workers time to index concurrently.
 	time.Sleep(150 * time.Millisecond)
-	if got := p.CountDocuments(); got != n {
+	if got := p.CountDocuments(ws); got != n {
 		t.Errorf("want %d documents, got %d", n, got)
 	}
 }

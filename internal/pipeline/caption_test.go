@@ -13,6 +13,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/reader"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // fakeCaptioner returns a fixed caption (hermetic — no vision model). If err is
@@ -33,15 +34,16 @@ func (f fakeCaptioner) Caption(_ context.Context, _ []byte, _ string) (string, e
 // after it). Mirrors the post-ACK state processJob leaves behind.
 func storeDocWithOneChunk(t *testing.T, db *storage.DB) (string, model.Chunk) {
 	t.Helper()
+	ws := db.ResolveVaultPrefix("default")
 	docID := "doc-caption-test"
 	doc := model.Document{ID: docID, MimeType: "application/pdf", ChunkCount: 1, Status: StatusEmbedded}
 	dj, _ := json.Marshal(doc)
-	if err := db.SetWithPrefix(storage.PrefixDocument, []byte(docID), dj); err != nil {
+	if err := db.Set(keys.DocumentKey(ws, docID), dj); err != nil {
 		t.Fatalf("store doc: %v", err)
 	}
 	oc := model.Chunk{ID: "chunk-orig-1", DocumentID: docID, Content: "body text here", ChunkIndex: 0, TotalChunks: 1}
 	ocj, _ := json.Marshal(oc)
-	if err := db.SetWithPrefix(storage.PrefixChunk, []byte(oc.ID), ocj); err != nil {
+	if err := db.Set(keys.ChunkKey(ws, oc.ID), ocj); err != nil {
 		t.Fatalf("store chunk: %v", err)
 	}
 	return docID, oc
@@ -67,10 +69,12 @@ func TestPipeline_CaptionImages(t *testing.T) {
 	p, db := newCaptionPipeline(t)
 	defer db.Close()
 	defer p.Close()
+	ws := wsOf(p)
 	p.SetCaptioner(fakeCaptioner{modelName: "fake-vision", caption: "bar chart showing revenue rising from 10k to 50k"})
 	docID, oc := storeDocWithOneChunk(t, db)
 
 	p.captionImages(job{
+		ws:       ws,
 		docID:    docID,
 		chunks:   []model.Chunk{oc},
 		images:   []reader.ImageRef{{PageNr: 1, Bytes: []byte("fake-jpeg"), FileType: "jpeg"}},
@@ -78,7 +82,7 @@ func TestPipeline_CaptionImages(t *testing.T) {
 	})
 
 	var caption *model.Chunk
-	db.PrefixScanByte(storage.PrefixChunk, func(_ []byte, v []byte) bool {
+	scanVaultKind(t, db, storage.PrefixChunk, ws, func(_ []byte, v []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(v, &c) == nil && c.Kind == "caption" && c.DocumentID == docID {
 			caption = &c
@@ -98,7 +102,7 @@ func TestPipeline_CaptionImages(t *testing.T) {
 
 	// Linked-list integrity: original → caption → (none).
 	var oc2 model.Chunk
-	if raw, ok, _ := db.GetWithPrefix(storage.PrefixChunk, []byte(oc.ID)); ok {
+	if raw, ok, _ := db.Get(keys.ChunkKey(ws, oc.ID)); ok {
 		_ = json.Unmarshal(raw, &oc2)
 	}
 	if oc2.NextChunkID != caption.ID {
@@ -113,7 +117,7 @@ func TestPipeline_CaptionImages(t *testing.T) {
 
 	// ChunkCount bumped (non-identity statistic).
 	var d model.Document
-	if raw, ok, _ := db.GetWithPrefix(storage.PrefixDocument, []byte(docID)); ok {
+	if raw, ok, _ := db.Get(keys.DocumentKey(ws, docID)); ok {
 		_ = json.Unmarshal(raw, &d)
 	}
 	if d.ChunkCount != 2 {
@@ -122,7 +126,7 @@ func TestPipeline_CaptionImages(t *testing.T) {
 
 	// Embed-queued (the vector-search half of SC-004 — without this, silently
 	// BM25-only).
-	if _, ok, _ := db.GetEmbedQueue(caption.ID); !ok {
+	if _, ok, _ := db.GetEmbedQueue(ws, caption.ID); !ok {
 		t.Error("caption chunk was not queued for embedding (vector half would silently fail)")
 	}
 
@@ -146,15 +150,17 @@ func TestPipeline_CaptionImages_Disabled(t *testing.T) {
 	p, db := newCaptionPipeline(t)
 	defer db.Close()
 	defer p.Close()
+	ws := wsOf(p)
 	docID, oc := storeDocWithOneChunk(t, db)
 	p.captionImages(job{
+		ws:       ws,
 		docID:    docID,
 		chunks:   []model.Chunk{oc},
 		images:   []reader.ImageRef{{PageNr: 1, Bytes: []byte("x")}},
 		mimeType: "application/pdf",
 	})
 	count := 0
-	db.PrefixScanByte(storage.PrefixChunk, func(_ []byte, v []byte) bool {
+	scanVaultKind(t, db, storage.PrefixChunk, ws, func(_ []byte, v []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(v, &c) == nil && c.Kind == "caption" {
 			count++
@@ -173,16 +179,18 @@ func TestPipeline_CaptionImages_Transient(t *testing.T) {
 	p, db := newCaptionPipeline(t)
 	defer db.Close()
 	defer p.Close()
+	ws := wsOf(p)
 	p.SetCaptioner(fakeCaptioner{modelName: "fake-vision", err: caption.ErrCircuitOpen})
 	docID, oc := storeDocWithOneChunk(t, db)
 	p.captionImages(job{
+		ws:       ws,
 		docID:    docID,
 		chunks:   []model.Chunk{oc},
 		images:   []reader.ImageRef{{PageNr: 1, Bytes: []byte("x")}},
 		mimeType: "application/pdf",
 	})
 	count := 0
-	db.PrefixScanByte(storage.PrefixChunk, func(_ []byte, v []byte) bool {
+	scanVaultKind(t, db, storage.PrefixChunk, ws, func(_ []byte, v []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(v, &c) == nil && c.Kind == "caption" {
 			count++

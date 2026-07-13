@@ -15,6 +15,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/reader"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // Change is one detected filesystem change (Kind: NEW/MODIFIED/SKIPPED/DELETED).
@@ -39,6 +40,7 @@ func New(db *storage.DB, pl *pipeline.Pipeline) *ChangeDetector {
 // applies changes. Files with no registered reader are ignored. Returns the list of
 // changes (including SKIPPED).
 func (cd *ChangeDetector) ScanOnce(ctx context.Context, root, glob string) ([]Change, error) {
+	ws := cd.db.ResolveVaultPrefix("default")
 	reader.DefaultReaders()
 	disk := map[string]string{}
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -72,10 +74,14 @@ func (cd *ChangeDetector) ScanOnce(ctx context.Context, root, glob string) ([]Ch
 		docID, hash string
 	}
 	dbFiles := map[string]tracked{}
-	_ = cd.db.PrefixScanByte(storage.PrefixPathDoc, func(key, val []byte) bool {
-		path := string(key[1:]) // key = 0x0C | path
+	lower, upper, err := keys.VaultKindRange(storage.PrefixPathDoc, ws)
+	if err != nil {
+		return nil, err
+	}
+	_ = cd.db.RangeScan(lower, upper, func(key, val []byte) bool {
+		path := string(key[9:]) // key = 0x0C | ws | path
 		tr := tracked{docID: string(val)}
-		if raw, ok, _ := cd.db.GetWithPrefix(storage.PrefixDocument, []byte(tr.docID)); ok {
+		if raw, ok, _ := cd.db.Get(keys.DocumentKey(ws, tr.docID)); ok {
 			var d model.Document
 			if json.Unmarshal(raw, &d) == nil {
 				tr.hash = d.ContentHash
@@ -90,7 +96,7 @@ func (cd *ChangeDetector) ScanOnce(ctx context.Context, root, glob string) ([]Ch
 		tr, exists := dbFiles[path]
 		switch {
 		case !exists:
-			cd.ingest(ctx, path)
+			cd.ingest(ctx, ws, path)
 			changes = append(changes, Change{Path: path, Kind: "NEW"})
 		case tr.hash != h:
 			_ = cd.pl.ReingestPath(ctx, path, tr.docID) // spec 043 / BL-010: capture + delete + re-ingest -> RE_INGESTED
@@ -108,8 +114,8 @@ func (cd *ChangeDetector) ScanOnce(ctx context.Context, root, glob string) ([]Ch
 	return changes, nil
 }
 
-func (cd *ChangeDetector) ingest(ctx context.Context, path string) {
-	_, _ = cd.pl.Ingest(ctx, path, "*")
+func (cd *ChangeDetector) ingest(ctx context.Context, ws [8]byte, path string) {
+	_, _ = cd.pl.Ingest(ctx, ws, path, "*")
 }
 
 // Watch runs continuously: real-time fsnotify events (500ms debounce) plus a polling

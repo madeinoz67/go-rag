@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // batch_get_chunks_test.go (package engine) proves spec 038: BatchGetChunks
@@ -163,7 +163,7 @@ func TestBatchGetChunks_ValidationAndEdges(t *testing.T) {
 	if docID == "" {
 		t.Fatal("pre-orphan: document should resolve")
 	}
-	if err := e.db.DeleteWithPrefix(storage.PrefixDocument, []byte(docID)); err != nil {
+	if err := e.db.Delete(keys.DocumentKey(e.db.ResolveVaultPrefix("default"), docID)); err != nil {
 		t.Fatalf("delete doc: %v", err)
 	}
 	res, err = e.BatchGetChunks([]string{live})

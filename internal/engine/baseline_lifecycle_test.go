@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // waitForBaseline polls until a corpus baseline exists (the first-embed write
@@ -17,9 +17,10 @@ import (
 // the same async window the H06 epoch tests account for).
 func waitForBaseline(t *testing.T, e *Engine) *CorpusBaseline {
 	t.Helper()
+	ws := engineWS(e)
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if b, ok := LoadBaseline(e.db); ok {
+		if b, ok := LoadBaseline(e.db, ws); ok {
 			return b
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -51,19 +52,20 @@ func TestBaseline_WrittenOnFirstEmbed(t *testing.T) {
 // first drift check — no re-ingestion.
 func TestBaseline_BackfillOnFirstBoot(t *testing.T) {
 	e := newDriftEngine(t, "")
+	ws := engineWS(e)
 	addDoc(t, e, "pre-existing corpus document for backfill")
 	waitForBaseline(t, e) // first-embed already wrote one; delete it to simulate pre-H11
 
-	if err := e.db.DeleteWithPrefix(storage.PrefixCorpusMeta, []byte(corpusBaselineKey)); err != nil {
+	if err := e.db.Delete(keys.CorpusMetaKey(ws, corpusBaselineKey)); err != nil {
 		t.Fatalf("delete baseline: %v", err)
 	}
-	if _, ok := LoadBaseline(e.db); ok {
+	if _, ok := LoadBaseline(e.db, ws); ok {
 		t.Fatal("baseline still present after delete")
 	}
 
 	// The next drift check backfills from CorpusProfile (the stored majority).
 	e.RefreshDriftVerdict(context.Background())
-	b, ok := LoadBaseline(e.db)
+	b, ok := LoadBaseline(e.db, ws)
 	if !ok {
 		t.Fatal("baseline not backfilled on first drift check")
 	}
@@ -79,14 +81,15 @@ func TestBaseline_BackfillOnFirstBoot(t *testing.T) {
 // baseline (RecordedAt advances) and refreshes the cached verdict.
 func TestBaseline_RefreshedAfterMigrate(t *testing.T) {
 	e := newDriftEngine(t, "")
+	ws := engineWS(e)
 	// Plant an OLD baseline (as if from a prior model), then refresh.
 	old := &CorpusBaseline{Model: "old-model", Dim: 999, Convention: "x", OllamaVersion: "0.1.0"}
-	if err := SaveBaseline(e.db, old); err != nil {
+	if err := SaveBaseline(e.db, ws, old); err != nil {
 		t.Fatal(err)
 	}
 
 	e.refreshBaselineAfterMigrate(context.Background())
-	b, ok := LoadBaseline(e.db)
+	b, ok := LoadBaseline(e.db, ws)
 	if !ok {
 		t.Fatal("baseline missing after refresh")
 	}

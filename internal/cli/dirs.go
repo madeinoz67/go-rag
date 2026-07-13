@@ -9,6 +9,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +32,9 @@ func newDirsCmd() *cobra.Command {
 			defer db.Close()
 
 			counts := map[string]*dirEntry{}
-			_ = db.PrefixScanByte(storage.PrefixDocument, func(_, val []byte) bool {
+			ws := db.ResolveVaultPrefix("default") // spec 052: default vault
+			dLo, dHi, _ := keys.VaultKindRange(storage.PrefixDocument, ws)
+			_ = db.RangeScan(dLo, dHi, func(_, val []byte) bool {
 				var d model.Document
 				if json.Unmarshal(val, &d) == nil {
 					dir := filepath.Dir(d.FilePath)

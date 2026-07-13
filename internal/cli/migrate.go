@@ -28,11 +28,12 @@ func newMigrateCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
+			ws := db.ResolveVaultPrefix("default")
 
 			// The plan is computed once, read-only, from stored metadata (no embedding,
 			// no backend). --dry-run renders it and exits; a real migrate renders the
 			// same plan, then proceeds when there is stale work.
-			plan, err := engine.MigratePlanFor(db, cfg.EmbeddingModel)
+			plan, err := engine.MigratePlanFor(ws, db, cfg.EmbeddingModel)
 			if err != nil {
 				return err
 			}

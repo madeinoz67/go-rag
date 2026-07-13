@@ -9,6 +9,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/enrich"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // ReEnrich re-runs document enrichment (spec 029, US3 back-fill / T016) over
@@ -31,8 +32,10 @@ func (e *Engine) ReEnrich(ctx context.Context) (*IngestSummary, error) {
 	en := enrich.New(e.cfg.EnrichmentProvider, enrEndpoint, e.cfg.EnrichmentModel, e.cfg.EnrichmentAPIKey)
 
 	// Gather chunk text per document (bounded) from the stored chunks.
+	ws := e.db.ResolveVaultPrefix("default") // spec 052: default vault
 	docText := map[string]string{}
-	_ = e.db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
+	chLo, chHi, _ := keys.VaultKindRange(storage.PrefixChunk, ws)
+	_ = e.db.RangeScan(chLo, chHi, func(_, val []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(val, &c) != nil {
 			return true
@@ -46,7 +49,8 @@ func (e *Engine) ReEnrich(ctx context.Context) (*IngestSummary, error) {
 		return true
 	})
 
-	_ = e.db.PrefixScanByte(storage.PrefixDocument, func(_, val []byte) bool {
+	docLo, docHi, _ := keys.VaultKindRange(storage.PrefixDocument, ws)
+	_ = e.db.RangeScan(docLo, docHi, func(_, val []byte) bool {
 		var d model.Document
 		if json.Unmarshal(val, &d) != nil {
 			return true
@@ -71,7 +75,7 @@ func (e *Engine) ReEnrich(ctx context.Context) (*IngestSummary, error) {
 		}
 		d.Enrichment = info
 		if dj, merr := json.Marshal(d); merr == nil {
-			_ = e.db.SetWithPrefix(storage.PrefixDocument, []byte(d.ID), dj)
+			_ = e.db.Set(keys.DocumentKey(ws, d.ID), dj)
 			sum.New++
 		} else {
 			sum.Errors++

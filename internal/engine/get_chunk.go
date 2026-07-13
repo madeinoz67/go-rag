@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/model"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // get_chunk.go implements spec 035 (bridge backlog BL-001): GetChunk — resolve a
@@ -49,10 +49,11 @@ type ChunkResult struct {
 // An orphan chunk (chunk present, parent document absent) is NOT an error: the
 // chunk is returned with a zero-valued Document/Source.
 func (e *Engine) GetChunk(chunkID string) (*ChunkResult, error) {
+	ws := e.db.ResolveVaultPrefix("default")
 	if strings.TrimSpace(chunkID) == "" {
 		return nil, fmt.Errorf("chunk_id is required: %w", ErrInvalid)
 	}
-	c, ok := lookupChunk(e.db, chunkID)
+	c, ok := lookupChunk(e.db, ws, chunkID)
 	if !ok {
 		return nil, fmt.Errorf("%w: chunk %s", ErrNotFound, chunkID)
 	}
@@ -60,11 +61,11 @@ func (e *Engine) GetChunk(chunkID string) (*ChunkResult, error) {
 	// Parent document — tolerant: an orphan chunk (doc deleted/stale) yields a
 	// zero Document, not an error. The chunk carries DocumentID inline, so this
 	// is one point Get with no scan.
-	if d, ok := lookupDoc(e.db, c.DocumentID); ok {
+	if d, ok := lookupDoc(e.db, ws, c.DocumentID); ok {
 		res.Document = d
 		// Optional source read for source_path (absolute source dir). Constant-
 		// time point Get over prefix 0x01; tolerant of a missing/bad row.
-		if raw, ok, _ := e.db.GetWithPrefix(storage.PrefixSource, []byte(d.SourceID)); ok {
+		if raw, ok, _ := e.db.Get(keys.SourceKey(ws, d.SourceID)); ok {
 			_ = json.Unmarshal(raw, &res.Source)
 		}
 	}

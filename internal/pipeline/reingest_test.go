@@ -17,6 +17,7 @@ import (
 func TestReingest_EmitsReingestedWithDelta(t *testing.T) {
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
 	var got *events.DocumentEvent
 	var mu sync.Mutex
@@ -35,7 +36,7 @@ func TestReingest_EmitsReingestedWithDelta(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(dir, "doc.txt"), content)
 
-	r, _ := p.Ingest(context.Background(), dir, "*")
+	r, _ := p.Ingest(context.Background(), ws, dir, "*")
 	if r.New != 1 {
 		t.Fatalf("first ingest: want 1 new doc, got %+v", r)
 	}
@@ -67,6 +68,7 @@ func TestReingest_EmitsReingestedWithDelta(t *testing.T) {
 func TestReingest_SuppressesDeleted(t *testing.T) {
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
 	var mu sync.Mutex
 	var deleted, reingested int
@@ -87,7 +89,7 @@ func TestReingest_SuppressesDeleted(t *testing.T) {
 		content += "the quick brown fox jumps over the lazy dog. "
 	}
 	writeFile(t, filepath.Join(dir, "doc.txt"), content)
-	p.Ingest(context.Background(), dir, "*")
+	p.Ingest(context.Background(), ws, dir, "*")
 
 	// Reset counters — we only care about the Reprocess events.
 	mu.Lock()

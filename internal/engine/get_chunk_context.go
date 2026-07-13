@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/model"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // get_chunk_context.go implements spec 037 (bridge backlog BL-002): GetChunkContext
@@ -79,13 +79,14 @@ func MaxChunkContextWindow() int { return maxChunkContextWindow }
 // hop (a neighbour ID that does not resolve) is tolerated — the unbroken run up
 // to the requested window is returned, not an error.
 func (e *Engine) GetChunkContext(chunkID string, window int) (*ContextResult, error) {
+	ws := e.db.ResolveVaultPrefix("default")
 	if strings.TrimSpace(chunkID) == "" {
 		return nil, fmt.Errorf("chunk_id is required: %w", ErrInvalid)
 	}
 	if window < 0 || window > maxChunkContextWindow {
 		return nil, fmt.Errorf("window must be 0..%d, got %d: %w", maxChunkContextWindow, window, ErrInvalid)
 	}
-	target, ok := lookupChunk(e.db, chunkID)
+	target, ok := lookupChunk(e.db, ws, chunkID)
 	if !ok {
 		return nil, fmt.Errorf("%w: chunk %s", ErrNotFound, chunkID)
 	}
@@ -94,7 +95,7 @@ func (e *Engine) GetChunkContext(chunkID string, window int) (*ContextResult, er
 	predecessors := make([]model.Chunk, 0, window)
 	cur := target
 	for i := 0; i < window && cur.PreviousChunkID != ""; i++ {
-		p, ok := lookupChunk(e.db, cur.PreviousChunkID)
+		p, ok := lookupChunk(e.db, ws, cur.PreviousChunkID)
 		if !ok {
 			break // defensive: linked list writes are atomic at ingest; degrade gracefully
 		}
@@ -105,7 +106,7 @@ func (e *Engine) GetChunkContext(chunkID string, window int) (*ContextResult, er
 	successors := make([]model.Chunk, 0, window)
 	cur = target
 	for i := 0; i < window && cur.NextChunkID != ""; i++ {
-		nx, ok := lookupChunk(e.db, cur.NextChunkID)
+		nx, ok := lookupChunk(e.db, ws, cur.NextChunkID)
 		if !ok {
 			break
 		}
@@ -121,9 +122,9 @@ func (e *Engine) GetChunkContext(chunkID string, window int) (*ContextResult, er
 	res := &ContextResult{Chunks: chunks, TargetIndex: len(predecessors)}
 	// Parent document + source — tolerant of an orphan chunk (zero-valued, not an
 	// error). Mirrors GetChunk (spec 035): one lookupDoc + an optional source Get.
-	if d, ok := lookupDoc(e.db, target.DocumentID); ok {
+	if d, ok := lookupDoc(e.db, ws, target.DocumentID); ok {
 		res.Document = d
-		if raw, ok, _ := e.db.GetWithPrefix(storage.PrefixSource, []byte(d.SourceID)); ok {
+		if raw, ok, _ := e.db.Get(keys.SourceKey(ws, d.SourceID)); ok {
 			_ = json.Unmarshal(raw, &res.Source)
 		}
 	}

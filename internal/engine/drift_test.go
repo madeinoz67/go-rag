@@ -47,7 +47,8 @@ func newDriftEngine(t *testing.T, ollamaURL string) *Engine {
 // readiness NOT READY, liveness OK (posture A).
 func TestDrift_HardDrift_ModelMismatch(t *testing.T) {
 	e := newDriftEngine(t, "") // offline: focus on the hard comparison
-	if err := SaveBaseline(e.db, &CorpusBaseline{Model: "nomic-embed-text", Dim: 2, Convention: ""}); err != nil {
+	ws := engineWS(e)
+	if err := SaveBaseline(e.db, ws, &CorpusBaseline{Model: "nomic-embed-text", Dim: 2, Convention: ""}); err != nil {
 		t.Fatal(err)
 	}
 	e.cfg.EmbeddingModel = "mxbai-embed-large"
@@ -76,7 +77,8 @@ func TestDrift_HardDrift_ModelMismatch(t *testing.T) {
 // differs) is also hard drift — the Ollama-model-update-changed-dim case.
 func TestDrift_HardDrift_DimMismatch(t *testing.T) {
 	e := newDriftEngine(t, "")
-	if err := SaveBaseline(e.db, &CorpusBaseline{Model: "fake", Dim: 768, Convention: ""}); err != nil {
+	ws := engineWS(e)
+	if err := SaveBaseline(e.db, ws, &CorpusBaseline{Model: "fake", Dim: 768, Convention: ""}); err != nil {
 		t.Fatal(err)
 	}
 	v := e.RefreshDriftVerdict(context.Background())
@@ -91,7 +93,8 @@ func TestDrift_HardDrift_DimMismatch(t *testing.T) {
 // TestDrift_Clean: a matching baseline → clean, ready, liveness OK.
 func TestDrift_Clean(t *testing.T) {
 	e := newDriftEngine(t, "")
-	if err := SaveBaseline(e.db, &CorpusBaseline{Model: "fake", Dim: 2, Convention: ""}); err != nil {
+	ws := engineWS(e)
+	if err := SaveBaseline(e.db, ws, &CorpusBaseline{Model: "fake", Dim: 2, Convention: ""}); err != nil {
 		t.Fatal(err)
 	}
 	v := e.RefreshDriftVerdict(context.Background())
@@ -138,7 +141,8 @@ func versionServer(t *testing.T, version string) string {
 // Ready stays true (warn, serve).
 func TestDrift_VersionWarning(t *testing.T) {
 	e := newDriftEngine(t, versionServer(t, "0.5.0"))
-	if err := SaveBaseline(e.db, &CorpusBaseline{Model: "fake", Dim: 2, Convention: "", OllamaVersion: "0.1.0"}); err != nil {
+	ws := engineWS(e)
+	if err := SaveBaseline(e.db, ws, &CorpusBaseline{Model: "fake", Dim: 2, Convention: "", OllamaVersion: "0.1.0"}); err != nil {
 		t.Fatal(err)
 	}
 	v := e.RefreshDriftVerdict(context.Background())
@@ -161,7 +165,8 @@ func TestDrift_VersionWarning(t *testing.T) {
 // wins (Ready false), not version-warning.
 func TestDrift_HardWinsOverVersion(t *testing.T) {
 	e := newDriftEngine(t, versionServer(t, "0.5.0"))
-	if err := SaveBaseline(e.db, &CorpusBaseline{Model: "nomic-embed-text", Dim: 2, Convention: "", OllamaVersion: "0.1.0"}); err != nil {
+	ws := engineWS(e)
+	if err := SaveBaseline(e.db, ws, &CorpusBaseline{Model: "nomic-embed-text", Dim: 2, Convention: "", OllamaVersion: "0.1.0"}); err != nil {
 		t.Fatal(err)
 	}
 	e.cfg.EmbeddingModel = "mxbai-embed-large" // model mismatch too
@@ -179,7 +184,8 @@ func TestDrift_HardWinsOverVersion(t *testing.T) {
 // verdict is "unknown" (version couldn't be verified) but NOT hard → Ready true.
 func TestDrift_OllamaUnreachable(t *testing.T) {
 	e := newDriftEngine(t, "http://127.0.0.1:1") // unreachable
-	if err := SaveBaseline(e.db, &CorpusBaseline{Model: "fake", Dim: 2, Convention: "", OllamaVersion: "0.1.0"}); err != nil {
+	ws := engineWS(e)
+	if err := SaveBaseline(e.db, ws, &CorpusBaseline{Model: "fake", Dim: 2, Convention: "", OllamaVersion: "0.1.0"}); err != nil {
 		t.Fatal(err)
 	}
 	v := e.RefreshDriftVerdict(context.Background()) // must not hang/error
@@ -201,7 +207,8 @@ func TestDrift_OllamaUnreachable(t *testing.T) {
 // → live "" → version comparison skipped (FR-010); a matching profile is clean.
 func TestDrift_OfflineEmbedderSkipsVersion(t *testing.T) {
 	e := newDriftEngine(t, "") // offline
-	if err := SaveBaseline(e.db, &CorpusBaseline{Model: "fake", Dim: 2, Convention: "", OllamaVersion: "0.1.0"}); err != nil {
+	ws := engineWS(e)
+	if err := SaveBaseline(e.db, ws, &CorpusBaseline{Model: "fake", Dim: 2, Convention: "", OllamaVersion: "0.1.0"}); err != nil {
 		t.Fatal(err)
 	}
 	v := e.RefreshDriftVerdict(context.Background())

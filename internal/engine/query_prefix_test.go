@@ -66,7 +66,7 @@ func TestQuery_AppliesQueryPrefix(t *testing.T) {
 	if err := os.WriteFile(docPath, []byte("retrieval augmented generation combines retrieval with a language model"), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)
 	}
-	if _, err := pp.Ingest(context.Background(), docPath, "*"); err != nil {
+	if _, err := pp.Ingest(context.Background(), defaultWS(db), docPath, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
 	pp.Close()

@@ -15,6 +15,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 	"github.com/spf13/cobra"
 )
 
@@ -115,34 +116,38 @@ func formatBoundAddrs(addrs daemon.Addrs) string {
 }
 
 func gatherStats(db *storage.DB, cfg config.Config) statusInfo {
+	ws := db.ResolveVaultPrefix("default")
 	info := statusInfo{
-		Sources:   countPrefix(db, storage.PrefixSource),
-		Documents: countPrefix(db, storage.PrefixDocument),
-		Chunks:    countPrefix(db, storage.PrefixChunk),
+		Sources:   countPrefix(db, ws, storage.PrefixSource),
+		Documents: countPrefix(db, ws, storage.PrefixDocument),
+		Chunks:    countPrefix(db, ws, storage.PrefixChunk),
 		Provider:  cfg.OllamaURL,
 	}
 
 	embedded := 0
 	var last time.Time
-	_ = db.PrefixScanByte(storage.PrefixDocument, func(_, val []byte) bool {
-		var d model.Document
-		if json.Unmarshal(val, &d) == nil {
-			if d.Status == "embedded" {
-				embedded++
+	lower, upper, err := keys.VaultKindRange(storage.PrefixDocument, ws)
+	if err == nil {
+		_ = db.RangeScan(lower, upper, func(_, val []byte) bool {
+			var d model.Document
+			if json.Unmarshal(val, &d) == nil {
+				if d.Status == "embedded" {
+					embedded++
+				}
+				if d.UpdatedAt.After(last) {
+					last = d.UpdatedAt
+				}
 			}
-			if d.UpdatedAt.After(last) {
-				last = d.UpdatedAt
-			}
-		}
-		return true
-	})
+			return true
+		})
+	}
 	if info.Documents > 0 {
 		info.EmbeddedPct = embedded * 100 / info.Documents
 	}
 
 	// Embedding profile (audit H03): report the STORED majority model/dim and
 	// surface drift (mixed models/dims) so an operator sees it without querying.
-	prof := engine.CorpusProfile(db)
+	prof := engine.CorpusProfile(ws, db)
 	if prof.Total > 0 {
 		info.EmbeddingModel = prof.MajorityModel
 		info.Dimensions = prof.MajorityDim
@@ -176,9 +181,13 @@ func gatherStats(db *storage.DB, cfg config.Config) statusInfo {
 	return info
 }
 
-func countPrefix(db *storage.DB, prefix byte) int {
+func countPrefix(db *storage.DB, ws [8]byte, prefix byte) int {
+	lower, upper, err := keys.VaultKindRange(prefix, ws)
+	if err != nil {
+		return 0
+	}
 	n := 0
-	_ = db.PrefixScanByte(prefix, func(_, _ []byte) bool {
+	_ = db.RangeScan(lower, upper, func(_, _ []byte) bool {
 		n++
 		return true
 	})

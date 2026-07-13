@@ -6,6 +6,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/events"
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // DeleteDoc removes a Document and all its Chunks, Embeddings, and index entries
@@ -15,21 +16,26 @@ import (
 // is live, not rebuilt per query, so deletes must update it in place or the next
 // query would serve phantom hits.
 func (p *Pipeline) DeleteDoc(docID string) error {
+	ws := p.db.ResolveVaultPrefix("default")
 	unlock := p.docLock(docID) // spec 044: serialize same-docID operations
 	defer unlock()
-	return p.deleteDocLocked(docID)
+	return p.deleteDocLocked(ws, docID)
 }
 
 // deleteDocLocked is the DeleteDoc body without the docLock. Callers that
 // already hold the docLock (Reprocess, ReprocessAll, ReingestPath) call
 // this directly to avoid the non-reentrant deadlock.
-func (p *Pipeline) deleteDocLocked(docID string) error {
+func (p *Pipeline) deleteDocLocked(ws [8]byte, docID string) error {
 	db := p.db
 	// Save chunkID + content during the scan — the Pebble-backed FTS.Delete
 	// needs the content to re-tokenize (recover terms for key construction).
 	type chunkRef struct{ id, content string }
 	var chunks []chunkRef
-	_ = db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
+	lower, upper, err := keys.VaultKindRange(storage.PrefixChunk, ws)
+	if err != nil {
+		return err
+	}
+	_ = db.RangeScan(lower, upper, func(_, val []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(val, &c) == nil && c.DocumentID == docID {
 			chunks = append(chunks, chunkRef{id: c.ID, content: c.Content})
@@ -37,8 +43,8 @@ func (p *Pipeline) deleteDocLocked(docID string) error {
 		return true
 	})
 	for _, ch := range chunks {
-		_ = db.DeleteWithPrefix(storage.PrefixChunk, []byte(ch.id))
-		_ = db.DeleteWithPrefix(storage.PrefixEmbedding, []byte(ch.id))
+		_ = db.Delete(keys.ChunkKey(ws, ch.id))
+		_ = db.Delete(keys.EmbeddingKey(ws, ch.id))
 		// H01/spec 011 + H16/spec 018: keep the index fresh — no phantom hits.
 		if p.fts != nil {
 			p.fts.Delete(ch.id, ch.content)
@@ -79,16 +85,16 @@ func (p *Pipeline) deleteDocLocked(docID string) error {
 	// (double-scan, already-gone doc) emits no noise.
 	var filePath string
 	existed := false
-	if raw, ok, _ := db.GetWithPrefix(storage.PrefixDocument, []byte(docID)); ok {
+	if raw, ok, _ := db.Get(keys.DocumentKey(ws, docID)); ok {
 		var d model.Document
 		if json.Unmarshal(raw, &d) == nil {
 			filePath = d.FilePath
 			existed = true
-			_ = db.DeleteWithPrefix(storage.PrefixContentHash, []byte(d.ContentHash))
-			_ = db.DeleteWithPrefix(storage.PrefixPathDoc, []byte(d.FilePath))
+			_ = db.Delete(keys.ContentHashKey(ws, d.ContentHash))
+			_ = db.Delete(keys.PathDocKey(ws, d.FilePath))
 		}
 	}
-	if err := db.DeleteWithPrefix(storage.PrefixDocument, []byte(docID)); err != nil {
+	if err := db.Delete(keys.DocumentKey(ws, docID)); err != nil {
 		return err
 	}
 	// spec 040 / BL-008: publish DELETED while still under p.mu so it is the
@@ -108,9 +114,13 @@ func (p *Pipeline) deleteDocLocked(docID string) error {
 // chunksOfDoc returns the chunk records belonging to docID (read-only — used by
 // the re-ingest delta, spec 043 / BL-010, to capture the old chunk set before
 // DeleteDoc). Mirrors DeleteDoc's PrefixChunk scan but does not mutate.
-func (p *Pipeline) chunksOfDoc(docID string) []model.Chunk {
+func (p *Pipeline) chunksOfDoc(ws [8]byte, docID string) []model.Chunk {
 	var chunks []model.Chunk
-	_ = p.db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
+	lower, upper, err := keys.VaultKindRange(storage.PrefixChunk, ws)
+	if err != nil {
+		return chunks
+	}
+	_ = p.db.RangeScan(lower, upper, func(_, val []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(val, &c) == nil && c.DocumentID == docID {
 			chunks = append(chunks, c)

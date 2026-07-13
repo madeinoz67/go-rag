@@ -31,13 +31,14 @@ func TestIngest_SectionLevel_Attached(t *testing.T) {
 			writeFile(t, filepath.Join(dir, "d.md"), c.md)
 			p, cleanup := newTestPipeline(t, 0)
 			defer cleanup()
+			ws := wsOf(p)
 
-			r, _ := p.Ingest(context.Background(), dir, "*")
+			r, _ := p.Ingest(context.Background(), ws, dir, "*")
 			if r.New != 1 {
 				t.Fatalf("want 1 new doc, got %+v", r)
 			}
 			var lvl int
-			_ = p.db.PrefixScanByte(storage.PrefixChunk, func(_ []byte, v []byte) bool {
+			scanVaultKind(t, p.db, storage.PrefixChunk, ws, func(_ []byte, v []byte) bool {
 				var ch model.Chunk
 				if json.Unmarshal(v, &ch) == nil {
 					lvl = ch.SectionLevel

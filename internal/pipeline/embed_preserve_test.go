@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // writeFakeEmbedding seeds a PrefixEmbedding record for a chunk (simulates a
@@ -13,15 +13,17 @@ import (
 // The JSON shape matches embedRecord {Model, Convention, Vector}.
 func writeFakeEmbedding(t *testing.T, p *Pipeline, chunkID, model string) {
 	t.Helper()
+	ws := wsOf(p)
 	rec := []byte(`{"Model":"` + model + `","Convention":"","Vector":[1.0,0.1]}`)
-	if err := p.db.SetWithPrefix(storage.PrefixEmbedding, []byte(chunkID), rec); err != nil {
+	if err := p.db.Set(keys.EmbeddingKey(ws, chunkID), rec); err != nil {
 		t.Fatalf("write embedding: %v", err)
 	}
 }
 
 // hasEmbedding checks if a PrefixEmbedding record exists for chunkID.
 func hasEmbedding(p *Pipeline, chunkID string) bool {
-	_, ok, _ := p.db.GetWithPrefix(storage.PrefixEmbedding, []byte(chunkID))
+	ws := wsOf(p)
+	_, ok, _ := p.db.Get(keys.EmbeddingKey(ws, chunkID))
 	return ok
 }
 
@@ -34,6 +36,7 @@ func hasEmbedding(p *Pipeline, chunkID string) bool {
 func TestReingest_PreservesEmbeddings(t *testing.T) {
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
 	dir := t.TempDir()
 	content := ""
@@ -42,11 +45,11 @@ func TestReingest_PreservesEmbeddings(t *testing.T) {
 	}
 	path := filepath.Join(dir, "doc.txt")
 	writeFile(t, path, content)
-	p.Ingest(context.Background(), dir, "*")
+	p.Ingest(context.Background(), ws, dir, "*")
 
 	// Seed embeddings (simulate a prior embed; model "fake" matches the fakeEmbed).
 	docID := docIDForPath(t, p, path)
-	for _, c := range p.chunksOfDoc(docID) {
+	for _, c := range p.chunksOfDoc(ws, docID) {
 		writeFakeEmbedding(t, p, c.ID, "fake")
 	}
 
@@ -59,7 +62,7 @@ func TestReingest_PreservesEmbeddings(t *testing.T) {
 	if newDocID == "" {
 		t.Fatal("doc not found after Reprocess")
 	}
-	for _, c := range p.chunksOfDoc(newDocID) {
+	for _, c := range p.chunksOfDoc(ws, newDocID) {
 		if !hasEmbedding(p, c.ID) {
 			t.Errorf("chunk %s: PrefixEmbedding missing after re-ingest (preserveEmbeds failed)", c.ID)
 		}
@@ -73,6 +76,7 @@ func TestReingest_PreservesEmbeddings(t *testing.T) {
 func TestReingest_DoesNotPreserveStaleEmbeddings(t *testing.T) {
 	p, cleanup := newTestPipeline(t, 0)
 	defer cleanup()
+	ws := wsOf(p)
 
 	dir := t.TempDir()
 	content := ""
@@ -81,11 +85,11 @@ func TestReingest_DoesNotPreserveStaleEmbeddings(t *testing.T) {
 	}
 	path := filepath.Join(dir, "doc.txt")
 	writeFile(t, path, content)
-	p.Ingest(context.Background(), dir, "*")
+	p.Ingest(context.Background(), ws, dir, "*")
 
 	// Seed embeddings with a DIFFERENT model ("stale-model" ≠ fakeEmbed's "fake").
 	docID := docIDForPath(t, p, path)
-	for _, c := range p.chunksOfDoc(docID) {
+	for _, c := range p.chunksOfDoc(ws, docID) {
 		writeFakeEmbedding(t, p, c.ID, "stale-model")
 	}
 
@@ -94,7 +98,7 @@ func TestReingest_DoesNotPreserveStaleEmbeddings(t *testing.T) {
 
 	// The stale embeddings should NOT have been copied (model mismatch).
 	newDocID := docIDForPath(t, p, path)
-	for _, c := range p.chunksOfDoc(newDocID) {
+	for _, c := range p.chunksOfDoc(ws, newDocID) {
 		if hasEmbedding(p, c.ID) {
 			t.Errorf("chunk %s: stale PrefixEmbedding was copied (model gate failed)", c.ID)
 		}

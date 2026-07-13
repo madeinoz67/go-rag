@@ -45,7 +45,8 @@ func TestPipeline_DocumentPrefixApplied(t *testing.T) {
 	pre := embed.NewPrefixer("nomic-embed-text", embed.ModeAuto, "", "")
 	em := &captureEmbed{}
 	p := New(db, chunk.NewSplitter(512, 50), em, index.NewFTS(db.Pebble()), index.NewVector(), pre)
-	if _, err := p.Ingest(context.Background(), dir, "*"); err != nil {
+	ws := wsOf(p)
+	if _, err := p.Ingest(context.Background(), ws, dir, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
 	p.Close()
@@ -53,13 +54,13 @@ func TestPipeline_DocumentPrefixApplied(t *testing.T) {
 	// spec 030: the pipeline now queues chunks for the background embedder (0x14).
 	// The H07 prefix is applied by the embedder (internal/embedproc), not processJob.
 	// Verify the chunks are queued for the embedder.
-	if n := db.CountEmbedQueue(); n == 0 {
+	if n := db.CountEmbedQueue(ws); n == 0 {
 		t.Fatalf("expected pending-embed queue entries (0x14), got 0 — chunks not queued")
 	}
 
 	// 2. The stored Chunk.Content is unprefixed (Principle II — prefix never touches content).
 	var nChunks int
-	_ = db.PrefixScanByte(storage.PrefixChunk, func(_, val []byte) bool {
+	scanVaultKind(t, db, storage.PrefixChunk, ws, func(_, val []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(val, &c) == nil {
 			nChunks++
@@ -89,7 +90,7 @@ func TestPipeline_NilPrefixerNoPrefix(t *testing.T) {
 	}
 	em := &captureEmbed{}
 	p := New(db, chunk.NewSplitter(512, 50), em, index.NewFTS(db.Pebble()), index.NewVector(), nil)
-	if _, err := p.Ingest(context.Background(), dir, "*"); err != nil {
+	if _, err := p.Ingest(context.Background(), wsOf(p), dir, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
 	p.Close()

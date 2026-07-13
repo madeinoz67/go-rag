@@ -79,7 +79,8 @@ func newVaultListCmd() *cobra.Command {
 				var storage int64
 				// Try to open the vault's DB for doc count
 				if _, db, err := openDB(vp); err == nil {
-					docs = countPrefix(db, 0x02) // PrefixDocument
+					ws := db.ResolveVaultPrefix("default")
+					docs = countPrefix(db, ws, 0x02) // PrefixDocument
 					storage = dirSize(vp + "/data")
 					db.Close()
 				}

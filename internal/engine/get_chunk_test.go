@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // get_chunk_test.go (package engine) proves spec 035 US1 at the engine level:
@@ -74,7 +74,7 @@ func TestGetChunk_OrphanChunk_Tolerant(t *testing.T) {
 	id := q.Hits[0].ChunkID
 	docID := q.Hits[0].DocumentID
 
-	if err := e.db.DeleteWithPrefix(storage.PrefixDocument, []byte(docID)); err != nil {
+	if err := e.db.Delete(keys.DocumentKey(e.db.ResolveVaultPrefix("default"), docID)); err != nil {
 		t.Fatalf("remove parent document: %v", err)
 	}
 	res, err := e.GetChunk(id)

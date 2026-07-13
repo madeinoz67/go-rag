@@ -28,6 +28,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/reader"
 	"github.com/madeinoz67/go-rag/internal/redact"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // Document lifecycle statuses.
@@ -190,7 +191,7 @@ func (p *Pipeline) Close() {
 // Ingest walks root, processing every file whose base name matches glob. If
 // p.OnProgress is set, it pre-counts ingestible files and fires the callback per
 // file (done, total, path, status).
-func (p *Pipeline) Ingest(ctx context.Context, root, glob string) (Result, error) {
+func (p *Pipeline) Ingest(ctx context.Context, ws [8]byte, root, glob string) (Result, error) {
 	reader.DefaultReaders()
 	total := 0
 	if p.OnProgress != nil {
@@ -212,7 +213,7 @@ func (p *Pipeline) Ingest(ctx context.Context, root, glob string) (Result, error
 		if !matchGlob(filepath.Base(path), glob) {
 			return nil
 		}
-		st, _ := p.processFile(ctx, path)
+		st, _ := p.processFile(ctx, ws, path)
 		switch st {
 		case "NEW":
 			res.New++
@@ -259,7 +260,7 @@ func (p *Pipeline) countFiles(root, glob string) int {
 
 // processFile reads, dedups by content hash, chunks, stores synchronously, then
 // enqueues chunks for async embedding+indexing. Returns NEW/SKIPPED/ERROR.
-func (p *Pipeline) processFile(ctx context.Context, path string) (string, error) {
+func (p *Pipeline) processFile(ctx context.Context, ws [8]byte, path string) (string, error) {
 	// spec 043 / BL-010: consume the re-ingest capture early so the map entry is
 	// drained even if processFile returns early (SKIPPED/UNSUPPORTED/ERROR).
 	oldCapture, isReingest := p.takeReingest(path)
@@ -273,7 +274,7 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	ch := model.ContentHash(raw)
 
 	// Idempotent dedup: content hash already ingested -> skip (Principle II).
-	if _, ok, _ := p.db.GetWithPrefix(storage.PrefixContentHash, []byte(ch)); ok {
+	if _, ok, _ := p.db.Get(keys.ContentHashKey(ws, ch)); ok {
 		if isReingest {
 			p.reingestEarlyReturn(oldCapture, path)
 		}
@@ -418,7 +419,7 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	}
 
 	// Synchronous, durable store -> the <10ms ACK (Principle IV).
-	if err := p.storeDocument(doc, chunks, ch); err != nil {
+	if err := p.storeDocument(ws, doc, chunks, ch); err != nil {
 		return "ERROR", err
 	}
 	// spec 040 / BL-008 + spec 043 / BL-010: publish the lifecycle event after
@@ -431,7 +432,7 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 		deltas, remap := diffChunks(oldCapture.chunks, chunks)
 		// spec 043 / BL-010 US2: preserve embeddings for UNCHANGED chunks whose
 		// model matches the current embedder (skip the Ollama call on re-embed).
-		p.preserveEmbeds(oldCapture.embeds, remap)
+		p.preserveEmbeds(ws, oldCapture.embeds, remap)
 		if p.OnEvent != nil {
 			p.OnEvent(events.DocumentEvent{Type: events.EventReingested, DocumentID: docID, SourcePath: path, After: doc, Deltas: deltas})
 		}
@@ -450,40 +451,40 @@ func (p *Pipeline) processFile(ctx context.Context, path string) (string, error)
 	// on the send until a worker drains. Zero job loss (the goroutine delivers
 	// it); the embedder reads 0x14 independently.
 	select {
-	case p.queue <- job{docID: docID, chunks: chunks, images: images, mimeType: mimeType(ext), spans: spans, pageOffsets: pageOffsets}:
+	case p.queue <- job{ws: ws, docID: docID, chunks: chunks, images: images, mimeType: mimeType(ext), spans: spans, pageOffsets: pageOffsets}:
 	default:
 		go func(j job) {
 			select {
 			case p.queue <- j:
 			case <-p.done:
 			}
-		}(job{docID: docID, chunks: chunks, images: images, mimeType: mimeType(ext), spans: spans, pageOffsets: pageOffsets})
+		}(job{ws: ws, docID: docID, chunks: chunks, images: images, mimeType: mimeType(ext), spans: spans, pageOffsets: pageOffsets})
 	}
 	return "NEW", nil
 }
 
 // storeDocument writes the Document, its Chunks, and the dedup/path indexes with
 // Sync durability.
-func (p *Pipeline) storeDocument(doc model.Document, chunks []model.Chunk, contentHash string) error {
+func (p *Pipeline) storeDocument(ws [8]byte, doc model.Document, chunks []model.Chunk, contentHash string) error {
 	dbj, _ := json.Marshal(doc)
-	if err := p.db.SetWithPrefix(storage.PrefixDocument, []byte(doc.ID), dbj); err != nil {
+	if err := p.db.Set(keys.DocumentKey(ws, doc.ID), dbj); err != nil {
 		return err
 	}
-	if err := p.db.SetWithPrefix(storage.PrefixContentHash, []byte(contentHash), []byte(doc.ID)); err != nil {
+	if err := p.db.Set(keys.ContentHashKey(ws, contentHash), []byte(doc.ID)); err != nil {
 		return err
 	}
-	if err := p.db.SetWithPrefix(storage.PrefixPathDoc, []byte(doc.FilePath), []byte(doc.ID)); err != nil {
+	if err := p.db.Set(keys.PathDocKey(ws, doc.FilePath), []byte(doc.ID)); err != nil {
 		return err
 	}
 	for _, c := range chunks {
 		cj, _ := json.Marshal(c)
-		if err := p.db.SetWithPrefix(storage.PrefixChunk, []byte(c.ID), cj); err != nil {
+		if err := p.db.Set(keys.ChunkKey(ws, c.ID), cj); err != nil {
 			return err
 		}
 		// spec 030: enqueue the chunk for the background embedder (durable 0x14 queue,
 		// written BEFORE ACK so a post-ACK crash is recoverable). Removed when the
 		// embedding lands.
-		if err := p.db.PutEmbedQueueItem(c.ID, p.embed.Model()); err != nil {
+		if err := p.db.PutEmbedQueueItem(ws, c.ID, p.embed.Model()); err != nil {
 			return err
 		}
 	}
@@ -498,9 +499,13 @@ func (p *Pipeline) storeDocument(doc model.Document, chunks []model.Chunk, conte
 }
 
 // CountDocuments returns the number of stored Documents (0x02 prefix).
-func (p *Pipeline) CountDocuments() int {
+func (p *Pipeline) CountDocuments(ws [8]byte) int {
 	n := 0
-	_ = p.db.PrefixScanByte(storage.PrefixDocument, func(_, _ []byte) bool {
+	lower, upper, err := keys.VaultKindRange(storage.PrefixDocument, ws)
+	if err != nil {
+		return 0
+	}
+	_ = p.db.RangeScan(lower, upper, func(_, _ []byte) bool {
 		n++
 		return true
 	})

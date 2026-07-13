@@ -34,6 +34,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/pipeline"
 	"github.com/madeinoz67/go-rag/internal/rest"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 	goragpb "github.com/madeinoz67/go-rag/proto/gen"
 	grpcc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -133,7 +134,7 @@ func sharedEngine(t *testing.T, doc string) *engine.Engine {
 	if err := os.WriteFile(dp, []byte(doc), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)
 	}
-	if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
+	if _, err := p.Ingest(context.Background(), db.ResolveVaultPrefix("default"), dp, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
 	return engine.NewWithDB(cfg, db)
@@ -162,7 +163,7 @@ func sharedMarkdownEngine(t *testing.T, name, md string) *engine.Engine {
 	if err := os.WriteFile(dp, []byte(md), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)
 	}
-	if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
+	if _, err := p.Ingest(context.Background(), db.ResolveVaultPrefix("default"), dp, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
 	return engine.NewWithDB(cfg, db)
@@ -1663,7 +1664,7 @@ func sharedDocsEngine(t *testing.T, n int) *engine.Engine {
 		if err := os.WriteFile(dp, []byte(fmt.Sprintf("document number %d about retrieval tokens and distinct content %d", i, i)), 0o644); err != nil {
 			t.Fatalf("write %d: %v", i, err)
 		}
-		if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
+		if _, err := p.Ingest(context.Background(), db.ResolveVaultPrefix("default"), dp, "*"); err != nil {
 			t.Fatalf("ingest %d: %v", i, err)
 		}
 	}
@@ -2037,7 +2038,7 @@ func sharedChunkedDocEngine(t *testing.T) *engine.Engine {
 	if err := os.WriteFile(dp, []byte(content.String()), 0o644); err != nil {
 		t.Fatalf("write chunked doc: %v", err)
 	}
-	if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
+	if _, err := p.Ingest(context.Background(), db.ResolveVaultPrefix("default"), dp, "*"); err != nil {
 		t.Fatalf("ingest chunked doc: %v", err)
 	}
 	return engine.NewWithDB(cfg, db)
@@ -2085,7 +2086,7 @@ func sharedTaggedDocsEngine(t *testing.T, n int) *engine.Engine {
 		if err != nil {
 			t.Fatalf("marshal %s: %v", id, err)
 		}
-		if err := db.SetWithPrefix(storage.PrefixDocument, []byte(id), raw); err != nil {
+		if err := db.Set(keys.DocumentKey(db.ResolveVaultPrefix("default"), id), raw); err != nil {
 			t.Fatalf("put doc %s: %v", id, err)
 		}
 	}
@@ -2215,7 +2216,7 @@ func deleteParityEngine(t *testing.T, n int) (*engine.Engine, []docTerm) {
 		if err := os.WriteFile(src, []byte(term+" solar tariff deficit battery inverter charge deadline\n"), 0o644); err != nil {
 			t.Fatalf("write %s: %v", term, err)
 		}
-		if _, err := p.Ingest(context.Background(), src, "*"); err != nil {
+		if _, err := p.Ingest(context.Background(), db.ResolveVaultPrefix("default"), src, "*"); err != nil {
 			t.Fatalf("ingest %s: %v", term, err)
 		}
 		terms = append(terms, docTerm{term: term})

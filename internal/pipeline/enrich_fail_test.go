@@ -42,6 +42,7 @@ func ingestWith(t *testing.T, e enrich.Enricher) model.Document {
 	}
 	defer db.Close()
 	p := New(db, chunk.NewSplitter(512, 50), fakeEmbedPI{}, index.NewFTS(db.Pebble()), index.NewVector(), nil)
+	ws := wsOf(p)
 	if e != nil {
 		p.SetEnricher(e)
 	}
@@ -53,12 +54,12 @@ func ingestWith(t *testing.T, e enrich.Enricher) model.Document {
 	if err := os.WriteFile(dp, []byte("A document on nightly incremental backups and retention."), 0o644); err != nil {
 		t.Fatalf("write doc: %v", err)
 	}
-	if _, err := p.Ingest(context.Background(), dp, "*"); err != nil {
+	if _, err := p.Ingest(context.Background(), ws, dp, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
 	drain() // happy-path drain before read (idempotent via drainOnce)
 	var doc model.Document
-	_ = db.PrefixScanByte(storage.PrefixDocument, func(_ []byte, val []byte) bool {
+	scanVaultKind(t, db, storage.PrefixDocument, ws, func(_ []byte, val []byte) bool {
 		_ = json.Unmarshal(val, &doc)
 		return false
 	})

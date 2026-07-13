@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // EmbeddingProfile summarizes the embedding provenance stored in a vault: the
@@ -40,7 +41,7 @@ type storedEmbed struct {
 // returns a zero profile with Consistent=true (vacuously — no drift). Ties in
 // the majority are broken deterministically (lexicographically for models,
 // numerically for dims) so the reported "expected" value is stable.
-func CorpusProfile(db *storage.DB) EmbeddingProfile {
+func CorpusProfile(ws [8]byte, db *storage.DB) EmbeddingProfile {
 	p := EmbeddingProfile{
 		ModelCounts:      map[string]int{},
 		DimCounts:        map[int]int{},
@@ -50,7 +51,11 @@ func CorpusProfile(db *storage.DB) EmbeddingProfile {
 	if db == nil {
 		return p
 	}
-	_ = db.PrefixScanByte(storage.PrefixEmbedding, func(_, val []byte) bool {
+	lower, upper, err := keys.VaultKindRange(storage.PrefixEmbedding, ws)
+	if err != nil {
+		return p
+	}
+	_ = db.RangeScan(lower, upper, func(_, val []byte) bool {
 		var se storedEmbed
 		if json.Unmarshal(val, &se) != nil {
 			return true

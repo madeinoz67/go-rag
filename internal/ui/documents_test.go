@@ -10,7 +10,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/auth"
 	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/model"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // documents_test.go (package ui) proves spec 047 US1: GET /api/documents lists
@@ -26,6 +26,7 @@ var uiDocBase = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 // at a deterministic ingested_at (seq seconds after uiDocBase) for stable ordering.
 func putUIDoc(t *testing.T, eng *engine.Engine, id, status string, tags []string, seq int) {
 	t.Helper()
+	ws := eng.DB().ResolveVaultPrefix("default")
 	d := model.Document{
 		ID:          id,
 		FilePath:    id + ".txt",
@@ -42,7 +43,7 @@ func putUIDoc(t *testing.T, eng *engine.Engine, id, status string, tags []string
 	if err != nil {
 		t.Fatalf("marshal %s: %v", id, err)
 	}
-	if err := eng.DB().SetWithPrefix(storage.PrefixDocument, []byte(id), raw); err != nil {
+	if err := eng.DB().Set(keys.DocumentKey(ws, id), raw); err != nil {
 		t.Fatalf("putUIDoc %s: %v", id, err)
 	}
 }

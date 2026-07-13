@@ -9,6 +9,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // TestSmoke_EnrichRealDoc (spec 029) is a REAL end-to-end enrichment over a real
@@ -70,7 +71,9 @@ func TestSmoke_EnrichRealDoc(t *testing.T) {
 
 	// Read the stored document's enrichment sidecar.
 	var found bool
-	_ = db.PrefixScanByte(storage.PrefixDocument, func(_ []byte, val []byte) bool {
+	ws := db.ResolveVaultPrefix("default")
+	dLo, dHi, _ := keys.VaultKindRange(storage.PrefixDocument, ws)
+	_ = db.RangeScan(dLo, dHi, func(_ []byte, val []byte) bool {
 		var m map[string]any
 		if json.Unmarshal(val, &m) != nil {
 			return true

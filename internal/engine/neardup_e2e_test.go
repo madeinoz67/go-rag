@@ -45,10 +45,11 @@ func sharedNearDupEngine(t *testing.T) *engine.Engine {
 	words := "the go-rag server performs keyword retrieval over local documents stored on disk with a buffer cache"
 	write("v1.txt", words)
 	write("v2.txt", "cache buffer a with disk on stored documents local over retrieval keyword performs server go-rag the")
-	if _, err := p.Ingest(context.Background(), filepath.Join(dir, "v1.txt"), "*"); err != nil {
+	ws := defaultWS(db)
+	if _, err := p.Ingest(context.Background(), ws, filepath.Join(dir, "v1.txt"), "*"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Ingest(context.Background(), filepath.Join(dir, "v2.txt"), "*"); err != nil {
+	if _, err := p.Ingest(context.Background(), ws, filepath.Join(dir, "v2.txt"), "*"); err != nil {
 		t.Fatal(err)
 	}
 	return engine.NewWithDB(cfg, db)

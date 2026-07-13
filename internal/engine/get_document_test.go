@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/madeinoz67/go-rag/internal/model"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // get_document_test.go (package engine) proves spec 047 US2: Engine.GetDocument
@@ -17,17 +17,18 @@ import (
 // GetDocument can resolve source_path.
 func putDocWithSource(t *testing.T, e *Engine, docID, sourceID, sourcePath string) {
 	t.Helper()
-	putRaw := func(prefix byte, key string, v any) {
+	ws := engineWS(e)
+	putRaw := func(key []byte, v any) {
 		raw, err := json.Marshal(v)
 		if err != nil {
 			t.Fatalf("marshal: %v", err)
 		}
-		if err := e.db.SetWithPrefix(prefix, []byte(key), raw); err != nil {
+		if err := e.db.Set(key, raw); err != nil {
 			t.Fatalf("set: %v", err)
 		}
 	}
-	putRaw(storage.PrefixSource, sourceID, model.Source{ID: sourceID, Path: sourcePath, Kind: "directory"})
-	putRaw(storage.PrefixDocument, docID, model.Document{
+	putRaw(keys.SourceKey(ws, sourceID), model.Source{ID: sourceID, Path: sourcePath, Kind: "directory"})
+	putRaw(keys.DocumentKey(ws, docID), model.Document{
 		ID: docID, SourceID: sourceID, FilePath: docID + ".txt", FileName: docID + ".txt",
 		FileType: "text", ContentHash: docID, Status: "embedded",
 	})
@@ -69,8 +70,9 @@ func TestGetDocument_EmptyID(t *testing.T) {
 // returns the document with a zero-valued Source (source_path empty), not an error.
 func TestGetDocument_ToleratesMissingSource(t *testing.T) {
 	e := newCacheEngine(t)
+	ws := engineWS(e)
 	raw, _ := json.Marshal(model.Document{ID: "orphan", SourceID: "ghost", FilePath: "orphan.txt", Status: "embedded"})
-	if err := e.db.SetWithPrefix(storage.PrefixDocument, []byte("orphan"), raw); err != nil {
+	if err := e.db.Set(keys.DocumentKey(ws, "orphan"), raw); err != nil {
 		t.Fatalf("set: %v", err)
 	}
 	res, err := e.GetDocument("orphan")

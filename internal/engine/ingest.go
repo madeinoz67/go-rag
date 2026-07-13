@@ -26,6 +26,7 @@ func fromResult(r pipeline.Result) IngestSummary {
 // continue on the engine's background workers after this call returns. Call
 // Close to wait for that background work to finish.
 func (e *Engine) Add(ctx context.Context, path, glob string) (sum *IngestSummary, err error) {
+	ws := e.db.ResolveVaultPrefix("default")
 	if glob == "" {
 		glob = "*"
 	}
@@ -46,7 +47,7 @@ func (e *Engine) Add(ctx context.Context, path, glob string) (sum *IngestSummary
 	if err != nil {
 		return nil, err
 	}
-	res, err := p.Ingest(ctx, path, glob)
+	res, err := p.Ingest(ctx, ws, path, glob)
 	if err != nil {
 		return nil, err
 	}

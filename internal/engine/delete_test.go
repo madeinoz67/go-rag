@@ -50,7 +50,7 @@ func deleteFixtureEngine(t *testing.T) (*engine.Engine, string, string) {
 	if err := os.WriteFile(src, content, 0o644); err != nil {
 		t.Fatalf("write src: %v", err)
 	}
-	if _, err := p.Ingest(context.Background(), src, "*"); err != nil {
+	if _, err := p.Ingest(context.Background(), defaultWS(db), src, "*"); err != nil {
 		t.Fatalf("ingest: %v", err)
 	}
 	eng := engine.NewWithDB(cfg, db)

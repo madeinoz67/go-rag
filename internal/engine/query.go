@@ -20,6 +20,7 @@ import (
 // It is the single implementation shared by the CLI, MCP, REST, and gRPC
 // adapters — extracted from the former inline mcp/server.go:query.
 func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult, err error) {
+	ws := e.db.ResolveVaultPrefix("default")
 	ctx, span := observe.StartSpan(ctx, observe.SpanQuery, observe.ModeAttr(req.Mode), observe.KAttr(req.K))
 	start := time.Now()
 	defer func() {
@@ -121,7 +122,7 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 		return nil, err
 	}
 	em := e.embedderOrOllama()
-	prof := CorpusProfile(e.db)
+	prof := CorpusProfile(ws, e.db)
 	// H07: embed the query in its trained role. The query-role instruction prefix
 	// is prepended inside the EmbedFunc passed to the index, so the index layer
 	// stays dumb (Principle V) and every transport gets identical query encoding.
@@ -195,7 +196,7 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 			f = *req.Filter // copy to avoid capturing the pointer
 		}
 		r.SetFilter(func(chunkID string) bool {
-			c, ok := lookupChunk(e.db, chunkID)
+			c, ok := lookupChunk(e.db, ws, chunkID)
 			if !ok {
 				return false
 			}
@@ -203,7 +204,7 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 				return false
 			}
 			if filterOn {
-				d, ok := lookupDoc(e.db, c.DocumentID)
+				d, ok := lookupDoc(e.db, ws, c.DocumentID)
 				if !ok {
 					return false
 				}
@@ -224,8 +225,8 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 		reranker = rerank.New(e.cfg.RerankProvider, rerankEndpoint, e.cfg.RerankModel, e.cfg.RerankAPIKey)
 	}
 
-	hits, rerankFailed, err := r.SearchWithRerank(ctx, req.Query, req.K, index.ParseMode(req.Mode), docOf(e.db), reranker, func(id string) string {
-		c, ok := lookupChunk(e.db, id)
+	hits, rerankFailed, err := r.SearchWithRerank(ctx, req.Query, req.K, index.ParseMode(req.Mode), docOf(e.db, ws), reranker, func(id string) string {
+		c, ok := lookupChunk(e.db, ws, id)
 		if !ok {
 			return ""
 		}
@@ -237,12 +238,12 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 
 	out := make([]QueryHit, 0, len(hits))
 	for _, h := range hits {
-		c, ok := lookupChunk(e.db, h.ChunkID)
+		c, ok := lookupChunk(e.db, ws, h.ChunkID)
 		if !ok {
 			continue
 		}
 		filePath, summary, enrichStatus := "", "", ""
-		if d, ok := lookupDoc(e.db, c.DocumentID); ok {
+		if d, ok := lookupDoc(e.db, ws, c.DocumentID); ok {
 			filePath = d.FilePath
 			if d.Enrichment != nil { // spec 029: surface the doc's summary + status on the hit
 				summary = d.Enrichment.Summary
@@ -325,7 +326,7 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 	// additive — after ranking/rerank/collapse; does not affect top-k or ranking.
 	if req.ContextWindow > 0 {
 		for i := range out {
-			out[i].Context = e.expandContext(out[i].ChunkID, req.ContextWindow)
+			out[i].Context = e.expandContext(ws, out[i].ChunkID, req.ContextWindow)
 		}
 	}
 	// H22/spec 024: record aggregate pool utilization. This point is reached only
@@ -357,16 +358,16 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 // to n steps each way, fetching sibling text for reading context (H15/spec 015).
 // Missing siblings (boundary chunks, empty IDs) are skipped gracefully. The
 // previous entries are reversed so the context reads in document order.
-func (e *Engine) expandContext(chunkID string, n int) []ContextChunk {
+func (e *Engine) expandContext(ws [8]byte, chunkID string, n int) []ContextChunk {
 	var ctx []ContextChunk
 	// Previous N: walk backward, then reverse for document order.
 	id := chunkID
 	for i := 0; i < n; i++ {
-		c, ok := lookupChunk(e.db, id)
+		c, ok := lookupChunk(e.db, ws, id)
 		if !ok || c.PreviousChunkID == "" {
 			break
 		}
-		prev, ok := lookupChunk(e.db, c.PreviousChunkID)
+		prev, ok := lookupChunk(e.db, ws, c.PreviousChunkID)
 		if !ok {
 			break
 		}
@@ -379,11 +380,11 @@ func (e *Engine) expandContext(chunkID string, n int) []ContextChunk {
 	// Next N: walk forward.
 	id = chunkID
 	for i := 0; i < n; i++ {
-		c, ok := lookupChunk(e.db, id)
+		c, ok := lookupChunk(e.db, ws, id)
 		if !ok || c.NextChunkID == "" {
 			break
 		}
-		nxt, ok := lookupChunk(e.db, c.NextChunkID)
+		nxt, ok := lookupChunk(e.db, ws, c.NextChunkID)
 		if !ok {
 			break
 		}

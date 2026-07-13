@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // Reprocess force-reingests every tracked file under root, bypassing the SHA-256
@@ -15,38 +16,48 @@ import (
 // reader change (e.g. Obsidian normalization), an embedding-model swap, or to
 // refresh stale content — without `rm -rf .go-rag`. (T047)
 func (p *Pipeline) Reprocess(ctx context.Context, root, glob string) (Result, error) {
+	ws := p.db.ResolveVaultPrefix("default")
 	root = filepath.Clean(root)
 	// Drop every tracked document whose path is under root.
-	_ = p.db.PrefixScanByte(storage.PrefixPathDoc, func(key, val []byte) bool {
-		path := filepath.Clean(string(key[1:])) // key = 0x0C | path
+	lower, upper, err := keys.VaultKindRange(storage.PrefixPathDoc, ws)
+	if err != nil {
+		return Result{}, err
+	}
+	_ = p.db.RangeScan(lower, upper, func(key, val []byte) bool {
+		path := filepath.Clean(string(key[9:])) // key = 0x0C | ws | path
 		if !isUnder(path, root) {
 			return true
 		}
-		unlock := p.docLock(string(val))     // spec 044: per-doc serialization
-		p.captureReingest(path, string(val)) // spec 043 / BL-010: capture old chunks before delete
-		_ = p.deleteDocLocked(string(val))   // already holding the docLock
+		unlock := p.docLock(string(val))         // spec 044: per-doc serialization
+		p.captureReingest(ws, path, string(val)) // spec 043 / BL-010: capture old chunks before delete
+		_ = p.deleteDocLocked(ws, string(val))   // already holding the docLock
 		unlock()
 		return true
 	})
 	// Re-ingest: with the old content-hash entries gone, unchanged files are
 	// processed as NEW rather than SKIPPED.
-	return p.Ingest(ctx, root, glob)
+	return p.Ingest(ctx, ws, root, glob)
 }
 
 // ReprocessAll re-ingests every tracked document (all paths in the 0x0C index),
 // deleting and re-adding each so the current reader + embedder apply. Used by
 // model migration (T048) when the embedding model changes.
 func (p *Pipeline) ReprocessAll(ctx context.Context) (Result, error) {
+	ws := p.db.ResolveVaultPrefix("default")
 	type entry struct{ path, docID string }
 	var entries []entry
-	_ = p.db.PrefixScanByte(storage.PrefixPathDoc, func(key, val []byte) bool {
-		entries = append(entries, entry{path: filepath.Clean(string(key[1:])), docID: string(val)})
+	lower, upper, err := keys.VaultKindRange(storage.PrefixPathDoc, ws)
+	if err != nil {
+		return Result{}, err
+	}
+	_ = p.db.RangeScan(lower, upper, func(key, val []byte) bool {
+		entries = append(entries, entry{path: filepath.Clean(string(key[9:])), docID: string(val)})
 		return true
 	})
 	for _, e := range entries {
-		unlock := p.docLock(e.docID)       // spec 044: per-doc serialization
-		p.captureReingest(e.path, e.docID) // spec 043 / BL-010
-		_ = p.deleteDocLocked(e.docID)     // already holding the docLock
+		unlock := p.docLock(e.docID)           // spec 044: per-doc serialization
+		p.captureReingest(ws, e.path, e.docID) // spec 043 / BL-010
+		_ = p.deleteDocLocked(ws, e.docID)     // already holding the docLock
 		unlock()
 	}
 	// Suppress per-file Ingest progress; ReprocessAll renders one bar across all files.
@@ -55,7 +66,7 @@ func (p *Pipeline) ReprocessAll(ctx context.Context) (Result, error) {
 	res := Result{}
 	done, total := 0, len(entries)
 	for _, e := range entries {
-		r, err := p.Ingest(ctx, e.path, "*")
+		r, err := p.Ingest(ctx, ws, e.path, "*")
 		done++
 		st := "NEW"
 		if err != nil {

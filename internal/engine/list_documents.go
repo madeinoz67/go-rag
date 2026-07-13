@@ -10,6 +10,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/model"
 	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // list_documents.go implements spec 039 (bridge backlog BL-007): ListDocuments —
@@ -138,9 +139,11 @@ func (e *Engine) ListDocuments(req ListDocumentsRequest) (*ListDocumentsResult, 
 		resumeT, resumeID = t, id
 	}
 
-	// 1. Scan all documents (one PrefixScan over prefix 0x02).
+	// 1. Scan this vault's documents (one range scan over 0x02|ws).
+	ws := e.db.ResolveVaultPrefix("default")
+	lower, upper, _ := keys.VaultKindRange(storage.PrefixDocument, ws)
 	var docs []model.Document
-	_ = e.db.PrefixScanByte(storage.PrefixDocument, func(_, val []byte) bool {
+	_ = e.db.RangeScan(lower, upper, func(_, val []byte) bool {
 		var d model.Document
 		if json.Unmarshal(val, &d) == nil {
 			docs = append(docs, d)

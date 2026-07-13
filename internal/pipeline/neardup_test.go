@@ -16,8 +16,9 @@ import (
 // scanChunks enumerates stored chunk records (distinct from section_test.go's helpers).
 func scanChunks(t *testing.T, p *Pipeline) []model.Chunk {
 	t.Helper()
+	ws := wsOf(p)
 	var out []model.Chunk
-	_ = p.db.PrefixScanByte(storage.PrefixChunk, func(_, v []byte) bool {
+	scanVaultKind(t, p.db, storage.PrefixChunk, ws, func(_, v []byte) bool {
 		var c model.Chunk
 		if json.Unmarshal(v, &c) == nil {
 			out = append(out, c)
@@ -37,8 +38,9 @@ func TestIngest_NearDup_ReorderedClustered(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "v1.txt"), words)
 	writeFile(t, filepath.Join(dir, "v2.txt"), "cache buffer a with disk on stored documents local over retrieval keyword performs server go-rag the") // reordered → same SimHash
 	p, _ := newTestPipeline(t, 0)
+	ws := wsOf(p)
 
-	if _, err := p.Ingest(context.Background(), dir, "*"); err != nil {
+	if _, err := p.Ingest(context.Background(), ws, dir, "*"); err != nil {
 		t.Fatal(err)
 	}
 	p.Close() // drain the async worker so clustering lands before we read
@@ -71,7 +73,8 @@ func TestIngest_NearDup_DistinctNotFlagged(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "b.txt"),
 		"quantum entanglement lets two particles share state across any distance instantly without any signal traveling between them at all")
 	p, _ := newTestPipeline(t, 0)
-	if _, err := p.Ingest(context.Background(), dir, "*"); err != nil {
+	ws := wsOf(p)
+	if _, err := p.Ingest(context.Background(), ws, dir, "*"); err != nil {
 		t.Fatal(err)
 	}
 	p.Close()
@@ -92,7 +95,8 @@ func TestIngest_NearDup_ReprocessBackfill(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "v1.txt"), words)
 	writeFile(t, filepath.Join(dir, "v2.txt"), "cache buffer a with disk on stored documents local over retrieval keyword performs server go-rag the")
 	p, _ := newTestPipeline(t, 0)
-	if _, err := p.Ingest(context.Background(), dir, "*"); err != nil {
+	ws := wsOf(p)
+	if _, err := p.Ingest(context.Background(), ws, dir, "*"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := p.Reprocess(context.Background(), dir, "*"); err != nil {

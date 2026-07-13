@@ -34,8 +34,9 @@ func openTempDB(t *testing.T) *storage.DB {
 
 func TestCorpusBaseline_SaveLoadRoundTrip(t *testing.T) {
 	db := openTempDB(t)
+	ws := defaultWS(db)
 
-	if _, ok := LoadBaseline(db); ok {
+	if _, ok := LoadBaseline(db, ws); ok {
 		t.Fatalf("LoadBaseline on empty DB returned a baseline; want none")
 	}
 
@@ -45,11 +46,11 @@ func TestCorpusBaseline_SaveLoadRoundTrip(t *testing.T) {
 		Convention:    "nomic",
 		OllamaVersion: "0.1.0",
 	}
-	if err := SaveBaseline(db, want); err != nil {
+	if err := SaveBaseline(db, ws, want); err != nil {
 		t.Fatalf("SaveBaseline: %v", err)
 	}
 
-	got, ok := LoadBaseline(db)
+	got, ok := LoadBaseline(db, ws)
 	if !ok {
 		t.Fatalf("LoadBaseline after save returned !ok")
 	}
@@ -63,8 +64,8 @@ func TestCorpusBaseline_SaveLoadRoundTrip(t *testing.T) {
 	// Overwrite refreshes RecordedAt.
 	prev := got.RecordedAt
 	time.Sleep(10 * time.Millisecond)
-	_ = SaveBaseline(db, &CorpusBaseline{Model: "mxbai-embed-large", Dim: 1024})
-	got2, _ := LoadBaseline(db)
+	_ = SaveBaseline(db, ws, &CorpusBaseline{Model: "mxbai-embed-large", Dim: 1024})
+	got2, _ := LoadBaseline(db, ws)
 	if got2.Model != "mxbai-embed-large" || got2.Dim != 1024 {
 		t.Fatalf("overwrite did not replace: %+v", got2)
 	}
