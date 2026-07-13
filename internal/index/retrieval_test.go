@@ -26,12 +26,13 @@ func staticEmbed(vec []float32) EmbedFunc {
 // leave the default (all 5) in effect. Mirrors the SetRRFK score test.
 func TestRetrieval_SetPoolSize_DrivesFetchSize(t *testing.T) {
 	mk := func() *Retrieval {
+		ws := defaultWS()
 		fts := newTestFTS(t)
 		vec := NewVector()
 		for _, id := range []string{"c0", "c1", "c2", "c3", "c4"} {
-			fts.Index(id, map[string]string{"body": "alpha"})
+			fts.Index(ws, id, map[string]string{"body": "alpha"})
 		}
-		return NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+		return NewRetrieval(ws, fts, vec, staticEmbed([]float32{1.0, 0.0}))
 	}
 	count := func(r *Retrieval) int {
 		hits, err := r.Search(context.Background(), "alpha", 10, ModeKeyword, nil)
@@ -61,17 +62,18 @@ func TestRetrieval_SetPoolSize_DrivesFetchSize(t *testing.T) {
 }
 
 func TestRetrieval_Hybrid_BothListsRankAboveOneList(t *testing.T) {
+	ws := defaultWS()
 	fts := newTestFTS(t)
 	vec := NewVector()
 
 	// c1 matches FTS ("alpha") and is near the query vector.
-	fts.Index("c1", map[string]string{"body": "alpha keyword document"})
+	fts.Index(ws, "c1", map[string]string{"body": "alpha keyword document"})
 	vec.Add("c1", []float32{0.99, 0.0})
 	// c3 matches FTS only; its vector is orthogonal to the query.
-	fts.Index("c3", map[string]string{"body": "alpha other note"})
+	fts.Index(ws, "c3", map[string]string{"body": "alpha other note"})
 	vec.Add("c3", []float32{0.0, 1.0})
 
-	r := NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+	r := NewRetrieval(ws, fts, vec, staticEmbed([]float32{1.0, 0.0}))
 	hits, err := r.Search(context.Background(), "alpha", 5, ModeHybrid, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -126,13 +128,14 @@ func TestRRF_FormulaPin(t *testing.T) {
 // in both lists — the sole FTS match for "alpha" and an exact vector match.
 func TestRetrieval_SetRRFK_ChangesFusionScore(t *testing.T) {
 	mk := func() *Retrieval {
+		ws := defaultWS()
 		fts := newTestFTS(t)
 		vec := NewVector()
-		fts.Index("c1", map[string]string{"body": "alpha"})
+		fts.Index(ws, "c1", map[string]string{"body": "alpha"})
 		vec.Add("c1", []float32{1.0, 0.0})
-		fts.Index("c2", map[string]string{"body": "beta"}) // no "alpha" → not in FTS hits
-		vec.Add("c2", []float32{0.5, 0.5})                 // cosine 0.707 → vector rank 1
-		return NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+		fts.Index(ws, "c2", map[string]string{"body": "beta"}) // no "alpha" → not in FTS hits
+		vec.Add("c2", []float32{0.5, 0.5})                     // cosine 0.707 → vector rank 1
+		return NewRetrieval(ws, fts, vec, staticEmbed([]float32{1.0, 0.0}))
 	}
 	scoreOf := func(r *Retrieval) float64 {
 		hits, err := r.Search(context.Background(), "alpha", 5, ModeHybrid, nil)
@@ -171,18 +174,19 @@ func TestRetrieval_SetRRFK_ChangesFusionScore(t *testing.T) {
 // RRF constant is inert in keyword and semantic modes (single list, no fusion):
 // SetRRFK does not error and does not change single-list results.
 func TestRetrieval_RRFK_NoOpInSingleListModes(t *testing.T) {
+	ws := defaultWS()
 	fts := newTestFTS(t)
 	vec := NewVector()
-	fts.Index("c1", map[string]string{"body": "alpha keyword"})
+	fts.Index(ws, "c1", map[string]string{"body": "alpha keyword"})
 	vec.Add("c1", []float32{1.0, 0.0})
 
-	base := NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+	base := NewRetrieval(ws, fts, vec, staticEmbed([]float32{1.0, 0.0}))
 	kwBase, err := base.Search(context.Background(), "alpha", 5, ModeKeyword, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tweaked := NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+	tweaked := NewRetrieval(ws, fts, vec, staticEmbed([]float32{1.0, 0.0}))
 	tweaked.SetRRFK(999) // would be nonsensical for fusion; must be harmless here
 	kwTweaked, err := tweaked.Search(context.Background(), "alpha", 5, ModeKeyword, nil)
 	if err != nil {
@@ -202,11 +206,12 @@ func TestRetrieval_RRFK_NoOpInSingleListModes(t *testing.T) {
 }
 
 func TestRetrieval_CollapseSameDocument(t *testing.T) {
+	ws := defaultWS()
 	fts := newTestFTS(t)
 	vec := NewVector()
-	fts.Index("c1", map[string]string{"body": "alpha beta"})
-	fts.Index("c1b", map[string]string{"body": "alpha gamma"})
-	fts.Index("c2", map[string]string{"body": "alpha delta"})
+	fts.Index(ws, "c1", map[string]string{"body": "alpha beta"})
+	fts.Index(ws, "c1b", map[string]string{"body": "alpha gamma"})
+	fts.Index(ws, "c2", map[string]string{"body": "alpha delta"})
 	vec.Add("c1", []float32{1.0, 0.0})
 	vec.Add("c1b", []float32{0.9, 0.1})
 	vec.Add("c2", []float32{0.1, 0.9})
@@ -217,7 +222,7 @@ func TestRetrieval_CollapseSameDocument(t *testing.T) {
 		}
 		return "docB"
 	}
-	r := NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+	r := NewRetrieval(ws, fts, vec, staticEmbed([]float32{1.0, 0.0}))
 	hits, err := r.Search(context.Background(), "alpha", 5, ModeHybrid, docOf)
 	if err != nil {
 		t.Fatal(err)
@@ -235,13 +240,14 @@ func TestRetrieval_CollapseSameDocument(t *testing.T) {
 }
 
 func TestRetrieval_ModeSelection(t *testing.T) {
+	ws := defaultWS()
 	fts := newTestFTS(t)
 	vec := NewVector()
 	// cFTS: only in FTS. cVEC: only in vector.
-	fts.Index("cFTS", map[string]string{"body": "unique keyword term"})
+	fts.Index(ws, "cFTS", map[string]string{"body": "unique keyword term"})
 	vec.Add("cVEC", []float32{1.0, 0.0})
 
-	r := NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+	r := NewRetrieval(ws, fts, vec, staticEmbed([]float32{1.0, 0.0}))
 
 	// Keyword mode must NOT surface the vector-only chunk.
 	kw, _ := r.Search(context.Background(), "unique keyword", 5, ModeKeyword, nil)
@@ -274,6 +280,7 @@ func captureLog(t *testing.T) *bytes.Buffer {
 // rerankFixture builds a retrieval over three FTS+vector chunks and returns it
 // with a chunkText lookup, ready for SearchWithRerank tests.
 func rerankFixture(t testing.TB) (*Retrieval, func(string) string) {
+	ws := defaultWS()
 	fts := newTestFTS(t)
 	vec := NewVector()
 	chunks := []struct {
@@ -286,11 +293,11 @@ func rerankFixture(t testing.TB) (*Retrieval, func(string) string) {
 	}
 	text := map[string]string{}
 	for _, c := range chunks {
-		fts.Index(c.id, map[string]string{"body": c.body})
+		fts.Index(ws, c.id, map[string]string{"body": c.body})
 		vec.Add(c.id, c.v)
 		text[c.id] = c.body
 	}
-	r := NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+	r := NewRetrieval(ws, fts, vec, staticEmbed([]float32{1.0, 0.0}))
 	return r, func(id string) string { return text[id] }
 }
 
@@ -401,12 +408,13 @@ func TestSearchWithRerank_LengthMismatch_DegradesWithFlag(t *testing.T) {
 // (FR-009/SC-006) — never silent empty results, never a rerank-failed flag.
 func TestSearchWithRerank_RetrievalError_Propagates(t *testing.T) {
 	logbuf := captureLog(t)
+	ws := defaultWS()
 	fts := newTestFTS(t)
 	vec := NewVector()
-	fts.Index("c1", map[string]string{"body": "alpha document"})
+	fts.Index(ws, "c1", map[string]string{"body": "alpha document"})
 	vec.Add("c1", []float32{1.0, 0.0})
 	// An embedder that always errors → hybrid retrieval fails at the semantic step.
-	r := NewRetrieval(fts, vec, func(_ context.Context, _ []string) ([][]float32, error) {
+	r := NewRetrieval(ws, fts, vec, func(_ context.Context, _ []string) ([][]float32, error) {
 		return nil, errors.New("embed unreachable")
 	})
 	rr := &fakeReranker{model: "bge-reranker"}

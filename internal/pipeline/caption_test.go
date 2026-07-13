@@ -131,7 +131,7 @@ func TestPipeline_CaptionImages(t *testing.T) {
 	}
 
 	// FTS-searchable (the keyword half of SC-004).
-	hits := p.fts.Search("revenue", 10)
+	hits := p.fts.Search(ws, "revenue", 10)
 	found := false
 	for _, h := range hits {
 		if h.ChunkID == caption.ID {

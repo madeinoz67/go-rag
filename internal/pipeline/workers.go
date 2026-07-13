@@ -48,7 +48,7 @@ func (p *Pipeline) processJob(j job) {
 	// and status — the non-embed async-after-ACK work. The embedder is the sole
 	// writer of 0x04 (embeddings) + vec.Add; processJob no longer embeds.
 	for _, c := range j.chunks {
-		p.fts.Index(c.ID, map[string]string{"body": c.Content})
+		p.fts.Index(j.ws, c.ID, map[string]string{"body": c.Content})
 		// H04/spec 019: maintain the 0x11 quarantine index for O(flagged) listing.
 		if c.Poisoning != nil && c.Poisoning.Level.Quarantined() {
 			if vj, merr := json.Marshal(c.Poisoning); merr == nil {
@@ -59,7 +59,7 @@ func (p *Pipeline) processJob(j job) {
 	// H06/spec 016: FTS mutations advance the epoch (query cache invalidation).
 	// (Vector mutations — vec.Add — are the embedder's responsibility; it bumps
 	// the epoch independently via its own OnChange hook.)
-	p.indexChanged()
+	p.indexChanged(j.ws)
 	// H20/spec 026 (R4): near-duplicate fingerprint + cluster, async-after-ACK.
 	ndK := p.nearDupK
 	if ndK <= 0 {
@@ -224,7 +224,7 @@ func (p *Pipeline) captionImages(j job) string {
 	if err := p.db.PutEmbedQueueItem(j.ws, captionID, embModel); err != nil {
 		slog.Warn("caption: queue caption for embed", "err", err)
 	}
-	p.fts.Index(captionID, map[string]string{"body": captionsText})
+	p.fts.Index(j.ws, captionID, map[string]string{"body": captionsText})
 
 	// Point the last original chunk's NextChunkID at the caption (linked-list tail).
 	if n := len(j.chunks); n > 0 {
@@ -256,7 +256,7 @@ func (p *Pipeline) captionImages(j job) string {
 		}
 	}
 
-	p.indexChanged()            // FTS epoch bump (H06 query-cache invalidation)
+	p.indexChanged(j.ws)        // FTS epoch bump (H06 query-cache invalidation)
 	if p.OnNotifyEmbed != nil { // wake the embedder to drain the caption's 0x14 now
 		p.OnNotifyEmbed()
 	}

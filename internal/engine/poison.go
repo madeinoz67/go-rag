@@ -71,7 +71,7 @@ func (e *Engine) ReleaseChunk(chunkID string) error {
 		return err
 	}
 	_ = e.db.DeleteQuarantine(ws, chunkID)
-	e.markIndexChanged()
+	e.markIndexChanged(ws)
 	return nil
 }
 
@@ -98,7 +98,7 @@ func (e *Engine) ResetChunk(chunkID string) error {
 	} else {
 		_ = e.db.DeleteQuarantine(ws, chunkID)
 	}
-	e.markIndexChanged()
+	e.markIndexChanged(ws)
 	return nil
 }
 
@@ -172,6 +172,6 @@ func (e *Engine) RescanPoisoning() (rescored, flagged int, err error) {
 		}
 		rescored++
 	}
-	e.markIndexChanged()
+	e.markIndexChanged(ws)
 	return rescored, flagged, nil
 }

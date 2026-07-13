@@ -41,7 +41,7 @@ type Processor struct {
 	embedder embed.Embedder
 	prefixer *embed.Prefixer
 	vec      *index.Vector
-	onChange func() // epoch bump (H06 cache invalidation)
+	onChange func(ws [8]byte) // epoch bump (H06 cache invalidation)
 
 	br       *breaker
 	notifyCh chan struct{}
@@ -53,8 +53,8 @@ type Processor struct {
 
 // New returns a Processor over the given handles. vec is the shared in-memory vector
 // index (the same *index.Vector the engine seeds via LoadIndex). onChange is the
-// engine's epoch-bumper (nil in tests = no cache invalidation).
-func New(db *storage.DB, em embed.Embedder, pre *embed.Prefixer, vec *index.Vector, onChange func()) *Processor {
+// engine's per-vault epoch-bumper (nil in tests = no cache invalidation).
+func New(db *storage.DB, em embed.Embedder, pre *embed.Prefixer, vec *index.Vector, onChange func(ws [8]byte)) *Processor {
 	return &Processor{
 		db:       db,
 		embedder: em,
@@ -154,6 +154,7 @@ func (p *Processor) run(ctx context.Context) {
 // Lifted to package level so the per-text isolation fallback (embedOneByOne) can
 // share the type with processBatch.
 type pendingChunk struct {
+	ws   [8]byte
 	id   string
 	text string
 }
@@ -171,8 +172,6 @@ type pendingChunk struct {
 // down, network, OOM) and all records are left pending (transient) for the next
 // tick — the breaker, already tripped by the batch fail, backs off the embedder.
 func (p *Processor) embedOneByOne(ctx context.Context, texts []string, batch []pendingChunk) [][]float32 {
-	// spec 052: default vault; a later step threads a vault param.
-	ws := p.db.ResolveVaultPrefix("default")
 	vecs := make([][]float32, len(texts))
 	succeeded := 0
 	for i, t := range texts {
@@ -199,7 +198,7 @@ func (p *Processor) embedOneByOne(ctx context.Context, texts []string, batch []p
 			Model:  p.embedder.Model(),
 			Status: storage.EmbedQueueFailed,
 		})
-		_ = p.db.PutEmbedQueue(ws, batch[i].id, rec)
+		_ = p.db.PutEmbedQueue(batch[i].ws, batch[i].id, rec)
 	}
 	return vecs
 }
@@ -210,18 +209,25 @@ func (p *Processor) embedOneByOne(ctx context.Context, texts []string, batch []p
 // index epoch. On transient failure the queue records stay pending (retried next
 // pass); on permanent failure they are marked status=failed (terminal).
 func (p *Processor) processBatch(ctx context.Context) {
-	// spec 052: default vault; a later step threads a vault param.
-	ws := p.db.ResolveVaultPrefix("default")
+	lower := []byte{storage.PrefixEmbedQueue}
+	upper := []byte{storage.PrefixImageCaption}
 	for { // drain: process batches of maxBatch until the queue is empty
 		var batch []pendingChunk
 
-		_ = p.db.ScanEmbedQueue(ws, func(chunkID string, item storage.EmbedQueueItem) bool {
+		_ = p.db.RangeScan(lower, upper, func(key, val []byte) bool {
 			if len(batch) >= maxBatch {
 				return false // cap per pass; remaining picked up next tick
+			}
+			var item storage.EmbedQueueItem
+			if json.Unmarshal(val, &item) != nil {
+				return true // skip unparseable
 			}
 			if item.Status == storage.EmbedQueueFailed {
 				return true // skip permanently failed
 			}
+			var ws [8]byte
+			copy(ws[:], key[1:9])
+			chunkID := string(key[9:])
 			// Read the chunk text from 0x03.
 			raw, ok, _ := p.db.Get(keys.ChunkKey(ws, chunkID))
 			if !ok {
@@ -241,11 +247,14 @@ func (p *Processor) processBatch(ctx context.Context) {
 				if json.Unmarshal(embRaw, &rec) == nil && len(rec.Vector) > 0 {
 					p.vec.Add(chunkID, rec.Vector)
 					_ = p.db.DeleteEmbedQueue(ws, chunkID)
+					if p.onChange != nil {
+						p.onChange(ws)
+					}
 					return true
 				}
 				// Malformed/empty vector — fall through to normal embed.
 			}
-			batch = append(batch, pendingChunk{chunkID, c.Content})
+			batch = append(batch, pendingChunk{ws: ws, id: chunkID, text: c.Content})
 			return true
 		})
 		if len(batch) == 0 {
@@ -299,14 +308,27 @@ func (p *Processor) processBatch(ctx context.Context) {
 				Convention: conv,
 				Vector:     vecs[i],
 			})
-			_ = p.db.Set(keys.EmbeddingKey(ws, it.id), rec)
+			_ = p.db.Set(keys.EmbeddingKey(it.ws, it.id), rec)
 			p.vec.Add(it.id, vecs[i])
-			_ = p.db.DeleteEmbedQueue(ws, it.id) // embedding landed — remove from queue
+			_ = p.db.DeleteEmbedQueue(it.ws, it.id) // embedding landed — remove from queue
 		}
 
-		// Bump the index epoch so the query result cache invalidates (H06).
+		// Bump only the vaults mutated by this batch so the query result cache
+		// invalidates without cross-vault contamination (spec 052).
 		if p.onChange != nil {
-			p.onChange()
+			var touched map[[8]byte]struct{}
+			for i, it := range batch {
+				if i >= len(vecs) || vecs[i] == nil {
+					continue
+				}
+				if touched == nil {
+					touched = make(map[[8]byte]struct{})
+				}
+				touched[it.ws] = struct{}{}
+			}
+			for ws := range touched {
+				p.onChange(ws)
+			}
 		}
 	} // drain loop: process next batch until queue empty
 }

@@ -59,15 +59,16 @@ func TestFilter_Empty(t *testing.T) {
 // TestRetrieval_SetFilter_PreFusion (H14 US2, FR-005): a keep predicate drops
 // candidates from the fused results — non-matching chunks never reach the output.
 func TestRetrieval_SetFilter_PreFusion(t *testing.T) {
+	ws := defaultWS()
 	fts := newTestFTS(t)
 	vec := NewVector()
-	fts.Index("keep1", map[string]string{"body": "alpha keyword"})
-	fts.Index("drop1", map[string]string{"body": "alpha other"})
+	fts.Index(ws, "keep1", map[string]string{"body": "alpha keyword"})
+	fts.Index(ws, "drop1", map[string]string{"body": "alpha other"})
 	vec.Add("keep1", []float32{1.0, 0.0})
 	vec.Add("drop1", []float32{0.9, 0.1})
 
 	// Without filter: both chunks appear.
-	r := NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+	r := NewRetrieval(ws, fts, vec, staticEmbed([]float32{1.0, 0.0}))
 	hits, err := r.Search(context.TODO(), "alpha", 5, ModeHybrid, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +78,7 @@ func TestRetrieval_SetFilter_PreFusion(t *testing.T) {
 	}
 
 	// With filter: drop1 is excluded; keep1 remains.
-	r2 := NewRetrieval(fts, vec, staticEmbed([]float32{1.0, 0.0}))
+	r2 := NewRetrieval(ws, fts, vec, staticEmbed([]float32{1.0, 0.0}))
 	r2.SetFilter(func(chunkID string) bool { return chunkID != "drop1" })
 	hits2, err := r2.Search(context.TODO(), "alpha", 5, ModeHybrid, nil)
 	if err != nil {

@@ -176,6 +176,7 @@ type cacheKey struct {
 	EffK    int
 	EffPool int
 	Epoch   uint64
+	WS      [8]byte
 }
 
 // hash returns the FNV-1a digest of the key as a hex string. Deterministic for a
@@ -210,6 +211,7 @@ func (k cacheKey) hash() string {
 	write(strconv.Itoa(k.EffK))    // H22/spec 024: effective depth (explicit|recommended|default)
 	write(strconv.Itoa(k.EffPool)) // H22/spec 024: effective candidate pool (per-query|classifier|config)
 	write(strconv.FormatUint(k.Epoch, 10))
+	write(string(k.WS[:]))
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
@@ -220,7 +222,7 @@ func (k cacheKey) hash() string {
 // differing only in effective depth/pool get distinct keys. Rerank model is
 // folded in only when reranking is enabled for this request, so a no-rerank
 // query and a reranker-not-configured query that both skip reranking share a key.
-func (e *Engine) resultKey(req QueryRequest, effRRFK, effK, effPool int, epoch uint64) string {
+func (e *Engine) resultKey(req QueryRequest, effRRFK, effK, effPool int, epoch uint64, ws [8]byte) string {
 	k := cacheKey{
 		Query:              req.Query,
 		Mode:               req.Mode,
@@ -232,6 +234,7 @@ func (e *Engine) resultKey(req QueryRequest, effRRFK, effK, effPool int, epoch u
 		EffK:               effK,
 		EffPool:            effPool,
 		Epoch:              epoch,
+		WS:                 ws,
 	}
 	if req.Filter != nil {
 		k.FilterSource = req.Filter.Source
@@ -262,6 +265,6 @@ func embedFingerprint(em embed.Embedder, pre *embed.Prefixer) string {
 // embedCacheKey composes the embedding-profile fingerprint and the prefixed
 // query text into a single cache key. The NUL byte separates them so no text
 // can span the boundary.
-func embedCacheKey(profileFP, text string) string {
-	return profileFP + "\x00" + text
+func embedCacheKey(ws [8]byte, profileFP, text string) string {
+	return string(ws[:]) + "\x00" + profileFP + "\x00" + text
 }

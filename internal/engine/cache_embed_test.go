@@ -146,25 +146,25 @@ func TestEmbedCache_MigrateFlushes(t *testing.T) {
 // embedding profile (model + dim + convention), so vectors under different
 // profiles never collide. (Unit-level proof of the profile-eviction-by-key rule.)
 func TestEmbedCacheKey_DiffersByProfile(t *testing.T) {
-	k1 := embedCacheKey("fake|2|nomic", "search_query: alpha")
-	k2 := embedCacheKey("fake|2|nomic", "search_query: alpha")
+	k1 := embedCacheKey([8]byte{}, "fake|2|nomic", "search_query: alpha")
+	k2 := embedCacheKey([8]byte{}, "fake|2|nomic", "search_query: alpha")
 	if k1 != k2 {
 		t.Fatalf("identical profile+text produced different keys")
 	}
 	// Different model → different key.
-	if embedCacheKey("fake|2|nomic", "search_query: alpha") == embedCacheKey("other|2|nomic", "search_query: alpha") {
+	if embedCacheKey([8]byte{}, "fake|2|nomic", "search_query: alpha") == embedCacheKey([8]byte{}, "other|2|nomic", "search_query: alpha") {
 		t.Fatalf("keys collide across models")
 	}
 	// Different dim → different key.
-	if embedCacheKey("fake|2|nomic", "search_query: alpha") == embedCacheKey("fake|768|nomic", "search_query: alpha") {
+	if embedCacheKey([8]byte{}, "fake|2|nomic", "search_query: alpha") == embedCacheKey([8]byte{}, "fake|768|nomic", "search_query: alpha") {
 		t.Fatalf("keys collide across dims")
 	}
 	// Different convention → different key.
-	if embedCacheKey("fake|2|nomic", "search_query: alpha") == embedCacheKey("fake|2|e5", "search_query: alpha") {
+	if embedCacheKey([8]byte{}, "fake|2|nomic", "search_query: alpha") == embedCacheKey([8]byte{}, "fake|2|e5", "search_query: alpha") {
 		t.Fatalf("keys collide across conventions")
 	}
 	// Different text → different key.
-	if embedCacheKey("fake|2|nomic", "search_query: alpha") == embedCacheKey("fake|2|nomic", "search_query: beta") {
+	if embedCacheKey([8]byte{}, "fake|2|nomic", "search_query: alpha") == embedCacheKey([8]byte{}, "fake|2|nomic", "search_query: beta") {
 		t.Fatalf("keys collide across query texts")
 	}
 }

@@ -104,9 +104,9 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 	// (mode/k/threshold/rrf_k/filter/context_window/rerank), and the current
 	// index epoch. NoCache bypasses serving; the freshly-computed result is still
 	// stored below so the next non-override caller can hit.
-	keyEpoch := e.indexEpoch()
+	keyEpoch := e.indexEpoch(ws)
 	if !req.NoCache && e.resultCache.Enabled() {
-		if cached, ok := e.resultCache.Get(e.resultKey(req, effRRFK, effK, effPool, keyEpoch)); ok {
+		if cached, ok := e.resultCache.Get(e.resultKey(req, effRRFK, effK, effPool, keyEpoch, ws)); ok {
 			observe.CacheHit(ctx, "result") // H17 tie-in
 			return cached, nil
 		}
@@ -117,7 +117,7 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 	// it from disk on every query. The pipeline/watcher/migrate mutate this same
 	// pair, so it is always current; FTS/Vector are goroutine-safe for concurrent
 	// query reads + background writes.
-	fts, vec, err := e.indexes()
+	fts, vec, err := e.indexes(ws)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +150,7 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 		var missText []string
 		var missIdx []int
 		for i, t := range prefixed {
-			if v, ok := e.embedCache.Get(embedCacheKey(fp, t)); ok {
+			if v, ok := e.embedCache.Get(embedCacheKey(ws, fp, t)); ok {
 				out[i] = v
 			} else {
 				missText = append(missText, t)
@@ -166,11 +166,11 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 		}
 		for j, idx := range missIdx {
 			out[idx] = got[j]
-			e.embedCache.Put(embedCacheKey(fp, missText[j]), got[j])
+			e.embedCache.Put(embedCacheKey(ws, fp, missText[j]), got[j])
 		}
 		return out, nil
 	}
-	r := index.NewRetrieval(fts, vec, queryEmbed)
+	r := index.NewRetrieval(ws, fts, vec, queryEmbed)
 	if e.cfg.RerankRetryOnFailure {
 		r.EnableRerankRetry() // H09 US3: optional retry of a failed rerank (off by default).
 	}
@@ -348,8 +348,8 @@ func (e *Engine) Query(ctx context.Context, req QueryRequest) (res *QueryResult,
 	// hit. Skip only when disabled, when the reranker failed (degraded — a retry
 	// may succeed; FR-009), or when a concurrent corpus mutation advanced the
 	// epoch mid-query (this result may be stale relative to the new epoch).
-	if e.resultCache.Enabled() && !rerankFailed && e.indexEpoch() == keyEpoch {
-		e.resultCache.Put(e.resultKey(req, effRRFK, effK, effPool, keyEpoch), res)
+	if e.resultCache.Enabled() && !rerankFailed && e.indexEpoch(ws) == keyEpoch {
+		e.resultCache.Put(e.resultKey(req, effRRFK, effK, effPool, keyEpoch, ws), res)
 	}
 	return res, nil
 }

@@ -51,15 +51,16 @@ type Engine struct {
 	pipe   *pipeline.Pipeline
 
 	// idxFts/idxVec are the engine's shared in-memory search index (audit H01 /
-	// spec 011): seeded once from LoadIndex and reused by every query — no
-	// per-query rebuild (the single biggest latency win). The pipeline, watcher,
-	// and migrate mutate this same pair in place, so it stays live and current;
-	// FTS and Vector are each goroutine-safe, so concurrent query reads +
-	// background writes need no Engine-level read/write lock. idxMu guards only
-	// the seed-once; reads of the stable pointers are lock-free thereafter.
+	// spec 011): seeded once per vault from LoadIndex and reused by every query —
+	// no per-query rebuild (the single biggest latency win). The pipeline,
+	// watcher, and migrate mutate the same per-vault pair in place, so it stays
+	// live and current; FTS and Vector are each goroutine-safe, so concurrent
+	// query reads + background writes need no Engine-level read/write lock. idxMu
+	// guards only the lazy map seed; reads of the stable pointers are lock-free
+	// thereafter. Lock ordering: pipeMu → idxMu. Never invert it.
 	idxMu  sync.Mutex
-	idxFts *index.FTS
-	idxVec *index.Vector
+	idxFts map[[8]byte]*index.FTS
+	idxVec map[[8]byte]*index.Vector
 
 	// qTransformer is the query-transformation seam (audit H05/spec 012): it
 	// normalizes (default) or otherwise alters the query before retrieval, applied
@@ -81,12 +82,16 @@ type Engine struct {
 	// query-embedding cache, both in-process, bounded, and empty on restart.
 	// resultCache maps the full query shape + index epoch → *QueryResult;
 	// embedCache maps the embedding profile + prefixed query → its vector.
-	// Disabled (nil or capacity 0) = every Get misses, every Put no-ops. epoch
-	// is the invalidation counter bumped by the pipeline's OnChange callback at
-	// every shared-index mutation (including the async vector-add).
+	// Disabled (nil or capacity 0) = every Get misses, every Put no-ops. epoch is
+	// the per-vault invalidation counter bumped by the pipeline's OnChange
+	// callback at every shared-index mutation (including the async vector-add).
 	resultCache *LRU[string, *QueryResult]
 	embedCache  *LRU[string, []float32]
-	epoch       *atomic.Uint64
+	// epochMu guards lazy epoch-entry allocation. It is separate from idxMu
+	// because epoch bumps happen on background worker paths and must not contend
+	// with the pipeMu → idxMu seed path or risk deadlock by accidental inversion.
+	epochMu sync.Mutex
+	epoch   map[[8]byte]*atomic.Uint64
 
 	// drift (audit H11/spec 017) caches the embedding-drift verdict + live
 	// Ollama version computed at boot / after migrate. /health reads it (fast);
@@ -113,17 +118,18 @@ type Engine struct {
 	poolSaturated  atomic.Uint64 // queries that couldn't fill the requested depth
 }
 
-// newQueryCaches builds the result/embedding caches and epoch from config. When
+// newQueryCaches builds the result/embedding caches and per-vault epoch registry
+// from config. When
 // QueryCacheEnabled is false both caches are disabled (capacity 0); a per-cache
-// capacity of 0 disables just that cache. The epoch is always allocated so
-// markIndexChanged works even when caching is off (harmless; it just bumps a
-// counter nothing reads).
-func newQueryCaches(cfg config.Config) (*LRU[string, *QueryResult], *LRU[string, []float32], *atomic.Uint64) {
+// capacity of 0 disables just that cache. The epoch map is always allocated so
+// markIndexChanged can lazily create per-vault counters even when caching is off
+// (harmless; it just bumps counters nothing reads).
+func newQueryCaches(cfg config.Config) (*LRU[string, *QueryResult], *LRU[string, []float32], map[[8]byte]*atomic.Uint64) {
 	resCap, embCap := cfg.QueryCacheResults, cfg.QueryCacheEmbeddings
 	if !cfg.QueryCacheEnabled {
 		resCap, embCap = 0, 0
 	}
-	return NewLRU[string, *QueryResult](resCap), NewLRU[string, []float32](embCap), &atomic.Uint64{}
+	return NewLRU[string, *QueryResult](resCap), NewLRU[string, []float32](embCap), make(map[[8]byte]*atomic.Uint64)
 }
 
 // NewWithDB returns an Engine over a pre-opened database (daemon mode). The
@@ -182,25 +188,33 @@ func (e *Engine) DB() *storage.DB { return e.db }
 // nil guard is here for engines assembled by hand in tests.
 func (e *Engine) Events() *events.Bus { return e.bus }
 
-// indexes returns the engine's shared in-memory search index (FTS + Vector),
-// seeding it once from the persisted corpus via LoadIndex on first access and
-// reusing it on every later call (audit H01/spec 011 — no per-query rebuild).
-// Both Query and the ingest pipeline use the pair returned here, so writes
-// (processJob, DeleteDoc) flow straight into the same indexes queries read.
-// Lock ordering: pipeline() acquires pipeMu then idxMu (via this method); Query
-// acquires only idxMu — no inversion, and indexes() never reaches back to pipeMu.
-func (e *Engine) indexes() (*index.FTS, *index.Vector, error) {
+// indexes returns the engine's per-vault shared in-memory search index (FTS +
+// Vector), seeding it once from the persisted corpus via LoadIndex on first
+// access and reusing it on every later call (audit H01/spec 011 — no per-query
+// rebuild). Both Query and the ingest pipeline use the pair returned here, so
+// writes (processJob, DeleteDoc) flow straight into the same indexes queries
+// read. Lock ordering: pipeline() acquires pipeMu then idxMu (via this method);
+// Query acquires only idxMu — no inversion, and indexes() never reaches back to
+// pipeMu.
+func (e *Engine) indexes(ws [8]byte) (*index.FTS, *index.Vector, error) {
 	e.idxMu.Lock()
 	defer e.idxMu.Unlock()
-	if e.idxFts == nil || e.idxVec == nil {
-		ws := e.db.ResolveVaultPrefix("default")
+	if e.idxFts == nil {
+		e.idxFts = make(map[[8]byte]*index.FTS)
+	}
+	if e.idxVec == nil {
+		e.idxVec = make(map[[8]byte]*index.Vector)
+	}
+	fts, okFts := e.idxFts[ws]
+	vec, okVec := e.idxVec[ws]
+	if !okFts || !okVec || fts == nil || vec == nil {
 		fts, vec, err := pipeline.LoadIndex(ws, e.db)
 		if err != nil {
 			return nil, nil, err
 		}
-		e.idxFts, e.idxVec = fts, vec
+		e.idxFts[ws], e.idxVec[ws] = fts, vec
 	}
-	return e.idxFts, e.idxVec, nil
+	return e.idxFts[ws], e.idxVec[ws], nil
 }
 
 // pipeline returns the engine's long-lived ingest pipeline, creating it on first
@@ -217,7 +231,8 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	if e.cfg.EmbeddingModel == "" {
 		return nil, fmt.Errorf("no embedding model configured")
 	}
-	fts, vec, err := e.indexes() // H01: share the seeded index, not fresh empties.
+	ws := e.db.ResolveVaultPrefix("default")
+	fts, vec, err := e.indexes(ws) // H01: share the seeded index, not fresh empties.
 	if err != nil {
 		return nil, err
 	}
@@ -296,11 +311,13 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 // pending 0x14 embeddings even if no write triggers pipeline(). Tests don't call
 // this (no goroutine leak); the daemon and CLI one-shots do.
 func (e *Engine) EnsureEmbedder() error {
-	if _, _, err := e.indexes(); err != nil {
+	ws := e.db.ResolveVaultPrefix("default")
+	_, vec, err := e.indexes(ws)
+	if err != nil {
 		return err
 	}
 	if e.embedProc == nil {
-		e.embedProc = embedproc.New(e.db, e.embedderOrOllama(), e.cfg.Prefixer(), e.idxVec, e.markIndexChanged)
+		e.embedProc = embedproc.New(e.db, e.embedderOrOllama(), e.cfg.Prefixer(), vec, e.markIndexChanged)
 		e.embedProc.Start(context.Background())
 	}
 	return nil
@@ -324,9 +341,18 @@ func (e *Engine) Close() {
 		e.pipe.Close()
 		e.pipe = nil
 	}
-	// Drop the shared index too, so a reused engine re-seeds from the current DB
-	// state rather than serving a stale in-memory snapshot (audit H01/spec 011).
+	// Drop every per-vault shared index so a reused engine re-seeds from the
+	// current DB state rather than serving stale in-memory snapshots (audit
+	// H01/spec 011).
+	e.idxMu.Lock()
+	for ws := range e.idxFts {
+		delete(e.idxFts, ws)
+	}
+	for ws := range e.idxVec {
+		delete(e.idxVec, ws)
+	}
 	e.idxFts, e.idxVec = nil, nil
+	e.idxMu.Unlock()
 	// H06/spec 016: drop the query caches as well — they are stale relative to a
 	// re-seed, and the epoch resets to 0 on the next construction. In-process
 	// only; nothing persisted.

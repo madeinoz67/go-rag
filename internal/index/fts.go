@@ -14,7 +14,7 @@ import (
 	"unicode"
 
 	"github.com/cockroachdb/pebble"
-	"github.com/madeinoz67/go-rag/internal/storage"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // Field weights (PRD §6.6): title 3x, headings 2x, body 1x.
@@ -37,7 +37,7 @@ const (
 type FTS struct {
 	db       *pebble.DB
 	mu       sync.RWMutex
-	idfCache map[string]float64 // term → idf (invalidated on Index/Delete)
+	idfCache map[string]float64 // string(ws[:]) + term → idf (invalidated on Index/Delete)
 }
 
 // NewFTS returns a Pebble-backed BM25 index over db. O(1) — no postings to load
@@ -58,15 +58,44 @@ func fieldWeight(field string) float64 {
 	}
 }
 
-// postingKey builds a Pebble key for a (term, chunkID) posting.
-// Layout: 0x05 | term | 0x00 | chunkID
-func postingKey(term, chunkID string) []byte {
-	k := make([]byte, 0, 1+len(term)+1+len(chunkID))
-	k = append(k, storage.PrefixFTSPosting)
-	k = append(k, term...)
-	k = append(k, 0x00) // separator (terms + chunkIDs are alphanumeric — no 0x00)
-	k = append(k, chunkID...)
-	return k
+func idfCacheKey(ws [8]byte, term string) string {
+	return string(ws[:]) + term
+}
+
+func postingTermUpperBound(ws [8]byte, term string) []byte {
+	upper := keys.FTSPostingTermPrefix(ws, term)
+	return append(upper, 0x01)
+}
+
+func prefixRangeUpperBound(lower []byte) []byte {
+	upper := append([]byte(nil), lower...)
+	last := len(upper) - 1
+	upper[last]++
+	if upper[last] == 0 {
+		return nil
+	}
+	return upper
+}
+
+func (f *FTS) cachedIDF(ws [8]byte, term string, n, df float64) float64 {
+	cacheKey := idfCacheKey(ws, term)
+
+	f.mu.RLock()
+	idf, ok := f.idfCache[cacheKey]
+	f.mu.RUnlock()
+	if ok {
+		return idf
+	}
+
+	idf = math.Log(1 + (n-df+0.5)/(df+0.5))
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if cached, ok := f.idfCache[cacheKey]; ok {
+		return cached
+	}
+	f.idfCache[cacheKey] = idf
+	return idf
 }
 
 // encodePosting encodes tf (weighted) + docLen into 6 bytes.
@@ -89,8 +118,8 @@ func decodePosting(buf []byte) (tf float32, docLen int) {
 
 // chunkIDFromKey extracts the chunkID from a posting key (after the 0x00 sep).
 func chunkIDFromKey(key []byte) string {
-	// key = 0x05 | term | 0x00 | chunkID. Find the first 0x00 after the prefix.
-	for i := 1; i < len(key); i++ {
+	// key = 0x05 | ws | term | 0x00 | chunkID. Find the first 0x00 after kind|ws.
+	for i := 9; i < len(key); i++ {
 		if key[i] == 0x00 {
 			return string(key[i+1:])
 		}
@@ -121,13 +150,9 @@ func decodeStats(buf []byte) globalStats {
 	}
 }
 
-func statsKey() []byte {
-	return []byte{storage.PrefixFTSGlobalSt, 's', 't', 'a', 't', 's'}
-}
-
 // readStats reads the global BM25 stats (N, TotalLen) from Pebble.
-func (f *FTS) readStats() globalStats {
-	val, closer, err := f.db.Get(statsKey())
+func (f *FTS) readStats(ws [8]byte) globalStats {
+	val, closer, err := f.db.Get(keys.FTSGlobalStatsKey(ws))
 	if err != nil || closer == nil {
 		return globalStats{}
 	}
@@ -136,8 +161,8 @@ func (f *FTS) readStats() globalStats {
 }
 
 // writeStats writes the global BM25 stats (NoSync — called from a batch commit).
-func (f *FTS) writeStats(b *pebble.Batch, s globalStats) {
-	_ = b.Set(statsKey(), encodeStats(s), nil)
+func (f *FTS) writeStats(ws [8]byte, b *pebble.Batch, s globalStats) {
+	_ = b.Set(keys.FTSGlobalStatsKey(ws), encodeStats(s), nil)
 }
 
 // Index adds a chunk's fields to the Pebble-backed index. fields maps field names
@@ -145,10 +170,10 @@ func (f *FTS) writeStats(b *pebble.Batch, s globalStats) {
 // (idempotency guard via PrefixFTSIndexed). The tf stored per posting is the
 // field-weighted term frequency SUMMED across all fields (same as the in-memory
 // FTS — transparency, FR-008). BM25 math is unchanged.
-func (f *FTS) Index(chunkID string, fields map[string]string) {
+func (f *FTS) Index(ws [8]byte, chunkID string, fields map[string]string) {
 	// Idempotency guard: if this chunkID is already indexed, skip.
-	idxKey := append([]byte{storage.PrefixFTSIndexed}, []byte(chunkID)...)
-	if val, closer, err := f.db.Get(idxKey); err == nil {
+	idxKey := keys.FTSIndexedKey(ws, chunkID)
+	if val, closer, err := f.db.Get(idxKey); err == nil && closer != nil {
 		closer.Close()
 		_ = val // already indexed — no-op (processJob may call twice; H01 idempotent)
 		return
@@ -174,20 +199,18 @@ func (f *FTS) Index(chunkID string, fields map[string]string) {
 	// Build one atomic batch: postings + indexed-set + stats.
 	batch := f.db.NewBatch()
 	for term, tf := range termCounts {
-		_ = batch.Set(postingKey(term, chunkID), encodePosting(float32(tf), docLen), nil)
+		_ = batch.Set(keys.FTSPostingKey(ws, term, chunkID), encodePosting(float32(tf), docLen), nil)
 	}
 	_ = batch.Set(idxKey, encodePosting(0, docLen)[4:6], nil) // store docLen (2 bytes) for delete
 
 	// Update global stats.
-	s := f.readStats()
+	s := f.readStats(ws)
 	s.N++
 	s.TotalLen += uint64(docLen)
-	f.writeStats(batch, s)
+	f.writeStats(ws, batch, s)
 
-	// Invalidate the IDF cache for all touched terms.
-	for term := range termCounts {
-		delete(f.idfCache, term)
-	}
+	// A corpus write changes N/df, so every cached IDF becomes potentially stale.
+	f.idfCache = make(map[string]float64, 1024)
 
 	_ = batch.Commit(pebble.NoSync)
 }
@@ -196,8 +219,8 @@ func (f *FTS) Index(chunkID string, fields map[string]string) {
 // recover the terms for key construction — the posting key shape puts chunkID at
 // the key's end, so a chunkID-prefix scan is not possible). Idempotent (deleting
 // absent keys is a Pebble no-op).
-func (f *FTS) Delete(chunkID, content string) {
-	idxKey := append([]byte{storage.PrefixFTSIndexed}, []byte(chunkID)...)
+func (f *FTS) Delete(ws [8]byte, chunkID, content string) {
+	idxKey := keys.FTSIndexedKey(ws, chunkID)
 
 	// Read the stored docLen for stats update.
 	val, closer, err := f.db.Get(idxKey)
@@ -222,20 +245,20 @@ func (f *FTS) Delete(chunkID, content string) {
 
 	batch := f.db.NewBatch()
 	for term := range termSet {
-		_ = batch.Delete(postingKey(term, chunkID), nil)
-		delete(f.idfCache, term)
+		_ = batch.Delete(keys.FTSPostingKey(ws, term, chunkID), nil)
 	}
 	_ = batch.Delete(idxKey, nil)
 
 	// Update global stats.
-	s := f.readStats()
+	s := f.readStats(ws)
 	if s.N > 0 {
 		s.N--
 	}
 	if s.TotalLen >= uint64(docLen) {
 		s.TotalLen -= uint64(docLen)
 	}
-	f.writeStats(batch, s)
+	f.writeStats(ws, batch, s)
+	f.idfCache = make(map[string]float64, 1024)
 
 	_ = batch.Commit(pebble.NoSync)
 }
@@ -249,12 +272,12 @@ type Hit struct {
 // Search ranks chunks by BM25 relevance to the query, returning the top k.
 // The BM25 math is IDENTICAL to the pre-pivot in-memory FTS (transparency, FR-008):
 // k1=1.2, b=0.75, field-weighted tf, prefix expansion for short terms (<4 chars).
-func (f *FTS) Search(query string, k int) []Hit {
+func (f *FTS) Search(ws [8]byte, query string, k int) []Hit {
 	terms := Tokenize(query)
 	if len(terms) == 0 {
 		return nil
 	}
-	st := f.readStats()
+	st := f.readStats(ws)
 	n := float64(st.N)
 	avgDL := 0.0
 	if st.N > 0 {
@@ -264,18 +287,18 @@ func (f *FTS) Search(query string, k int) []Hit {
 	scores := map[string]float64{}
 	for _, term := range terms {
 		// Scan postings for this term (exact match).
-		posts := f.scanTerm(term)
+		posts := f.scanTerm(ws, term)
 		if len(posts) == 0 && len(term) < 4 {
 			// Prefix expansion: scan all terms starting with this prefix.
-			posts = f.scanPrefix(term)
+			posts = f.scanPrefix(ws, term)
 		}
 		if len(posts) == 0 {
 			continue
 		}
 		df := float64(len(posts))
-		idf := math.Log(1 + (n-df+0.5)/(df+0.5))
+		idf := f.cachedIDF(ws, term, n, df)
 		for chunkID, tf := range posts {
-			dl := f.docLenOf(chunkID)
+			dl := f.docLenOf(ws, chunkID)
 			if dl == 0 {
 				dl = avgDL
 			}
@@ -301,28 +324,20 @@ func (f *FTS) Search(query string, k int) []Hit {
 }
 
 // scanTerm scans postings for an exact term and returns chunkID → tf.
-func (f *FTS) scanTerm(term string) map[string]float64 {
-	lower := postingKey(term, "")
-	// UpperBound: 0x05 | term | 0x01 (covers all 0x00 | chunkID suffixes)
-	upper := make([]byte, len(lower))
-	copy(upper, lower)
-	upper[len(lower)-1] = 0x01 // bump the 0x00 separator to 0x01
-
-	return f.scanRange(lower[:1+len(term)], upper, term)
+func (f *FTS) scanTerm(ws [8]byte, term string) map[string]float64 {
+	lower := keys.FTSPostingTermPrefix(ws, term)
+	return f.scanRange(lower, postingTermUpperBound(ws, term), term)
 }
 
 // scanPrefix scans postings for ALL terms starting with prefix (the prefix
 // expansion for short queries). Returns chunkID → summed tf (merged across terms).
-func (f *FTS) scanPrefix(prefix string) map[string]float64 {
+func (f *FTS) scanPrefix(ws [8]byte, prefix string) map[string]float64 {
 	if prefix == "" {
 		return nil
 	}
-	lower := append([]byte{storage.PrefixFTSPosting}, []byte(prefix)...)
-	// UpperBound: increment the last byte of the prefix.
-	upper := make([]byte, len(lower))
-	copy(upper, lower)
-	upper[len(upper)-1]++
-	if upper[len(upper)-1] == 0 {
+	lower := keys.FTSPostingTermPrefix(ws, prefix)
+	upper := prefixRangeUpperBound(lower)
+	if upper == nil {
 		return nil // overflow (prefix ends with 0xFF) — skip
 	}
 	return f.scanRange(lower, upper, "")
@@ -342,8 +357,8 @@ func (f *FTS) scanRange(lower, upper []byte, knownTerm string) map[string]float6
 		key := iter.Key()
 		var chunkID string
 		if knownTerm != "" {
-			// Exact term: chunkID starts after prefix(1) + term(n) + sep(1).
-			off := 1 + len(knownTerm) + 1
+			// Exact term: chunkID starts after prefix(1) + ws(8) + term(n) + sep(1).
+			off := 9 + len(knownTerm) + 1
 			if len(key) > off {
 				chunkID = string(key[off:])
 			}
@@ -360,8 +375,8 @@ func (f *FTS) scanRange(lower, upper []byte, knownTerm string) map[string]float6
 }
 
 // docLenOf reads a chunk's docLen from its indexed-set entry.
-func (f *FTS) docLenOf(chunkID string) float64 {
-	idxKey := append([]byte{storage.PrefixFTSIndexed}, []byte(chunkID)...)
+func (f *FTS) docLenOf(ws [8]byte, chunkID string) float64 {
+	idxKey := keys.FTSIndexedKey(ws, chunkID)
 	val, closer, err := f.db.Get(idxKey)
 	if err != nil || closer == nil {
 		return 0
@@ -411,7 +426,7 @@ func isStopword(w string) bool {
 // migrateFromChunks builds the Pebble-backed FTS postings from existing chunks
 // (one-time migration for pre-pivot vaults). Called by LoadIndex when the global
 // stats key is absent. Uses a Pebble batch for efficiency.
-func MigrateFromChunks(db *pebble.DB, chunks func(yield func(chunkID, content string) bool)) error {
+func MigrateFromChunks(db *pebble.DB, ws [8]byte, chunks func(yield func(chunkID, content string) bool)) error {
 	batch := db.NewBatch()
 	var n, totalLen uint64
 	flush := func() {
@@ -430,9 +445,9 @@ func MigrateFromChunks(db *pebble.DB, chunks func(yield func(chunkID, content st
 		}
 		docLen := len(terms)
 		for term, tf := range termCounts {
-			_ = batch.Set(postingKey(term, chunkID), encodePosting(float32(tf), docLen), nil)
+			_ = batch.Set(keys.FTSPostingKey(ws, term, chunkID), encodePosting(float32(tf), docLen), nil)
 		}
-		idxKey := append([]byte{storage.PrefixFTSIndexed}, []byte(chunkID)...)
+		idxKey := keys.FTSIndexedKey(ws, chunkID)
 		_ = batch.Set(idxKey, encodePosting(0, docLen)[4:6], nil)
 		n++
 		totalLen += uint64(docLen)
@@ -442,7 +457,7 @@ func MigrateFromChunks(db *pebble.DB, chunks func(yield func(chunkID, content st
 		}
 		return true // continue
 	})
-	_ = batch.Set(statsKey(), encodeStats(globalStats{N: n, TotalLen: totalLen}), nil)
+	_ = batch.Set(keys.FTSGlobalStatsKey(ws), encodeStats(globalStats{N: n, TotalLen: totalLen}), nil)
 	_ = batch.Commit(pebble.NoSync)
 	return nil
 }
@@ -450,8 +465,8 @@ func MigrateFromChunks(db *pebble.DB, chunks func(yield func(chunkID, content st
 // HasPostings reports whether the Pebble-backed FTS has been initialized (the
 // global stats key exists). Used by LoadIndex to decide whether to run the
 // one-time migration.
-func HasPostings(db *pebble.DB) bool {
-	val, closer, err := db.Get(statsKey())
+func HasPostings(db *pebble.DB, ws [8]byte) bool {
+	val, closer, err := db.Get(keys.FTSGlobalStatsKey(ws))
 	if err != nil || closer == nil {
 		return false
 	}

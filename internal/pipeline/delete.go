@@ -47,7 +47,7 @@ func (p *Pipeline) deleteDocLocked(ws [8]byte, docID string) error {
 		_ = db.Delete(keys.EmbeddingKey(ws, ch.id))
 		// H01/spec 011 + H16/spec 018: keep the index fresh — no phantom hits.
 		if p.fts != nil {
-			p.fts.Delete(ch.id, ch.content)
+			p.fts.Delete(ws, ch.id, ch.content)
 		}
 		if p.vec != nil {
 			p.vec.Delete(ch.id)
@@ -56,7 +56,7 @@ func (p *Pipeline) deleteDocLocked(ws [8]byte, docID string) error {
 	// H06/spec 016: removals mutated the searchable corpus — advance the
 	// result-cache epoch so subsequent queries never serve a now-deleted hit.
 	if len(chunks) > 0 {
-		p.indexChanged()
+		p.indexChanged(ws)
 	}
 
 	// Document-record lifecycle: hold p.mu — the pipeline's document-record

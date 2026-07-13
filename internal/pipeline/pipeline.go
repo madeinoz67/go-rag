@@ -79,11 +79,12 @@ type Pipeline struct {
 	OnProgress Progress
 
 	// OnChange, if non-nil, is called whenever the shared in-memory index is
-	// mutated (chunk added in storeDocument, vector added in processJob, chunks
-	// removed in DeleteDoc). The Engine binds it to its epoch-bumper so the
-	// query result cache can invalidate on corpus change (audit H06/spec 016).
-	// Set once, under the engine's pipeMu, before any job flows.
-	OnChange func()
+	// mutated (FTS chunks added in processJob / captionImages, vectors added in
+	// the embed processor, chunks removed in DeleteDoc). The Engine binds it to
+	// its per-vault epoch-bumper so the query result cache can invalidate on
+	// corpus change (audit H06/spec 016). Set once, under the engine's pipeMu,
+	// before any job flows.
+	OnChange func(ws [8]byte)
 
 	// OnFirstEmbed, if non-nil, is called after a document's chunks are embedded
 	// with the embedding profile (model, dim, convention). The Engine uses it to
@@ -110,9 +111,9 @@ type Pipeline struct {
 // indexChanged fires the OnChange callback when set. Centralizing the nil guard
 // keeps the mutation sites one-liners and means a pipeline constructed without a
 // bound callback (e.g. some tests) simply skips the bump.
-func (p *Pipeline) indexChanged() {
+func (p *Pipeline) indexChanged(ws [8]byte) {
 	if p.OnChange != nil {
-		p.OnChange()
+		p.OnChange(ws)
 	}
 }
 

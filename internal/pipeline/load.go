@@ -29,8 +29,8 @@ func LoadIndex(ws [8]byte, db *storage.DB) (*index.FTS, *index.Vector, error) {
 	fts := index.NewFTS(pebbleDB)
 
 	// H16/spec 018: one-time migration for pre-pivot vaults (no postings yet).
-	if !index.HasPostings(pebbleDB) {
-		_ = index.MigrateFromChunks(pebbleDB, func(yield func(string, string) bool) {
+	if !index.HasPostings(pebbleDB, ws) {
+		_ = index.MigrateFromChunks(pebbleDB, ws, func(yield func(string, string) bool) {
 			lower, upper, err := keys.VaultKindRange(storage.PrefixChunk, ws)
 			if err != nil {
 				return

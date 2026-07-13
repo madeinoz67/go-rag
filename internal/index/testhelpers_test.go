@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/pebble"
+	"github.com/madeinoz67/go-rag/internal/storage/keys"
 )
 
 // newTestFTS opens a temp Pebble DB and returns a Pebble-backed FTS over it.
@@ -16,4 +17,8 @@ func newTestFTS(t testing.TB) *FTS {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	return NewFTS(db)
+}
+
+func defaultWS() [8]byte {
+	return keys.VaultPrefix("default")
 }

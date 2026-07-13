@@ -19,14 +19,15 @@ import (
 // async bump were removed), the deadline trips and the test fails.
 func waitForEpoch(t *testing.T, e *Engine, want uint64) {
 	t.Helper()
+	ws := e.db.ResolveVaultPrefix("default")
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if e.indexEpoch() == want {
+		if e.indexEpoch(ws) == want {
 			return
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatalf("epoch never reached %d (got %d) within 5s", want, e.indexEpoch())
+	t.Fatalf("epoch never reached %d (got %d) within 5s", want, e.indexEpoch(ws))
 }
 
 // waitForEpochStable polls until the index epoch stops advancing between two
@@ -36,15 +37,47 @@ func waitForEpoch(t *testing.T, e *Engine, want uint64) {
 // expected hit into a miss (the same race waitForEpoch guards against).
 func waitForEpochStable(t *testing.T, e *Engine) {
 	t.Helper()
+	ws := e.db.ResolveVaultPrefix("default")
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		a := e.indexEpoch()
+		a := e.indexEpoch(ws)
 		time.Sleep(30 * time.Millisecond)
-		if e.indexEpoch() == a {
+		if e.indexEpoch(ws) == a {
 			return // quiescent
 		}
 	}
 	t.Fatalf("epoch never stabilized within 5s (still advancing)")
+}
+
+// TestEpoch_PerVaultIsolation proves the epoch counter is maintained per vault:
+// a mutation in one workspace must not invalidate another workspace's cache key.
+func TestEpoch_PerVaultIsolation(t *testing.T) {
+	e := newResultCacheEngine(t, 8)
+	wsA := e.db.ResolveVaultPrefix("default")
+	wsB := e.db.ResolveVaultPrefix("other")
+
+	e.markIndexChanged(wsA)
+	e.markIndexChanged(wsA)
+	e.markIndexChanged(wsB)
+
+	if got := e.indexEpoch(wsA); got != 2 {
+		t.Fatalf("epoch(default) = %d, want 2", got)
+	}
+	if got := e.indexEpoch(wsB); got != 1 {
+		t.Fatalf("epoch(other) = %d, want 1", got)
+	}
+}
+
+// TestCacheKey_PerVaultIsolation proves identical queries in different
+// workspaces hash differently, preventing cross-vault result-cache reuse.
+func TestCacheKey_PerVaultIsolation(t *testing.T) {
+	wsA := [8]byte{'d', 'e', 'f', 'a', 'u', 'l', 't', 0}
+	wsB := [8]byte{'o', 't', 'h', 'e', 'r', 0, 0, 0}
+	keyA := cacheKey{Query: "same query", Mode: "keyword", Epoch: 7, WS: wsA}.hash()
+	keyB := cacheKey{Query: "same query", Mode: "keyword", Epoch: 7, WS: wsB}.hash()
+	if keyA == keyB {
+		t.Fatal("cacheKey hash collided across workspaces; want ws-scoped result cache keys")
+	}
 }
 
 // TestEpoch_IngestInvalidates asserts a cached keyword query reflects a newly-
@@ -128,7 +161,7 @@ func TestEpoch_DeleteInvalidates(t *testing.T) {
 // the moment the processJob bump (T007) is removed.
 func TestEpoch_AsyncVectorBump(t *testing.T) {
 	e := newResultCacheEngine(t, 8)
-	epoch0 := e.indexEpoch()
+	epoch0 := e.indexEpoch(e.db.ResolveVaultPrefix("default"))
 
 	// addDoc ACKs after storeDocument (durable writes only; FTS moved async —
 	// H16/spec 018). The async processJob adds the vector + FTS postings and

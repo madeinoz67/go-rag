@@ -118,12 +118,13 @@ func hitsEqual(a, b []QueryHit) bool {
 func TestQuery_ReusesSharedIndex(t *testing.T) {
 	e := newCacheEngine(t)
 	addDoc(t, e, "alpha bravo charlie delta echo foxtrot")
+	ws := e.db.ResolveVaultPrefix("default")
 
-	f1, v1, err := e.indexes()
+	f1, v1, err := e.indexes(ws)
 	if err != nil {
 		t.Fatalf("indexes: %v", err)
 	}
-	f2, v2, _ := e.indexes()
+	f2, v2, _ := e.indexes(ws)
 	if f1 != f2 || v1 != v2 {
 		t.Fatal("indexes() must return the same shared *FTS/*Vector across calls (seed-once / no per-query rebuild)")
 	}
@@ -255,6 +256,7 @@ func TestQuery_ConcurrentSafe_UnderBackgroundIngest(t *testing.T) {
 func TestIndexes_SeedsOnce_NoThunderingHerd(t *testing.T) {
 	e := newCacheEngine(t)
 	addDoc(t, e, "seed-once hermit document")
+	ws := e.db.ResolveVaultPrefix("default")
 
 	type pair struct {
 		f *index.FTS
@@ -271,7 +273,7 @@ func TestIndexes_SeedsOnce_NoThunderingHerd(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			f, v, err := e.indexes()
+			f, v, err := e.indexes(ws)
 			if err != nil {
 				t.Errorf("indexes: %v", err)
 				return

@@ -37,6 +37,7 @@ type EmbedFunc func(ctx context.Context, texts []string) ([][]float32, error)
 // per query via SetRRFK; the engine resolves the effective value (request > config
 // > 60) before each query.
 type Retrieval struct {
+	ws    [8]byte
 	fts   *FTS
 	vec   VectorIndex
 	embed EmbedFunc
@@ -56,10 +57,10 @@ type Retrieval struct {
 	keep func(string) bool
 }
 
-// NewRetrieval wires an FTS index, a Vector index, and a query embedder.
-func NewRetrieval(fts *FTS, vec VectorIndex, embed EmbedFunc) *Retrieval {
+// NewRetrieval wires a vault-scoped FTS index, a Vector index, and a query embedder.
+func NewRetrieval(ws [8]byte, fts *FTS, vec VectorIndex, embed EmbedFunc) *Retrieval {
 	return &Retrieval{
-		fts: fts, vec: vec, embed: embed,
+		ws: ws, fts: fts, vec: vec, embed: embed,
 		rrfK: 60, poolSize: 60,
 	}
 }
@@ -119,7 +120,7 @@ func (r *Retrieval) filterHits(hits []Hit) []Hit {
 func (r *Retrieval) Search(ctx context.Context, query string, k int, mode Mode, docOf func(string) string) ([]Hit, error) {
 	switch mode {
 	case ModeKeyword:
-		return collapseByDoc(r.filterHits(r.fts.Search(query, r.poolSize)), k, docOf), nil
+		return collapseByDoc(r.filterHits(r.fts.Search(r.ws, query, r.poolSize)), k, docOf), nil
 	case ModeSemantic:
 		hits, err := r.semantic(ctx, query)
 		if err != nil {
@@ -127,7 +128,7 @@ func (r *Retrieval) Search(ctx context.Context, query string, k int, mode Mode, 
 		}
 		return collapseByDoc(r.filterHits(hits), k, docOf), nil
 	default: // hybrid
-		fHits := r.filterHits(r.fts.Search(query, r.poolSize))
+		fHits := r.filterHits(r.fts.Search(r.ws, query, r.poolSize))
 		vHits, err := r.semantic(ctx, query)
 		if err != nil {
 			return nil, err
