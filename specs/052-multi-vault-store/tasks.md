@@ -20,9 +20,9 @@
 
 **Purpose**: land the key-construction package + the vault registry skeleton so the key-widening + engine threading can proceed against compiling code.
 
-- [ ] T001 Create `internal/storage/keys/keys.go`: pure key-construction functions taking `ws [8]byte` first arg — `VaultPrefix(name string) [8]byte` (SipHash-2-4, BigEndian, fixed keys sipKey0/sipKey1), `SourceKey(ws, srcID)`, `DocumentKey(ws, docID)`, `ChunkKey(ws, chunkID)`, `FTSPostingKey(ws, ...)`, `VaultMetaKey(ws) [9]byte` (`0x1A|ws`), `VaultNameIndexKey(name) [9]byte` (`0x1B|siphash(name)`), `IncrementWSPrefix(ws) [8]byte` (BigEndian+1, overflow error). Mirror MuninnDB's `keys/keys.go`. (R1, R2, R3, data-model.md)
-- [ ] T002 [P] Create `internal/storage/vault.go`: `ResolveVaultPrefix(name) [8]byte` (LRU 10k → Pebble get 0x1B → SipHash fallback), `ListVaultNames()`, `WriteVaultName(ws, name)`, `VaultNameExists(name)`, `RenameVault(ws, oldName, newName)`, `BackfillVaultNames()`. Port near-verbatim from MuninnDB (adapted to go-rag's prefix table). `vaultPrefixCache *lru.Cache`, `vaultNameWritten sync.Map`. (R3, R4, R5)
-- [ ] T003 [P] `internal/storage/vault_test.go` — tests: resolve (LRU hit/miss/SipHash fallback), list, write idempotent, rename (metadata-only, zero data moves), backfill (scan 0x02, placeholder names). Rename safety: the SipHash fallback returns wrong ws for renamed vaults; the LRU seeded from 0x1B at startup is authoritative. (R4)
+- [X] T001 Create `internal/storage/keys/keys.go`: pure key-construction functions taking `ws [8]byte` first arg — `VaultPrefix(name string) [8]byte` (SipHash-2-4, BigEndian, fixed keys sipKey0/sipKey1), `SourceKey(ws, srcID)`, `DocumentKey(ws, docID)`, `ChunkKey(ws, chunkID)`, `FTSPostingKey(ws, ...)`, `VaultMetaKey(ws) [9]byte` (`0x1A|ws`), `VaultNameIndexKey(name) [9]byte` (`0x1B|siphash(name)`), `IncrementWSPrefix(ws) [8]byte` (BigEndian+1, overflow error). Mirror MuninnDB's `keys/keys.go`. (R1, R2, R3, data-model.md)
+- [X] T002 [P] Create `internal/storage/vault.go`: `ResolveVaultPrefix(name) [8]byte` (LRU 10k → Pebble get 0x1B → SipHash fallback), `ListVaultNames()`, `WriteVaultName(ws, name)`, `VaultNameExists(name)`, `RenameVault(ws, oldName, newName)`, `BackfillVaultNames()`. Port near-verbatim from MuninnDB (adapted to go-rag's prefix table). `vaultPrefixCache *lru.Cache`, `vaultNameWritten sync.Map`. (R3, R4, R5)
+- [X] T003 [P] `internal/storage/vault_test.go` — tests: resolve (LRU hit/miss/SipHash fallback), list, write idempotent, rename (metadata-only, zero data moves), backfill (scan 0x02, placeholder names). Rename safety: the SipHash fallback returns wrong ws for renamed vaults; the LRU seeded from 0x1B at startup is authoritative. (R4)
 
 **Checkpoint**: `CGO_ENABLED=0 go build ./...` clean; keys package + vault registry compile.
 
@@ -32,17 +32,17 @@
 
 **⚠️ CRITICAL**: the biggest phase — widens every vault-scoped key, threads vault through the engine, adds the v3→v4 migration, and wires vault selectors on all transports. All user stories depend on this.
 
-- [ ] T004 Widen every vault-scoped key builder in `internal/storage/` — replace the existing `SetWithPrefix/GetWithPrefix/PrefixScan` calls with the `keys.*` builders that prepend `wsPrefix[8]`. The 19 vault-scoped prefixes (0x01–0x15 per data-model.md) gain wsPrefix; the 6 global prefixes (0x09, 0x17–0x19, 0x1A, 0x1B) stay flat. Add `PrefixVaultMeta=0x1A`, `PrefixVaultNameIndex=0x1B` to `storage.go`. `db.go` methods gain ws-aware variants (or the keys builders replace them). (R1, data-model.md)
-- [ ] T005 Thread `vault string` through every `internal/engine/` public method — `Add(ctx, vault, path, glob)`, `Query(ctx, vault, req)`, `DeleteDoc(ctx, vault, docID)`, `Reprocess(ctx, vault, path)`, `Status(vault)`, `ListDocuments(vault, req)`, `ListChunks(vault, ...)`, `GetDocument(vault, docID)`, `AuditRead(vault, opts)`, etc. Each resolves wsPrefix once via `store.ResolveVaultPrefix(vault)` at entry, threads `[8]byte` to storage + pipeline. (R6)
-- [ ] T006 Per-vault in-memory index registries in `internal/engine/engine.go` — `idxFts`/`idxVec` become `map[[8]byte]*index.FTS` / `map[[8]byte]*index.Vector` (lazily seeded on first access per vault via LoadIndex, evictable on ClearVault). The `epoch` counter becomes per-vault (`map[[8]byte]*atomic.Uint64`). The query/embed caches include wsPrefix in the cache key. The pipeline's OnChange/OnEvent callbacks carry wsPrefix so they mutate only that vault's indexes. (R6)
-- [ ] T007 Engine vault-routing tests — `internal/engine/vault_test.go`: two-vault isolation (add to A, query A, query B — no cross-leak); per-vault index seeding (first query pays LoadIndex, second reuses); cache-key scoping (no cross-vault cache contamination). (FR-004)
-- [ ] T008 Migration v3→v4 — `internal/storage/migrate/v4_multi_vault.go`: detect legacy per-vault DBs at `~/.go-rag/vaults/<name>/data`; for each, `ws = keys.VaultPrefix(name)`; iterate every key `kind|payload`, rewrite as `kind|ws|payload` into the unified store (mechanical prepend, opaque values); write `0x1A|ws→name` + `0x1B|siphash(name)→ws`; archive legacy dirs (rename to `.prev`). Bump `ExpectedVersion` 3→4 in `migrate.go`. (R8)
-- [ ] T009 Migration test — `internal/storage/migrate/v4_test.go`: create two legacy per-vault DBs with data; run v3→v4; verify all keys appear in the unified store under correct wsPrefixes (no data loss, counts match); verify idempotency (restart-safe); verify refuse-newer (v5+ rejected). (FR-008, FR-009)
-- [ ] T010 [P] CLI vault param — `internal/cli/`: `--vault <name>` flag on every command (default "default"), threaded to the engine call. Cross-vault: `--vault a,b` (comma-separated for query). (R9)
-- [ ] T011 [P] REST vault param — `internal/rest/`: `?vault=` query param + optional body field (must agree); VaultAuthMiddleware resolves + validates before the handler; admin session bypasses (UI path). (R9)
-- [ ] T012 [P] gRPC vault param — `proto/gorag.proto` (+regen): `string vault = N;` on every request message; `repeated string vaults = M;` on QueryRequest. `internal/grpc/`: unary interceptor validates vault. (R9)
-- [ ] T013 [P] MCP vault param — `internal/mcp/server.go`: optional `vault` arg (default "default") on every tool; `vaults` array on query tool. (R9)
-- [ ] T014 [P] UI vault picker — `internal/ui/`: vault picker in the shell header (session-scoped); `X-Go-Rag-Vault` header on /api/* requests; cross-vault multi-select. (R9)
+- [X] T004 Widen every vault-scoped key builder in `internal/storage/` — replace the existing `SetWithPrefix/GetWithPrefix/PrefixScan` calls with the `keys.*` builders that prepend `wsPrefix[8]`. The 19 vault-scoped prefixes (0x01–0x15 per data-model.md) gain wsPrefix; the 6 global prefixes (0x09, 0x17–0x19, 0x1A, 0x1B) stay flat. Add `PrefixVaultMeta=0x1A`, `PrefixVaultNameIndex=0x1B` to `storage.go`. `db.go` methods gain ws-aware variants (or the keys builders replace them). (R1, data-model.md)
+- [X] T005 Thread `vault string` through every `internal/engine/` public method — `Add(ctx, vault, path, glob)`, `Query(ctx, vault, req)`, `DeleteDoc(ctx, vault, docID)`, `Reprocess(ctx, vault, path)`, `Status(vault)`, `ListDocuments(vault, req)`, `ListChunks(vault, ...)`, `GetDocument(vault, docID)`, `AuditRead(vault, opts)`, etc. Each resolves wsPrefix once via `store.ResolveVaultPrefix(vault)` at entry, threads `[8]byte` to storage + pipeline. (R6)
+- [X] T006 Per-vault in-memory index registries in `internal/engine/engine.go` — `idxFts`/`idxVec` become `map[[8]byte]*index.FTS` / `map[[8]byte]*index.Vector` (lazily seeded on first access per vault via LoadIndex, evictable on ClearVault). The `epoch` counter becomes per-vault (`map[[8]byte]*atomic.Uint64`). The query/embed caches include wsPrefix in the cache key. The pipeline's OnChange/OnEvent callbacks carry wsPrefix so they mutate only that vault's indexes. (R6)
+- [X] T007 Engine vault-routing tests — `internal/engine/vault_test.go`: two-vault isolation (add to A, query A, query B — no cross-leak); per-vault index seeding (first query pays LoadIndex, second reuses); cache-key scoping (no cross-vault cache contamination). (FR-004)
+- [X] T008 Migration v3→v4 — `internal/storage/migrate/v4_multi_vault.go`: detect legacy per-vault DBs at `~/.go-rag/vaults/<name>/data`; for each, `ws = keys.VaultPrefix(name)`; iterate every key `kind|payload`, rewrite as `kind|ws|payload` into the unified store (mechanical prepend, opaque values); write `0x1A|ws→name` + `0x1B|siphash(name)→ws`; archive legacy dirs (rename to `.prev`). Bump `ExpectedVersion` 3→4 in `migrate.go`. (R8)
+- [X] T009 Migration test — `internal/storage/migrate/v4_test.go`: create two legacy per-vault DBs with data; run v3→v4; verify all keys appear in the unified store under correct wsPrefixes (no data loss, counts match); verify idempotency (restart-safe); verify refuse-newer (v5+ rejected). (FR-008, FR-009)
+- [X] T010 [P] CLI vault param — `internal/cli/`: `--vault <name>` flag on every command (default "default"), threaded to the engine call. Cross-vault: `--vault a,b` (comma-separated for query). (R9)
+- [X] T011 [P] REST vault param — `internal/rest/`: `?vault=` query param + optional body field (must agree); VaultAuthMiddleware resolves + validates before the handler; admin session bypasses (UI path). (R9)
+- [X] T012 [P] gRPC vault param — `proto/gorag.proto` (+regen): `string vault = N;` on every request message; `repeated string vaults = M;` on QueryRequest. `internal/grpc/`: unary interceptor validates vault. (R9)
+- [X] T013 [P] MCP vault param — `internal/mcp/server.go`: optional `vault` arg (default "default") on every tool; `vaults` array on query tool. (R9)
+- [X] T014 [P] UI vault picker — `internal/ui/`: vault picker in the shell header (session-scoped); `X-Go-Rag-Vault` header on /api/* requests; cross-vault multi-select. (R9)
 
 **Checkpoint**: `make build && make vet` clean; engine + storage + all transports carry vault; migration v3→v4 compiles.
 
@@ -56,8 +56,8 @@
 
 ### Implementation
 
-- [ ] T015 [US1] Daemon opens ONE unified store — `internal/daemon/` (or `cmd/go-rag/`): `serve`/`start` opens one Pebble at the store path (not a per-vault dir); constructs ONE engine serving all vaults. The `--db-path` flag becomes "where is the unified store" (not "which vault"). `--vault` is a per-call CLI param, not a daemon flag. (R6)
-- [ ] T016 [US1] US1 tests — `internal/engine/vault_test.go`: two-vault end-to-end — add to A, add to B, query A (only A's docs), query B (only B's), no cross-leak. Self-registration: write to a new vault name → it appears in ListVaultNames. (FR-003, FR-004, SC-001)
+- [X] T015 [US1] Daemon opens ONE unified store — `internal/daemon/` (or `cmd/go-rag/`): `serve`/`start` opens one Pebble at the store path (not a per-vault dir); constructs ONE engine serving all vaults. The `--db-path` flag becomes "where is the unified store" (not "which vault"). `--vault` is a per-call CLI param, not a daemon flag. (R6)
+- [X] T015 [US1] US1 tests — `internal/engine/vault_test.go`: two-vault end-to-end — add to A, add to B, query A (only A's docs), query B (only B's), no cross-leak. Self-registration: write to a new vault name → it appears in ListVaultNames. (FR-003, FR-004, SC-001)
 
 **Checkpoint**: US1 independently testable — one daemon, all vaults, isolated (MVP).
 
@@ -71,8 +71,8 @@
 
 ### Implementation
 
-- [ ] T017 [US2] Cross-vault query — `internal/engine/query.go`: `QueryRequest.Vaults []string` (empty = single-vault default); when non-empty, fan out per-vault retrieval (BM25 + vector) in parallel → N×2 ranked lists → generalize `reciprocalRankFusion` from 2-list to N-list → rerank (vault-agnostic) → threshold + dedup. Budget cap: min(N×K, 2×pool-size) pre-rerank. `internal/index/retrieval.go`: generalize reciprocalRankFusion signature. (R7)
-- [ ] T018 [US2] US2 tests — `internal/engine/crossvault_test.go`: three vaults with distinct docs; cross-vault query [A,B,C] returns hits from all three (ranked together); per-vault queries return only that vault; cross-vault subsumes individual top hits; cache key includes sorted Vaults set. (FR-005, SC-002)
+- [X] T015 [US2] Cross-vault query — `internal/engine/query.go`: `QueryRequest.Vaults []string` (empty = single-vault default); when non-empty, fan out per-vault retrieval (BM25 + vector) in parallel → N×2 ranked lists → generalize `reciprocalRankFusion` from 2-list to N-list → rerank (vault-agnostic) → threshold + dedup. Budget cap: min(N×K, 2×pool-size) pre-rerank. `internal/index/retrieval.go`: generalize reciprocalRankFusion signature. (R7)
+- [X] T015 [US2] US2 tests — `internal/engine/crossvault_test.go`: three vaults with distinct docs; cross-vault query [A,B,C] returns hits from all three (ranked together); per-vault queries return only that vault; cross-vault subsumes individual top hits; cache key includes sorted Vaults set. (FR-005, SC-002)
 
 **Checkpoint**: US2 independently testable — cross-vault query.
 
@@ -86,8 +86,8 @@
 
 ### Implementation
 
-- [ ] T019 [US3] Vault lifecycle engine methods — `internal/engine/engine.go`: `RenameVault(ctx, oldName, newName)` (delegates to `store.RenameVault` + re-keys in-memory registries), `ClearVault(ctx, vault)` (range-tombstone per kind + evict in-memory indexes), `DeleteVault(ctx, vault)` (clear + `DeleteVaultNameOnly`). Build the ClearVault data-prefix list from the 19 vault-scoped kinds (data-model.md). (R5)
-- [ ] T020 [US3] US3 tests — `internal/engine/lifecycle_test.go`: rename (<1ms, data present after), clear (instant, empty after), delete (gone from listings/queries). ClearVault scope: all 19 vault-scoped kinds tombstoned; 6 global kinds untouched. (FR-006, SC-003)
+- [X] T015 [US3] Vault lifecycle engine methods — `internal/engine/engine.go`: `RenameVault(ctx, oldName, newName)` (delegates to `store.RenameVault` + re-keys in-memory registries), `ClearVault(ctx, vault)` (range-tombstone per kind + evict in-memory indexes), `DeleteVault(ctx, vault)` (clear + `DeleteVaultNameOnly`). Build the ClearVault data-prefix list from the 19 vault-scoped kinds (data-model.md). (R5)
+- [X] T02 [US3] US3 tests — `internal/engine/lifecycle_test.go`: rename (<1ms, data present after), clear (instant, empty after), delete (gone from listings/queries). ClearVault scope: all 19 vault-scoped kinds tombstoned; 6 global kinds untouched. (FR-006, SC-003)
 
 **Checkpoint**: US3 independently testable — vault lifecycle.
 
@@ -101,7 +101,7 @@
 
 ### Implementation / Verification
 
-- [ ] T021 [US4] Cross-transport vault-param parity test — `internal/engine/parity_test.go`: from each transport (CLI/REST/gRPC/MCP), add to vault A, query vault B — all isolated; default "default" works unchanged; unknown vault → error (fail-closed). (FR-007, SC-005)
+- [X] T02 [US4] Cross-transport vault-param parity test — `internal/engine/parity_test.go`: from each transport (CLI/REST/gRPC/MCP), add to vault A, query vault B — all isolated; default "default" works unchanged; unknown vault → error (fail-closed). (FR-007, SC-005)
 
 **Checkpoint**: US4 independently testable — all transports vault-aware.
 
@@ -115,7 +115,7 @@
 
 ### Implementation / Verification
 
-- [ ] T022 [US5] Migration end-to-end test — `internal/storage/migrate/v4_e2e_test.go`: create two real per-vault Pebble DBs with documents/chunks/embeddings; run the daemon (triggers on-open migration v3→v4); verify both vaults' data in the unified store (correct wsPrefixes, no loss, counts match); verify legacy dirs archived (.prev); verify restart opens unified directly (no re-migration). (FR-008, FR-009, SC-004)
+- [X] T02 [US5] Migration end-to-end test — `internal/storage/migrate/v4_e2e_test.go`: create two real per-vault Pebble DBs with documents/chunks/embeddings; run the daemon (triggers on-open migration v3→v4); verify both vaults' data in the unified store (correct wsPrefixes, no loss, counts match); verify legacy dirs archived (.prev); verify restart opens unified directly (no re-migration). (FR-008, FR-009, SC-004)
 
 **Checkpoint**: US5 independently testable — migration validated.
 
@@ -123,9 +123,9 @@
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T023 [P] Gate hygiene — `make lint` (0 findings), `make vet`, `make test -race` clean across ALL packages (storage, engine, migrate, cli, rest, grpc, mcp, ui, index, pipeline).
-- [ ] T024 [P] quickstart validation — run [quickstart.md](./quickstart.md) §1–§5 on a fresh unified store: two vaults, one daemon, add/query/cross-query/rename/clear + the migration from legacy DBs. Interceptor browser verify for §5 (vault picker, cross-vault query).
-- [ ] T025 [P] Doc sync — update PRD §6.7 (new key-space layout); update the Constitution (ExpectedVersion 3→4); update spec 046's Slice Decomposition; update `PROJECTS.md` + MuninnDB memory; reframe spec 051 (Vaults view → switcher UI on the unified store).
+- [X] T02 [P] Gate hygiene — `make lint` (0 findings), `make vet`, `make test -race` clean across ALL packages (storage, engine, migrate, cli, rest, grpc, mcp, ui, index, pipeline).
+- [X] T02 [P] quickstart validation — run [quickstart.md](./quickstart.md) §1–§5 on a fresh unified store: two vaults, one daemon, add/query/cross-query/rename/clear + the migration from legacy DBs. Interceptor browser verify for §5 (vault picker, cross-vault query).
+- [X] T02 [P] Doc sync — update PRD §6.7 (new key-space layout); update the Constitution (ExpectedVersion 3→4); update spec 046's Slice Decomposition; update `PROJECTS.md` + MuninnDB memory; reframe spec 051 (Vaults view → switcher UI on the unified store).
 
 ---
 
