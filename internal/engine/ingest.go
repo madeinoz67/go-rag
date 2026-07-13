@@ -27,6 +27,12 @@ func fromResult(r pipeline.Result) IngestSummary {
 // Close to wait for that background work to finish.
 func (e *Engine) Add(ctx context.Context, vault, path, glob string) (sum *IngestSummary, err error) {
 	ws := e.db.ResolveVaultPrefix(vault)
+	// Self-register the vault in the VaultMeta registry on first write (spec 052
+	// US1 / research R5 — vault creation is implicit). Idempotent via the
+	// vaultNameWritten sync.Map; makes the vault appear in ListVaultNames.
+	if err := e.db.WriteVaultName(ws, vault); err != nil {
+		return nil, fmt.Errorf("register vault %q: %w", vault, err)
+	}
 	if glob == "" {
 		glob = "*"
 	}

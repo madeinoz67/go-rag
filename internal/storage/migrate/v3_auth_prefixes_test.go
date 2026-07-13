@@ -18,16 +18,19 @@ func TestV3RegisterAuthPrefixes(t *testing.T) {
 		t.Fatalf("migrate to v2: %v", err)
 	}
 
-	// v2 → v3: applies exactly one migration.
+	// v2 → top: applies the remaining migrations (v3..ExpectedVersion) and lands
+	// at ExpectedVersion. v4's Up (multi-vault merge) is a no-op here because the
+	// legacy root is unset in this package's tests, so it contributes only a
+	// version advance.
 	applied, err := Run(db, ExpectedVersion, defaultMigrations)
 	if err != nil {
-		t.Fatalf("migrate to v3: %v", err)
+		t.Fatalf("migrate to top: %v", err)
 	}
-	if applied != 1 {
-		t.Fatalf("v2→v3 applied = %d, want 1", applied)
+	if want := int(ExpectedVersion - 2); applied != want {
+		t.Fatalf("v2→top applied = %d, want %d", applied, want)
 	}
 	if got, err := readVersion(db); err != nil || got != ExpectedVersion {
-		t.Fatalf("post-v3 version = %d err=%v, want %d", got, err, ExpectedVersion)
+		t.Fatalf("post-migrate version = %d err=%v, want %d", got, err, ExpectedVersion)
 	}
 
 	// Idempotent replay: a store already at ExpectedVersion applies nothing.

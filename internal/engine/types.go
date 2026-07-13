@@ -31,6 +31,12 @@ type QueryRequest struct {
 	// Dedup (H20/spec 026): when true, collapse near-duplicate hits to one
 	// representative per group (highest-scored). Default false (flag-only).
 	Dedup bool
+	// Vaults (US2/T017): when non-empty, the query fans out across these vaults
+	// — each vault's BM25+vector retrieval runs, the ranked lists are fused via
+	// N-way reciprocal rank fusion, and the merged pool is reranked. The single
+	// `vault` argument to Engine.Query is ignored when Vaults is non-empty.
+	// Nil/empty = single-vault query (the historical behavior).
+	Vaults []string
 }
 
 // NewFilter constructs a metadata Filter for a query (H14/spec 014). Returns nil

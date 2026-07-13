@@ -107,6 +107,19 @@ func (d *DB) DeleteWithPrefix(prefix byte, key []byte) error {
 	return d.db.Delete(append([]byte{prefix}, key...), pebble.Sync)
 }
 
+// DeleteRange writes a Pebble range tombstone over [lower, upper), logically
+// deleting every key in the half-open interval in one O(1) write (the keys are
+// reclaimed lazily by compaction). Used by ClearVault (spec 052 / US3) to
+// tombstone one vault's data for one kind: callers pass bounds from
+// keys.VaultKindRange(kind, ws), so the interval is exactly `kind|ws` ≤ key <
+// `kind|wsPlus`. Durable (Sync). lower MUST be strictly less than upper.
+func (d *DB) DeleteRange(lower, upper []byte) error {
+	if len(lower) == 0 || len(upper) == 0 || bytes.Compare(lower, upper) >= 0 {
+		return fmt.Errorf("delete range: invalid bounds [%x, %x)", lower, upper)
+	}
+	return d.db.DeleteRange(lower, upper, pebble.Sync)
+}
+
 // PrefixScan iterates over all keys beginning with prefix, invoking fn for each
 // (key and value include the prefix byte). Iteration stops if fn returns false.
 func (d *DB) PrefixScan(prefix []byte, fn func(key, value []byte) bool) error {

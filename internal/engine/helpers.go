@@ -11,6 +11,7 @@ import (
 	"github.com/madeinoz67/go-rag/internal/storage"
 	"github.com/madeinoz67/go-rag/internal/storage/keys"
 	"github.com/madeinoz67/go-rag/internal/storage/migrate"
+	"github.com/madeinoz67/go-rag/internal/vault"
 )
 
 // Open loads the config and opens the Pebble store under <base>/data. It is the
@@ -25,6 +26,20 @@ func Open(base string) (config.Config, *storage.DB, error) {
 	db, err := storage.Open(filepath.Join(base, "data"))
 	if err != nil {
 		return cfg, nil, err
+	}
+	// Configure the v4 multi-vault merge (spec 052): only when opening a UNIFIED
+	// store — a --db-path that is a SIBLING of the legacy vaults root (same parent
+	// directory, e.g. ~/.go-rag/store beside ~/.go-rag/vaults) — point the v4
+	// migration at vault.Root() so it rewrites every legacy per-vault DB's keys
+	// into this store and archives the legacy dirs. The same-parent guard is what
+	// keeps this safe: a legacy per-vault path (~/.go-rag/vaults/<name>) has a
+	// different parent and never self-merges (no Pebble lock conflict), and an
+	// unrelated/test path never drags in the operator's real vaults.
+	vRoot := vault.Root()
+	if vRoot != "" && filepath.Dir(filepath.Clean(base)) == filepath.Dir(filepath.Clean(vRoot)) {
+		migrate.SetLegacyRoot(vRoot)
+	} else {
+		migrate.SetLegacyRoot("")
 	}
 	// Migrate the on-disk schema before serving any operation (migration-on-open,
 	// FR-013). Runs under Pebble's single-writer lock; idempotent and replay-safe.

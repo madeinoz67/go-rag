@@ -120,13 +120,13 @@ func (r *Retrieval) filterHits(hits []Hit) []Hit {
 func (r *Retrieval) Search(ctx context.Context, query string, k int, mode Mode, docOf func(string) string) ([]Hit, error) {
 	switch mode {
 	case ModeKeyword:
-		return collapseByDoc(r.filterHits(r.fts.Search(r.ws, query, r.poolSize)), k, docOf), nil
+		return CollapseByDoc(r.filterHits(r.fts.Search(r.ws, query, r.poolSize)), k, docOf), nil
 	case ModeSemantic:
 		hits, err := r.semantic(ctx, query)
 		if err != nil {
 			return nil, err
 		}
-		return collapseByDoc(r.filterHits(hits), k, docOf), nil
+		return CollapseByDoc(r.filterHits(hits), k, docOf), nil
 	default: // hybrid
 		fHits := r.filterHits(r.fts.Search(r.ws, query, r.poolSize))
 		vHits, err := r.semantic(ctx, query)
@@ -134,7 +134,7 @@ func (r *Retrieval) Search(ctx context.Context, query string, k int, mode Mode, 
 			return nil, err
 		}
 		fused := reciprocalRankFusion(r.filterHits(vHits), fHits, r.rrfK)
-		return collapseByDoc(fused, k, docOf), nil
+		return CollapseByDoc(fused, k, docOf), nil
 	}
 }
 
@@ -150,6 +150,31 @@ func (r *Retrieval) semantic(ctx context.Context, query string) ([]Hit, error) {
 		return nil, nil
 	}
 	return r.vec.Query(vecs[0], r.poolSize), nil
+}
+
+// CandidateLists returns the pre-fusion candidate lists for the current mode,
+// filtered (keep predicate applied) but NOT fused or collapsed. hybrid →
+// [vector, fts], keyword → [fts], semantic → [vector]. Used by cross-vault
+// query (US2/T017) where lists from multiple vaults are gathered and then fused
+// together via ReciprocalRankFusionN. Each list is at most r.poolSize entries.
+func (r *Retrieval) CandidateLists(ctx context.Context, query string, mode Mode) ([][]Hit, error) {
+	switch mode {
+	case ModeKeyword:
+		return [][]Hit{r.filterHits(r.fts.Search(r.ws, query, r.poolSize))}, nil
+	case ModeSemantic:
+		hits, err := r.semantic(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		return [][]Hit{r.filterHits(hits)}, nil
+	default: // hybrid
+		fHits := r.filterHits(r.fts.Search(r.ws, query, r.poolSize))
+		vHits, err := r.semantic(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		return [][]Hit{r.filterHits(vHits), fHits}, nil
+	}
 }
 
 // Reranker is an optional second-pass scorer that takes (query, candidate texts)
@@ -280,17 +305,20 @@ func (r *Retrieval) attemptRerank(ctx context.Context, query string, k int, mode
 	return out, nil, nil
 }
 
-// reciprocalRankFusion merges two ranked lists with a single symmetric RRF
+// ReciprocalRankFusionN merges N ranked lists with a single symmetric RRF
 // constant k (spec 009 / retrieval book §6.6): score(d) = Σ 1/(k + rank) with
-// rank 1-based — i.e. 1/(k + i + 1) for the 0-based loop index i. The same k
-// applies to both lists; the prior asymmetric per-list kVec/kFTS is removed.
-func reciprocalRankFusion(vectorHits, ftsHits []Hit, k int) []Hit {
+// rank 1-based — i.e. 1/(k + i + 1) for the 0-based loop index i, summed over
+// every list in which the document appears. Used by cross-vault query
+// (US2/T017) where each vault contributes one (keyword/semantic) or two
+// (hybrid: BM25 + vector) ranked lists; the 2-list single-vault case is handled
+// by reciprocalRankFusion below. An empty or single-list input is handled
+// correctly (the sum degenerates gracefully).
+func ReciprocalRankFusionN(allLists [][]Hit, k int) []Hit {
 	scores := map[string]float64{}
-	for rank, h := range vectorHits {
-		scores[h.ChunkID] += 1.0 / float64(k+rank+1)
-	}
-	for rank, h := range ftsHits {
-		scores[h.ChunkID] += 1.0 / float64(k+rank+1)
+	for _, list := range allLists {
+		for rank, h := range list {
+			scores[h.ChunkID] += 1.0 / float64(k+rank+1)
+		}
 	}
 	out := make([]Hit, 0, len(scores))
 	for id, s := range scores {
@@ -305,9 +333,16 @@ func reciprocalRankFusion(vectorHits, ftsHits []Hit, k int) []Hit {
 	return out
 }
 
-// collapseByDoc keeps the top-1 hit per document (when docOf is non-nil) and
-// truncates to k.
-func collapseByDoc(hits []Hit, k int, docOf func(string) string) []Hit {
+// reciprocalRankFusion merges two ranked lists (spec 009). A thin wrapper over
+// ReciprocalRankFusionN kept for the single-vault 2-list hybrid path.
+func reciprocalRankFusion(vectorHits, ftsHits []Hit, k int) []Hit {
+	return ReciprocalRankFusionN([][]Hit{vectorHits, ftsHits}, k)
+}
+
+// CollapseByDoc keeps the top-1 hit per document (when docOf is non-nil) and
+// truncates to k. Exported so the engine's cross-vault path can collapse a
+// fused multi-vault pool with a vault-aware docOf (US2/T017).
+func CollapseByDoc(hits []Hit, k int, docOf func(string) string) []Hit {
 	if docOf == nil {
 		if k > 0 && k < len(hits) {
 			return hits[:k]

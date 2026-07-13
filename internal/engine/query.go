@@ -98,6 +98,14 @@ func (e *Engine) Query(ctx context.Context, vault string, req QueryRequest) (res
 		effMode = "hybrid"
 	}
 
+	// US2/T017: cross-vault query. When Vaults is non-empty, fan out across the
+	// named vaults (each vault's BM25+vector retrieval runs in turn, the ranked
+	// lists are fused via N-way RRF, the merged pool is capped and reranked).
+	// The single-vault path below is the historical behavior.
+	if len(req.Vaults) > 0 {
+		return e.crossVaultQuery(ctx, req, effK, effRRFK, effPool, effMode)
+	}
+
 	// H06/spec 016: result cache. Check before any embed/retrieve work — a hit
 	// skips the Ollama round-trip and the whole retrieve/fuse/rerank pipeline.
 	// The key folds in the normalized query, every retrieval-affecting input

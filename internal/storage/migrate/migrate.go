@@ -20,7 +20,16 @@ var schemaVersionKey = []byte{0xFF, 's', 'c', 'h', 'e', 'm', 'a', '_', 'v', 'e',
 // ExpectedVersion is the schema version this binary understands. Stores below
 // this are migrated up on open; stores above this are refused (FR-015/R9 — no
 // silent misread, no auto-downgrade). Bump this when adding a new migration.
-const ExpectedVersion uint64 = 3
+//
+// v4 (spec 052): multi-vault unified-store key-widening is now ACTIVE. On open
+// of a unified store — a --db-path that is a SIBLING of the legacy vaults root
+// (same parent dir, e.g. ~/.go-rag/store beside ~/.go-rag/vaults) — the engine
+// arms the legacy root via SetLegacyRoot and Run() fires the v4 step, whose Up
+// (v4MultiVault) rewrites every legacy per-vault DB's keys into the unified
+// store via MergeLegacyVaults and archives the legacy dirs. Any other path
+// (legacy per-vault open, fresh/temp path) leaves the root unset, so the v4
+// step is a harmless no-op there — no self-merge lock conflict.
+const ExpectedVersion uint64 = 4
 
 // Migration is a single, idempotent schema transform over the Pebble store.
 type Migration struct {
@@ -38,13 +47,13 @@ var defaultMigrations = []Migration{
 	{Version: 1, Description: "introduce schema-version key (v0→v1 bootstrap)", Up: v1Bootstrap},
 	{Version: 2, Description: "backfill per-chunk ContentHash sidecar (spec 043 / BL-010)", Up: v2ContentHash},
 	{Version: 3, Description: "reserve auth key-space prefixes (spec 045)", Up: v3RegisterAuthPrefixes},
-	// Version 4 (spec 052): multi-vault unified-store key-widening marker. The
-	// actual key-rewrite is filesystem-level (migrate.MergeLegacyVaults, called by
-	// the daemon pre-open); this Up is a no-op that advances the schema-version
-	// key so the refuse-newer guard arms. INACTIVE while ExpectedVersion stays 3 —
-	// Run() skips Version > expected. Activated by the one-line ExpectedVersion
-	// bump that ships with the storage widening (T004–T005).
-	{Version: 4, Description: "multi-vault unified-store key-widening (spec 052) — marker; merge runs pre-open", Up: v4MultiVault},
+	// Version 4 (spec 052): multi-vault unified-store key-widening. The Up
+	// (v4MultiVault) rewrites every legacy per-vault DB's keys into the unified
+	// store via MergeLegacyVaults (wsPrefix widening + registry 0x1A/0x1B) and
+	// archives the legacy dirs to <name>.prev. It is a no-op when the legacy
+	// root is unset (fresh install, or a legacy per-vault open) — see the
+	// ExpectedVersion note above and SetLegacyRoot.
+	{Version: 4, Description: "multi-vault unified-store key-widening (spec 052) — merges legacy per-vault DBs into the unified store", Up: v4MultiVault},
 }
 
 // Run applies every migration in ms whose Version is greater than the store's

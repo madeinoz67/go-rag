@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -177,6 +178,11 @@ type cacheKey struct {
 	EffPool int
 	Epoch   uint64
 	WS      [8]byte
+	// Vaults (US2/T017): sorted-joined vault names for cross-vault queries. Empty
+	// for single-vault queries (which are distinguished by WS alone). Populated
+	// only when QueryRequest.Vaults is non-empty so a cross-vault query never
+	// collides with any single-vault key.
+	Vaults string
 }
 
 // hash returns the FNV-1a digest of the key as a hex string. Deterministic for a
@@ -212,6 +218,7 @@ func (k cacheKey) hash() string {
 	write(strconv.Itoa(k.EffPool)) // H22/spec 024: effective candidate pool (per-query|classifier|config)
 	write(strconv.FormatUint(k.Epoch, 10))
 	write(string(k.WS[:]))
+	write(k.Vaults) // US2/T017: cross-vault set — distinct from any single-vault key
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
@@ -240,6 +247,11 @@ func (e *Engine) resultKey(req QueryRequest, effRRFK, effK, effPool int, epoch u
 		k.FilterSource = req.Filter.Source
 		k.FilterType = req.Filter.Type
 		k.FilterTags = req.Filter.Tags
+	}
+	if len(req.Vaults) > 0 { // US2/T017: fold the sorted vault set into the key
+		sv := append([]string(nil), req.Vaults...)
+		sort.Strings(sv)
+		k.Vaults = strings.Join(sv, "\x00")
 	}
 	if e.cfg.RerankModel != "" && !req.NoRerank {
 		k.RerankEnabled = true

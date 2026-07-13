@@ -5,19 +5,20 @@
 // every vault-scoped key widens from `kind(1)|payload` to `kind(1)|wsPrefix(8)|payload`.
 //
 // Unlike v1–v3 (in-DB reshapes), this step is filesystem-level: it reads each
-// legacy per-vault DB and rewrites its keys into the unified store. The daemon
-// therefore calls MergeLegacyVaults (the filesystem merge) BEFORE opening the
-// unified store for service; the registered v4MultiVault marker then records
-// that the v4 layout is active so the refuse-newer guard (FR-015) catches a
-// downgraded binary.
+// legacy per-vault DB and rewrites its keys into the unified store. The merge
+// runs INSIDE the v4 migration's Up (v4MultiVault), which fires from Run() when
+// ExpectedVersion >= 4. Because Up receives the already-open unified *pebble.DB,
+// the merge writes through that handle (no second open / lock conflict); only
+// the legacy per-vault DBs are opened, read-only.
 //
-// Activation: the v4 marker is REGISTERED in defaultMigrations at Version 4, but
-// ExpectedVersion stays at 3 in this landing commit, so Run() skips it (Version >
-// expected). The marker is a no-op until the atomic widening commit bumps
-// ExpectedVersion 3→4 alongside T004–T005 (storage widening + engine threading).
-// That single-line bump is the switch that activates the v4 layout; until it
-// lands, the un-widened engine keeps reading the v3 layout. MergeLegacyVaults
-// (the filesystem merge) is called by the daemon pre-open when that bump ships.
+// The legacy root is supplied by the engine open path via SetLegacyRoot: it is
+// set to vault.Root() only when the store being opened is a unified store (a
+// --db-path OUTSIDE the legacy ~/.go-rag/vaults/ tree). On a legacy per-vault
+// open the root is unset and v4MultiVault is a harmless no-op, so the
+// currently-open per-vault DB is never re-opened as a legacy candidate (no
+// self-merge lock conflict). A fresh install (no legacy dirs) yields
+// ErrNoLegacyVaults, which v4MultiVault swallows — the unified store stays
+// empty and vaults self-register on first write (WriteVaultName).
 //
 // Idempotent + crash-safe: RewriteLegacyVault checks the vault's VaultMeta key
 // and skips a vault that has already been migrated, so a crash before the
@@ -32,6 +33,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -66,6 +68,20 @@ type MergeReport struct {
 // ErrNoLegacyVaults is returned by MergeLegacyVaults when the legacy root is
 // absent or empty — the common case for a fresh install that starts at v4.
 var ErrNoLegacyVaults = errors.New("no legacy per-vault databases to migrate")
+
+// legacyRoot is the filesystem root scanned for legacy per-vault DBs
+// (<root>/<name>/data) during the v4 migration. It is set by the engine open
+// path (SetLegacyRoot) when the store being opened is a unified store outside
+// the legacy ~/.go-rag/vaults/ tree. When empty, v4MultiVault is a no-op — the
+// fresh-install path and the legacy per-vault open path both leave it unset.
+var legacyRoot string
+
+// SetLegacyRoot configures the legacy per-vault root the v4 migration scans.
+// The engine open path calls this with vault.Root() when opening a unified
+// store (a --db-path outside the legacy vaults tree). Calling it with "" clears
+// the setting (v4MultiVault becomes a no-op). It must be called BEFORE
+// RunMigrations / Run for the v4 step to observe it.
+func SetLegacyRoot(root string) { legacyRoot = root }
 
 // migrateLogger suppresses Pebble's chatty Info logs during the merge (mirrors
 // storage.quietLogger, kept local so the migrate package does not import storage
@@ -187,32 +203,30 @@ func RewriteLegacyVault(unified, legacyDB *pebble.DB, vaultName string) (*VaultM
 	return stats, nil
 }
 
-// MergeLegacyVaults opens (or creates) the unified store at unifiedPath, iterates
-// every legacy per-vault DB under legacyRoot (`<name>/data`), rewrites each into
-// the unified store via RewriteLegacyVault, and archives each legacy directory
-// to `<name>.prev`. Returns ErrNoLegacyVaults when legacyRoot is absent or holds
-// no per-vault DBs (the fresh-install path).
-//
-// The unified store is opened with the same quiet logger as storage.Open; the
-// caller owns closing considerations (the daemon re-opens it for service after
-// this returns). Legacy DBs are opened read-only so an in-flight daemon cannot
-// mutate them mid-merge.
-func MergeLegacyVaults(unifiedPath, legacyRoot string) (*MergeReport, error) {
-	entries, err := os.ReadDir(legacyRoot)
+// legacyCandidate is a discovered legacy per-vault DB (name + its `data` path).
+type legacyCandidate struct {
+	name string
+	path string
+}
+
+// legacyCandidates scans root for legacy per-vault DBs (`<name>/data`), skipping
+// archived (.prev) and non-vault entries. Returns ErrNoLegacyVaults when root is
+// empty, absent, or holds no per-vault DBs (the fresh-install path). This is the
+// fail-fast gate: callers use it to short-circuit BEFORE opening or touching the
+// unified store, so a "nothing to merge" result never contends on the Pebble
+// lock (e.g. when a read-only verification handle is already held).
+func legacyCandidates(root string) ([]legacyCandidate, error) {
+	if root == "" {
+		return nil, ErrNoLegacyVaults
+	}
+	entries, err := os.ReadDir(root)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, ErrNoLegacyVaults
 		}
-		return nil, fmt.Errorf("read legacy root %q: %w", legacyRoot, err)
+		return nil, fmt.Errorf("read legacy root %q: %w", root, err)
 	}
-
-	// Collect candidate vault dirs up front so we can fail fast with no partial
-	// work if there is nothing to migrate.
-	type candidate struct {
-		name string
-		path string
-	}
-	var cands []candidate
+	var cands []legacyCandidate
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -221,25 +235,24 @@ func MergeLegacyVaults(unifiedPath, legacyRoot string) (*MergeReport, error) {
 		if filepath.Ext(name) == ".prev" || name == ".DS_Store" {
 			continue
 		}
-		dataDir := filepath.Join(legacyRoot, name, legacyVaultDataName)
+		dataDir := filepath.Join(root, name, legacyVaultDataName)
 		if _, err := os.Stat(dataDir); err != nil {
 			continue // no data subdir — not a vault DB
 		}
-		cands = append(cands, candidate{name: name, path: dataDir})
+		cands = append(cands, legacyCandidate{name: name, path: dataDir})
 	}
 	if len(cands) == 0 {
 		return nil, ErrNoLegacyVaults
 	}
+	return cands, nil
+}
 
-	if err := os.MkdirAll(filepath.Dir(unifiedPath), 0o755); err != nil {
-		return nil, fmt.Errorf("mkdir unified parent: %w", err)
-	}
-	unified, err := pebble.Open(unifiedPath, &pebble.Options{Logger: migrateLogger{}})
-	if err != nil {
-		return nil, fmt.Errorf("open unified %q: %w", unifiedPath, err)
-	}
-	defer unified.Close()
-
+// mergeLegacyCandidates rewrites each candidate legacy DB into the already-open
+// unified store via RewriteLegacyVault and archives each legacy directory to
+// `<name>.prev`. Called with a non-empty candidate list (legacyCandidates has
+// already gated the empty case). Legacy DBs are opened read-only so an in-flight
+// daemon cannot mutate them mid-merge.
+func mergeLegacyCandidates(unified *pebble.DB, cands []legacyCandidate, root string) (*MergeReport, error) {
 	report := &MergeReport{}
 	for _, c := range cands {
 		legacyDB, err := pebble.Open(c.path, &pebble.Options{Logger: migrateLogger{}, ReadOnly: true})
@@ -259,8 +272,8 @@ func MergeLegacyVaults(unifiedPath, legacyRoot string) (*MergeReport, error) {
 		// Archive the legacy directory (rename to <name>.prev). Never delete —
 		// one-way but hand-reversible. If a .prev already exists (a prior
 		// interrupted merge), remove the older archive first.
-		legacyDir := filepath.Join(legacyRoot, c.name)
-		archive := filepath.Join(legacyRoot, c.name+".prev")
+		legacyDir := filepath.Join(root, c.name)
+		archive := filepath.Join(root, c.name+".prev")
 		if _, err := os.Stat(archive); err == nil {
 			_ = os.RemoveAll(archive)
 		}
@@ -272,15 +285,69 @@ func MergeLegacyVaults(unifiedPath, legacyRoot string) (*MergeReport, error) {
 	return report, nil
 }
 
-// v4MultiVault is the registered Migration.Up marker for the v4 layout. The
-// actual key-rewrite is filesystem-level (MergeLegacyVaults, called by the
-// daemon pre-open); this marker exists so the schema-version key advances to 4
-// once the unified store is live, arming the refuse-newer guard (FR-015).
+// mergeLegacy is the core filesystem merge against an already-open unified
+// store. It scans root for legacy per-vault DBs, rewrites each into unified, and
+// archives each legacy directory to `<name>.prev`. Returns ErrNoLegacyVaults
+// when root is empty, absent, or holds no per-vault DBs (the fresh-install path).
 //
-// It is a no-op on the DB: by the time the migration runner fires,
-// MergeLegacyVaults has already widened every key. Asserting the registry is
-// non-empty on a migrated store would be wrong for fresh installs (empty store).
+// This is the path the v4 migration's Up (v4MultiVault) takes: the unified
+// store is already open and passed in, so the merge writes through that single
+// handle. The standalone MergeLegacyVaults below wraps it for callers (and
+// tests) that own only a path.
+func mergeLegacy(unified *pebble.DB, root string) (*MergeReport, error) {
+	cands, err := legacyCandidates(root)
+	if err != nil {
+		return nil, err
+	}
+	return mergeLegacyCandidates(unified, cands, root)
+}
+
+// MergeLegacyVaults opens (or creates) the unified store at unifiedPath, runs
+// the filesystem merge against it, and closes it. Returns ErrNoLegacyVaults
+// when root is absent or holds no per-vault DBs (the fresh-install path) — and
+// crucially returns it WITHOUT opening the unified store, so a "nothing to
+// merge" result never contends on the Pebble lock. This is the standalone /
+// path-based entry point (used by tests); the v4 migration's Up uses mergeLegacy
+// directly against the already-open store to avoid a second open of the same path.
+func MergeLegacyVaults(unifiedPath, root string) (*MergeReport, error) {
+	// Gate BEFORE opening: a "nothing to merge" result must return without ever
+	// opening the unified store, so it never contends on the Pebble lock (e.g.
+	// when a read-only verification handle is already held — see TestMergeLegacyVaults).
+	cands, err := legacyCandidates(root)
+	if err != nil {
+		return nil, err // ErrNoLegacyVaults — no open attempted
+	}
+	if err := os.MkdirAll(filepath.Dir(unifiedPath), 0o755); err != nil {
+		return nil, fmt.Errorf("mkdir unified parent: %w", err)
+	}
+	unified, err := pebble.Open(unifiedPath, &pebble.Options{Logger: migrateLogger{}})
+	if err != nil {
+		return nil, fmt.Errorf("open unified %q: %w", unifiedPath, err)
+	}
+	defer unified.Close()
+	return mergeLegacyCandidates(unified, cands, root)
+}
+
+// v4MultiVault is the registered Migration.Up for the v4 layout. It performs
+// the filesystem merge of legacy per-vault DBs into the already-open unified
+// store via mergeLegacy. The legacy root is supplied out-of-band via
+// SetLegacyRoot (called by the engine open path when opening a unified store);
+// when unset (fresh install, or a legacy per-vault open) it is a no-op.
 //
-// Registered at Version 4 in defaultMigrations (migrate.go) but inactive while
-// ExpectedVersion == 3 — see the Activation note atop this file.
-func v4MultiVault(_ *pebble.DB) error { return nil }
+// It writes through the single *pebble.DB handed to Up — no second open of the
+// unified store, hence no Pebble lock conflict. Only the legacy per-vault DBs
+// are opened, read-only. ErrNoLegacyVaults (no/empty legacy root) is swallowed:
+// the common fresh-install case starts with an empty unified store and vaults
+// self-register on first write (WriteVaultName); advancing the schema-version
+// key to 4 still arms the refuse-newer guard (FR-015).
+func v4MultiVault(db *pebble.DB) error {
+	report, err := mergeLegacy(db, legacyRoot)
+	if err == nil {
+		slog.Info("v4 multi-vault merge", "vaults", len(report.Vaults), "archived", len(report.Archived))
+		return nil
+	}
+	if errors.Is(err, ErrNoLegacyVaults) {
+		return nil // fresh install or per-vault open — nothing to merge
+	}
+	return fmt.Errorf("v4 multi-vault merge: %w", err)
+}
