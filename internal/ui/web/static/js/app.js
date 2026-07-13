@@ -900,6 +900,8 @@
       quarError: '',
       quarSelected: null, // quarantineDetailDTO open in the detail pane (null = list)
       quarScanning: false, // vault rescan in progress (UI hint until refresh)
+      quarSortKey: 'score', // page-local sort column (document | level | score)
+      quarSortDir: 'desc', // high-risk first by default
 
       /** GET /api/quarantine/list → {chunks, count}. Always 200 (empty = healthy). */
       loadQuarantine: async function () {
@@ -982,25 +984,70 @@
         };
       },
 
-      /** Render chunk content with matched phrases highlighted (US2). The verdict's
-       *  matched_phrases is a flat list (instruction-phrase hits — the model carries
-       *  no per-phrase signal tag), so a single highlight colour is used; the per-
-       *  signal breakdown renders alongside. HTML-escaped BEFORE marking, so chunk
-       *  text can never inject markup (safe under x-html). */
-      highlightPhrases: function (content, phrases) {
-        var s = String(content || '');
-        var esc = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        var list = (phrases || []).slice();
-        // Longest-first so a longer phrase wins over its substrings.
-        list.sort(function (a, b) { return String(b).length - String(a).length; });
-        for (var i = 0; i < list.length; i++) {
-          var p = String(list[i] || '').trim();
-          if (!p) continue;
-          var escP = p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          var re = new RegExp(escP.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-          esc = esc.replace(re, '<mark class="poison-mark">$&</mark>');
+      /** Render the chunk content with every signal's triggers highlighted in its
+       *  own colour: instruction phrases (purple), repetition tokens (amber),
+       *  stuffing tokens (red). Position-based + overlap-aware (an instruction
+       *  phrase absorbs the token-matches inside it; no nested marks); word
+       *  boundaries on token matches so "the" won't light up inside "there";
+       *  HTML-escaped so chunk text can never inject markup. Safe under x-html.
+       *
+       *  matched_phrases carries only instruction hits; repetition_matches +
+       *  stuffing_matches (computed by the detail endpoint from the chunk
+       *  content via the poison detector's term-extraction) give the other two
+       *  signals their own highlights. */
+      highlightVerdict: function (sel) {
+        if (!sel) return '';
+        var s = String(sel.content || '');
+        function esc(t) {
+          return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
-        return esc;
+        var spans = [];
+        function addAll(list, cls, word) {
+          (list || []).forEach(function (p) {
+            var term = String(p || '').trim();
+            if (!term) return;
+            var lower = s.toLowerCase();
+            var needle = term.toLowerCase();
+            var from = 0;
+            while (from <= lower.length) {
+              var idx = lower.indexOf(needle, from);
+              if (idx < 0) break;
+              if (word) {
+                var before = idx > 0 ? s[idx - 1] : ' ';
+                var afterC = idx + needle.length < s.length ? s[idx + needle.length] : ' ';
+                if (/[a-z0-9]/i.test(before) || /[a-z0-9]/i.test(afterC)) { from = idx + 1; continue; }
+              }
+              spans.push({ start: idx, end: idx + needle.length, cls: cls });
+              from = idx + needle.length;
+            }
+          });
+        }
+        // Instruction phrases first (most specific), then stuffing (dominant
+        // token), then repetition. Priority resolves same-start overlaps.
+        addAll(sel.verdict && sel.verdict.matched_phrases, 'instr', false);
+        addAll(sel.stuffing_matches, 'stuff', true);
+        addAll(sel.repetition_matches, 'rep', true);
+        var pri = { instr: 0, stuff: 1, rep: 2 };
+        spans.sort(function (a, b) {
+          if (a.start !== b.start) return a.start - b.start;
+          return pri[a.cls] - pri[b.cls];
+        });
+        // First-wins: a span overlapping an already-kept span is dropped (so a
+        // token inside an instruction phrase isn't double-wrapped).
+        var kept = [];
+        var lastEnd = -1;
+        spans.forEach(function (sp) {
+          if (sp.start >= lastEnd) { kept.push(sp); lastEnd = sp.end; }
+        });
+        var out = '';
+        var pos = 0;
+        kept.forEach(function (sp) {
+          out += esc(s.slice(pos, sp.start));
+          out += '<mark class="poison-mark ' + sp.cls + '">' + esc(s.slice(sp.start, sp.end)) + '</mark>';
+          pos = sp.end;
+        });
+        out += esc(s.slice(pos));
+        return out;
       },
 
       /** Badge class for a poison level (quarantine=red, suspicious=amber, released=green). */
@@ -1009,6 +1056,55 @@
         if (level === 'suspicious') return 'badge-warn';
         if (level === 'released') return 'badge-success';
         return '';
+      },
+
+      /** Toggle the page-local sort column/direction (mirrors setDocSort). */
+      setQuarSort: function (key) {
+        if (this.quarSortKey === key) {
+          this.quarSortDir = this.quarSortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.quarSortKey = key;
+          // Risk-shaped columns default high→low; document defaults A→Z.
+          this.quarSortDir = (key === 'score' || key === 'level') ? 'desc' : 'asc';
+        }
+      },
+
+      /** Page-local sort of the flagged chunks (mirrors sortedDocs). Severity rank
+       *  is closure-local so the sort comparator (a plain function) can reach it. */
+      sortedQuar: function () {
+        var key = this.quarSortKey;
+        var dir = this.quarSortDir === 'desc' ? -1 : 1;
+        function rank(level) {
+          if (level === 'quarantine') return 3;
+          if (level === 'suspicious') return 2;
+          if (level === 'released') return 1;
+          return 0;
+        }
+        return (this.quarChunks || []).slice().sort(function (a, b) {
+          var va, vb;
+          if (key === 'score') {
+            va = Number((a.verdict && a.verdict.score) || 0);
+            vb = Number((b.verdict && b.verdict.score) || 0);
+          } else if (key === 'level') {
+            va = rank((a.verdict && a.verdict.level) || '');
+            vb = rank((b.verdict && b.verdict.level) || '');
+          } else { // document
+            va = String(a.document_id || '').toLowerCase();
+            vb = String(b.document_id || '').toLowerCase();
+          }
+          if (va < vb) return -1 * dir;
+          if (va > vb) return 1 * dir;
+          return 0;
+        });
+      },
+
+      /** Open the chunk's source document in the Documents view (US4: review the
+       *  chunk in its full document context). Switches view + opens the doc detail. */
+      viewQuarDocument: function (docID) {
+        if (!docID) return;
+        this.closeQuarChunk();
+        this.switchView('documents');
+        this.openDocument(docID);
       },
 
       // === Token storage helpers ===========================================

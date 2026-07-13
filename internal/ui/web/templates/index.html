@@ -888,16 +888,18 @@
             <table class="doc-table">
               <thead>
                 <tr>
-                  <th>Document</th>
+                  <th class="sortable" :class="{ active: quarSortKey==='document' }" @click="setQuarSort('document')">Document <span class="sort-arrow" x-show="quarSortKey==='document'" x-text="quarSortDir==='asc'?'↑':'↓'"></span></th>
                   <th>Preview</th>
-                  <th>Level</th>
-                  <th class="num">Score</th>
+                  <th class="sortable" :class="{ active: quarSortKey==='level' }" @click="setQuarSort('level')">Level <span class="sort-arrow" x-show="quarSortKey==='level'" x-text="quarSortDir==='asc'?'↑':'↓'"></span></th>
+                  <th class="sortable num" :class="{ active: quarSortKey==='score' }" @click="setQuarSort('score')">Score <span class="sort-arrow" x-show="quarSortKey==='score'" x-text="quarSortDir==='asc'?'↑':'↓'"></span></th>
                   <th class="doc-actions-col">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                <template x-for="c in quarChunks" :key="c.chunk_id">
-                  <tr @click="openQuarChunk(c.chunk_id)" class="doc-row">
+                <template x-for="c in sortedQuar()" :key="c.chunk_id">
+                  <tr @click="openQuarChunk(c.chunk_id)" @keydown.enter.prevent="openQuarChunk(c.chunk_id)"
+                      class="doc-row" role="button" tabindex="0"
+                      :aria-label="'Open flagged chunk ' + c.chunk_id">
                     <td>
                       <div class="doc-name" x-text="c.document_id"></div>
                       <div class="doc-muted" x-text="c.chunk_id"></div>
@@ -928,7 +930,13 @@
           </header>
 
           <div class="doc-meta">
-            <span><b>Document:</b> <span x-text="quarSelected ? quarSelected.document_name : ''"></span></span>
+            <span><b>Document:</b>
+              <a href="#" class="doc-link" title="Open this document in the Documents view"
+                 x-show="quarSelected && quarSelected.document_name"
+                 @click.prevent="viewQuarDocument(quarSelected.document_id)"
+                 x-text="quarSelected ? quarSelected.document_name : ''"></a>
+              <span class="doc-muted" x-show="quarSelected && !quarSelected.document_name">(orphan chunk — no source document)</span>
+            </span>
             <span><b>Level:</b>
               <span class="badge" :class="quarSelected ? quarLevelBadge(quarSelected.verdict.level) : ''"
                     x-text="quarSelected ? quarSelected.verdict.level : ''"></span>
@@ -936,20 +944,30 @@
             <span><b>Score:</b> <span x-text="quarSelected ? fmtScore(quarSelected.verdict.score) : ''"></span></span>
           </div>
 
-          <h3 class="doc-section-title">Content <span class="doc-muted">(matched phrases highlighted)</span></h3>
+          <h3 class="doc-section-title">Content <span class="doc-muted">(signatures highlighted: <i class="sig-dot sig-instr"></i> instruction, <i class="sig-dot sig-rep"></i> repetition, <i class="sig-dot sig-stuff"></i> stuffing)</span></h3>
           <div class="doc-chunk-text"
-               x-html="quarSelected ? highlightPhrases(quarSelected.content, quarSelected.verdict.matched_phrases) : ''"></div>
+               x-html="highlightVerdict(quarSelected)"></div>
 
           <div class="query-provenance">
             <h4 class="doc-section-title">Signal breakdown</h4>
             <div class="doc-meta">
-              <span><b>Repetition:</b> <span x-text="quarSelected ? fmtScore(quarSelected.verdict.signals.repetition) : ''"></span></span>
-              <span><b>Stuffing:</b> <span x-text="quarSelected ? fmtScore(quarSelected.verdict.signals.stuffing) : ''"></span></span>
-              <span><b>Instruction:</b> <span x-text="quarSelected ? fmtScore(quarSelected.verdict.signals.instruction) : ''"></span></span>
+              <span><i class="sig-dot sig-instr"></i> <b>Instruction:</b> <span x-text="quarSelected ? fmtScore(quarSelected.verdict.signals.instruction) : ''"></span></span>
+              <span><i class="sig-dot sig-rep"></i> <b>Repetition:</b> <span x-text="quarSelected ? fmtScore(quarSelected.verdict.signals.repetition) : ''"></span></span>
+              <span><i class="sig-dot sig-stuff"></i> <b>Stuffing:</b> <span x-text="quarSelected ? fmtScore(quarSelected.verdict.signals.stuffing) : ''"></span></span>
             </div>
             <div class="doc-tags" x-show="quarSelected && quarSelected.verdict.matched_phrases && quarSelected.verdict.matched_phrases.length">
-              <template x-for="p in (quarSelected ? (quarSelected.verdict.matched_phrases || []) : [])" :key="p">
-                <span class="tag-chip" x-text="p"></span>
+              <template x-for="p in (quarSelected ? (quarSelected.verdict.matched_phrases || []) : [])" :key="'i'+p">
+                <span class="tag-chip sig-chip sig-chip-instr" x-text="p"></span>
+              </template>
+            </div>
+            <div class="doc-tags" x-show="quarSelected && quarSelected.repetition_matches && quarSelected.repetition_matches.length">
+              <template x-for="p in (quarSelected ? (quarSelected.repetition_matches || []) : [])" :key="'r'+p">
+                <span class="tag-chip sig-chip sig-chip-rep" x-text="p"></span>
+              </template>
+            </div>
+            <div class="doc-tags" x-show="quarSelected && quarSelected.stuffing_matches && quarSelected.stuffing_matches.length">
+              <template x-for="p in (quarSelected ? (quarSelected.stuffing_matches || []) : [])" :key="'s'+p">
+                <span class="tag-chip sig-chip sig-chip-stuff" x-text="p"></span>
               </template>
             </div>
           </div>

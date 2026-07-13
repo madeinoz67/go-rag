@@ -1,6 +1,7 @@
 package poison
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/madeinoz67/go-rag/internal/model"
@@ -153,6 +154,74 @@ func stuffing(norm string) float64 {
 	}
 	// A token repeated 6+ times → stuffing = 1.0.
 	return clamp01(float64(maxC-1) / 5.0)
+}
+
+// RepetitionTerms returns the tokens that repeat in text — the contributors to
+// the repetition signal — most-frequent-first. len>=3 skips trivial short
+// tokens so the highlight isn't dominated by stopwords; capped to keep the UI
+// legible. Returns nil for text too short to repeat meaningfully (<6 tokens,
+// mirroring repetition()). Pure function of text (Constitution II); used by the
+// Quarantine detail to show WHAT repeated (the score alone says "how much").
+func RepetitionTerms(text string) []string {
+	norm := normalize(text)
+	tokens := strings.Fields(norm)
+	if len(tokens) < 6 {
+		return nil
+	}
+	freq := make(map[string]int, len(tokens))
+	for _, t := range tokens {
+		if len(t) >= 3 {
+			freq[t]++
+		}
+	}
+	return topTerms(freq, 2, 8)
+}
+
+// StuffingTerms returns the long tokens (len>3) appearing 2+ times — the
+// contributors to the stuffing signal (single-token dominance) — most-frequent-
+// first. Mirrors stuffing()'s len>3 filter. Capped. Nil for short/no-repeat text.
+func StuffingTerms(text string) []string {
+	norm := normalize(text)
+	tokens := strings.Fields(norm)
+	if len(tokens) < 6 {
+		return nil
+	}
+	freq := make(map[string]int, len(tokens))
+	for _, t := range tokens {
+		if len(t) > 3 {
+			freq[t]++
+		}
+	}
+	return topTerms(freq, 2, 8)
+}
+
+// topTerms returns tokens in freq with count>=min, most-frequent-first (ties
+// broken lexically for determinism), capped at max.
+func topTerms(freq map[string]int, minCount, maxCount int) []string {
+	type tc struct {
+		t string
+		c int
+	}
+	var list []tc
+	for t, c := range freq {
+		if c >= minCount {
+			list = append(list, tc{t, c})
+		}
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].c != list[j].c {
+			return list[i].c > list[j].c
+		}
+		return list[i].t < list[j].t
+	})
+	if len(list) > maxCount {
+		list = list[:maxCount]
+	}
+	out := make([]string, len(list))
+	for i, e := range list {
+		out[i] = e.t
+	}
+	return out
 }
 
 // clamp01 bounds v to [0,1].

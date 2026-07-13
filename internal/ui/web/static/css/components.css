@@ -631,10 +631,25 @@
 .chunk-breadcrumb { font-size: 0.75rem; color: var(--text-muted, #9aa0a6); }
 .doc-chunk-text { font-size: 0.85rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word; color: var(--text-primary, #e6e6e6); }
 
-/* spec 053 — matched-phrase highlight in the Quarantine detail view. Amber
- * stands out against the dark console theme; inherited text colour keeps it
- * legible. (matched_phrases is a flat list — one colour, not per-signal.) */
-.poison-mark { background: rgba(245, 158, 11, 0.35); color: inherit; padding: 0 0.15em; border-radius: 0.2em; }
+/* spec 053 — per-signal matched-token highlight colours in the Quarantine
+ * detail. instruction=purple, repetition=amber, stuffing=red (overlaps blend). */
+.poison-mark { color: inherit; padding: 0 0.15em; border-radius: 0.2em; }
+.poison-mark.instr { background: rgba(168, 85, 247, 0.45); }
+.poison-mark.rep { background: rgba(245, 158, 11, 0.38); }
+.poison-mark.stuff { background: rgba(239, 68, 68, 0.35); }
+/* legend dots + term chips share the signal palette. */
+.sig-dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; vertical-align: middle; margin-right: 0.25em; }
+.sig-instr { background: rgba(168, 85, 247, 0.85); }
+.sig-rep { background: rgba(245, 158, 11, 0.85); }
+.sig-stuff { background: rgba(239, 68, 68, 0.85); }
+.sig-chip-instr { background: rgba(168, 85, 247, 0.18); border-color: rgba(168, 85, 247, 0.6); }
+.sig-chip-rep { background: rgba(245, 158, 11, 0.18); border-color: rgba(245, 158, 11, 0.6); }
+.sig-chip-stuff { background: rgba(239, 68, 68, 0.18); border-color: rgba(239, 68, 68, 0.6); }
+
+/* spec 053 — document-name link in the Quarantine detail (jump to the Documents
+ * view to review the chunk in its full document context). */
+.doc-link { color: var(--accent, #60a5fa); text-decoration: underline; cursor: pointer; }
+.doc-link:hover { opacity: 0.85; }
 .chunk-context { margin-top: var(--space-4, 1rem); padding-top: var(--space-3, 0.75rem); border-top: 1px solid var(--border, rgba(127,127,127,0.18)); }
 
 /* Search results (spec 047 US3) */

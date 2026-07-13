@@ -27,6 +27,7 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/engine"
 	"github.com/madeinoz67/go-rag/internal/model"
+	"github.com/madeinoz67/go-rag/internal/poison"
 )
 
 // quarantineListDTO is the UI envelope for GET /api/quarantine/list (US1). The
@@ -53,12 +54,19 @@ type poisonedChunkDTO struct {
 // client can overlay matched-phrase highlights) plus the source document name
 // (breadcrumb) and the verdict (signal breakdown + matched phrases). Built from
 // Engine.GetChunk — orphan-tolerant (a vanished parent doc yields an empty name).
+//
+// repetition_matches / stuffing_matches are derived from the chunk content via
+// the poison detector's term-extraction (not persisted) so the UI can highlight
+// WHAT triggered each signal — MatchedPhrases only carries instruction hits, so
+// these give repetition/stuffing their own per-signal highlights.
 type quarantineDetailDTO struct {
-	ChunkID      string              `json:"chunk_id"`
-	DocumentID   string              `json:"document_id"`
-	Content      string              `json:"content"`
-	DocumentName string              `json:"document_name,omitempty"`
-	Verdict      model.PoisonVerdict `json:"verdict"`
+	ChunkID         string              `json:"chunk_id"`
+	DocumentID      string              `json:"document_id"`
+	Content         string              `json:"content"`
+	DocumentName    string              `json:"document_name,omitempty"`
+	Verdict         model.PoisonVerdict `json:"verdict"`
+	RepetitionTerms []string            `json:"repetition_matches,omitempty"`
+	StuffingTerms   []string            `json:"stuffing_matches,omitempty"`
 }
 
 // toQuarantineListDTO projects the engine's []PoisonedChunk into the UI envelope.
@@ -105,10 +113,12 @@ func (s *Server) handleQuarantineDetail(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	dto := quarantineDetailDTO{
-		ChunkID:      res.Chunk.ID,
-		DocumentID:   res.Chunk.DocumentID,
-		Content:      res.Chunk.Content,
-		DocumentName: res.Document.FileName,
+		ChunkID:         res.Chunk.ID,
+		DocumentID:      res.Chunk.DocumentID,
+		Content:         res.Chunk.Content,
+		DocumentName:    res.Document.FileName,
+		RepetitionTerms: poison.RepetitionTerms(res.Chunk.Content),
+		StuffingTerms:   poison.StuffingTerms(res.Chunk.Content),
 	}
 	if res.Chunk.Poisoning != nil {
 		dto.Verdict = *res.Chunk.Poisoning

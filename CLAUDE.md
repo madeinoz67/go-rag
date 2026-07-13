@@ -91,6 +91,21 @@ transport. One Pebble writer; writes ACK on the durable store and embed async
   committed pre-push hook in `githooks/` enforces it once enabled
   (`git config core.hooksPath githooks`); bypass one push with `git push --no-verify`.
 
+## Console UI conventions
+
+- **Every data table is sortable.** All data tables in the management console —
+  old and new, current and future — MUST have sortable column headers on their
+  meaningful columns. Mirror the Documents table's pattern: `<th class="sortable"
+  :class="{ active: sortKey==='col' }" @click="setSort('col')">` with a
+  `sort-arrow`, backed by page-local `sortKey`/`sortDir` state + a `sortedX()`
+  method the `x-for` reads (see `setDocSort`/`sortedDocs`, `setQuarSort`/
+  `sortedQuar`). Non-meaningful columns (Tags, Actions, long-form Preview) may
+  stay non-sortable. No new table ships without sort.
+- **Static assets are served `Cache-Control: no-cache`.** The embedded SPA assets
+  change with each binary but live at stable URLs; without the no-cache header the
+  browser serves a stale copy after a daemon restart (hide-the-rule bugs). Don't
+  strip the `noCache` wrapper on `/static/` + the shell.
+
 ## Out of scope for v1 (PRD §2.2)
 
 Cloud/hosted service, multi-user auth, LLM inference, audio/video, plugin

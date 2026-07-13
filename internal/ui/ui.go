@@ -62,7 +62,7 @@ func New(eng *engine.Engine, token string) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	// Public.
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(mustSub(webFS, "web/static")))))
+	mux.Handle("GET /static/", noCache(http.StripPrefix("/static/", http.FileServer(http.FS(mustSub(webFS, "web/static"))))))
 	mux.HandleFunc("POST /login", s.handleLogin)
 	// The shell is served publicly: it is the login page (no data lives in the
 	// HTML — the Alpine gate shows login vs app client-side based on whether a
@@ -134,6 +134,7 @@ func (s *Server) handleShell(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(b)
 }
@@ -194,6 +195,18 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		audit.Log(audit.AuthEvent("logout", p.Subject, "ui", nil))
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// noCache wraps a handler so the browser always revalidates the response.
+// Embedded console assets (static + shell) change with each binary but are
+// served at stable URLs — without this header the browser serves a stale
+// cached copy after a daemon restart (spec 053: stale CSS hid the matched-
+// phrase highlight rule until a hard refresh).
+func noCache(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+		h.ServeHTTP(w, r)
+	})
 }
 
 // --- helpers ---
