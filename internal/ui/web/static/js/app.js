@@ -95,6 +95,7 @@
         this.bridgeActivity = [];
         this.quarChunks = [];
         this.quarSelected = null;
+        this.quarChecked = {};
         this.switchView(this.currentView);
       },
 
@@ -423,6 +424,24 @@
             if (!rsc || rsc.status === 401) return;
             if (!rsc.ok && rsc.status !== 204) { this.error = 'Rescan failed (HTTP ' + rsc.status + ').'; }
             this.quarScanning = false;
+          } else if (cd.action === 'quar-bulk-release') {
+            // Fan out the existing per-chunk release (no new endpoint — the bulk
+            // action is a client-side composition of ReleaseChunk, already on
+            // every transport). 204 = released; any 401 re-locks the gate.
+            var ids = Object.keys(this.quarChecked || {});
+            if (ids.length === 0) { this.confirmDialog.open = false; return; }
+            var bulkFailed = 0;
+            await Promise.all(ids.map(async (id) => {
+              if (!this.token) return; // session expired — stop fanning out
+              try {
+                var r = await this.api('/api/quarantine/' + encodeURIComponent(id) + '/release', { method: 'POST' });
+                if (!this.token) return; // api() cleared the token on a 401
+                if (r && r.status !== 204) bulkFailed++;
+              } catch (_e) { bulkFailed++; }
+            }));
+            if (!this.token) return; // gate re-locked by a 401 mid-batch
+            if (bulkFailed > 0) { this.error = bulkFailed + ' chunk(s) could not be released — release the rest individually.'; }
+            this.quarChecked = {};
           } else {
             var id = cd.targetId;
             if (!id) { this.confirmDialog.open = false; return; }
@@ -461,7 +480,7 @@
             this.closeQuarChunk();
           }
           // Refresh the owning view's data.
-          if (cd.action === 'quar-release' || cd.action === 'quar-reset' || cd.action === 'quar-rescan') {
+          if (cd.action === 'quar-release' || cd.action === 'quar-reset' || cd.action === 'quar-rescan' || cd.action === 'quar-bulk-release') {
             await this.loadQuarantine();
           } else {
             await this.loadDocuments('');
@@ -902,6 +921,7 @@
       quarScanning: false, // vault rescan in progress (UI hint until refresh)
       quarSortKey: 'score', // page-local sort column (document | level | score)
       quarSortDir: 'desc', // high-risk first by default
+      quarChecked: {}, // selected chunk_id → true (bulk-release selection)
 
       /** GET /api/quarantine/list → {chunks, count}. Always 200 (empty = healthy). */
       loadQuarantine: async function () {
@@ -913,6 +933,14 @@
           if (!res.ok) { this.quarError = 'Failed to load quarantine (HTTP ' + res.status + ').'; return; }
           var data = await res.json();
           this.quarChunks = (data && data.chunks) || [];
+          // Prune the bulk selection to chunks still listed (released ones are gone).
+          var present = {};
+          this.quarChunks.forEach(function (c) { present[c.chunk_id] = true; });
+          var kept = {};
+          Object.keys(this.quarChecked || {}).forEach(function (cid) {
+            if (present[cid]) { kept[cid] = true; }
+          });
+          this.quarChecked = kept;
         } catch (_e) {
           this.quarError = 'Network error loading quarantine.';
         } finally {
@@ -979,6 +1007,58 @@
           danger: false,
           busy: false,
           action: 'quar-rescan',
+          targetId: '',
+          targetLabel: '',
+        };
+      },
+
+      /** Number of chunks currently selected for bulk release. */
+      quarCheckedCount: function () {
+        return Object.keys(this.quarChecked || {}).length;
+      },
+
+      /** True when every listed chunk is selected (drives the select-all box). */
+      quarAllChecked: function () {
+        var list = this.quarChunks || [];
+        if (list.length === 0) return false;
+        var sel = this.quarChecked || {};
+        for (var i = 0; i < list.length; i++) {
+          if (!sel[list[i].chunk_id]) return false;
+        }
+        return true;
+      },
+
+      /** Toggle one chunk's selection (whole-object reassign so Alpine reactivity
+       *  fires reliably). Callers @click.stop so the row's open-detail doesn't. */
+      toggleQuarCheck: function (chunkID) {
+        var next = Object.assign({}, this.quarChecked || {});
+        if (next[chunkID]) { delete next[chunkID]; } else { next[chunkID] = true; }
+        this.quarChecked = next;
+      },
+
+      /** Select every listed chunk, or clear if all are already selected. */
+      toggleQuarCheckAll: function () {
+        if (this.quarAllChecked()) {
+          this.quarChecked = {};
+          return;
+        }
+        var next = {};
+        (this.quarChunks || []).forEach(function (c) { next[c.chunk_id] = true; });
+        this.quarChecked = next;
+      },
+
+      /** Confirm releasing every selected chunk at once (US3 bulk). */
+      confirmQuarBulkRelease: function () {
+        var n = this.quarCheckedCount();
+        if (n === 0) return;
+        this.confirmDialog = {
+          open: true,
+          title: 'Release ' + n + ' flagged chunk' + (n === 1 ? '' : 's'),
+          message: 'Release ' + n + ' selected chunk' + (n === 1 ? '' : 's') + ' back into the default query pool? Each is a permanent false-positive override — they stay retrievable even after a rescan. Chunk text and scores are preserved.',
+          confirmLabel: 'Release ' + n,
+          danger: false,
+          busy: false,
+          action: 'quar-bulk-release',
           targetId: '',
           targetLabel: '',
         };

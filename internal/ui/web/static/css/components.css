@@ -650,6 +650,11 @@
  * view to review the chunk in its full document context). */
 .doc-link { color: var(--accent, #60a5fa); text-decoration: underline; cursor: pointer; }
 .doc-link:hover { opacity: 0.85; }
+
+/* spec 053 — bulk-release selection column + checkbox theming. */
+.quar-check-col { width: 1%; text-align: center; padding: 0.35rem 0.4rem; }
+td.quar-check { text-align: center; }
+.quar-check input[type="checkbox"] { width: 1rem; height: 1rem; cursor: pointer; accent-color: var(--accent, #60a5fa); }
 .chunk-context { margin-top: var(--space-4, 1rem); padding-top: var(--space-3, 0.75rem); border-top: 1px solid var(--border, rgba(127,127,127,0.18)); }
 
 /* Search results (spec 047 US3) */

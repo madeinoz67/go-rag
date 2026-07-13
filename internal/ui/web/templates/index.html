@@ -877,6 +877,10 @@
             <button type="button" class="btn" :disabled="quarLoading" @click="loadQuarantine()">Refresh</button>
             <button type="button" class="btn" title="Re-score every chunk under the current thresholds"
                     @click="confirmQuarRescan()">Rescan vault</button>
+            <button type="button" class="btn btn-primary" :disabled="quarCheckedCount() === 0"
+                    :title="quarCheckedCount() === 0 ? 'Select chunks to release' : 'Release every selected chunk (permanent false-positive override)'"
+                    @click="confirmQuarBulkRelease()"
+                    x-text="'Release selected (' + quarCheckedCount() + ')'"></button>
           </header>
 
           <p class="dashboard-empty" x-show="!quarLoading && quarChunks.length === 0">
@@ -888,6 +892,7 @@
             <table class="doc-table">
               <thead>
                 <tr>
+                  <th class="quar-check-col"><input type="checkbox" :checked="quarAllChecked()" @click.stop="toggleQuarCheckAll()" title="Select all / none" aria-label="Select all flagged chunks"></th>
                   <th class="sortable" :class="{ active: quarSortKey==='document' }" @click="setQuarSort('document')">Document <span class="sort-arrow" x-show="quarSortKey==='document'" x-text="quarSortDir==='asc'?'↑':'↓'"></span></th>
                   <th>Preview</th>
                   <th class="sortable" :class="{ active: quarSortKey==='level' }" @click="setQuarSort('level')">Level <span class="sort-arrow" x-show="quarSortKey==='level'" x-text="quarSortDir==='asc'?'↑':'↓'"></span></th>
@@ -900,6 +905,7 @@
                   <tr @click="openQuarChunk(c.chunk_id)" @keydown.enter.prevent="openQuarChunk(c.chunk_id)"
                       class="doc-row" role="button" tabindex="0"
                       :aria-label="'Open flagged chunk ' + c.chunk_id">
+                    <td class="quar-check"><input type="checkbox" :checked="!!quarChecked[c.chunk_id]" @click.stop="toggleQuarCheck(c.chunk_id)" :aria-label="'Select chunk ' + c.chunk_id"></td>
                     <td>
                       <div class="doc-name" x-text="c.document_id"></div>
                       <div class="doc-muted" x-text="c.chunk_id"></div>
