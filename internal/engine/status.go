@@ -60,9 +60,14 @@ func (e *Engine) Status(vault string) (*StatusInfo, error) {
 	if cfgMode == "" {
 		cfgMode = "auto"
 	}
-	// H04/spec 019: poisoning summary — flagged count (0x11 index), sources, merged
-	// phrase-list size, and the effective enabled/threshold state.
-	poisonFlagged := countPrefix(e.db, ws, storage.PrefixPoisonQuar)
+	// H04/spec 019: poisoning summary — flagged count = currently-quarantined
+	// chunks via ListPoisoned (the SAME source as the Quarantine view, so the
+	// Operations + Quarantine counts can never disagree; a raw 0x11 key count
+	// would include orphaned entries from deleted docs).
+	poisonFlagged := 0
+	if p, err := e.ListPoisoned(vault); err == nil {
+		poisonFlagged = len(p)
+	}
 
 	// H20/spec 026: near-duplicate chunk count — chunks with NearDup siblings.
 	nearDupChunks := 0

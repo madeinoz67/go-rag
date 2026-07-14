@@ -45,6 +45,11 @@ func (p *Pipeline) deleteDocLocked(ws [8]byte, docID string) error {
 	for _, ch := range chunks {
 		_ = db.Delete(keys.ChunkKey(ws, ch.id))
 		_ = db.Delete(keys.EmbeddingKey(ws, ch.id))
+		// H04/spec 019: drop the quarantine index entry too — a flagged chunk's
+		// 0x11 record must not outlive the chunk, else Status.PoisonFlagged (a raw
+		// 0x11 count) drifts above ListPoisoned (which filters stale entries) and
+		// the Operations view counts a deleted doc's orphaned flag (spec 053).
+		_ = db.DeleteQuarantine(ws, ch.id)
 		// H01/spec 011 + H16/spec 018: keep the index fresh — no phantom hits.
 		if p.fts != nil {
 			p.fts.Delete(ws, ch.id, ch.content)
