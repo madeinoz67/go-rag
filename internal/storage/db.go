@@ -45,7 +45,15 @@ func Open(path string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open pebble %q: %w", path, err)
 	}
-	return &DB{db: db, path: path, vaultPrefixCache: newVaultCache(vaultCacheCapacity)}, nil
+	d := &DB{db: db, path: path, vaultPrefixCache: newVaultCache(vaultCacheCapacity)}
+	// On open: register any data-bearing vault that lacks a registry entry (e.g.
+	// a corpus written before the spec 052 name registry existed — without this
+	// the bootstrap "default" vault wouldn't appear in listings), then seed the
+	// name→ws cache so ResolveVaultPrefix never hits the SipHash fallback for a
+	// registered vault. Best-effort: a failure here does not prevent opening.
+	_ = d.BackfillVaultNames()
+	_ = d.SeedVaultPrefixCache()
+	return d, nil
 }
 
 // Close closes the database.

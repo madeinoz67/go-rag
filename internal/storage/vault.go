@@ -361,7 +361,14 @@ func (d *DB) BackfillVaultNames() error {
 			name = string(val)
 			closer.Close()
 		} else {
-			name = fmt.Sprintf("vault-%x", ws[:4])
+			// Recover the bootstrap "default" name when the data sits under its
+			// SipHash prefix (the ResolveVaultPrefix fallback for an unregistered
+			// "default"); other unknown wses get a placeholder hex name.
+			if ws == keys.VaultPrefix("default") {
+				name = "default"
+			} else {
+				name = fmt.Sprintf("vault-%x", ws[:4])
+			}
 		}
 		idxKey := keys.VaultNameIndexKey(name)
 		if _, c, e := d.db.Get(idxKey); e == nil {
