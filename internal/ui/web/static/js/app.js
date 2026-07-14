@@ -272,6 +272,9 @@
         if (view === 'vaults') {
           this.loadVaults();
         }
+        if (view === 'observability') {
+          this.loadObservability();
+        }
       },
 
       // === Documents (spec 047 US1) =======================================
@@ -972,6 +975,128 @@
       quarLoading: false,
       quarError: '',
       quarSelected: null, // quarantineDetailDTO open in the detail pane (null = list)
+      // === Observability (spec 054) ======================================
+      // Telemetry (US1) + audit-log browser (US2) + posture (US3). Both surfaces
+      // are process-wide (one daemon, all vaults). Audit rows carry the query
+      // hash only — never the raw query (FR-003).
+      obsMetrics: null,      // telemetryResponse (US1)
+      obsLoading: false,
+      obsError: '',
+      obsOpSortKey: 'count', // telemetry table sort (op|count|errors|p50|p95|p99)
+      obsOpSortDir: 'desc',
+      obsAudit: null,        // auditPageResponse (US2)
+      obsAuditType: '',      // '' | query | ingest | auth-fail
+      obsSortKey: 'ts',      // audit table sort
+      obsSortDir: 'desc',
+
+      /** Load both panels (called on view entry + Refresh). */
+      loadObservability: async function () {
+        this.obsError = '';
+        this.obsLoading = true;
+        try {
+          await Promise.all([this.loadObsTelemetry(), this.loadObsAudit()]);
+        } finally {
+          this.obsLoading = false;
+        }
+      },
+
+      /** GET /api/observability/metrics → telemetryResponse. Always 200. */
+      loadObsTelemetry: async function () {
+        try {
+          var res = await this.api('/api/observability/metrics');
+          if (!res || res.status === 401) return;
+          if (!res.ok) { this.obsError = 'Failed to load telemetry (HTTP ' + res.status + ').'; return; }
+          this.obsMetrics = await res.json();
+        } catch (_e) {
+          this.obsError = 'Network error loading telemetry.';
+        }
+      },
+
+      /** GET /api/observability/audit?type=… → auditPageResponse. */
+      loadObsAudit: async function () {
+        try {
+          var url = '/api/observability/audit?limit=50';
+          if (this.obsAuditType) { url += '&type=' + encodeURIComponent(this.obsAuditType); }
+          var res = await this.api(url);
+          if (!res || res.status === 401) return;
+          if (!res.ok) { this.obsError = 'Failed to load audit log (HTTP ' + res.status + ').'; return; }
+          this.obsAudit = await res.json();
+        } catch (_e) {
+          this.obsError = 'Network error loading audit log.';
+        }
+      },
+
+      setObsOpSort: function (key) {
+        if (this.obsOpSortKey === key) { this.obsOpSortDir = this.obsOpSortDir === 'asc' ? 'desc' : 'asc'; }
+        else { this.obsOpSortKey = key; this.obsOpSortDir = key === 'op' ? 'asc' : 'desc'; }
+      },
+      sortedObsOps: function () {
+        var rows = (this.obsMetrics && this.obsMetrics.operations) ? this.obsMetrics.operations.slice() : [];
+        var key = this.obsOpSortKey, dir = this.obsOpSortDir === 'asc' ? 1 : -1;
+        rows.sort(function (a, b) {
+          if (key === 'op') { return a.op < b.op ? -dir : a.op > b.op ? dir : 0; }
+          return (a[key] - b[key]) * dir;
+        });
+        return rows;
+      },
+
+      setObsSort: function (key) {
+        if (this.obsSortKey === key) { this.obsSortDir = this.obsSortDir === 'asc' ? 'desc' : 'asc'; }
+        else { this.obsSortKey = key; this.obsSortDir = 'desc'; }
+      },
+      sortedObsAudit: function () {
+        var rows = (this.obsAudit && this.obsAudit.events) ? this.obsAudit.events.slice() : [];
+        var key = this.obsSortKey, dir = this.obsSortDir === 'asc' ? 1 : -1;
+        rows.sort(function (a, b) {
+          if (key === 'type') { return a.type < b.type ? -dir : a.type > b.type ? dir : 0; }
+          return (a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0) * dir;
+        });
+        return rows;
+      },
+
+      /** Format a latency percentile in ms; -1 (insufficient samples) → —. */
+      obsFmtSec: function (s) {
+        if (s == null || s < 0) return '—';
+        return (s * 1000).toFixed(0) + ' ms';
+      },
+      obsFmtRate: function (r) {
+        if (r == null) return '—';
+        return (r * 100).toFixed(1) + '%';
+      },
+      obsFmtBytes: function (b) {
+        if (b == null) return '—';
+        if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MiB';
+        if (b >= 1024) return (b / 1024).toFixed(0) + ' KiB';
+        return b + ' B';
+      },
+      obsFmtTs: function (ts) {
+        if (!ts) return '';
+        return ts.replace('T', ' ').replace(/\.\d+Z$/, 'Z');
+      },
+      obsTypeBadge: function (t) {
+        return t === 'auth-fail' ? 'badge-warn' : '';
+      },
+      /** One-line, plaintext (x-text) summary per audit event. The DTO carries
+          no query plaintext by construction (FR-003) — renders hash/counts only. */
+      obsAuditSummary: function (e) {
+        if (e.type === 'query') {
+          return 'mode=' + (e.mode || '?') + ' k=' + (e.k || 0) + ' hits=' + (e.hits || 0) +
+            ' status=' + (e.status || '?') + ' · hash=' + this.obsShortHash(e.query_hash);
+        }
+        if (e.type === 'ingest') {
+          return (e.op || 'ingest') + ' ' + (e.path || '') + ' · new=' + (e.new || 0) +
+            ' skipped=' + (e.skipped || 0) + ' errors=' + (e.errors || 0);
+        }
+        if (e.type === 'auth-fail') {
+          return (e.transport || '?') + (e.detail ? ': ' + e.detail : '');
+        }
+        return e.type;
+      },
+      obsShortHash: function (h) {
+        if (!h) return '—';
+        return h.length > 12 ? h.slice(0, 12) + '…' : h;
+      },
+
       quarScanning: false, // vault rescan in progress (UI hint until refresh)
       quarSortKey: 'score', // page-local sort column (document | level | score)
       quarSortDir: 'desc', // high-risk first by default

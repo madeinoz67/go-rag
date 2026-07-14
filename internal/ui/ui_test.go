@@ -259,9 +259,13 @@ func TestPlaceholder_Routes(t *testing.T) {
 // TestSidebar_ViewSet — the placeholder map carries exactly the 7 non-dashboard
 // sidebar views with their future spec numbers (the 8th, Dashboard, is real).
 func TestSidebar_ViewSet(t *testing.T) {
+	// placeholderViews holds ONLY the sidebar items still rendering a placeholder
+	// panel. Built views (documents 047, query 048, operations 049, vaults 051,
+	// quarantine 053, observability 054) are intentionally absent — handlePlaceholder
+	// 404s for them.
 	want := map[string]string{
-		"documents": "047", "query": "048", "operations": "049", "vaults": "050",
-		"observability": "051", "settings": "052", "memory-graph": "053",
+		"settings":     "planned",
+		"memory-graph": "blocked",
 	}
 	if len(placeholderViews) != len(want) {
 		t.Fatalf("placeholder view count: got %d, want %d", len(placeholderViews), len(want))
@@ -269,6 +273,12 @@ func TestSidebar_ViewSet(t *testing.T) {
 	for k, v := range want {
 		if placeholderViews[k] != v {
 			t.Errorf("placeholder[%q]: got %q, want %q", k, placeholderViews[k], v)
+		}
+	}
+	// Built views must NOT regress into the placeholder map.
+	for _, built := range []string{"documents", "query", "operations", "vaults", "quarantine", "observability"} {
+		if _, ok := placeholderViews[built]; ok {
+			t.Errorf("built view %q must not be a placeholder", built)
 		}
 	}
 }

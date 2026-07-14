@@ -1048,8 +1048,93 @@
       <section x-show="currentView === 'observability'" class="view" x-cloak>
         <header class="view-header">
           <h1 class="page-title">Observability</h1>
+          <span class="doc-muted" x-show="obsMetrics && obsMetrics.process_wide">process-wide (all vaults)</span>
+          <button type="button" class="btn" :disabled="obsLoading" @click="loadObservability()">Refresh</button>
         </header>
-        <div class="placeholder-card" x-html="placeholderHtml('Observability', '051')"></div>
+        <p class="dashboard-empty" x-show="obsError" x-text="obsError"></p>
+
+        <!-- Telemetry (US1): per-op latency + throughput, projected from /metrics -->
+        <div class="card" x-show="obsMetrics" x-cloak>
+          <h3 class="doc-section-title">Telemetry <span class="doc-muted">— per-operation latency &amp; throughput</span></h3>
+          <p class="dashboard-empty" x-show="obsMetrics.operations.length === 0">No operations recorded yet.</p>
+          <table class="doc-table" x-show="obsMetrics.operations.length > 0">
+            <thead>
+              <tr>
+                <th class="sortable" :class="{ active: obsOpSortKey==='op' }" @click="setObsOpSort('op')">Operation <span class="sort-arrow" x-show="obsOpSortKey==='op'" x-text="obsOpSortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="sortable num" :class="{ active: obsOpSortKey==='count' }" @click="setObsOpSort('count')">Count <span class="sort-arrow" x-show="obsOpSortKey==='count'" x-text="obsOpSortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="sortable num" :class="{ active: obsOpSortKey==='errors' }" @click="setObsOpSort('errors')">Errors <span class="sort-arrow" x-show="obsOpSortKey==='errors'" x-text="obsOpSortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="sortable num" :class="{ active: obsOpSortKey==='p50' }" @click="setObsOpSort('p50')">p50 <span class="sort-arrow" x-show="obsOpSortKey==='p50'" x-text="obsOpSortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="sortable num" :class="{ active: obsOpSortKey==='p95' }" @click="setObsOpSort('p95')">p95 <span class="sort-arrow" x-show="obsOpSortKey==='p95'" x-text="obsOpSortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="sortable num" :class="{ active: obsOpSortKey==='p99' }" @click="setObsOpSort('p99')">p99 <span class="sort-arrow" x-show="obsOpSortKey==='p99'" x-text="obsOpSortDir==='asc'?'↑':'↓'"></span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="op in sortedObsOps()" :key="op.op">
+                <tr class="doc-row">
+                  <td><div class="doc-name" x-text="op.op"></div></td>
+                  <td class="num" x-text="op.count"></td>
+                  <td class="num" x-text="op.errors"></td>
+                  <td class="num" x-text="obsFmtSec(op.p50)"></td>
+                  <td class="num" x-text="obsFmtSec(op.p95)"></td>
+                  <td class="num" x-text="obsFmtSec(op.p99)"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <div class="doc-meta">
+            <span><b>Cache (result):</b> <span x-text="obsMetrics.cache.result.hits + ' / ' + (obsMetrics.cache.result.hits + obsMetrics.cache.result.misses) + ' hits'"></span></span>
+            <span><b>Cache (embedding):</b> <span x-text="obsMetrics.cache.embedding.hits + ' / ' + (obsMetrics.cache.embedding.hits + obsMetrics.cache.embedding.misses) + ' hits'"></span></span>
+            <span><b>Error rate:</b> <span x-text="obsFmtRate(obsMetrics.error_rate)"></span></span>
+          </div>
+        </div>
+
+        <!-- Audit log browser (US2): filterable; queries shown by hash only (no plaintext) -->
+        <div class="card">
+          <h3 class="doc-section-title">Audit log <span class="doc-muted">— filterable; queries shown by hash only</span></h3>
+          <div class="doc-meta" style="margin-bottom:6px">
+            <label>Type:
+              <select x-model="obsAuditType" @change="loadObsAudit()">
+                <option value="">all</option>
+                <option value="query">query</option>
+                <option value="ingest">ingest</option>
+                <option value="auth-fail">auth-fail</option>
+              </select>
+            </label>
+            <button type="button" class="btn btn-mini" @click="loadObsAudit()">Refresh</button>
+            <span class="badge badge-warn" x-show="obsAudit && obsAudit.enabled === false">audit logging is off</span>
+          </div>
+          <p class="dashboard-empty" x-show="obsAudit && obsAudit.enabled === false">Audit logging is disabled in config — no events are recorded.</p>
+          <p class="dashboard-empty" x-show="obsAudit && obsAudit.enabled && obsAudit.events.length === 0" x-text="obsAuditType ? ('No ' + obsAuditType + ' events.') : 'No audit events yet.'"></p>
+          <table class="doc-table" x-show="obsAudit && obsAudit.events.length > 0">
+            <thead>
+              <tr>
+                <th class="sortable" :class="{ active: obsSortKey==='ts' }" @click="setObsSort('ts')">Time <span class="sort-arrow" x-show="obsSortKey==='ts'" x-text="obsSortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="sortable" :class="{ active: obsSortKey==='type' }" @click="setObsSort('type')">Type <span class="sort-arrow" x-show="obsSortKey==='type'" x-text="obsSortDir==='asc'?'↑':'↓'"></span></th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(e, idx) in sortedObsAudit()" :key="idx">
+                <tr class="doc-row">
+                  <td class="doc-muted" x-text="obsFmtTs(e.timestamp)"></td>
+                  <td><span class="badge" :class="obsTypeBadge(e.type)" x-text="e.type"></span></td>
+                  <td><div class="doc-path" x-text="obsAuditSummary(e)"></div></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Posture (US3): air-gap + privacy trust label -->
+        <div class="card" x-show="obsMetrics" x-cloak>
+          <h3 class="doc-section-title">Posture</h3>
+          <div class="doc-meta">
+            <span x-show="obsMetrics.posture.metrics_local">✓ Metrics local-only (zero egress)</span>
+            <span x-show="obsMetrics.posture.audit_local">✓ Audit log local + append-only</span>
+            <span x-show="obsMetrics.posture.query_hashed">✓ Query text hashed (never stored)</span>
+            <span><b>Retention cap:</b> <span x-text="obsFmtBytes(obsMetrics.posture.retention_bytes)"></span></span>
+          </div>
+        </div>
       </section>
 
       <section x-show="currentView === 'settings'" class="view" x-cloak>
