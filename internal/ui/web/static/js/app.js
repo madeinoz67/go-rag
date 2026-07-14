@@ -460,6 +460,9 @@
             if (bulkFailed > 0) { this.error = bulkFailed + ' chunk(s) could not be released — release the rest individually.'; }
             this.quarChecked = {};
           } else if (cd.action === 'vault-bulk-delete') {
+            // Irreversible — defense-in-depth: the button is disabled until
+            // DELETE is typed, but re-check the phrase here regardless.
+            if (!this.confirmArmed()) return;
             // Fan out DELETE over each selected vault (default is excluded from
             // selection; safety-skip here too). Mirrors quar-bulk-release.
             var vnames = Object.keys(this.vaultChecked || {});
@@ -1425,15 +1428,28 @@
         this.vaultChecked = next;
       },
 
-      /** Confirm deleting every selected vault at once (default is excluded). */
+      /** True when the confirm action is allowed. Always true unless a type-to-
+       *  confirm phrase is set and the typed input doesn't match it (case-
+       *  insensitive). Drives the confirm button's disabled state for the most
+       *  destructive actions (vault bulk-delete). */
+      confirmArmed: function () {
+        var p = this.confirmDialog.phrase;
+        if (!p) return true;
+        return String(this.confirmDialog.confirmInput || '').toUpperCase() === String(p).toUpperCase();
+      },
+
+      /** Confirm deleting every selected vault at once (default is excluded).
+       *  Bulk-delete is irreversible — requires typing DELETE to arm the button. */
       confirmVaultBulkDelete: function () {
         var n = this.vaultCheckedCount();
         if (n === 0) return;
         this.confirmDialog = {
-          open: true, title: 'Delete ' + n + ' vault' + (n === 1 ? '' : 's'),
-          message: 'Delete ' + n + ' selected vault' + (n === 1 ? '' : 's') + ' entirely? Each vault\'s contents are removed AND the vault is unregistered (gone from the list). This cannot be undone. The default vault is never deletable.',
+          open: true,
+          title: 'Delete ' + n + ' vault' + (n === 1 ? '' : 's') + ' — IRREVERSIBLE',
+          message: 'Permanently delete ' + n + ' selected vault' + (n === 1 ? '' : 's') + ' AND every document, chunk, and embedding inside them. The vaults are unregistered and their contents are gone. This CANNOT be undone. The default vault is never deletable.',
           confirmLabel: 'Delete ' + n, danger: true, busy: false,
           action: 'vault-bulk-delete', targetId: '', targetLabel: '',
+          phrase: 'DELETE', confirmInput: '',
         };
       },
 

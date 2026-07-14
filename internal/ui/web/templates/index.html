@@ -1102,11 +1102,16 @@
         <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
           <h2 id="confirm-dialog-title" class="dialog-title" x-text="confirmDialog.title"></h2>
           <p class="dialog-message" x-text="confirmDialog.message"></p>
+          <div class="field" x-show="confirmDialog.phrase" x-cloak>
+            <span class="field-label">Type <b x-text="confirmDialog.phrase"></b> to confirm (irreversible).</span>
+            <input class="input" type="text" x-model="confirmDialog.confirmInput" autocomplete="off"
+                   :aria-label="'Type ' + confirmDialog.phrase + ' to confirm'">
+          </div>
           <div class="dialog-actions">
             <button type="button" class="btn" :disabled="confirmDialog.busy" @click="closeConfirm()">Cancel</button>
             <button type="button" class="btn"
                     :class="confirmDialog.danger ? 'btn-danger' : 'btn-primary'"
-                    :disabled="confirmDialog.busy" @click="doConfirm()">
+                    :disabled="confirmDialog.busy || !confirmArmed()" @click="doConfirm()">
               <span x-show="!confirmDialog.busy" x-text="confirmDialog.confirmLabel"></span>
               <span x-show="confirmDialog.busy" x-cloak>Working…</span>
             </button>
