@@ -45,6 +45,7 @@
       vaultNameDialog: { open: false, mode: 'create', title: '', label: '', value: '', busy: false, action: '', targetVault: '' },
       vaultSortKey: 'name',   // page-local sort column (name | documents)
       vaultSortDir: 'asc',
+      vaultChecked: {}, // selected vault name → true (bulk-delete selection; default excluded)
 
       // === Auth gate ========================================================
 
@@ -108,6 +109,7 @@
         this.quarSelected = null;
         this.quarChecked = {};
         this.vaultsList = [];
+        this.vaultChecked = {};
         this.switchView(this.currentView);
       },
 
@@ -457,6 +459,24 @@
             if (!this.token) return; // gate re-locked by a 401 mid-batch
             if (bulkFailed > 0) { this.error = bulkFailed + ' chunk(s) could not be released — release the rest individually.'; }
             this.quarChecked = {};
+          } else if (cd.action === 'vault-bulk-delete') {
+            // Fan out DELETE over each selected vault (default is excluded from
+            // selection; safety-skip here too). Mirrors quar-bulk-release.
+            var vnames = Object.keys(this.vaultChecked || {});
+            if (vnames.length === 0) { this.confirmDialog.open = false; return; }
+            var vfail = 0;
+            await Promise.all(vnames.map(async (nm) => {
+              if (nm === 'default') return; // never delete default
+              if (!this.token) return;
+              try {
+                var r = await this.api('/api/vaults/' + encodeURIComponent(nm), { method: 'DELETE' });
+                if (!this.token) return; // api() cleared the token on a 401
+                if (r && r.status !== 204) vfail++;
+              } catch (_e) { vfail++; }
+            }));
+            if (!this.token) return;
+            if (vfail > 0) { this.error = vfail + ' vault(s) could not be deleted — delete the rest individually.'; }
+            this.vaultChecked = {};
           } else {
             var id = cd.targetId;
             if (!id) { this.confirmDialog.open = false; return; }
@@ -511,7 +531,7 @@
           // Refresh the owning view's data.
           if (cd.action === 'quar-release' || cd.action === 'quar-reset' || cd.action === 'quar-rescan' || cd.action === 'quar-bulk-release') {
             await this.loadQuarantine();
-          } else if (cd.action === 'vault-clear' || cd.action === 'vault-delete') {
+          } else if (cd.action === 'vault-clear' || cd.action === 'vault-delete' || cd.action === 'vault-bulk-delete') {
             await this.loadVaults();
           } else {
             await this.loadDocuments('');
@@ -1238,6 +1258,14 @@
           var data = await res.json();
           this.vaultsList = (data && data.vaults) || [];
           this.vaults = this.vaultsList.map(function (v) { return v.name; });
+          // Prune the bulk-delete selection to vaults still listed.
+          var vpresent = {};
+          this.vaultsList.forEach(function (v) { vpresent[v.name] = true; });
+          var vkept = {};
+          Object.keys(this.vaultChecked || {}).forEach(function (nm) {
+            if (vpresent[nm]) { vkept[nm] = true; }
+          });
+          this.vaultChecked = vkept;
           // Keep the active vault valid; fall back if it vanished.
           if (this.vaults.indexOf(this.vault) < 0) {
             this.vault = (data && data.active) || 'default';
@@ -1360,6 +1388,53 @@
           if (va > vb) return 1 * dir;
           return 0;
         });
+      },
+
+      /** Number of vaults selected for bulk delete. */
+      vaultCheckedCount: function () {
+        return Object.keys(this.vaultChecked || {}).length;
+      },
+
+      /** True when every DELETABLE (non-default) vault is selected. */
+      vaultAllChecked: function () {
+        var list = (this.vaultsList || []).filter(function (v) { return v.name !== 'default'; });
+        if (list.length === 0) return false;
+        var sel = this.vaultChecked || {};
+        for (var i = 0; i < list.length; i++) {
+          if (!sel[list[i].name]) return false;
+        }
+        return true;
+      },
+
+      /** Toggle one vault's selection (default is not selectable). */
+      toggleVaultCheck: function (name) {
+        if (name === 'default') return;
+        var next = Object.assign({}, this.vaultChecked || {});
+        if (next[name]) { delete next[name]; } else { next[name] = true; }
+        this.vaultChecked = next;
+      },
+
+      /** Select/deselect every deletable (non-default) vault. */
+      toggleVaultCheckAll: function () {
+        if (this.vaultAllChecked()) {
+          this.vaultChecked = {};
+          return;
+        }
+        var next = {};
+        (this.vaultsList || []).forEach(function (v) { if (v.name !== 'default') next[v.name] = true; });
+        this.vaultChecked = next;
+      },
+
+      /** Confirm deleting every selected vault at once (default is excluded). */
+      confirmVaultBulkDelete: function () {
+        var n = this.vaultCheckedCount();
+        if (n === 0) return;
+        this.confirmDialog = {
+          open: true, title: 'Delete ' + n + ' vault' + (n === 1 ? '' : 's'),
+          message: 'Delete ' + n + ' selected vault' + (n === 1 ? '' : 's') + ' entirely? Each vault\'s contents are removed AND the vault is unregistered (gone from the list). This cannot be undone. The default vault is never deletable.',
+          confirmLabel: 'Delete ' + n, danger: true, busy: false,
+          action: 'vault-bulk-delete', targetId: '', targetLabel: '',
+        };
       },
 
       // === Token storage helpers ===========================================

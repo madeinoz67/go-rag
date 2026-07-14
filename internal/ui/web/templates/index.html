@@ -997,6 +997,10 @@
           <span class="badge" x-show="!vaultsLoading" x-text="vaultsList.length + ' vault' + (vaultsList.length === 1 ? '' : 's')"></span>
           <button type="button" class="btn" :disabled="vaultsLoading" @click="loadVaults()">Refresh</button>
           <button type="button" class="btn btn-primary" @click="openVaultCreate()">Create vault</button>
+          <button type="button" class="btn btn-danger" :disabled="vaultCheckedCount() === 0"
+                  :title="vaultCheckedCount() === 0 ? 'Select vaults to delete' : 'Delete every selected vault (the default is never deletable)'"
+                  @click="confirmVaultBulkDelete()"
+                  x-text="'Delete selected (' + vaultCheckedCount() + ')'"></button>
         </header>
         <p class="doc-muted">The daemon serves every vault from one store. <b>Switch</b> changes which vault the console operates on — live, no restart. The active vault is pinned to the top.</p>
 
@@ -1009,6 +1013,7 @@
           <table class="doc-table">
             <thead>
               <tr>
+                <th class="quar-check-col"><input type="checkbox" :checked="vaultAllChecked()" @click.stop="toggleVaultCheckAll()" title="Select all deletable / none" aria-label="Select all deletable vaults"></th>
                 <th class="sortable" :class="{ active: vaultSortKey==='name' }" @click="setVaultSort('name')">Vault <span class="sort-arrow" x-show="vaultSortKey==='name'" x-text="vaultSortDir==='asc'?'↑':'↓'"></span></th>
                 <th class="sortable num" :class="{ active: vaultSortKey==='documents' }" @click="setVaultSort('documents')">Documents <span class="sort-arrow" x-show="vaultSortKey==='documents'" x-text="vaultSortDir==='asc'?'↑':'↓'"></span></th>
                 <th>State</th>
@@ -1018,6 +1023,7 @@
             <tbody>
               <template x-for="v in sortedVaults()" :key="v.name">
                 <tr class="doc-row" :class="{ 'vault-row-active': v.active }">
+                  <td class="quar-check"><input type="checkbox" :checked="!!vaultChecked[v.name]" :disabled="v.name === 'default'" @click.stop="toggleVaultCheck(v.name)" :aria-label="'Select vault ' + v.name"></td>
                   <td>
                     <div class="doc-name" x-text="v.name"></div>
                   </td>

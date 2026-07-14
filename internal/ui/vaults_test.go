@@ -271,6 +271,43 @@ func TestUIVaults_ClearDelete(t *testing.T) {
 	}
 }
 
+// --- US5b: bulk delete (the fan-out the client uses to clear clutter) ---
+
+func TestUIVaults_BulkDelete(t *testing.T) {
+	eng := newWriteTestEngine(t)
+	createVaultViaEngine(t, eng, "default")
+	createVaultViaEngine(t, eng, "junk1")
+	createVaultViaEngine(t, eng, "junk2")
+	createVaultViaEngine(t, eng, "junk3")
+	srvURL, tok := authedDocServer(t, eng)
+
+	// Fan out DELETE for the junk vaults (the client's bulk-delete action).
+	for _, name := range []string{"junk1", "junk2", "junk3"} {
+		resp := bearerRequest(t, http.MethodDelete, srvURL+"/api/vaults/"+name, tok, nil)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNoContent {
+			t.Errorf("bulk delete %s: got %d, want 204", name, resp.StatusCode)
+		}
+	}
+
+	// Junk gone; default remains (the bulk action never touches default).
+	names := vaultNamesFromList(t, srvURL, tok, "")
+	has := func(n string) bool {
+		for _, x := range names {
+			if x == n {
+				return true
+			}
+		}
+		return false
+	}
+	if has("junk1") || has("junk2") || has("junk3") {
+		t.Errorf("junk vaults should be gone, got %v", names)
+	}
+	if !has("default") {
+		t.Errorf("default should remain after bulk delete, got %v", names)
+	}
+}
+
 // --- US6: guard + invariants (T019) ---
 
 func TestUIVaults_Guard(t *testing.T) {
