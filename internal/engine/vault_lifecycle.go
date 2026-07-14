@@ -18,7 +18,30 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/storage"
 	"github.com/madeinoz67/go-rag/internal/storage/keys"
+	vaultpkg "github.com/madeinoz67/go-rag/internal/vault"
 )
+
+// CreateVault registers a new empty vault in the unified store. Per the
+// registry's design a vault is implicitly created on first write (WriteVaultName);
+// this makes that explicit so the vault appears in listings immediately — empty,
+// switchable, and writable — without a document. Validates the name (vaultpkg's
+// canonical rule: lowercase alphanumeric + hyphens, 1–64), refuses a duplicate,
+// then resolves the prefix + writes the registry entry. No document is needed
+// and no on-disk directory is created (the unified store holds all vaults).
+func (e *Engine) CreateVault(_ context.Context, name string) error {
+	name = strings.TrimSpace(name)
+	if err := vaultpkg.ValidateName(name); err != nil {
+		return fmt.Errorf("create vault: %w: %v", ErrInvalid, err)
+	}
+	if e.db.VaultNameExists(name) {
+		return fmt.Errorf("create vault %q: %w: already exists", name, ErrInvalid)
+	}
+	ws := e.db.ResolveVaultPrefix(name)
+	if err := e.db.WriteVaultName(ws, name); err != nil {
+		return fmt.Errorf("create vault %q: %w", name, err)
+	}
+	return nil
+}
 
 // RenameVault renames a vault in-place: metadata-only, sub-millisecond, zero
 // data moves. The wsPrefix is frozen at the vault's creation, so the persisted
@@ -34,6 +57,15 @@ func (e *Engine) RenameVault(_ context.Context, oldName, newName string) error {
 	newName = strings.TrimSpace(newName)
 	if oldName == "" || newName == "" {
 		return fmt.Errorf("rename vault: old and new names are required: %w", ErrInvalid)
+	}
+	if err := vaultpkg.ValidateName(newName); err != nil {
+		return fmt.Errorf("rename vault: %w: %v", ErrInvalid, err)
+	}
+	if !e.db.VaultNameExists(oldName) {
+		return fmt.Errorf("rename vault %q: %w: not found", oldName, ErrNotFound)
+	}
+	if oldName != newName && e.db.VaultNameExists(newName) {
+		return fmt.Errorf("rename vault: %q: %w: already exists", newName, ErrInvalid)
 	}
 	ws := e.db.ResolveVaultPrefix(oldName)
 	if err := e.db.RenameVault(ws, oldName, newName); err != nil {
@@ -111,6 +143,11 @@ func (e *Engine) DeleteVault(ctx context.Context, vault string) error {
 	vault = strings.TrimSpace(vault)
 	if vault == "" {
 		return fmt.Errorf("delete vault: vault name is required: %w", ErrInvalid)
+	}
+	// The default vault is always present (the daemon's bootstrap vault + the
+	// universal fallback); it may be cleared but not deleted.
+	if vault == "default" {
+		return fmt.Errorf("delete vault: the default vault cannot be deleted: %w", ErrInvalid)
 	}
 	if err := e.ClearVault(ctx, vault); err != nil {
 		return fmt.Errorf("delete vault %q: %w", vault, err)

@@ -6,7 +6,6 @@ import (
 
 	"github.com/madeinoz67/go-rag/internal/config"
 	"github.com/madeinoz67/go-rag/internal/storage"
-	vaultpkg "github.com/madeinoz67/go-rag/internal/vault"
 )
 
 // knownConfigKeys is the public, ordered set of config keys surfaced to
@@ -55,20 +54,20 @@ func (e *Engine) SetConfig(_, key, val string) error {
 	return nil
 }
 
-// ListVaults lists every vault with its document count. It does not require the
-// engine's own database to be open. The vault param carries the requesting
-// caller's vault context (auth scope); enumeration is global.
+// ListVaults lists every vault the daemon serves with its document count. It
+// reads the unified store's in-db registry (spec 052: VaultMeta 0x1A), NOT the
+// filesystem — so it lists exactly the vaults the daemon can serve (including
+// ones registered with no on-disk directory). The vault param carries the
+// requesting caller's vault context; enumeration is global.
 func (e *Engine) ListVaults(_ string) ([]VaultEntry, error) {
-	names := vaultpkg.List()
+	names, err := e.db.ListVaultNames()
+	if err != nil {
+		return nil, fmt.Errorf("list vaults: %w", err)
+	}
 	out := make([]VaultEntry, 0, len(names))
 	for _, n := range names {
-		docs := 0
-		if _, db, err := Open(vaultpkg.Path(n)); err == nil {
-			ws := db.ResolveVaultPrefix("default")
-			docs = countPrefix(db, ws, storage.PrefixDocument)
-			db.Close()
-		}
-		out = append(out, VaultEntry{Name: n, Documents: docs})
+		ws := e.db.ResolveVaultPrefix(n)
+		out = append(out, VaultEntry{Name: n, Documents: countPrefix(e.db, ws, storage.PrefixDocument)})
 	}
 	return out, nil
 }

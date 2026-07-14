@@ -1,141 +1,184 @@
-# Feature Specification: go-rag Management Console — Vaults View (Slice 5)
+# Feature Specification: go-rag Management Console — Vaults View (management)
 
 **Feature Branch**: `051-ui-vaults-view`
 
-**Created**: 2026-07-13
+**Created**: 2026-07-13 (revised 2026-07-14 — supersedes the stale read-only draft)
 
 **Status**: Draft
 
-**Input**: User description: *"Specify the Vaults view — the next sidebar view after Operations. A read-only view of the go-rag vaults on this machine (each a separate Pebble DB under ~/.go-rag/vaults/<name>): list vaults with per-vault identity (name, document count, embedding model, on-disk storage size, daemon-running state) and identify the active vault (the one this daemon is serving). Read-only initially, mirroring 047-049. Engine.ListVaults and the `go-rag vault list` CLI already exist; the UI reuses them."*
+**Input**: User description: *"A management Vaults view for the console. Spec 052 unified the store (one daemon serves all vaults; vault is a per-request parameter; switching is live, no restart) and shipped the lifecycle operations rename/clear/delete. The Vaults view lets the operator list vaults, create a new vault, switch the active vault live, and rename/clear/delete — replacing the read-only placeholder. This supersedes the earlier read-only spec, which predates spec 052."*
 
 ## Context & Background
 
-Specs 046–050 built the console's read surfaces (Dashboard, Documents, Query, Operations) plus
-the first write surface (Documents add/remove/reingest). **This spec replaces the Vaults
-placeholder** (view 5 of the spec 046 sidebar) with a read-only view of the vaults on the
-machine — the operator's answer to "what vaults do I have, how big is each, which one am I
-serving, and what model does each use."
+The console's sidebar has a **Vaults** placeholder (view 5, spec 046). An earlier draft of this spec
+(spec 051, 2026-07-13) described a *read-only* view, written when each vault was a separate database
+served by its own daemon. **That model is obsolete.** Spec 052 (2026-07-13) shipped a **unified store**:
+one daemon serves **all** vaults simultaneously — the vault is a per-request parameter (the
+`X-Go-Rag-Vault` header), not a process configuration — and added the three lifecycle operations
+(rename, clear, delete). The shell already carries a vault picker, but it is hardcoded to a single
+vault and never populated from the store.
 
-go-rag stores each vault as a separate Pebble DB under `~/.go-rag/vaults/<name>`; the daemon
-serves exactly one (the active vault). The engine already exposes `Engine.ListVaults`
-(returns each vault's name and document count) and the CLI `go-rag vault list` shows the
-richer per-vault identity (name, docs, embedding model, daemon-running state, storage size).
-The Vaults view is a read-only browser projection of that same surface, reusing the engine
-in-process like every other console view.
+This spec replaces the placeholder with the **management** surface those capabilities now make
+possible: the operator's single place to see every vault, create a new one, switch which corpus the
+console is operating on (live, no restart), and rename, clear, or delete a vault — all confirmed,
+all inside the authenticated shell.
 
-The view reuses verbatim — and changes none of — the spec 046 shell, the Alpine `goragApp`
-root, the 4-layer CSS, `go:embed` static serving, the loopback UI transport, and the spec 045
-Bearer-session guard. It introduces **no new transport, no new storage, no new auth, no new
-ingest logic, and no Node/build chain**. Plan confirms whether `Engine.ListVaults` (name + doc
-count) suffices or a thin per-vault-detail accessor (model / storage / daemon state) is added.
+The view reuses verbatim — and changes none of — the spec 046 shell, the Alpine `goragApp` root, the
+4-layer CSS, `go:embed` static serving, the loopback UI transport, the spec 045 Bearer guard, the
+no-cache static-asset headers, and the sortable-table convention. The UI is an **adapter over
+existing engine methods** (list / create / rename / clear / delete vault; switch is a client-side
+state change). It introduces no new transport, no new storage, no on-disk schema change (no
+migration, no `ExpectedVersion` bump — Constitution storage discipline), no new auth, and no
+Node/build chain.
 
-A note on "active vault": the daemon serves exactly one vault per process. There is no live
-vault-switching in this slice — the active vault is reported, not changed. (Switching would
-restart the daemon against a different vault; that is a later, separately-specced concern.)
+A note on "switch": because the daemon serves all vaults, switching the active vault is a **live,
+client-side** action — it sets the shell's vault picker (the header every `/api/*` call already
+carries) and refreshes the current view. There is no daemon restart.
 
 ---
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - List vaults with their identity (Priority: P1)
+### User Story 1 — List vaults and see the active one (Priority: P1) 🎯 MVP
 
-An operator opens the **Vaults** sidebar item and sees every vault on the machine, each row
-showing the vault's name, document count, embedding model, on-disk storage size, and whether
-a daemon is running against it. This is the "what vaults exist and what state is each in"
-view.
+An operator opens the **Vaults** sidebar item and sees every vault, each row showing the vault's name
+and document count, with the console's **active** vault (the one the shell's vault picker currently
+targets) clearly marked. The shell's vault picker — until now hardcoded to a single vault — is
+populated from this list, so every view's vault selector reflects reality.
 
-**Why this priority**: the gate to the rest of the view. Without a list of vaults, the active
-indicator and detail have nothing to annotate.
+**Why this priority**: the gate. Without a real vault list, there is nothing to create into, switch
+to, rename, or delete.
 
-**Independent Test**: On a machine with a known set of vaults, open Vaults; the row count and
-per-row identity match `go-rag vault list` for the same machine.
+**Independent Test**: On a store with a known set of vaults, open Vaults; the rows and counts match
+`go-rag vault list`; the row matching the console's current vault is marked active.
 
 **Acceptance Scenarios**:
 
-1. **Given** one or more vaults on disk, **When** Vaults opens, **Then** every vault lists
-   with name, document count, model, storage size, and daemon-running state.
-2. **Given** the vault list, **When** compared to `go-rag vault list`, **Then** the names,
-   counts, models, and states match.
-3. **Given** the view is read-only, **When** the operator interacts with it, **Then** no vault
-   is created, deleted, cleared, cloned, imported, or switched.
+1. **Given** one or more vaults, **When** Vaults opens, **Then** every vault lists with name +
+   document count, and the active vault is marked.
+2. **Given** the vault list, **When** compared to `go-rag vault list`, **Then** the names + counts
+   match.
+3. **Given** the shell's vault picker, **When** the list loads, **Then** the picker offers every
+   vault (no longer a single hardcoded entry) and defaults to the active one.
 
 ---
 
-### User Story 2 - Identify the active vault (Priority: P1)
+### User Story 2 — Create a vault (Priority: P1)
 
-The vault this daemon is serving is clearly marked as **active** — distinct from any other
-vaults that may be listed but are not served by this process. The operator can tell at a
-glance which vault their console session is operating on.
+An operator creates a new named vault. A dialog collects the name (validated — no invalid
+characters, no duplicate, no reserved name); on confirm the vault is created empty and immediately
+appears in the list and the picker.
 
-**Why this priority**: without the active marker, the operator could mistake another vault for
-the one they are querying/writing via the console — a real confusion risk now that the console
-writes (spec 050).
+**Why this priority**: creation is the entry point to a new corpus; without it the operator cannot
+grow beyond the default vault from the console.
 
-**Independent Test**: Open Vaults; the vault matching the daemon's served vault (per
-`go-rag status`) is marked active; no other vault is.
+**Independent Test**: Create a vault "archive"; it appears in the list + the picker + `go-rag vault
+list`; adding a document to it (Documents view, picker on "archive") stores it under that vault.
 
 **Acceptance Scenarios**:
 
-1. **Given** the daemon is serving vault X, **When** Vaults opens, **Then** vault X is marked
-   active and no other vault is.
-2. **Given** the active marker, **When** the operator checks `go-rag status`, **Then** the
-   active vault matches the daemon's served vault.
+1. **Given** the create dialog, **When** the operator submits a valid unused name, **Then** the vault
+   is created and appears in the list + picker.
+2. **Given** the create dialog, **When** the operator submits an invalid name (bad characters, a
+   duplicate, or empty), **Then** creation is refused with a clear reason and no vault is created.
+3. **Given** a created vault, **When** the operator switches to it and adds a document, **Then** the
+   document lands in that vault (isolated from others).
 
 ---
 
-### User Story 3 - Inspect a vault's detail (Priority: P2)
+### User Story 3 — Switch the active vault, live (Priority: P1)
 
-An operator can open a vault's detail to see a fuller snapshot: document count, embedding
-model, storage size, daemon state, and — for the active vault — the live corpus stats
-(documents, chunks, embeddings, embedding-complete flag) already on the Dashboard. For
-non-active vaults, the detail shows the config/filesystem-derived identity (model, storage)
-without claiming live counts it cannot read (a vault held by another daemon is locked).
+An operator chooses a vault as the **active** one. The console immediately operates on it — every
+view (Dashboard, Documents, Query, Operations, Quarantine) reflects the newly active vault — with no
+daemon restart and no full page reload. This is the operator's primary navigation between corpora.
 
-**Why this priority**: useful for sizing and diagnosing vaults, but the list + active marker
-(P1) already carry the essential information.
+**Why this priority**: with one daemon serving all vaults, switching is the everyday action that
+makes multi-vault useful; it must be instant and consistent.
 
-**Independent Test**: Open the active vault's detail; its live stats match the Dashboard; open
-a non-active vault's detail; its identity (model/storage) renders and live counts are
-presented honestly (the lock constraint is reflected, not hidden).
+**Independent Test**: With documents in vaults A and B, switch from A to B; the Documents list now
+shows B's documents and A's are gone from the view; switch back; A's documents return. No restart.
 
 **Acceptance Scenarios**:
 
-1. **Given** the active vault, **When** its detail opens, **Then** live corpus stats
-   (documents/chunks/embeddings/complete) match the Dashboard / `go-rag status`.
-2. **Given** a non-active vault, **When** its detail opens, **Then** its model and storage
-   render; where a live count cannot be read (the vault is locked by another daemon), the
-   detail says so plainly rather than showing a misleading zero.
-3. **Given** the detail is read-only, **When** the operator interacts, **Then** no mutation.
+1. **Given** two or more vaults, **When** the operator activates a different vault, **Then** every
+   view reflects the new vault immediately (no restart, no reload).
+2. **Given** a switch, **When** the operator later returns, **Then** the last-active vault is
+   remembered across sessions (the picker choice persists).
+3. **Given** the active vault, **When** the operator opens any other view, **Then** that view's data
+   is scoped to the active vault (vault isolation holds).
 
 ---
 
-### User Story 4 - Read-only, shell-consistent, and honest about switching (Priority: P2)
+### User Story 4 — Rename a vault (Priority: P2)
 
-The Vaults view introduces no writes, no new authentication, no Node/build chain, and renders
-inside the authenticated shell. It is honest that vault-switching is **not** a live action
-here — the daemon serves one vault per process; switching means restarting against a different
-vault, which is out of scope. It degrades gracefully on an empty vaults directory and on
-vaults it cannot read. This is a constraint (mirroring spec 046/047/048/049/050 US4), proven
-once so every later view inherits it.
+An operator renames a vault. On confirm, the vault's name changes everywhere — the list, the picker,
+and the active-vault marker — and queries under the new name return the same results the old name
+would have (the data is untouched; only the name→vault mapping moves).
 
-**Why this priority**: not a feature but a hard invariant (read-only this slice; no live
-switch; no Node; single binary). P2 because the view is functional before the invariant is
-formally proven, but it must hold before the slice ships.
+**Why this priority**: useful for organizing corpora, but the list + create + switch (P1) already
+make the view functional.
 
-**Independent Test**: Inspect every network call the view issues — all are read-only; confirm
-no create/delete/switch action is offered; confirm the view renders inside `goragApp` with no
-full page reload; confirm no `package.json`/`node_modules`/build config is introduced.
+**Independent Test**: Rename "scratch" to "drafts"; the list + picker show "drafts"; a query under
+"drafts" returns the documents "scratch" held; `go-rag vault list` shows "drafts".
 
 **Acceptance Scenarios**:
 
-1. **Given** the view in use, **When** its network calls are inspected, **Then** every call is
-   a read-only request to a guarded `/api/*` route — no create / delete / switch.
-2. **Given** the view, **When** checked, **Then** no live "switch vault" action is presented
-   (switching is explicitly out of scope; the active vault is reported, not changed).
-3. **Given** the repository, **When** checked, **Then** no Node or front-end build artifacts
-   are introduced.
-4. **Given** an empty vaults directory (no vaults), **When** Vaults opens, **Then** a healthy
-   empty state renders (not an error).
+1. **Given** a vault, **When** the operator renames it to a valid unused name (confirmed), **Then**
+   the list + picker update to the new name.
+2. **Given** a rename, **When** the renamed vault was the active one, **Then** the active marker
+   follows the new name.
+3. **Given** a rename, **When** the operator queries under the new name, **Then** the results match
+   what the old name held (data identity preserved).
+
+---
+
+### User Story 5 — Clear and delete a vault (Priority: P2)
+
+An operator can **clear** a vault — empty every document/chunk/embedding it holds while keeping the
+vault itself registered and immediately re-usable — or **delete** it entirely (clear + unregister,
+gone from the list). Both are destructive and require explicit confirmation. The **default** vault
+cannot be deleted (it is always present), but it can be cleared.
+
+**Why this priority**: essential for retiring or resetting a corpus, but triage (list/create/switch,
+P1) comes first.
+
+**Independent Test**: Clear vault "test"; its document count drops to 0 but it remains listed;
+delete vault "old"; it disappears from the list + picker; attempt to delete "default" — refused.
+
+**Acceptance Scenarios**:
+
+1. **Given** a vault, **When** the operator clears it (confirmed), **Then** its contents are gone
+   (document count 0) but the vault remains listed + writable.
+2. **Given** a non-default vault, **When** the operator deletes it (confirmed), **Then** it is gone
+   from the list + picker.
+3. **Given** the default vault, **When** the operator attempts to delete it, **Then** the action is
+   refused (the default vault is always present).
+4. **Given** a clear or delete, **When** initiated, **Then** it does not proceed without explicit
+   confirmation.
+
+---
+
+### User Story 6 — Vault-aware, confirmed, shell-consistent (Priority: P2)
+
+Every operation targets a named vault (no cross-vault ambiguity); every destructive action (create,
+rename, clear, delete) requires explicit confirmation; the view renders inside the authenticated
+shell, degrades gracefully on errors and the single-vault case, and introduces no Node/build chain.
+
+**Why this priority**: a hard invariant (vault-aware; confirmed destructive ops; no Node; single
+binary), proven once so the view is safe to ship.
+
+**Independent Test**: Inspect every network call the view issues; attempt a destructive op without
+confirming — it does not proceed; confirm no `package.json`/`node_modules` introduced.
+
+**Acceptance Scenarios**:
+
+1. **Given** any operation, **When** issued, **Then** it targets exactly one named vault.
+2. **Given** a destructive action, **When** initiated, **Then** it does not proceed without explicit
+   confirmation.
+3. **Given** the repository, **When** checked, **Then** no Node or front-end build artifacts are
+   introduced.
+4. **Given** a store with only the default vault, **When** Vaults opens, **Then** a healthy state
+   renders (one vault, marked active) — not an error.
 5. **Given** a session that expires mid-view, **When** a fetch returns 401, **Then** the shell
    routes back to login (no crash, no silent failure).
 
@@ -143,17 +186,17 @@ full page reload; confirm no `package.json`/`node_modules`/build config is intro
 
 ### Edge Cases
 
-- **Single vault (the common case)** — the list shows one row, marked active.
-- **Empty vaults directory** — a healthy empty state, not an error.
-- **A vault held by another daemon (locked)** — its live doc count cannot be read; the view
-  shows the model/storage it can derive and reflects the lock honestly (not a misleading 0).
-- **A vault with no readable config** — model unknown; rendered as such, not a crash.
-- **A vault whose data directory is missing/corrupted** — storage size 0 or unknown; rendered
-  as such, not a crash.
-- **Very large storage sizes** — human-readable units, no layout breakage.
-- **The active vault also appearing in the list** — it is marked active and its live stats are
-  available (no double-counting).
-- **Mid-view session expiry** — graceful return to login.
+- **Only the default vault exists** — the list shows one row, marked active; create is the path to
+  more.
+- **Creating a vault that already exists** — refused with a clear "already exists" reason.
+- **Renaming to a name that already exists** — refused; the original is untouched.
+- **Switching to a vault, then deleting it from another session** — the next view fetch reports it
+  gone; the operator is routed back to a valid vault (the default).
+- **Clearing the default vault** — allowed (it stays registered); deleting it — refused.
+- **Invalid vault names** (bad characters, empty, reserved) — refused at creation/rename with the
+  specific rule violated.
+- **A vault with zero documents** — shown with count 0; fully functional (writable).
+- **Mid-action session expiry** — graceful return to login.
 
 ---
 
@@ -161,33 +204,42 @@ full page reload; confirm no `package.json`/`node_modules`/build config is intro
 
 ### Functional Requirements
 
-- **FR-001**: The view MUST list every vault on the machine, each row showing name, document
-  count, embedding model, on-disk storage size, and daemon-running state.
-- **FR-002**: The view MUST clearly mark the **active vault** — the one this daemon is serving
-  — distinct from all others.
-- **FR-003**: The operator MUST be able to open a per-vault detail showing the active vault's
-  live corpus stats (matching the Dashboard) and, for non-active vaults, the
-  config/filesystem-derived identity with any unreadable live count reflected honestly.
-- **FR-004**: The view MUST be strictly read-only — no create, delete, clear, clone, import,
-  or vault-switch action; every network call is a read-only request to a guarded route.
-- **FR-005**: The view MUST render inside the authenticated shell, gated by the existing spec
-  045 / spec 046 Bearer guard, with no new authentication surface.
-- **FR-006**: The view MUST ship inside the single binary via the existing embedded, vendored
-  SPA — no Node / Vite / Tailwind build chain.
-- **FR-007**: The view MUST render healthy states for an empty vaults directory and for
-  vaults it cannot fully read (locked / missing config / corrupted) — no silent failures.
-- **FR-008**: Vault identity shown MUST match `go-rag vault list` for the same machine
-  (cross-surface parity — same vault/config surface the CLI uses).
+- **FR-001**: The view MUST list every vault, each row showing the vault name and document count,
+  with the console's active vault clearly marked.
+- **FR-002**: The shell's vault picker MUST be populated from the vault list (every vault offered;
+  the active one selected) — replacing the hardcoded single entry.
+- **FR-003**: The operator MUST be able to create a new named vault, with the name validated (no
+  invalid characters, no duplicate, no empty/reserved), via a confirmed action; the new vault MUST
+  appear in the list and the picker.
+- **FR-004**: The operator MUST be able to switch the active vault **live** — the console
+  immediately operates on the chosen vault across every view, with no daemon restart and no full page
+  reload. The choice MUST persist across sessions.
+- **FR-005**: The operator MUST be able to rename a vault (confirmed); the list, the picker, and the
+  active marker MUST update to the new name, and data identity MUST be preserved (the same corpus).
+- **FR-006**: The operator MUST be able to clear a vault's contents (confirmed, destructive) — the
+  vault's documents/chunks/embeddings are removed but the vault stays registered and writable.
+- **FR-007**: The operator MUST be able to delete a non-default vault entirely (confirmed,
+  destructive) — clear + unregister; the default vault MUST NOT be deletable.
+- **FR-008**: Every destructive action (create, rename, clear, delete) MUST require explicit
+  confirmation and MUST NOT proceed without it.
+- **FR-009**: Every operation MUST target exactly one named vault (vault-aware; no cross-vault
+  ambiguity).
+- **FR-010**: The view MUST be gated by the existing spec 045 Bearer guard — no new authentication.
+- **FR-011**: The view MUST ship inside the single binary via the existing embedded, vendored SPA —
+  no Node / Vite / Tailwind build chain.
+- **FR-012**: The view MUST render healthy states for the single-default-vault case and degrade
+  gracefully on errors and mid-action session expiry — no silent failures.
+- **FR-013**: The vault list shown MUST match `go-rag vault list` for the same store (cross-surface
+  parity).
 
 ### Key Entities *(include if feature involves data)*
 
-- **Vault**: a named corpus — a separate Pebble DB under `~/.go-rag/vaults/<name>` with its
-  own config (embedding model), document count, on-disk storage size, and daemon-running
-  state.
-- **Active Vault**: the single vault this daemon process is serving; reported (not switched)
-  in this slice.
-- **Vault Identity**: the per-vault metadata the view projects — name, document count,
-  embedding model, storage size, daemon-running state, and active flag.
+- **Vault**: a named corpus — a partition of the unified store — with a document count and a
+  name→vault mapping.
+- **Active Vault**: the vault the console's shell picker currently targets; the one every view
+  operates on. Switching it is a live, client-side action (no restart).
+- **Vault Lifecycle**: create (register a new empty vault), rename (move the name→vault mapping,
+  data untouched), clear (drop a vault's contents, keep it registered), delete (clear + unregister).
 
 ---
 
@@ -195,51 +247,50 @@ full page reload; confirm no `package.json`/`node_modules`/build config is intro
 
 ### Measurable Outcomes
 
-- **SC-001**: An operator can open Vaults and see every vault on the machine within 1 second
-  on loopback, each with name/count/model/storage/daemon-state.
-- **SC-002**: 100% of operators can identify the active vault at a glance — it matches the
-  daemon's served vault per `go-rag status`.
-- **SC-003**: Vault identity shown matches `go-rag vault list` byte-for-byte — zero drift.
-- **SC-004**: No write action (create/delete/clear/clone/import/switch) is possible from the
-  Vaults view — verifiable by inspecting every network call.
-- **SC-005**: The view introduces zero new build tooling — a single `make build` still
-  produces one binary with no Node chain.
+- **SC-001**: An operator can open Vaults and see every vault with name + count + active marker
+  within 1 second on loopback.
+- **SC-002**: An operator can create a vault and have it appear in the list, the picker, and
+  `go-rag vault list`.
+- **SC-003**: An operator can switch the active vault and see every view reflect it in under 200 ms,
+  with no daemon restart.
+- **SC-004**: After a rename, queries under the new name return the same results the old name held —
+  zero data drift.
+- **SC-005**: A cleared vault shows count 0 but remains listed; a deleted non-default vault is gone;
+  the default vault cannot be deleted.
+- **SC-006**: No create / rename / clear / delete completes without explicit operator confirmation.
+- **SC-007**: The vault list matches `go-rag vault list` — zero drift.
+- **SC-008**: The view introduces zero new build tooling — a single `make build` still produces one
+  binary with no Node chain.
 
 ---
 
 ## Assumptions
 
-- The view reuses the spec 046 shell, transport, embed serving, 4-layer CSS, Alpine `goragApp`
-  root, and spec 045 Bearer auth unchanged — exactly as specs 047–050 did.
-- This slice is read-only; write-actions on vaults (create/delete/clear/clone/import) and
-  live vault-switching are deliberately a later, separately-specced slice (the `go-rag vault`
-  CLI already has the writes; switching means a daemon restart).
-- `Engine.ListVaults` already exists (returns each vault's name + document count); the active
-  vault's live stats come from `engine.StatusInfo` (already on the Dashboard). Plan confirms
-  whether `ListVaults` alone suffices or a thin per-vault-detail accessor (model / storage /
-  daemon state, as the CLI computes) is added.
-- A vault held by another daemon is locked and its live count cannot be read; the view
-  reflects that honestly rather than showing a misleading zero.
-- Single-operator use; no multi-user or RBAC concerns (PRD N2).
+- The view reuses the spec 046 shell, transport, embed serving, 4-layer CSS, Alpine `goragApp` root,
+  spec 045 Bearer auth, the no-cache static-asset headers, the sortable-table convention, and the
+  quarantine view's confirmed-destructive-action dialog pattern — unchanged.
+- The engine surface for management already exists (spec 052): list vaults, create, rename, clear,
+  delete. The UI is a 4th adapter over those methods; switch is a client-side state change (the
+  `X-Go-Rag-Vault` header every `/api/*` call already carries).
+- The unified store (spec 052) means one daemon serves all vaults; switching does not restart the
+  daemon.
+- Single-operator use; no multi-user or RBAC (PRD N2).
 - Desktop-first per `docs/style-guide.md`; mobile is not a target.
-- The view refreshes on demand (on view-entry / manual); live streaming is out of scope.
+- The view refreshes on demand (on view-entry / after each mutation); live streaming is out of scope.
 
 ---
 
 ## Open Questions (to resolve in plan / tasks)
 
-- **Per-vault identity source** — `Engine.ListVaults` returns name + doc count only; the
-  model / storage / daemon-state the CLI shows come from opening each vault's config +
-  `daemon.Status` + `dirSize`. Decide at plan: enrich `Engine.ListVaults` (add fields) vs a
-  UI-internal handler that reads each vault's config (as the CLI does). Lean: enrich
-  `ListVaults` to carry model/storage/daemon so every consumer benefits, mirroring how 049
-  added `Engine.AuditRead`.
-- **Locked-vault doc count** — `Engine.ListVaults` opens each vault to count docs; a vault
-  locked by another daemon reads as 0. Decide whether to surface "locked" distinctly vs 0.
-  Lean: distinct "locked/unavailable" state, not a misleading 0.
-- **Active-vault detail depth** — whether the active vault's detail reuses the Dashboard's
-  full `StatusInfo` projection or a vault-specific subset. Lean: reuse StatusInfo (the active
-  vault IS the Dashboard's vault).
-- **Switching affordance** — even though switching is out of scope, whether to show a disabled
-  "switch (requires restart)" hint for non-active vaults (manages operator expectation) or
-  omit entirely. Lean: omit this slice; note in a tooltip that switching restarts the daemon.
+- **Per-vault identity depth** — the vault list shows name + document count; whether to also surface
+  the embedding model / on-disk size (as `go-rag vault list` does) is a plan decision (it may require
+  enriching the list accessor). Lean: ship name + count + active marker now (the management essentials);
+  model/size can follow.
+- **Create mechanic** — whether "create" registers an empty vault immediately or defers creation to
+  first write. Lean: register immediately (so the vault appears + is switchable + writable), matching
+  `go-rag vault create`.
+- **Switch affordance** — a per-row "switch" action vs. clicking the row vs. the picker. Lean: an
+  explicit per-row "Switch" action (clear + discoverable), plus the picker remains the quick-switch.
+- **Stale-active-vault recovery** — if the active vault is deleted from another session, the next
+  fetch fails; the plan decides whether to auto-fall-back to the default vault silently or surface a
+  notice. Lean: auto-fall-back to default + a non-blocking notice.

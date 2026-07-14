@@ -990,11 +990,53 @@
 
       <!-- ====== PLACEHOLDER VIEWS (later specs 050..053) ====== -->
 
+      <!-- ====== VAULTS (spec 051 — real view: vault management) ====== -->
       <section x-show="currentView === 'vaults'" class="view" x-cloak>
         <header class="view-header">
           <h1 class="page-title">Vaults</h1>
+          <span class="badge" x-show="!vaultsLoading" x-text="vaultsList.length + ' vault' + (vaultsList.length === 1 ? '' : 's')"></span>
+          <button type="button" class="btn" :disabled="vaultsLoading" @click="loadVaults()">Refresh</button>
+          <button type="button" class="btn btn-primary" @click="openVaultCreate()">Create vault</button>
         </header>
-        <div class="placeholder-card" x-html="placeholderHtml('Vaults', '050')"></div>
+        <p class="doc-muted">The daemon serves every vault from one store. <b>Switch</b> changes which vault the console operates on — live, no restart. The active vault is pinned to the top.</p>
+
+        <p class="dashboard-empty" x-show="vaultsError" x-text="vaultsError"></p>
+        <p class="dashboard-empty" x-show="!vaultsLoading && vaultsList.length === 0">
+          No vaults. Create one to hold a separate corpus.
+        </p>
+
+        <div class="card" x-show="vaultsList.length > 0" x-cloak>
+          <table class="doc-table">
+            <thead>
+              <tr>
+                <th class="sortable" :class="{ active: vaultSortKey==='name' }" @click="setVaultSort('name')">Vault <span class="sort-arrow" x-show="vaultSortKey==='name'" x-text="vaultSortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="sortable num" :class="{ active: vaultSortKey==='documents' }" @click="setVaultSort('documents')">Documents <span class="sort-arrow" x-show="vaultSortKey==='documents'" x-text="vaultSortDir==='asc'?'↑':'↓'"></span></th>
+                <th>State</th>
+                <th class="doc-actions-col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="v in sortedVaults()" :key="v.name">
+                <tr class="doc-row" :class="{ 'vault-row-active': v.active }">
+                  <td>
+                    <div class="doc-name" x-text="v.name"></div>
+                  </td>
+                  <td class="num" x-text="v.documents"></td>
+                  <td>
+                    <span class="badge badge-success" x-show="v.active" title="The vault the console is currently operating on">active</span>
+                    <span class="doc-muted" x-show="!v.active">—</span>
+                  </td>
+                  <td class="doc-actions" @click.stop>
+                    <button type="button" class="btn btn-mini" x-show="!v.active" @click="switchVault(v.name)">Switch</button>
+                    <button type="button" class="btn btn-mini" @click="openVaultRename(v)">Rename</button>
+                    <button type="button" class="btn btn-mini" title="Empty this vault (keep it registered)" @click="confirmVaultClear(v)">Clear</button>
+                    <button type="button" class="btn btn-mini btn-danger" x-show="v.name !== 'default'" title="Delete entirely (unregister)" @click="confirmVaultDelete(v)">Delete</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section x-show="currentView === 'observability'" class="view" x-cloak>
@@ -1061,6 +1103,27 @@
                     :disabled="confirmDialog.busy" @click="doConfirm()">
               <span x-show="!confirmDialog.busy" x-text="confirmDialog.confirmLabel"></span>
               <span x-show="confirmDialog.busy" x-cloak>Working…</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vault create/rename dialog (spec 051) — a name input + confirm. -->
+      <div class="dialog-overlay" x-show="vaultNameDialog.open" x-cloak @keydown.escape.window="closeVaultNameDialog()">
+        <div class="dialog" role="dialog" aria-modal="true" :aria-label="vaultNameDialog.title">
+          <h2 class="dialog-title" x-text="vaultNameDialog.title"></h2>
+          <label class="field">
+            <span class="field-label" x-text="vaultNameDialog.label"></span>
+            <input class="input" type="text" x-model="vaultNameDialog.value"
+                   placeholder="my-vault"
+                   :disabled="vaultNameDialog.busy"
+                   @keydown.enter.prevent="submitVaultNameDialog()" :aria-label="vaultNameDialog.label">
+          </label>
+          <div class="dialog-actions">
+            <button type="button" class="btn" :disabled="vaultNameDialog.busy" @click="closeVaultNameDialog()">Cancel</button>
+            <button type="button" class="btn btn-primary" :disabled="vaultNameDialog.busy" @click="submitVaultNameDialog()">
+              <span x-show="!vaultNameDialog.busy" x-text="vaultNameDialog.mode === 'create' ? 'Create' : 'Rename'"></span>
+              <span x-show="vaultNameDialog.busy" x-cloak>Working…</span>
             </button>
           </div>
         </div>

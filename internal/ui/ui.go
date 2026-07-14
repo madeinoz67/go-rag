@@ -87,6 +87,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/quarantine/{id}/release", s.guard(s.handleQuarantineRelease))           // spec 053 US3
 	mux.HandleFunc("POST /api/quarantine/{id}/reset", s.guard(s.handleQuarantineReset))               // spec 053 US3
 	mux.HandleFunc("POST /api/quarantine/rescan", s.guard(s.handleQuarantineRescan))                  // spec 053 US3
+	mux.HandleFunc("GET /api/vaults", s.guard(s.handleVaultsList))                                    // spec 051 US1
+	mux.HandleFunc("POST /api/vaults", s.guard(s.handleVaultCreate))                                  // spec 051 US2
+	mux.HandleFunc("POST /api/vaults/{name}/rename", s.guard(s.handleVaultRename))                    // spec 051 US4
+	mux.HandleFunc("POST /api/vaults/{name}/clear", s.guard(s.handleVaultClear))                      // spec 051 US5
+	mux.HandleFunc("DELETE /api/vaults/{name}", s.guard(s.handleVaultDelete))                         // spec 051 US5
 	mux.HandleFunc("GET /api/placeholder/{view}", s.guard(s.handlePlaceholder))
 	mux.HandleFunc("POST /logout", s.guard(s.handleLogout))
 	return mux

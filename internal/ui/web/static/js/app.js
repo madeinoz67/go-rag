@@ -31,10 +31,20 @@
 
       // === Vault selection ==================================================
       // Active vault (default "default"). Sent as X-Go-Rag-Vault on every
-      // /api/* fetch (see api()). For now the picker offers only "default";
-      // spec 050 (Vaults view) will populate `vaults` from the server.
+      // /api/* fetch (see api()). The picker is populated from the server by
+      // loadVaults() (spec 051 Vaults view); until the first load it offers
+      // "default".
       vault: 'default',
       vaults: ['default'],
+      // Vaults view (spec 051) — list + load state, populated by loadVaults.
+      vaultsList: [],
+      vaultsLoading: false,
+      vaultsError: '',
+      // Create/rename dialog (both need a name input; clear/delete reuse the
+      // shared confirmDialog). mode = 'create' | 'rename'.
+      vaultNameDialog: { open: false, mode: 'create', title: '', label: '', value: '', busy: false, action: '', targetVault: '' },
+      vaultSortKey: 'name',   // page-local sort column (name | documents)
+      vaultSortDir: 'asc',
 
       // === Auth gate ========================================================
 
@@ -67,6 +77,7 @@
         }
         if (this.isAuthed()) {
           this.loadDashboard();
+          this.loadVaults();
         }
       },
 
@@ -96,6 +107,7 @@
         this.quarChunks = [];
         this.quarSelected = null;
         this.quarChecked = {};
+        this.vaultsList = [];
         this.switchView(this.currentView);
       },
 
@@ -254,6 +266,9 @@
         }
         if (view === 'quarantine') {
           this.loadQuarantine();
+        }
+        if (view === 'vaults') {
+          this.loadVaults();
         }
       },
 
@@ -469,6 +484,20 @@
               if (!rst || rst.status === 401) return;
               if (rst.status === 404) { this.error = 'Chunk not found.'; }
               else if (!rst.ok && rst.status !== 204) { this.error = 'Reset failed (HTTP ' + rst.status + ').'; }
+            } else if (cd.action === 'vault-clear') {
+              var vclr = await this.api('/api/vaults/' + encodeURIComponent(id) + '/clear', { method: 'POST' });
+              if (!vclr || vclr.status === 401) return;
+              if (!vclr.ok && vclr.status !== 204) { this.error = 'Clear failed (HTTP ' + vclr.status + ').'; }
+            } else if (cd.action === 'vault-delete') {
+              var vdel = await this.api('/api/vaults/' + encodeURIComponent(id), { method: 'DELETE' });
+              if (!vdel || vdel.status === 401) return;
+              if (vdel.status === 400) { this.error = 'The default vault cannot be deleted.'; }
+              else if (!vdel.ok && vdel.status !== 204) { this.error = 'Delete failed (HTTP ' + vdel.status + ').'; }
+              else if (this.vault === id) {
+                // Deleted the active vault — fall back to default + persist.
+                this.vault = 'default';
+                try { if (window.localStorage) { localStorage.setItem(GORAG_VAULT_KEY, 'default'); } } catch (_e) {}
+              }
             }
           }
           this.confirmDialog.open = false;
@@ -482,6 +511,8 @@
           // Refresh the owning view's data.
           if (cd.action === 'quar-release' || cd.action === 'quar-reset' || cd.action === 'quar-rescan' || cd.action === 'quar-bulk-release') {
             await this.loadQuarantine();
+          } else if (cd.action === 'vault-clear' || cd.action === 'vault-delete') {
+            await this.loadVaults();
           } else {
             await this.loadDocuments('');
           }
@@ -1185,6 +1216,150 @@
         this.closeQuarChunk();
         this.switchView('documents');
         this.openDocument(docID);
+      },
+
+      // === Vaults (spec 051) ==============================================
+      // The shell vault picker + the Vaults view share one /api/vaults fetch.
+      // Switching the active vault is a client-side state change (switchVault
+      // already sets this.vault, the X-Go-Rag-Vault header); the server confirms
+      // a switch only implicitly via subsequent reads.
+
+      /** GET /api/vaults → populate the picker (this.vaults, names) + the view
+       *  list (this.vaultsList). Keeps this.vault valid: if the active vault is
+       *  no longer listed (deleted from another session), fall back to the
+       *  server's active or 'default'. */
+      loadVaults: async function () {
+        this.vaultsError = '';
+        this.vaultsLoading = true;
+        try {
+          var res = await this.api('/api/vaults');
+          if (!res || res.status === 401) return;
+          if (!res.ok) { this.vaultsError = 'Failed to load vaults (HTTP ' + res.status + ').'; return; }
+          var data = await res.json();
+          this.vaultsList = (data && data.vaults) || [];
+          this.vaults = this.vaultsList.map(function (v) { return v.name; });
+          // Keep the active vault valid; fall back if it vanished.
+          if (this.vaults.indexOf(this.vault) < 0) {
+            this.vault = (data && data.active) || 'default';
+            if (this.vaults.indexOf(this.vault) < 0 && this.vaults.length > 0) {
+              this.vault = this.vaults[0];
+            }
+          }
+        } catch (_e) {
+          this.vaultsError = 'Network error loading vaults.';
+        } finally {
+          this.vaultsLoading = false;
+        }
+      },
+
+      /** Open the create-vault dialog (name input). */
+      openVaultCreate: function () {
+        this.error = '';
+        this.vaultNameDialog = {
+          open: true, mode: 'create', title: 'Create vault',
+          label: 'Vault name (lowercase letters, digits, hyphens; 1–64)',
+          value: '', busy: false, action: 'vault-create', targetVault: '',
+        };
+      },
+
+      /** Open the rename-vault dialog (new-name input, prefilled). */
+      openVaultRename: function (v) {
+        this.error = '';
+        this.vaultNameDialog = {
+          open: true, mode: 'rename', title: 'Rename vault',
+          label: 'New name',
+          value: v.name, busy: false, action: 'vault-rename', targetVault: v.name,
+        };
+      },
+
+      closeVaultNameDialog: function () {
+        if (this.vaultNameDialog.busy) return; // disable-on-submit
+        this.vaultNameDialog.open = false;
+      },
+
+      /** Submit the create/rename dialog. Validates client-side, then POSTs. */
+      submitVaultNameDialog: async function () {
+        var d = this.vaultNameDialog;
+        var name = String(d.value || '').trim();
+        if (!name) { this.error = 'Name is required.'; return; }
+        this.error = '';
+        d.busy = true;
+        try {
+          if (d.action === 'vault-create') {
+            var res = await this.api('/api/vaults', { method: 'POST', body: JSON.stringify({ name: name }) });
+            if (!res || res.status === 401) return;
+            if (res.status === 400) { var e = await res.json().catch(function () { return {}; }); this.error = e.error || 'Invalid or existing name.'; return; }
+            if (!res.ok) { this.error = 'Create failed (HTTP ' + res.status + ').'; return; }
+          } else if (d.action === 'vault-rename') {
+            var r = await this.api('/api/vaults/' + encodeURIComponent(d.targetVault) + '/rename', {
+              method: 'POST', body: JSON.stringify({ new_name: name }),
+            });
+            if (!r || r.status === 401) return;
+            if (r.status === 400) { var re = await r.json().catch(function () { return {}; }); this.error = re.error || 'Invalid or existing name.'; return; }
+            if (r.status === 404) { this.error = 'Vault not found.'; return; }
+            if (!r.ok) { this.error = 'Rename failed (HTTP ' + r.status + ').'; return; }
+            // If the active vault was the one renamed, follow it to the new name.
+            if (this.vault === d.targetVault) { this.switchVault(name); }
+          }
+          this.vaultNameDialog.open = false;
+          await this.loadVaults();
+        } catch (_e) {
+          this.error = 'Network error.';
+        } finally {
+          d.busy = false;
+        }
+      },
+
+      /** Confirm clearing a vault's contents (keeps it registered). */
+      confirmVaultClear: function (v) {
+        this.confirmDialog = {
+          open: true, title: 'Clear vault',
+          message: 'Empty "' + v.name + '"? Every document, chunk, and embedding is removed. The vault stays registered and writable — re-add documents to refill it.',
+          confirmLabel: 'Clear', danger: true, busy: false,
+          action: 'vault-clear', targetId: v.name, targetLabel: v.name,
+        };
+      },
+
+      /** Confirm deleting a vault entirely (the default is guarded out). */
+      confirmVaultDelete: function (v) {
+        if (v.name === 'default') return;
+        this.confirmDialog = {
+          open: true, title: 'Delete vault',
+          message: 'Delete "' + v.name + '" entirely? Its contents are removed AND the vault is unregistered (gone from the list). This cannot be undone.',
+          confirmLabel: 'Delete', danger: true, busy: false,
+          action: 'vault-delete', targetId: v.name, targetLabel: v.name,
+        };
+      },
+
+      /** Toggle the page-local vault sort column/direction (mirrors setQuarSort). */
+      setVaultSort: function (key) {
+        if (this.vaultSortKey === key) {
+          this.vaultSortDir = this.vaultSortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.vaultSortKey = key;
+          this.vaultSortDir = 'asc';
+        }
+      },
+
+      /** Page-local sort of the vault list (active vault always sorts first
+       *  regardless of column, so it stays pinned to the top). */
+      sortedVaults: function () {
+        var key = this.vaultSortKey;
+        var dir = this.vaultSortDir === 'desc' ? -1 : 1;
+        return (this.vaultsList || []).slice().sort(function (a, b) {
+          if (a.active !== b.active) return a.active ? -1 : 1; // active first
+          var va, vb;
+          if (key === 'documents') {
+            va = Number(a.documents) || 0;
+            vb = Number(b.documents) || 0;
+          } else {
+            va = String(a.name || '').toLowerCase();
+            vb = String(b.name || '').toLowerCase();
+          }
+          if (va < vb) return -1 * dir;
+          if (va > vb) return 1 * dir;
+          return 0;
+        });
       },
 
       // === Token storage helpers ===========================================

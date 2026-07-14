@@ -651,6 +651,9 @@
 .doc-link { color: var(--accent, #60a5fa); text-decoration: underline; cursor: pointer; }
 .doc-link:hover { opacity: 0.85; }
 
+/* spec 051 — active-vault row marker (the vault the console is operating on). */
+.vault-row-active { background: rgba(59, 130, 246, 0.12); }
+
 /* spec 053 — bulk-release selection column + checkbox theming. */
 .quar-check-col { width: 1%; text-align: center; padding: 0.35rem 0.4rem; }
 td.quar-check { text-align: center; }
