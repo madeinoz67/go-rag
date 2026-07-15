@@ -8,14 +8,13 @@ import (
 // placeholderViews maps the sidebar items that are STILL placeholder panels
 // (kebab-case) to a short status string the placeholder marker shows the client.
 // Built views — Dashboard (046), Documents (047), Query (048), Operations /
-// Bridge-Ops (049), Vaults (051), Quarantine (053), Observability (054) — each
-// replaced this seam with a real handler + Alpine view and are intentionally NOT
-// listed here; handlePlaceholder 404s for them.
+// Bridge-Ops (049), Vaults (051), Quarantine (053), Observability (054), Settings
+// (055) — each replaced this seam with a real handler + Alpine view and are
+// intentionally NOT listed here; handlePlaceholder 404s for them.
 //
-// Remaining placeholders: Settings (the next console slice, unblocked) and
-// Memory & Graph (blocked on the MuninnDB bridge — issues #560 → #556).
+// Remaining placeholders: Memory & Graph (blocked on the MuninnDB bridge —
+// issues #560 → #556). Settings graduated to a real view in spec 055.
 var placeholderViews = map[string]string{
-	"settings":     "planned",
 	"memory-graph": "blocked",
 }
 

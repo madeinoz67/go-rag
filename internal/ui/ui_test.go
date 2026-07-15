@@ -261,10 +261,9 @@ func TestPlaceholder_Routes(t *testing.T) {
 func TestSidebar_ViewSet(t *testing.T) {
 	// placeholderViews holds ONLY the sidebar items still rendering a placeholder
 	// panel. Built views (documents 047, query 048, operations 049, vaults 051,
-	// quarantine 053, observability 054) are intentionally absent — handlePlaceholder
-	// 404s for them.
+	// quarantine 053, observability 054, settings 055) are intentionally absent —
+	// handlePlaceholder 404s for them.
 	want := map[string]string{
-		"settings":     "planned",
 		"memory-graph": "blocked",
 	}
 	if len(placeholderViews) != len(want) {

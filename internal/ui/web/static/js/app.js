@@ -275,6 +275,9 @@
         if (view === 'observability') {
           this.loadObservability();
         }
+        if (view === 'settings') {
+          this.loadSettings();
+        }
       },
 
       // === Documents (spec 047 US1) =======================================
@@ -991,6 +994,29 @@
       obsSortDir: 'desc',
       obsAutoPoll: false,    // telemetry auto-refresh toggle (spec 054 polish)
       obsPollTimer: null,    // setInterval handle for auto-poll
+
+      // === Settings (spec 055, Slice 0 — read-only effective configuration) ===
+      settings: null,        // settingsDTO (GET /api/settings)
+      settingsLoading: false,
+      settingsError: '',
+
+      /** GET /api/settings → settingsDTO. Read-only projection of the running
+       *  daemon's effective configuration (retrieval / embeddings / cache /
+       *  chunking / redaction). Always 200 once authed. */
+      loadSettings: async function () {
+        this.settingsError = '';
+        this.settingsLoading = true;
+        try {
+          var res = await this.api('/api/settings');
+          if (!res || res.status === 401) return;
+          if (!res.ok) { this.settingsError = 'Failed to load settings (HTTP ' + res.status + ').'; return; }
+          this.settings = await res.json();
+        } catch (_e) {
+          this.settingsError = 'Network error loading settings.';
+        } finally {
+          this.settingsLoading = false;
+        }
+      },
 
       /** Load both panels (called on view entry + Refresh). */
       loadObservability: async function () {

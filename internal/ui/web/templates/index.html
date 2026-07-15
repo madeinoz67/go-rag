@@ -1149,8 +1149,69 @@
       <section x-show="currentView === 'settings'" class="view" x-cloak>
         <header class="view-header">
           <h1 class="page-title">Settings</h1>
+          <button type="button" class="btn" :disabled="settingsLoading" @click="loadSettings()">Refresh</button>
+          <span class="badge">read-only</span>
         </header>
-        <div class="placeholder-card" x-html="placeholderHtml('Settings', '052')"></div>
+        <p class="dashboard-empty" x-show="settingsError" x-text="settingsError"></p>
+
+        <!-- Retrieval (US1) -->
+        <div class="card" x-show="settings" x-cloak>
+          <h3 class="doc-section-title">Retrieval <span class="doc-muted">— effective query defaults</span></h3>
+          <div class="doc-meta">
+            <span><b>RRF k:</b> <span x-text="settings.retrieval.rrf_k"></span></span>
+            <span><b>Candidate pool:</b> <span x-text="settings.retrieval.pool_size"></span></span>
+            <span><b>Reranker:</b> <span x-text="settings.retrieval.reranker"></span></span>
+            <span x-show="settings.retrieval.reranker !== 'disabled'"><b>Rerank candidates:</b> <span x-text="settings.retrieval.rerank_candidates || 'default'"></span></span>
+            <span><b>Retry on failure:</b> <span x-text="settings.retrieval.rerank_retry_on_failure ? 'on' : 'off'"></span></span>
+            <span><b>Adaptive depth:</b> <span x-text="settings.retrieval.adaptive_depth_enabled ? 'on' : 'off'"></span></span>
+            <span><b>Near-dup Hamming:</b> <span x-text="settings.retrieval.near_dup_hamming"></span></span>
+          </div>
+          <p class="doc-muted" style="margin-top:6px">Query depth / mode / threshold are applied per request — see the Query view.</p>
+        </div>
+
+        <!-- Embeddings (US1) -->
+        <div class="card" x-show="settings" x-cloak>
+          <h3 class="doc-section-title">Embeddings</h3>
+          <div class="doc-meta">
+            <span><b>Model:</b> <span x-text="settings.embeddings.model || '—'"></span></span>
+            <span><b>Dimensions:</b> <span x-text="settings.embeddings.dimensions || '—'"></span></span>
+            <span><b>Prefix mode:</b> <span x-text="settings.embeddings.prefix_mode"></span></span>
+            <span><b>Resolved query prefix:</b> <span x-text="settings.embeddings.resolved_query_prefix || '—'"></span></span>
+            <span><b>Resolved doc prefix:</b> <span x-text="settings.embeddings.resolved_doc_prefix || '—'"></span></span>
+            <span><b>Stored convention:</b> <span x-text="settings.embeddings.stored_convention || '—'"></span></span>
+            <span><b>Ollama URL:</b> <span x-text="settings.embeddings.ollama_url"></span></span>
+          </div>
+        </div>
+
+        <!-- Cache (US2) -->
+        <div class="card" x-show="settings" x-cloak>
+          <h3 class="doc-section-title">Cache <span class="doc-muted">— live hit / miss</span></h3>
+          <div class="doc-meta">
+            <span><b>Result:</b> <span x-text="settings.cache.result.enabled ? (settings.cache.result.size + ' / ' + settings.cache.result.capacity + '  (' + settings.cache.result.hits + ' hits / ' + settings.cache.result.misses + ' misses)') : 'disabled'"></span></span>
+            <span><b>Embedding:</b> <span x-text="settings.cache.embedding.enabled ? (settings.cache.embedding.size + ' / ' + settings.cache.embedding.capacity + '  (' + settings.cache.embedding.hits + ' hits / ' + settings.cache.embedding.misses + ' misses)') : 'disabled'"></span></span>
+          </div>
+        </div>
+
+        <!-- Chunking (US2) -->
+        <div class="card" x-show="settings" x-cloak>
+          <h3 class="doc-section-title">Chunking</h3>
+          <div class="doc-meta">
+            <span><b>Chunk size:</b> <span x-text="settings.chunking.chunk_size"></span></span>
+            <span><b>Overlap:</b> <span x-text="settings.chunking.chunk_overlap"></span></span>
+            <span><b>Boundary:</b> <span x-text="settings.chunking.boundary_mode"></span></span>
+            <span><b>Section context:</b> <span x-text="settings.chunking.section_context ? 'threaded' : 'off'"></span></span>
+          </div>
+        </div>
+
+        <!-- Redaction (US2) -->
+        <div class="card" x-show="settings" x-cloak>
+          <h3 class="doc-section-title">Redaction <span class="doc-muted">— secret / PII scrubbing</span></h3>
+          <div class="doc-meta">
+            <span><b>Status:</b> <span x-text="settings.redaction.enabled ? 'enabled' : 'disabled'"></span></span>
+            <span x-show="settings.redaction.enabled"><b>Active patterns:</b> <span x-text="settings.redaction.pattern_count"></span></span>
+            <span x-show="settings.redaction.custom_patterns_path"><b>Custom patterns:</b> <span x-text="settings.redaction.custom_patterns_path"></span></span>
+          </div>
+        </div>
       </section>
 
       <section x-show="currentView === 'memory-graph'" class="view" x-cloak>
