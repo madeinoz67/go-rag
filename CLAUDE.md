@@ -84,7 +84,10 @@ transport. One Pebble writer; writes ACK on the durable store and embed async
   `go-rag start`/`stop` targets the user's real running daemon. When scripting
   the daemon for tests/smoke, always pass `--db-path <tmp>` plus non-default
   `--mcp-addr`/`--rest-addr`/`--grpc-addr`, or you will collide with and stop a
-  live instance.
+  live instance. To clean up orphaned test daemons — which `pkill -f go-rag.*<dbpath>`
+  misses (go-rag detaches + re-execs without `--db-path` in argv, leaving a stale
+  binary holding the port → phantom route 404s) — kill by port:
+  `for p in 7878 7879 7880 7881; do lsof -ti :$p | xargs kill -9; done`.
 - **Lint before push.** Run `make lint` (golangci-lint) before `git push` — it is
   the `ci.yml` gate and strictly stricter than `go vet`/`go test` (catches
   built-in shadowing like `min`/`max`, gofmt nits, errcheck, staticcheck). A

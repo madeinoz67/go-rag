@@ -986,8 +986,11 @@
       obsOpSortDir: 'desc',
       obsAudit: null,        // auditPageResponse (US2)
       obsAuditType: '',      // '' | query | ingest | auth-fail
+      obsAuditWindow: '',    // '' | 1h | 24h | 168h (Go duration → ?since=)
       obsSortKey: 'ts',      // audit table sort
       obsSortDir: 'desc',
+      obsAutoPoll: false,    // telemetry auto-refresh toggle (spec 054 polish)
+      obsPollTimer: null,    // setInterval handle for auto-poll
 
       /** Load both panels (called on view entry + Refresh). */
       loadObservability: async function () {
@@ -997,6 +1000,21 @@
           await Promise.all([this.loadObsTelemetry(), this.loadObsAudit()]);
         } finally {
           this.obsLoading = false;
+        }
+      },
+
+      /** Toggle telemetry auto-refresh (10s); only fetches while the Observability
+          view is active so it stays cold on other views. */
+      toggleObsAutoPoll: function () {
+        if (this.obsAutoPoll) {
+          if (this.obsPollTimer) { clearInterval(this.obsPollTimer); }
+          var self = this;
+          this.obsPollTimer = setInterval(function () {
+            if (self.currentView === 'observability') { self.loadObsTelemetry(); }
+          }, 10000);
+        } else if (this.obsPollTimer) {
+          clearInterval(this.obsPollTimer);
+          this.obsPollTimer = null;
         }
       },
 
@@ -1017,6 +1035,7 @@
         try {
           var url = '/api/observability/audit?limit=50';
           if (this.obsAuditType) { url += '&type=' + encodeURIComponent(this.obsAuditType); }
+          if (this.obsAuditWindow) { url += '&since=' + encodeURIComponent(this.obsAuditWindow); }
           var res = await this.api(url);
           if (!res || res.status === 401) return;
           if (!res.ok) { this.obsError = 'Failed to load audit log (HTTP ' + res.status + ').'; return; }
