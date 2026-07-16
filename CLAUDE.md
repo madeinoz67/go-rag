@@ -94,6 +94,8 @@ transport. One Pebble writer; writes ACK on the durable store and embed async
   committed pre-push hook in `githooks/` enforces it once enabled
   (`git config core.hooksPath githooks`); bypass one push with `git push --no-verify`.
 
+- **Restart the daemon after code changes (dev environment).** Rebuild (`make build`) + `./bin/go-rag stop` + `./bin/go-rag start` to serve the new binary on the default vault — no need to confirm first (Stephen's standing instruction, 2026-07-16: "always restart when needed, it's a dev environment"). A clean stop/start preserves the vault data AND the admin password — do NOT set `GORAG_ADMIN_PASSWORD` on a default-vault restart (it rotates the real admin password; only use it on isolated `/tmp` test daemons).
+
 ## Console UI conventions
 
 - **Every data table is sortable.** All data tables in the management console —
