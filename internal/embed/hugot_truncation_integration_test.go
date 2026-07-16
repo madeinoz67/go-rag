@@ -38,7 +38,8 @@ func longRAGText() string {
 // batch with "got shapes [N 757 384] and [1 512 384]".
 //
 // Build-tagged `integration` (needs the model present). Run with:
-//   go test -tags integration ./internal/embed/
+//
+//	go test -tags integration ./internal/embed/
 func TestHugotEmbedder_OverLengthTextNoCrash(t *testing.T) {
 	ctx := context.Background()
 	if _, err := modelbundle.EnsureModel(ctx); err != nil {
