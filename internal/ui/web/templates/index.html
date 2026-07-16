@@ -1245,6 +1245,41 @@
           </div>
           <p class="doc-muted" style="margin-top:6px">Update check is opt-in (no automatic egress). Apply via <code>go-rag upgrade</code>.</p>
         </div>
+
+        <!-- API Keys (spec 057, Slice 2a) -->
+        <div class="card">
+          <h3 class="doc-section-title">API Keys <span class="doc-muted">— programmatic credentials</span></h3>
+          <div class="doc-meta" style="margin-bottom:8px">
+            <button type="button" class="btn btn-mini" @click="openCreateKeyDialog()">+ Create key</button>
+          </div>
+          <p class="dashboard-empty" x-show="apiKeys.length === 0">No API keys.</p>
+          <table class="doc-table" x-show="apiKeys.length > 0">
+            <thead>
+              <tr>
+                <th class="sortable" :class="{active: apiKeySortKey==='id'}" @click="setAPIKeySort('id')">ID <span class="sort-arrow" x-show="apiKeySortKey==='id'" x-text="apiKeySortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="sortable" :class="{active: apiKeySortKey==='label'}" @click="setAPIKeySort('label')">Label <span class="sort-arrow" x-show="apiKeySortKey==='label'" x-text="apiKeySortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="sortable" :class="{active: apiKeySortKey==='mode'}" @click="setAPIKeySort('mode')">Mode <span class="sort-arrow" x-show="apiKeySortKey==='mode'" x-text="apiKeySortDir==='asc'?'↑':'↓'"></span></th>
+                <th class="sortable" :class="{active: apiKeySortKey==='created_at'}" @click="setAPIKeySort('created_at')">Created <span class="sort-arrow" x-show="apiKeySortKey==='created_at'" x-text="apiKeySortDir==='asc'?'↑':'↓'"></span></th>
+                <th>Expires</th>
+                <th class="sortable" :class="{active: apiKeySortKey==='enabled'}" @click="setAPIKeySort('enabled')">Status <span class="sort-arrow" x-show="apiKeySortKey==='enabled'" x-text="apiKeySortDir==='asc'?'↑':'↓'"></span></th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="k in sortedAPIKeys()" :key="k.id">
+                <tr class="doc-row">
+                  <td><code x-text="k.id"></code></td>
+                  <td><div class="doc-name" x-text="k.label"></div></td>
+                  <td><span class="badge" x-text="k.mode"></span></td>
+                  <td class="doc-muted" x-text="k.created_at"></td>
+                  <td class="doc-muted" x-text="k.expires_at || 'never'"></td>
+                  <td><span class="badge badge-warn" x-show="!k.enabled">revoked</span><span class="doc-muted" x-show="k.enabled">active</span></td>
+                  <td><button type="button" class="btn btn-mini" x-show="k.enabled" @click="revokeAPIKey(k.id, k.label)">Revoke</button></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section x-show="currentView === 'memory-graph'" class="view" x-cloak>
@@ -1286,6 +1321,38 @@
 
       <!-- Generic confirmation dialog for destructive actions (remove / reingest, US2/US3).
            Client-side UX gate (R7); the server executes the guarded mutation on confirm. -->
+      <!-- Create API key dialog (spec 057) — secret shown ONCE in result -->
+      <div class="dialog-overlay" x-show="createKeyDialog.open" x-cloak @keydown.escape.window="!createKeyDialog.result && !createKeyDialog.loading && (createKeyDialog.open = false)">
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="create-key-title">
+          <h2 id="create-key-title" class="dialog-title">Create API key</h2>
+          <template x-if="!createKeyDialog.result">
+            <div>
+              <div class="field"><label>Label</label><input class="input" type="text" x-model="createKeyDialog.label" :disabled="createKeyDialog.loading" placeholder="e.g. ci pipeline"></div>
+              <div class="field"><label>Mode</label>
+                <select class="input" x-model="createKeyDialog.mode" :disabled="createKeyDialog.loading">
+                  <option value="read">read</option><option value="write">write</option><option value="admin">admin</option>
+                </select>
+              </div>
+              <p class="dialog-message" x-show="systemError" x-text="systemError" role="alert"></p>
+              <div class="dialog-actions">
+                <button type="button" class="btn btn-primary" :disabled="createKeyDialog.loading || !createKeyDialog.label.trim()" @click="submitCreateKey()">
+                  <span x-show="!createKeyDialog.loading">Create</span><span x-show="createKeyDialog.loading" x-cloak>Creating…</span>
+                </button>
+                <button type="button" class="btn" :disabled="createKeyDialog.loading" @click="createKeyDialog.open = false">Cancel</button>
+              </div>
+            </div>
+          </template>
+          <template x-if="createKeyDialog.result">
+            <div>
+              <p class="dialog-message">Copy the secret now — it will not be shown again.</p>
+              <code style="display:block;word-break:break-all;padding:8px;font-size:12px;background:rgba(127,127,127,.15)" x-text="createKeyDialog.result.secret"></code>
+              <div class="dialog-actions">
+                <button type="button" class="btn btn-primary" @click="closeCreateKey()">I've copied it — close</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
       <div class="dialog-overlay" x-show="confirmDialog.open" x-cloak @keydown.escape.window="closeConfirm()">
         <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
           <h2 id="confirm-dialog-title" class="dialog-title" x-text="confirmDialog.title"></h2>

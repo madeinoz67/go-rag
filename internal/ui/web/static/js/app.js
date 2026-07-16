@@ -278,6 +278,7 @@
         if (view === 'settings') {
           this.loadSettings();
           this.loadSystem();
+          this.loadAPIKeys();
         }
       },
 
@@ -490,7 +491,13 @@
           } else {
             var id = cd.targetId;
             if (!id) { this.confirmDialog.open = false; return; }
-            if (cd.action === 'remove') {
+            if (cd.action === 'apikey-revoke') {
+              var rk = await this.api('/api/settings/auth/api-keys/' + encodeURIComponent(id), { method: 'DELETE' });
+              if (!rk || rk.status === 401) return;
+              if (rk.status === 404) { this.error = 'Key not found (already revoked?).'; }
+              else if (!rk.ok && rk.status !== 204) { this.error = 'Revoke failed (HTTP ' + rk.status + ').'; }
+              this.loadAPIKeys();
+            } else if (cd.action === 'remove') {
               var del = await this.api('/api/documents/' + encodeURIComponent(id), { method: 'DELETE' });
               if (!del || del.status === 401) return;
               if (del.status === 404) { this.error = 'Document not found (already removed?).'; }
@@ -1005,6 +1012,10 @@
       systemError: '',
       updateCheck: null,     // updateCheckDTO (POST /api/settings/updates/check)
       updateChecking: false,
+      // === Settings API Keys (spec 057, Slice 2a) ===
+      apiKeys: [],
+      apiKeySortKey: 'created_at', apiKeySortDir: 'desc',
+      createKeyDialog: { open: false, label: '', mode: 'read', loading: false, result: null },
 
       /** GET /api/settings → settingsDTO. Read-only projection of the running
        *  daemon's effective configuration (retrieval / embeddings / cache /
@@ -1052,6 +1063,63 @@
         } finally {
           this.updateChecking = false;
         }
+      },
+
+      // === Settings API Keys (spec 057, Slice 2a) ============================
+      /** GET /api/settings/auth/api-keys → apiKeyView[] (never a secret). */
+      loadAPIKeys: async function () {
+        try {
+          var res = await this.api('/api/settings/auth/api-keys');
+          if (!res || res.status === 401) return;
+          if (!res.ok) { this.systemError = 'Failed to load API keys (HTTP ' + res.status + ').'; return; }
+          this.apiKeys = await res.json();
+        } catch (_e) { this.systemError = 'Network error loading API keys.'; }
+      },
+
+      openCreateKeyDialog: function () {
+        this.createKeyDialog = { open: true, label: '', mode: 'read', loading: false, result: null };
+        this.systemError = '';
+      },
+
+      /** POST create — the secret is shown ONCE in result; never stored elsewhere. */
+      submitCreateKey: async function () {
+        var d = this.createKeyDialog;
+        if (d.loading) return;
+        d.loading = true; this.systemError = '';
+        try {
+          var res = await this.api('/api/settings/auth/api-keys', { method: 'POST', body: JSON.stringify({ label: (d.label || '').trim(), mode: d.mode }) });
+          if (!res || res.status === 401) return;
+          if (!res.ok) { var e = await res.json().catch(function () { return {}; }); this.systemError = e.error || ('Create failed (HTTP ' + res.status + ').'); return; }
+          d.result = await res.json();
+        } catch (_e) { this.systemError = 'Network error creating key.'; }
+        finally { d.loading = false; }
+      },
+
+      /** Dismiss the secret-once display + refresh the list. */
+      closeCreateKey: function () {
+        this.createKeyDialog.open = false;
+        this.createKeyDialog.result = null;
+        this.loadAPIKeys();
+      },
+
+      setAPIKeySort: function (key) {
+        if (this.apiKeySortKey === key) { this.apiKeySortDir = this.apiKeySortDir === 'asc' ? 'desc' : 'asc'; }
+        else { this.apiKeySortKey = key; this.apiKeySortDir = (key === 'created_at') ? 'desc' : 'asc'; }
+      },
+      sortedAPIKeys: function () {
+        var key = this.apiKeySortKey, dir = this.apiKeySortDir === 'asc' ? 1 : -1;
+        return (this.apiKeys || []).slice().sort(function (a, b) {
+          var va = (key === 'enabled') ? (a.enabled ? 1 : 0) : a[key];
+          var vb = (key === 'enabled') ? (b.enabled ? 1 : 0) : b[key];
+          if (va < vb) return -dir;
+          if (va > vb) return dir;
+          return 0;
+        });
+      },
+
+      /** Open the destructive-confirm for revoking a key (doConfirm dispatches). */
+      revokeAPIKey: function (id, label) {
+        this.confirmDialog = { open: true, title: 'Revoke API key?', message: 'Key "' + label + '" (' + id + ') will stop working immediately. This cannot be undone.', confirmLabel: 'Revoke', danger: true, busy: false, action: 'apikey-revoke', targetId: id, targetLabel: label };
       },
 
       /** Load both panels (called on view entry + Refresh). */
