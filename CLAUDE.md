@@ -119,7 +119,7 @@ spec 045 auth) — see PRD §2.2 N7. Don't build the rest without revisiting the
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/056-ui-settings-system-transports/plan.md
+at specs/057-ui-settings-api-keys/plan.md
 <!-- SPECKIT END -->
 
 <!-- gortex:communities:start -->
