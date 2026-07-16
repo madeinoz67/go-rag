@@ -38,16 +38,27 @@ var webFS embed.FS
 // rest.Server: an engine, the legacy daemon token, and a spec 045 auth store
 // built from eng.DB().
 type Server struct {
-	eng   *engine.Engine
-	token string
-	store *auth.Store
+	eng       *engine.Engine
+	token     string
+	store     *auth.Store
+	version   string    // spec 056: binary version (main.version), projected by /api/settings/system
+	startedAt time.Time // spec 056: serve-process start, for uptime
 }
 
 // New returns a UI adapter backed by eng. The auth store is built from eng.DB()
 // when present so the spec 045 /login flow can verify the admin password and
 // mint gorags_ sessions. Empty token = auth disabled (local/test only).
+// New returns a UI adapter backed by eng with an unknown version (test default).
+// The daemon serve path uses NewWithVersion to supply the binary version for the
+// spec 056 System & Transports panel.
 func New(eng *engine.Engine, token string) *Server {
-	s := &Server{eng: eng, token: token}
+	return NewWithVersion(eng, token, "unknown")
+}
+
+// NewWithVersion is New with the binary version supplied (spec 056). startedAt
+// captures serve-process start so /api/settings/system can report uptime.
+func NewWithVersion(eng *engine.Engine, token, version string) *Server {
+	s := &Server{eng: eng, token: token, version: version, startedAt: time.Now()}
 	if eng != nil {
 		if db := eng.DB(); db != nil {
 			s.store = auth.NewStore(db)
@@ -85,6 +96,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/observability/metrics", s.guard(s.handleObservabilityMetrics))           // spec 054 US1
 	mux.HandleFunc("GET /api/observability/audit", s.guard(s.handleObservabilityAudit))               // spec 054 US2
 	mux.HandleFunc("GET /api/settings", s.guard(s.handleSettings))                                    // spec 055
+	mux.HandleFunc("GET /api/settings/system", s.guard(s.handleSystem))                               // spec 056 US1/US2
+	mux.HandleFunc("POST /api/settings/updates/check", s.guard(s.handleUpdateCheck))                  // spec 056 US3
 	mux.HandleFunc("GET /api/quarantine/list", s.guard(s.handleQuarantineList))                       // spec 053 US1
 	mux.HandleFunc("GET /api/quarantine/{id}/detail", s.guard(s.handleQuarantineDetail))              // spec 053 US2
 	mux.HandleFunc("POST /api/quarantine/{id}/release", s.guard(s.handleQuarantineRelease))           // spec 053 US3

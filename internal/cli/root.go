@@ -72,7 +72,7 @@ func Execute(version string) error {
 		newDocumentsCmd(), // spec 039
 		newStartCmd(),
 		newStopCmd(),
-		newServeCmd(),
+		newServeCmd(version),
 		newHealthCmd(),
 		newReprocessCmd(),
 		newDeleteCmd(), // spec 050

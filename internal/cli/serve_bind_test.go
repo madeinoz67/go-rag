@@ -11,7 +11,7 @@ import (
 // SC-002). The gate runs ahead of openDB, so this test binds nothing and opens
 // no Pebble store.
 func TestServeBootGate_RejectsExternalWithoutOptIn(t *testing.T) {
-	cmd := newServeCmd()
+	cmd := newServeCmd("test")
 	cmd.SilenceUsage = true
 	cmd.SetArgs([]string{"--mcp-addr", "0.0.0.0:17878", "--grpc-addr", "192.168.1.9:17880"})
 	err := cmd.Execute()
@@ -29,7 +29,7 @@ func TestServeBootGate_RejectsExternalWithoutOptIn(t *testing.T) {
 // defaults off — so the contract is discoverable in --help and the default is
 // fail-closed (FR-004/007).
 func TestServeBootGate_OptInFlagRegistered(t *testing.T) {
-	cmd := newServeCmd()
+	cmd := newServeCmd("test")
 	b, err := cmd.Flags().GetBool("bind-external")
 	if err != nil {
 		t.Fatalf("bind-external flag not registered on serve: %v", err)

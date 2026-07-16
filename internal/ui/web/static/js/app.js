@@ -277,6 +277,7 @@
         }
         if (view === 'settings') {
           this.loadSettings();
+          this.loadSystem();
         }
       },
 
@@ -999,6 +1000,11 @@
       settings: null,        // settingsDTO (GET /api/settings)
       settingsLoading: false,
       settingsError: '',
+      // === Settings System & Transports (spec 056, Slice 1) ===
+      system: null,          // systemStatusDTO (GET /api/settings/system)
+      systemError: '',
+      updateCheck: null,     // updateCheckDTO (POST /api/settings/updates/check)
+      updateChecking: false,
 
       /** GET /api/settings → settingsDTO. Read-only projection of the running
        *  daemon's effective configuration (retrieval / embeddings / cache /
@@ -1015,6 +1021,36 @@
           this.settingsError = 'Network error loading settings.';
         } finally {
           this.settingsLoading = false;
+        }
+      },
+
+      /** GET /api/settings/system → systemStatusDTO (spec 056). Read-only; no egress. */
+      loadSystem: async function () {
+        this.systemError = '';
+        try {
+          var res = await this.api('/api/settings/system');
+          if (!res || res.status === 401) return;
+          if (!res.ok) { this.systemError = 'Failed to load system info (HTTP ' + res.status + ').'; return; }
+          this.system = await res.json();
+        } catch (_e) {
+          this.systemError = 'Network error loading system info.';
+        }
+      },
+
+      /** POST /api/settings/updates/check — operator-initiated (spec 056 US3).
+       *  The ONLY egress from the Settings view; never auto-fires (SC-003). */
+      checkUpdates: async function () {
+        this.systemError = '';
+        this.updateChecking = true;
+        try {
+          var res = await this.api('/api/settings/updates/check', { method: 'POST' });
+          if (!res || res.status === 401) return;
+          if (!res.ok) { this.systemError = 'Update check failed (HTTP ' + res.status + ').'; return; }
+          this.updateCheck = await res.json();
+        } catch (_e) {
+          this.systemError = 'Network error during update check.';
+        } finally {
+          this.updateChecking = false;
         }
       },
 

@@ -37,7 +37,7 @@ const shutdownHardDeadline = 12 * time.Second
 // transports — MCP, REST, gRPC — in one process, each on its own loopback port.
 // All three are adapters over a single *engine.Engine, so they return identical
 // results (cross-transport parity, spec 003 FR-002/003).
-func newServeCmd() *cobra.Command {
+func newServeCmd(version string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "serve",
 		Short:  "Run the go-rag daemon (internal; used by 'start')",
@@ -179,7 +179,7 @@ func newServeCmd() *cobra.Command {
 			// auth-gated by the spec 045 Bearer-session system (Bearer only).
 			var uiSrv *http.Server
 			if uiAddr != "" {
-				uiSrv = &http.Server{Addr: uiAddr, Handler: ui.New(eng, token).Handler()}
+				uiSrv = &http.Server{Addr: uiAddr, Handler: ui.NewWithVersion(eng, token, version).Handler()}
 			}
 
 			// stopAll drains every started listener. Idempotent via sync.Once so the

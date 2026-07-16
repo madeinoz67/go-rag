@@ -1212,6 +1212,39 @@
             <span x-show="settings.redaction.custom_patterns_path"><b>Custom patterns:</b> <span x-text="settings.redaction.custom_patterns_path"></span></span>
           </div>
         </div>
+
+        <!-- System identity (spec 056 US1) -->
+        <div class="card" x-show="system" x-cloak>
+          <h3 class="doc-section-title">System <span class="doc-muted">— identity</span></h3>
+          <div class="doc-meta">
+            <span><b>Version:</b> <span x-text="system.version"></span></span>
+            <span><b>PID:</b> <span x-text="system.pid"></span></span>
+            <span><b>Uptime:</b> <span x-text="system.uptime_seconds + 's'"></span></span>
+            <span><b>Schema:</b> <span x-text="system.schema.version"></span> <span class="doc-muted">(unified store)</span></span>
+          </div>
+        </div>
+
+        <!-- Transports (spec 056 US2) -->
+        <div class="card" x-show="system" x-cloak>
+          <h3 class="doc-section-title">Transports <span class="doc-muted">— bind posture</span></h3>
+          <div class="doc-meta">
+            <template x-for="t in system.transports" :key="t.kind">
+              <span><b x-text="(t.kind || '').toUpperCase() + ':'"></b> <span x-text="t.state === 'disabled' ? 'disabled' : (t.address + (t.loopback ? '' : '  (EXTERNAL)'))"></span></span>
+            </template>
+          </div>
+          <p class="badge badge-warn" x-show="system.bind_warning" x-text="system.bind_warning" style="margin-top:6px"></p>
+        </div>
+
+        <!-- Updates (spec 056 US3 — operator-initiated, opt-in egress only) -->
+        <div class="card" x-show="system" x-cloak>
+          <h3 class="doc-section-title">Updates</h3>
+          <div class="doc-meta">
+            <span><b>Current:</b> <span x-text="system.version"></span></span>
+            <span x-show="updateCheck"><b>Latest:</b> <span x-text="updateCheck.latest"></span> — <span x-text="updateCheck.newer_available ? 'update available' : 'up to date'"></span></span>
+            <button type="button" class="btn btn-mini" :disabled="updateChecking" @click="checkUpdates()" x-text="updateChecking ? 'Checking…' : 'Check for updates'"></button>
+          </div>
+          <p class="doc-muted" style="margin-top:6px">Update check is opt-in (no automatic egress). Apply via <code>go-rag upgrade</code>.</p>
+        </div>
       </section>
 
       <section x-show="currentView === 'memory-graph'" class="view" x-cloak>
