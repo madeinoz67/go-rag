@@ -88,8 +88,27 @@ func TestAPIKeys_Create(t *testing.T) {
 	}
 }
 
-// TestAPIKeys_Revoke — US3. Revoked bearer fails ValidateAPIKey immediately;
-// unknown id ⇒ 404; the list shows the key disabled (audit trail).
+// authed fires an authenticated (or unauthenticated when tok="") bodyless request
+// and returns the HTTP status code.
+func authed(t *testing.T, srv *httptest.Server, tok, method, path string) int {
+	t.Helper()
+	req, err := http.NewRequest(method, srv.URL+path, nil)
+	if err != nil {
+		t.Fatalf("new req: %v", err)
+	}
+	if tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, path, err)
+	}
+	resp.Body.Close()
+	return resp.StatusCode
+}
+
+// TestAPIKeys_Revoke — US3. POST /revoke disables the key (enabled=false, record
+// kept for audit); the revoked bearer then fails ValidateAPIKey; unknown ⇒ 404.
 func TestAPIKeys_Revoke(t *testing.T) {
 	srv, tok, eng := settingsServer(t)
 	out, _ := createAPIKey(t, srv, tok, "ci", "write")
@@ -97,51 +116,47 @@ func TestAPIKeys_Revoke(t *testing.T) {
 	if _, err := auth.ValidateAPIKey(store, out.Secret); err != nil {
 		t.Fatalf("created key must validate before revoke: %v", err)
 	}
-	// Revoke.
-	req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/settings/auth/api-keys/"+out.ID, nil)
-	req.Header.Set("Authorization", "Bearer "+tok)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("DELETE: %v", err)
+	if code := authed(t, srv, tok, http.MethodPost, "/api/settings/auth/api-keys/"+out.ID+"/revoke"); code != http.StatusNoContent {
+		t.Fatalf("revoke: want 204, got %d", code)
 	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusNoContent {
-		t.Fatalf("revoke: want 204, got %d", resp.StatusCode)
-	}
-	// The revoked bearer now fails auth.
 	if _, err := auth.ValidateAPIKey(store, out.Secret); err == nil {
 		t.Error("revoked key must fail ValidateAPIKey")
 	}
-	// The list still shows it, disabled.
 	list := getAPIKeys(t, srv, tok)
 	if len(list) != 1 || list[0].Enabled {
-		t.Errorf("list should show 1 disabled key, got %+v", list)
+		t.Errorf("list should show 1 disabled key (audit trail), got %+v", list)
 	}
-	// Unknown id ⇒ 404.
-	req2, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/settings/auth/api-keys/gorag_nope", nil)
-	req2.Header.Set("Authorization", "Bearer "+tok)
-	resp2, _ := http.DefaultClient.Do(req2)
-	resp2.Body.Close()
-	if resp2.StatusCode != http.StatusNotFound {
-		t.Errorf("unknown id: want 404, got %d", resp2.StatusCode)
+	if code := authed(t, srv, tok, http.MethodPost, "/api/settings/auth/api-keys/gorag_nope/revoke"); code != http.StatusNotFound {
+		t.Errorf("unknown revoke: want 404, got %d", code)
+	}
+}
+
+// TestAPIKeys_Delete — DELETE permanently removes the key (vs revoke). The list no
+// longer contains it; unknown ⇒ 404.
+func TestAPIKeys_Delete(t *testing.T) {
+	srv, tok, _ := settingsServer(t)
+	out, _ := createAPIKey(t, srv, tok, "tmp", "read")
+	if code := authed(t, srv, tok, http.MethodDelete, "/api/settings/auth/api-keys/"+out.ID); code != http.StatusNoContent {
+		t.Fatalf("delete: want 204, got %d", code)
+	}
+	if len(getAPIKeys(t, srv, tok)) != 0 {
+		t.Error("list should be empty after permanent delete")
+	}
+	if code := authed(t, srv, tok, http.MethodDelete, "/api/settings/auth/api-keys/gorag_nope"); code != http.StatusNotFound {
+		t.Errorf("unknown delete: want 404, got %d", code)
 	}
 }
 
 // TestAPIKeys_401Unguarded — every route is admin-gated (no bearer ⇒ 401).
 func TestAPIKeys_401Unguarded(t *testing.T) {
 	srv, _, _ := settingsServer(t)
-	resp := bearerGet(t, srv.URL+"/api/settings/auth/api-keys", "")
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("GET no bearer: want 401, got %d", resp.StatusCode)
-	}
-	req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/settings/auth/api-keys/gorag_x", nil)
-	resp2, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("DELETE: %v", err)
-	}
-	resp2.Body.Close()
-	if resp2.StatusCode != http.StatusUnauthorized {
-		t.Errorf("DELETE no bearer: want 401, got %d", resp2.StatusCode)
+	for _, tc := range []struct{ m, p string }{
+		{http.MethodGet, "/api/settings/auth/api-keys"},
+		{http.MethodPost, "/api/settings/auth/api-keys/gorag_x/revoke"},
+		{http.MethodDelete, "/api/settings/auth/api-keys/gorag_x"},
+	} {
+		if code := authed(t, srv, "", tc.m, tc.p); code != http.StatusUnauthorized {
+			t.Errorf("%s %s no bearer: want 401, got %d", tc.m, tc.p, code)
+		}
 	}
 }

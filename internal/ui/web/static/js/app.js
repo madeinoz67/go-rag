@@ -492,10 +492,16 @@
             var id = cd.targetId;
             if (!id) { this.confirmDialog.open = false; return; }
             if (cd.action === 'apikey-revoke') {
-              var rk = await this.api('/api/settings/auth/api-keys/' + encodeURIComponent(id), { method: 'DELETE' });
+              var rk = await this.api('/api/settings/auth/api-keys/' + encodeURIComponent(id) + '/revoke', { method: 'POST' });
               if (!rk || rk.status === 401) return;
-              if (rk.status === 404) { this.error = 'Key not found (already revoked?).'; }
+              if (rk.status === 404) { this.error = 'Key not found.'; }
               else if (!rk.ok && rk.status !== 204) { this.error = 'Revoke failed (HTTP ' + rk.status + ').'; }
+              this.loadAPIKeys();
+            } else if (cd.action === 'apikey-delete') {
+              var dk = await this.api('/api/settings/auth/api-keys/' + encodeURIComponent(id), { method: 'DELETE' });
+              if (!dk || dk.status === 401) return;
+              if (dk.status === 404) { this.error = 'Key not found.'; }
+              else if (!dk.ok && dk.status !== 204) { this.error = 'Delete failed (HTTP ' + dk.status + ').'; }
               this.loadAPIKeys();
             } else if (cd.action === 'remove') {
               var del = await this.api('/api/documents/' + encodeURIComponent(id), { method: 'DELETE' });
@@ -1016,6 +1022,7 @@
       apiKeys: [],
       apiKeySortKey: 'created_at', apiKeySortDir: 'desc',
       createKeyDialog: { open: false, label: '', mode: 'read', loading: false, result: null },
+      copied: false, // clipboard-copy feedback flag (copyToClipboard)
 
       /** GET /api/settings → settingsDTO. Read-only projection of the running
        *  daemon's effective configuration (retrieval / embeddings / cache /
@@ -1099,7 +1106,29 @@
       closeCreateKey: function () {
         this.createKeyDialog.open = false;
         this.createKeyDialog.result = null;
+        this.copied = false;
         this.loadAPIKeys();
+      },
+
+      /** Copy text to the clipboard (navigator.clipboard with an execCommand
+       *  fallback for non-secure/old contexts) + flash `copied` ~1.5s so a
+       *  button can show "Copied!". Reusable — also used for the API-key secret. */
+      copyToClipboard: function (text) {
+        var self = this;
+        var flash = function () { self.copied = true; setTimeout(function () { self.copied = false; }, 1500); };
+        var fallback = function () {
+          var ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); } catch (_e) {}
+          document.body.removeChild(ta);
+          flash();
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(flash).catch(fallback);
+          return;
+        }
+        fallback();
       },
 
       setAPIKeySort: function (key) {
@@ -1120,6 +1149,11 @@
       /** Open the destructive-confirm for revoking a key (doConfirm dispatches). */
       revokeAPIKey: function (id, label) {
         this.confirmDialog = { open: true, title: 'Revoke API key?', message: 'Key "' + label + '" (' + id + ') will stop working immediately. This cannot be undone.', confirmLabel: 'Revoke', danger: true, busy: false, action: 'apikey-revoke', targetId: id, targetLabel: label };
+      },
+
+      /** Open the destructive-confirm for PERMANENTLY deleting a key (vs revoke). */
+      deleteAPIKey: function (id, label) {
+        this.confirmDialog = { open: true, title: 'Permanently delete API key?', message: 'Key "' + label + '" (' + id + ') will be permanently removed. This cannot be undone.', confirmLabel: 'Delete', danger: true, busy: false, action: 'apikey-delete', targetId: id, targetLabel: label };
       },
 
       /** Load both panels (called on view entry + Refresh). */

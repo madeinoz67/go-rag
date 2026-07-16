@@ -207,6 +207,31 @@ func RevokeAPIKey(s *Store, id string) error {
 	return s.db.SetWithPrefix(storage.PrefixAuthAPIKey, storageHash, out)
 }
 
+// DeleteAPIKey permanently removes the key whose ID (gorag_<id8>) matches — unlike
+// RevokeAPIKey (which disables it and keeps the record for audit). The record is
+// gone and there is no re-enable path. Returns ErrUnknownAPIKey if no key has the
+// id. O(n) scan (IDs are display-only, not separately indexed) — same shape as
+// RevokeAPIKey.
+func DeleteAPIKey(s *Store, id string) error {
+	var storageHash []byte
+	found := false
+	if err := s.db.PrefixScanByte(storage.PrefixAuthAPIKey, func(_, v []byte) bool {
+		var candidate APIKey
+		if json.Unmarshal(v, &candidate) == nil && candidate.ID == id {
+			storageHash = append([]byte(nil), candidate.StorageHash...)
+			found = true
+			return false
+		}
+		return true
+	}); err != nil {
+		return err
+	}
+	if !found {
+		return ErrUnknownAPIKey
+	}
+	return s.db.DeleteWithPrefix(storage.PrefixAuthAPIKey, storageHash)
+}
+
 // validMode reports whether m is a recognized scope constant.
 func validMode(m string) bool {
 	return m == ModeRead || m == ModeWrite || m == ModeAdmin

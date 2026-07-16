@@ -88,8 +88,24 @@ func (s *Server) handleAPIKeyCreate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, createAPIKeyResponse{apiKeyView: toAPIKeyView(key), Secret: display})
 }
 
-// handleAPIKeyRevoke — DELETE /api/settings/auth/api-keys/{id}. Disables the key
-// (Enabled=false); the revoked bearer then fails ValidateAPIKey immediately.
+// handleAPIKeyDelete — DELETE /api/settings/auth/api-keys/{id}. PERMANENTLY removes
+// the key (the record is gone — unlike revoke, which disables). Spec 057.
+func (s *Server) handleAPIKeyDelete(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := auth.DeleteAPIKey(s.store, id); err != nil {
+		if err == auth.ErrUnknownAPIKey {
+			writeError(w, http.StatusNotFound, "unknown api key")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleAPIKeyRevoke — POST /api/settings/auth/api-keys/{id}/revoke. Disables the
+// key (Enabled=false, record kept for audit); the revoked bearer then fails
+// ValidateAPIKey immediately. Spec 057.
 func (s *Server) handleAPIKeyRevoke(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := auth.RevokeAPIKey(s.store, id); err != nil {

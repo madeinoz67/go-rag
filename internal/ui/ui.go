@@ -100,7 +100,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/settings/updates/check", s.guard(s.handleUpdateCheck))                  // spec 056 US3
 	mux.HandleFunc("GET /api/settings/auth/api-keys", s.guard(s.handleAPIKeysList))                   // spec 057 US1
 	mux.HandleFunc("POST /api/settings/auth/api-keys", s.guard(s.handleAPIKeyCreate))                 // spec 057 US2
-	mux.HandleFunc("DELETE /api/settings/auth/api-keys/{id}", s.guard(s.handleAPIKeyRevoke))          // spec 057 US3
+	mux.HandleFunc("DELETE /api/settings/auth/api-keys/{id}", s.guard(s.handleAPIKeyDelete))          // spec 057 (permanent)
+	mux.HandleFunc("POST /api/settings/auth/api-keys/{id}/revoke", s.guard(s.handleAPIKeyRevoke))     // spec 057 (disable)
 	mux.HandleFunc("GET /api/quarantine/list", s.guard(s.handleQuarantineList))                       // spec 053 US1
 	mux.HandleFunc("GET /api/quarantine/{id}/detail", s.guard(s.handleQuarantineDetail))              // spec 053 US2
 	mux.HandleFunc("POST /api/quarantine/{id}/release", s.guard(s.handleQuarantineRelease))           // spec 053 US3

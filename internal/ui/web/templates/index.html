@@ -1274,7 +1274,10 @@
                   <td class="doc-muted" x-text="k.created_at"></td>
                   <td class="doc-muted" x-text="k.expires_at || 'never'"></td>
                   <td><span class="badge badge-warn" x-show="!k.enabled">revoked</span><span class="doc-muted" x-show="k.enabled">active</span></td>
-                  <td><button type="button" class="btn btn-mini" x-show="k.enabled" @click="revokeAPIKey(k.id, k.label)">Revoke</button></td>
+                  <td>
+                    <button type="button" class="btn btn-mini" x-show="k.enabled" @click="revokeAPIKey(k.id, k.label)">Revoke</button>
+                    <button type="button" class="btn btn-mini" @click="deleteAPIKey(k.id, k.label)">Delete</button>
+                  </td>
                 </tr>
               </template>
             </tbody>
@@ -1345,6 +1348,11 @@
           <template x-if="createKeyDialog.result">
             <div>
               <p class="dialog-message">Copy the secret now — it will not be shown again.</p>
+              <div class="doc-meta" style="margin:6px 0">
+                <button type="button" class="btn btn-mini" @click="copyToClipboard(createKeyDialog.result.secret)">
+                  <span x-show="!copied">Copy secret</span><span x-show="copied" x-cloak>Copied!</span>
+                </button>
+              </div>
               <code style="display:block;word-break:break-all;padding:8px;font-size:12px;background:rgba(127,127,127,.15)" x-text="createKeyDialog.result.secret"></code>
               <div class="dialog-actions">
                 <button type="button" class="btn btn-primary" @click="closeCreateKey()">I've copied it — close</button>
