@@ -21,10 +21,10 @@
   </script>
 
   <!-- CSS layers in order: tokens → reset → primitives → component catalog -->
-  <link rel="stylesheet" href="/static/css/theme.css">
-  <link rel="stylesheet" href="/static/css/base.css">
-  <link rel="stylesheet" href="/static/css/utilities.css">
-  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/theme.css?v=__ASSET_VERSION__">
+  <link rel="stylesheet" href="/static/css/base.css?v=__ASSET_VERSION__">
+  <link rel="stylesheet" href="/static/css/utilities.css?v=__ASSET_VERSION__">
+  <link rel="stylesheet" href="/static/css/components.css?v=__ASSET_VERSION__">
 </head>
 
 <body x-data="goragApp()" x-init="mount()" x-cloak>
@@ -1412,7 +1412,7 @@
   <!-- Scripts: app.js defines goragApp() BEFORE Alpine boots.
        Both defer; defer preserves document order, so app.js runs first.
        Chart.js + Cytoscape are vendored for later slices but NOT loaded here. -->
-  <script defer src="/static/js/app.js"></script>
+  <script defer src="/static/js/app.js?v=__ASSET_VERSION__"></script>
   <script defer src="/static/vendor/alpine.min.js"></script>
 </body>
 </html>

@@ -158,10 +158,16 @@ func (s *Server) handleShell(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusInternalServerError, "shell missing")
 		return
 	}
+	// Cache-bust the asset URLs with the binary version (?v=<version> — the
+	// /static file server ignores the query string) so a daemon restart with a
+	// NEW binary always makes the browser fetch fresh app.js/css. no-cache alone
+	// isn't enough (no ETag on embed.FS assets → stale SPA after a restart, an
+	// open tab never re-fetches). __ASSET_VERSION__ is the placeholder in the shell.
+	body := strings.ReplaceAll(string(b), "__ASSET_VERSION__", s.version)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(b)
+	_, _ = w.Write([]byte(body))
 }
 
 // --- spec 045 auth surface (lifted from internal/rest/auth.go, "ui" transport) ---
