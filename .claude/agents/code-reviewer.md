@@ -109,6 +109,18 @@ A change often touches more than one. Apply every set whose files appear in the 
   every data table sortable, static assets served `Cache-Control: no-cache`. The CSS is the
   executable source of truth; the guide is the reviewer's reference.
 
+- **Documentation** — applies to EVERY non-trivial change, not only the files above. A change
+  is not done until it is documented. Check: (a) new or changed behavior is reflected in
+  `PRD_RAG_Database.md` (the what-to-build authority); (b) a completed feature is reflected in
+  `ISA.md` (the done-condition / system of record); (c) every NEW exported symbol (capitalized
+  Go identifier — exported func/type/method/var/const) carries a godoc comment starting with
+  the symbol's name; (d) user-facing or operational changes are covered in `README.md` or
+  `docs/`; (e) if the change alters a key-space prefix, a console design token/class, or a
+  workflow rule, the matching live doc is updated (`docs/internals/keyspace-registry.md`,
+  `docs/internals/style-guide.md`, `CLAUDE.md`). Flag undocumented changes explicitly — name
+  the doc that should have moved. Comments that restate code are not documentation; a missing
+  doc on a public contract is.
+
 ## What to produce
 
 A review that leads with a clear verdict — **approve**, **approve with required changes**,
@@ -120,6 +132,9 @@ needs a human expert and why) — then, most-important-first:
   and the file:line), a concrete failure scenario, and what must change. Distinguish "this
   is wrong" from "this is a risk."
 - **Cross-surface obligations missed**: "you changed X but didn't update Y" (name the Y).
+- **Documentation gaps**: new/changed behavior not in the PRD; a landed feature not in `ISA.md`;
+  a new exported symbol without godoc; a user-facing change with no `README`/`docs/` update. Name
+  the doc that should have moved (and whether the gap is blocking or a cleanup).
 - **Verification you ran**: build/vet/test output, `-race` result, and the RED-sanity result
   for any bug fix — paste the meaningful lines, don't just say "passed."
 - **Cleanups / smaller notes** (non-blocking), clearly separated from the blocking findings.
