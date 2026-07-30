@@ -101,6 +101,14 @@ A change often touches more than one. Apply every set whose files appear in the 
   release/checksum change must not weaken upgrade integrity verification; a new dependency
   must be necessary, reputable, pure-Go, and `govulncheck`-clean.
 
+- **Console UI / design system** — `internal/ui/web/static/css/`, `internal/ui/web/templates/`,
+  `internal/ui/web/static/js/`. Any console UI change MUST be checked against
+  `docs/internals/style-guide.md`: no new hex value (add a token in `theme.css` first), no
+  drop shadow on a resting element, `--accent` only for active-tab/selected-vault (never a
+  button/link), one primary button per view, a new z-index only at an existing scale layer,
+  every data table sortable, static assets served `Cache-Control: no-cache`. The CSS is the
+  executable source of truth; the guide is the reviewer's reference.
+
 ## What to produce
 
 A review that leads with a clear verdict — **approve**, **approve with required changes**,

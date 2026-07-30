@@ -1,17 +1,16 @@
-# MuninnDB UI Style Guide
+# go-rag Console UI Style Guide
 
-> Formal style guide derived from the MuninnDB web UI source
-> (`scrypster/muninndb`, `web/`). Every value below is taken directly from
-> `web/static/css/{theme,base,components,app}.css` and
-> `web/templates/index.html`. Treat this document as the canonical reference
-> for any new MuninnDB surface; the CSS files remain the executable source of
-> truth — when this guide and the CSS disagree, the CSS wins.
+> Formal style guide for the go-rag management console. Every value below is
+> taken directly from `internal/ui/web/static/css/{theme,base,utilities,components}.css`,
+> `internal/ui/web/templates/index.html`, and `internal/ui/web/static/js/app.js`. Treat this
+> document as the canonical reference for any console surface; the CSS files remain the
+> executable source of truth — when this guide and the CSS disagree, the CSS wins.
 
 ---
 
 ## 1. Design principles
 
-MuninnDB is an operator console for a long-term memory database. The UI is
+go-rag is a single-operator management console for a local RAG database. The UI is
 read-mostly, dense, and dark-first. Five principles govern every decision:
 
 1. **Dark by default, light as opt-in.** The dark palette is the reference;
@@ -29,7 +28,7 @@ read-mostly, dense, and dark-first. Five principles govern every decision:
    internal card padding is 1–1.25rem. The grid is built to show many things
    at once on a 1400px max-width canvas.
 5. **Motion is feedback, not decoration.** Every transition is 100–300ms and
-   tied to a state change (hover, focus, expand, toast入场). No ambient
+   tied to a state change (hover, focus, expand, toast entry). No ambient
    animation except the SSE disconnect pulse.
 
 ---
@@ -38,12 +37,11 @@ read-mostly, dense, and dark-first. Five principles govern every decision:
 
 | Layer | Choice | Notes |
 |---|---|---|
-| CSS framework | Tailwind CSS 3.4 | `darkMode: 'class'`; used only for utilities. Component classes are hand-written in `components.css`. |
-| Build | Vite 6 | `web/vite.config.js`; output to `static/dist/app.css`. |
-| PostCSS | tailwindcss + autoprefixer | `postcss.config.js`. |
-| Interactivity | Alpine.js 3.14 | Single `muninnApp` root component on `<body>`. |
-| Charts | Chart.js 4.4 | Vendored. |
-| Graphs | Cytoscape.js 3.30 + fcose layout | Vendored; entity graph only. |
+| CSS | Hand-written, no framework | `internal/ui/web/static/css/{theme,base,utilities,components}.css`. No Tailwind, no preprocessor. |
+| Build | None | Vendored SPA — CSS and JS are served directly; no Node toolchain, no build step. |
+| Interactivity | Alpine.js 3.14 | Single `goragApp()` root component on `<body>`. Vendored (`vendor/alpine.min.js`). |
+| Charts | Chart.js 4.4 | Vendored (`vendor/chart.min.js`). |
+| Graphs | Cytoscape.js 3.30 + fcose layout | Vendored (`vendor/cytoscape.min.js`); entity graph only. |
 | Icons | Inline SVG, Lucide-style | `viewBox="0 0 24 24"`, `stroke="currentColor"`, `stroke-width="2"`. Never an icon font. |
 | Fonts | Inter (system-ui fallback) | Loaded via `font-family` stack; no web-font import in the CSS. |
 
@@ -54,7 +52,7 @@ read-mostly, dense, and dark-first. Five principles govern every decision:
 All colors are CSS custom properties defined in `theme.css`. Two complete
 palettes exist — dark (the `:root` default) and light (applied by adding the
 `light` class to `<html>` via a FOUC-prevention script that reads
-`localStorage['muninnTheme']`).
+`localStorage['goragTheme']`).
 
 ### 3.1 Dark palette (default)
 
@@ -413,9 +411,10 @@ app scale.
 
 ### 10.1 View model
 
-The entire app is one Alpine root (`muninnApp`) with a `currentView` state
-variable. Eight views: `dashboard`, `memories`, `graph`, `observability`,
-`session`, `settings`, `cluster`, `logs`. Switching is done with
+The entire app is one Alpine root (`goragApp()`) with a `currentView` state
+variable. Nine views: `dashboard`, `documents`, `query`, `operations`,
+`quarantine`, `vaults`, `observability`, `settings`, `memory-graph` (the last
+is a placeholder). Switching is done with
 `x-show="currentView === '<name>'"` — there is no router, no URL per view.
 
 ### 10.2 Page anatomy
@@ -430,16 +429,18 @@ Every view follows the same skeleton:
 ### 10.3 Grid
 
 `.app-main` is capped at `max-width: 1400px`. Card grids are CSS grid (via
-Tailwind utilities in the template) and collapse to one column at the
+utility classes in `utilities.css`) and collapse to one column at the
 single breakpoint `@media (max-width: 768px)`. There is no tablet-specific
 layout — the UI is desktop-first by declaration.
 
 ### 10.4 Authentication gate
 
-The `<body>` carries `x-show="isAuthenticated" x-cloak`. Until login
-completes, the app shell is hidden; the login form is a separate
-`x-show="!isAuthenticated"` block. `[x-cloak]` is defined as
-`display: none !important` in `base.css` — the canonical FOUC guard.
+Authentication is gated by an `isAuthed()` method on `goragApp()`: a
+login-form block (`x-show="!isAuthed()"`) is shown until a `gorags_` Bearer
+token is held in memory, after which the app shell renders. The token is sent
+`Authorization: Bearer` on every fetch; a 401 returns the UI to login. `<body>`
+carries `x-cloak`; `[x-cloak]` is `display: none !important` in `base.css` —
+the canonical FOUC guard. No cookies are read or written client-side.
 
 ---
 
@@ -463,7 +464,7 @@ completes, the app shell is hidden; the login form is a separate
 
 ## 12. Theme switching
 
-- Theme is stored in `localStorage['muninnTheme']` (`'light'` or absent).
+- Theme is stored in `localStorage['goragTheme']` (`'light'` or absent).
 - A blocking inline script in `<head>` reads the value and adds the `light`
   class to `documentElement` **before paint** — this is mandatory to avoid
   a dark-to-light flash.
@@ -477,9 +478,10 @@ completes, the app shell is hidden; the login form is a separate
 ## 13. CSS architecture
 
 ```
-app.css                  ← entry; @imports the three layers below, then @tailwind
+index.html               ← loads the four stylesheets below via <link>, in this order
 ├── theme.css            ← :root and html.light custom properties only
 ├── base.css             ← element resets, body font, scrollbar, [x-cloak]
+├── utilities.css        ← layout/utility helpers (grid columns, flex shortcuts)
 └── components.css       ← every reusable class (.card-polished, .btn-*, .badge-*, …)
 ```
 
@@ -491,12 +493,11 @@ Rules:
   (`.seg-btn:hover:not(.seg-active)`) and responsive grid collapse
   (`grid-template-columns: 1fr !important`). Both are documented in
   `components.css`.
-- **Tailwind utilities are allowed in markup** for one-off layout tweaks
-  (e.g. grid column counts), but every reusable pattern must be promoted to
-  a named class in `components.css`.
+- **`utilities.css` holds one-off layout helpers** (grid column counts, flex
+  shortcuts); every reusable pattern must live as a named class in
+  `components.css`.
 - **CSS custom properties are the only variable mechanism.** No Sass, no
-  CSS-in-JS, no Tailwind theme extension (`theme.extend` is empty in
-  `tailwind.config.js`).
+  CSS-in-JS, no build step — the CSS is hand-written and served directly.
 
 ---
 
@@ -525,14 +526,14 @@ Rules:
 
 ## 15. Change control
 
-This guide is regenerated by hand from the MuninnDB source. When the CSS in
-`web/static/css/` changes in a way that affects this document:
+This guide is maintained by hand against the go-rag console source. When the
+CSS in `internal/ui/web/static/css/` changes in a way that affects this document:
 
-1. Update the affected section here in the same PR that changes the CSS.
+1. Update the affected section here in the same change that changes the CSS.
 2. Bump the "Last reviewed against" line below.
 3. If a new token, class, or z-index layer is added, add a row to the
    relevant table — do not let the tables drift.
 
-**Last reviewed against:** `web/static/css/{theme,base,components,app}.css`
-and `web/templates/index.html` at repository `master` (commit
-`b9c61193ca191f3bfbbbb90decd6def17f12c775`, 2025-Q1 tree).
+**Last reviewed against:** `internal/ui/web/static/css/{theme,base,utilities,components}.css`,
+`internal/ui/web/templates/index.html`, and `internal/ui/web/static/js/app.js` at the
+spec-059 standardization pass (2026-07).
