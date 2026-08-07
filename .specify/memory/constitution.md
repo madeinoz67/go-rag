@@ -22,7 +22,7 @@ Source: spec 034 (CLI self-upgrade + schema migration), shipped 2026-06-29.
 === Sync Impact Report ===
 Version change: (unratified template) -> 1.0.0
 Modified principles: none prior. All five principles are newly defined in this
-  initial ratification, derived from PRD_RAG_Database.md.
+  initial ratification, derived from docs/internals/PRD_RAG_Database.md.
   I.   Local-First, Single-Binary        (new - PRD G1, G2, S9.5)
   II.  Content-Addressed Identity         (new - PRD G3, S7.2)
   III. Pure Go - No CGo, No Runtime       (new - PRD S9.4, S9.5)
@@ -36,7 +36,7 @@ Templates requiring updates:
   - .specify/templates/spec-template.md   OK no change (no hardcoded principle references)
   - .specify/templates/tasks-template.md  OK no change (language-agnostic samples)
 Follow-up TODOs: none. All placeholders resolved.
-Source: PRD_RAG_Database.md (read in full, 2026-06-19).
+Source: docs/internals/PRD_RAG_Database.md (read in full, 2026-06-19).
 -->
 
 # go-rag Constitution
@@ -151,7 +151,7 @@ Non-functional budgets and durability guarantees (PRD §10):
 
 This constitution is the highest-authority governance document for go-rag's
 architecture and engineering principles. The product specification is
-`PRD_RAG_Database.md` (what to build); `ISA.md` is the project's done-condition;
+`docs/internals/PRD_RAG_Database.md` (what to build); `ISA.md` is the project's done-condition;
 this constitution is the non-negotiable rules every build MUST respect. On
 conflict: the constitution wins on principles and constraints; the PRD wins on
 product behavior.

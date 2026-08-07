@@ -6,7 +6,7 @@ beyond a local [Ollama](https://ollama.com) instance for embeddings.
 
 !!! info "Specification"
     The authoritative product spec lives in
-    [`PRD_RAG_Database.md`](https://github.com/madeinoz67/go-rag/blob/main/PRD_RAG_Database.md).
+    [`PRD_RAG_Database.md`](https://github.com/madeinoz67/go-rag/blob/main/docs/internals/PRD_RAG_Database.md).
     This documentation site covers usage and design; the PRD covers behavior.
 
 ## Why

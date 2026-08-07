@@ -26,7 +26,7 @@ builds a searchable vector database that answers questions grounded in your loca
 content — a bundled pure-Go embedder (spec 032) means zero external services
 by default; a local Ollama is optional for alternative embedding models.
 
-Full specification: PRD_RAG_Database.md`,
+Full specification: docs/internals/PRD_RAG_Database.md`,
 	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		// Normalise: an unspecified --vault means "default" — used both to

@@ -15,7 +15,7 @@ against it:
 
 Three documents share authority, in this order of precedence on conflict:
 
-- **`PRD_RAG_Database.md`** — the product specification (what to build: behavior, data model, architecture).
+- **`docs/internals/PRD_RAG_Database.md`** — the product specification (what to build: behavior, data model, architecture).
 - **`ISA.md`** — the project's done-condition / system of record (whether it's done).
 - **`.specify/memory/constitution.md`** — the non-negotiable engineering principles every build MUST respect.
 
@@ -187,7 +187,7 @@ spec 045 auth) — see PRD §2.2 N7. Don't build the rest without revisiting the
 | `docs/internals/keyspace-registry.md` | the Pebble prefix map — every allocated byte, vault-scoped vs global, reserved/free bytes, and the live reviewer hazards. Read before touching `internal/storage`. |
 | `docs/internals/style-guide.md` | the console UI design system — color tokens, typography, spacing, component catalog, motion, z-index. The canonical reference for any console UI change; the CSS in `internal/ui/web/static/css/` is the executable source of truth (when guide and CSS disagree, CSS wins). |
 | `.specify/memory/constitution.md` | the five core principles, performance/reliability budgets, storage-discipline + schema-evolution rules. |
-| `PRD_RAG_Database.md` | product specification (what to build). |
+| `docs/internals/PRD_RAG_Database.md` | product specification (what to build). |
 | `ISA.md` | project done-condition / system of record. |
 
 (Future `docs/internals/` pages — invariants, decision-record — slot in here as they are written.)

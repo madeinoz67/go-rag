@@ -7,7 +7,7 @@
 
 **Status:** alpha (v0.2.x) — feature-complete and working end-to-end. Multi-vault support,
 cross-encoder reranking, muninn-style MCP daemon, and Obsidian-aware ingestion.
-Full spec: [`PRD_RAG_Database.md`](./PRD_RAG_Database.md).
+Full spec: [`PRD_RAG_Database.md`](./docs/internals/PRD_RAG_Database.md).
 
 ## Why
 
@@ -422,7 +422,7 @@ Runnable validation scenarios:
 Layered: **CLI** → **ingest pipeline** (async-after-ACK, <10ms writes) →
 **(readers / embedder / change-detection)** → **(BM25 FTS + vector + RRF retrieval)**
 → **embedded Pebble KV**. Optional cross-encoder reranking via Ollama LLM.
-Full design: [`PRD_RAG_Database.md`](./PRD_RAG_Database.md).
+Full design: [`PRD_RAG_Database.md`](./docs/internals/PRD_RAG_Database.md).
 
 ## Project structure
 

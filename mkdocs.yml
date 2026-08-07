@@ -37,5 +37,36 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Getting Started:
+      - Install: getting-started/install.md
+      - Quickstart: getting-started/quickstart.md
+  - Concepts:
+      - Retrieval Model: concepts/retrieval.md
+      - Chunking: concepts/chunking.md
+      - Embeddings: concepts/embeddings.md
+  - Guide:
+      - Ingestion: guide/ingest.md
+      - Querying: guide/query.md
+      - Daemon: guide/daemon.md
+      - Management Console: guide/console.md
+  - Reference:
+      - CLI: reference/cli.md
+      - MCP Tools: reference/mcp.md
+      - REST API: reference/rest.md
+      - gRPC API: reference/grpc.md
+      - Configuration: reference/configuration.md
+  - Operating:
+      - Observability: operating/observability.md
+      - Retrieval Poisoning Defense: operating/poisoning.md
+      - Secret / PII Redaction: operating/redaction.md
+      - Structured Audit Log: operating/audit.md
+      - Citation Contract: operating/citation-contract.md
+  - Internals:
+      - Product Spec (PRD): internals/PRD_RAG_Database.md
+      - Keyspace Registry: internals/keyspace-registry.md
+      - Console Style Guide: internals/style-guide.md
+      - Design - Auth Tokens: internals/design/auth-tokens.md
+      - Design - Chunk Identity: internals/design/bl010-chunk-identity.md
+      - Design - Engine Serialization: internals/design/engine-serialization.md
 
 plugins: []

@@ -44,4 +44,3 @@ Thumbs.db
 /rag-book-md/
 /dist/
 docs/architecture/*.mermaid
-  (gortex auto-gen community/process snapshots — drift on every reindex, not curated)

@@ -12,7 +12,7 @@ algorithm_config:
   capabilities: [FirstPrinciples, FeedbackMemoryConsult, ContextSearch, ReReadCheck]
 ---
 
-> Project ISA — system of record for **go-rag**. Seeded from `PRD_RAG_Database.md`
+> Project ISA — system of record for **go-rag**. Seeded from `docs/internals/PRD_RAG_Database.md`
 > (the canonical spec). This file governs project setup; the PRD governs product
 > behavior. Where they overlap, the PRD wins on *what*; this ISA wins on *done*.
 
@@ -40,7 +40,7 @@ is ready to start implementing against — not a throwaway template.
   go-rag, not to scaffold it.
 - SpecKit, OS-ECO tools — optional, not implied; flagged, not installed.
 - A working MCP server — PRD goal G7; a reserved `mcp/` directory only.
-- Renaming or relocating `PRD_RAG_Database.md` — preserved in place.
+- `PRD_RAG_Database.md` — relocated to `docs/internals/PRD_RAG_Database.md` (2026-07 docs-taxonomy pass); content unchanged.
 
 ## Principles
 
@@ -54,7 +54,7 @@ is ready to start implementing against — not a throwaway template.
 
 - Go 1.22+ (PRD §10.4) — installed 1.26.4 via Homebrew.
 - Module path: `github.com/madeinoz67/go-rag` (changeable in `go.mod`).
-- Must not modify/delete `PRD_RAG_Database.md` or `.codanna/`.
+- Must not modify/delete `docs/internals/PRD_RAG_Database.md`.
 - Must not produce Bun/Python artifacts (`package.json`, `pyproject.toml`).
 - `.go-rag/` is runtime data — gitignored, never committed.
 
