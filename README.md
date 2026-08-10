@@ -337,6 +337,34 @@ Wire into Claude Desktop:
 }}
 ```
 
+## MuninnDB bridge (opt-in)
+
+go-rag can optionally **promote its chunks into a local [MuninnDB](https://github.com/scrypster/muninndb) memory vault** as content-addressed engrams — so retrieved reference material also lives in your long-term agent memory (*go-rag retrieves, MuninnDB remembers*). It is **off by default** and **loopback-only** (an opt-in egress exception to the local-first posture, not a cloud feature).
+
+**Enable:**
+
+```bash
+# 1. set the MuninnDB target-vault key (env — never written to config or logs)
+export GORAG_BRIDGE_TOKEN=mk_<your-go-rag-vault-key>
+
+# 2. configure + enable (writes the flat bridge_* config fields; validates loopback)
+go-rag bridge muninn init --endpoint 127.0.0.1:8477 --target-vault go-rag
+
+# 3. add docs as usual — their chunks promote into MuninnDB asynchronously
+go-rag add ./my-docs/
+go-rag bridge muninn status        # config + effective knobs
+```
+
+**Properties:**
+
+- **Loopback-only** — non-loopback endpoints are refused at config-validation *and* at dial (defense vs DNS rebinding). No remote egress.
+- **Never a core operation** — promotion runs async after the write ACK; ingest/query are unaffected whether MuninnDB is up, down, or slow. A down MuninnDB trips a circuit breaker (no RPC storm).
+- **Idempotent (content-addressed)** — re-ingesting an unchanged document is a strict no-op at MuninnDB (no duplicate engrams, no forged learning signal); a changed chunk gets a new identity → a new engram.
+- **Auto-backfill** — enabling on a vault with an existing corpus backfills it automatically (storm-limited; pausable from the console).
+- The **Memory & Graph** console view (`go-rag start` → the 9th sidebar item) browses the promoted engrams + shows bridge health/backfill progress.
+
+The target-vault key (`GORAG_BRIDGE_TOKEN`) is read from the environment and never written to `config.json` or logs. Full spec: [`specs/060-muninn-bridge/`](./specs/060-muninn-bridge/).
+
 ## Network binding & security
 
 go-rag is **loopback-only by default**. Every transport (MCP `:7878`, REST

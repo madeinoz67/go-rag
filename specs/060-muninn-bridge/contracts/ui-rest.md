@@ -35,7 +35,7 @@ Per-engram detail.
 - **Auth**: Bearer session.
 - **Server**: `MuninnClient.Read(BridgeTargetVault, id)`.
 - **200**: `{ id, concept, content, tags, access_count, stability, state, created_at, updated_at, associations: [{target_id, rel_type, weight}] }`.
-- **404** if MuninnDB returns not-found; **503** with `degraded: true` if MuninnDB is unreachable.
+- **404** if MuninnDB returns `codes.NotFound` (a stale/absent engram id); **503** with an empty body if MuninnDB is unreachable (any other error). The handler distinguishes via `status.Code(err) == codes.NotFound`, not string matching.
 
 ## `GET /api/memory-graph/status`
 
@@ -62,8 +62,9 @@ Bridge health + promotion/backfill status (FR-017). Surfaced in the console alon
 `action` ∈ `{pause, resume}` — the operator control for FR-014. Sets the in-memory pause flag on the bridge coordinator; the backfill worker park-checks it between pages.
 
 - **Auth**: Bearer session.
-- **200**: the updated `status` object.
-- **409** if `action=pause` but no backfill is running.
+- **200**: the updated `status` object. Pause/resume are **idempotent** — 200 regardless of whether a backfill is currently running (pausing an idle bridge is a no-op; resuming an unpaused one is a no-op).
+- **404** for an unknown `action` (validated first, before the bridge-nil check).
+- **409** if the bridge is disabled.
 
 ## Cross-cutting
 
