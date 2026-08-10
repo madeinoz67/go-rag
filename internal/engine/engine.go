@@ -3,9 +3,11 @@ package engine
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 
+	"github.com/madeinoz67/go-rag/internal/bridge/muninn"
 	"github.com/madeinoz67/go-rag/internal/caption"
 	"github.com/madeinoz67/go-rag/internal/chunk"
 	"github.com/madeinoz67/go-rag/internal/config"
@@ -46,6 +48,12 @@ type Engine struct {
 	// pipeline() alongside the pipeline; stopped in Close() before the pipeline
 	// drains. nil until pipeline() is first called.
 	embedProc *embedproc.Processor
+
+	// bridge (spec 060) is the MuninnDB promotion coordinator. Constructed +
+	// started in pipeline() when cfg.EffectiveBridgeEnabled(); stopped in Close()
+	// between bus.Close() and embedProc.Stop(). nil until pipeline() is first
+	// called, or when the bridge is disabled (the default).
+	bridge *muninn.Bridge
 
 	pipeMu sync.Mutex
 	pipe   *pipeline.Pipeline
@@ -297,6 +305,18 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	e.embedProc = embedproc.New(e.db, em, e.cfg.Prefixer(), vec, e.pipe.OnChange)
 	e.embedProc.Start(context.Background())
 	e.pipe.OnNotifyEmbed = e.embedProc.Notify
+	// spec 060: construct + start the MuninnDB bridge when enabled (opt-in egress
+	// exception; off by default). A construction failure is logged + degraded —
+	// the bridge stays nil and ingest/query are unaffected (the down-MuninnDB path
+	// is the whole point of the bridge's resilience design).
+	if e.cfg.EffectiveBridgeEnabled() {
+		if br, err := muninn.New(context.Background(), e.cfg); err != nil {
+			slog.Warn("bridge: disabled (construct failed; ingest/query unaffected)", "err", err)
+		} else {
+			br.Start(context.Background())
+			e.bridge = br
+		}
+	}
 	return e.pipe, nil
 }
 
@@ -332,6 +352,14 @@ func (e *Engine) Close() {
 	// handler never lingers past the rest of shutdown.
 	if e.bus != nil {
 		e.bus.Close()
+	}
+	// spec 060: stop the bridge (bounded drain, NFR-005) before the embedder +
+	// pipeline drain. The bridge snapshots chunks off processJob into its own
+	// queue, so its drain is independent; abandon-in-flight is safe under the
+	// content-addressed UPSERT no-op (next backfill re-walk recovers it).
+	if e.bridge != nil {
+		e.bridge.Stop()
+		e.bridge = nil
 	}
 	if e.embedProc != nil {
 		e.embedProc.Stop() // spec 030: drain pending embeddings before the pipeline
