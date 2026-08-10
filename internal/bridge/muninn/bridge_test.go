@@ -77,6 +77,50 @@ func TestNFR002_CognitiveHygiene(t *testing.T) {
 	f.mu.Unlock()
 }
 
+// TestBridge_DegradesGracefully is T013 / FR-009: an unreachable MuninnDB must
+// never block the caller (Promote/Submit are non-blocking), the bridge must trip
+// its circuit breaker (no RPC storm on a down server), and Status must report
+// unhealthy. This is the bridge-level degrade contract; the engine-level "write
+// ACK unaffected" is verified by the engine suite passing with the promoter wired.
+func TestBridge_DegradesGracefully(t *testing.T) {
+	f := NewFakeClient()
+	f.SetHealth(false) // MuninnDB unreachable
+	b := newBridge(config.Config{BridgeEnabled: true, BridgeTargetVault: "go-rag"}, f)
+	b.Start(context.Background())
+	defer b.Stop()
+
+	doc := model.Document{FileName: "x.md", FileType: "markdown", Metadata: map[string]any{}}
+	chunks := []model.Chunk{{ID: "c1", Content: "body", ChunkIndex: 0, TotalChunks: 1}}
+
+	// Promote MUST be non-blocking even with MuninnDB down — Submit is a buffered
+	// send; the worker fails fast and the breaker opens after maxFails.
+	for i := 0; i < 12; i++ {
+		done := make(chan struct{})
+		go func() { b.Promote(doc, chunks); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatalf("Promote #%d blocked on an unhealthy MuninnDB (must be non-blocking)", i)
+		}
+	}
+
+	// Wait for the worker to drain + the breaker to open.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && !b.Status().CircuitOpen {
+		time.Sleep(2 * time.Millisecond)
+	}
+	st := b.Status()
+	if !st.CircuitOpen {
+		t.Fatalf("breaker did not open (promoted=%d skipped=%d failed=%d)", st.Promoted, st.Skipped, st.Failed)
+	}
+	if st.Healthy {
+		t.Error("Status().Healthy = true; want false (MuninnDB unreachable)")
+	}
+	if f.EngramCount("go-rag") != 0 {
+		t.Errorf("engrams promoted despite unhealthy MuninnDB: %d", f.EngramCount("go-rag"))
+	}
+}
+
 // TestBridge_PromotesAndStatus confirms the coordinator wires Submit through to
 // the processor→client, and Status reports health + the target vault.
 func TestBridge_PromotesAndStatus(t *testing.T) {
