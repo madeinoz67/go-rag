@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/madeinoz67/go-rag/internal/config"
+	"github.com/madeinoz67/go-rag/internal/model"
 )
 
 // Bridge is the top-level MuninnDB bridge coordinator. It owns the outbound
@@ -23,6 +24,7 @@ type Bridge struct {
 	cfg    config.Config
 	client Client
 	proc   *Processor
+	mapper Mapper // chunk→WriteParams translation (maintainer invariants baked in)
 
 	started atomic.Bool
 
@@ -72,7 +74,24 @@ func newBridge(cfg config.Config, client Client) *Bridge {
 		BatchSize:   cfg.EffectiveBridgeBatchSize(),
 		QueueDepth:  10000,
 	})
-	return &Bridge{cfg: cfg, client: client, proc: proc}
+	return &Bridge{
+		cfg:    cfg,
+		client: client,
+		proc:   proc,
+		mapper: Mapper{SourceVault: cfg.EffectiveBridgeSourceVault(), TargetVault: cfg.EffectiveBridgeTargetVault()},
+	}
+}
+
+// Promote is the pipeline.Promoter hook (T011). It maps the document's chunks to
+// WriteParams and enqueues them as an incremental (ModeChangeEvent) promotion.
+// Called from processJob (async-after-ACK); non-blocking. v1 promotes every
+// ingested document into the single configured target vault — multi-vault source
+// filtering is a follow-up.
+func (b *Bridge) Promote(doc model.Document, chunks []model.Chunk) {
+	if len(chunks) == 0 {
+		return
+	}
+	b.Submit(b.mapper.TargetVault, b.mapper.MapAll(chunks, doc), ModeChangeEvent)
 }
 
 // Start launches the worker pool (the client is already dialed in New).

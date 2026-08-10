@@ -62,6 +62,7 @@ type Pipeline struct {
 	nearDupK  int               // H20/spec 026: SimHash Hamming threshold for near-dup clustering (0 = default 3)
 	enricher  enrich.Enricher   // spec 029: background document enrichment (tags+summary); nil = off
 	captioner caption.Captioner // spec 031 US4: background image captioning; nil = off (default)
+	promoter  Promoter          // spec 060: MuninnDB bridge hook; nil = off (default)
 
 	queue chan job
 	wg    sync.WaitGroup
@@ -176,6 +177,20 @@ func (p *Pipeline) SetEnricher(e enrich.Enricher) { p.enricher = e }
 // when cfg.EffectiveCaptioningEnabled(); nil (the default) leaves captioning off
 // and the system byte-identical to today (SC-006).
 func (p *Pipeline) SetCaptioner(c caption.Captioner) { p.captioner = c }
+
+// Promoter (spec 060) is the MuninnDB bridge's ingestion hook. The Engine binds
+// the bridge (which implements Promote) when cfg.EffectiveBridgeEnabled(); nil
+// (the default) leaves promotion off and the system is byte-identical to today.
+// Promote is called from processJob (async-after-ACK) with the just-stored doc +
+// chunks; it maps + enqueues non-blockingly, so it never enters the <10ms ACK
+// path (Principle IV) and a down MuninnDB never stalls ingest.
+type Promoter interface {
+	Promote(doc model.Document, chunks []model.Chunk)
+}
+
+// SetPromoter binds the MuninnDB bridge hook. Bound once by the Engine under
+// pipeMu before any job flows; nil (the default) leaves promotion off.
+func (p *Pipeline) SetPromoter(pr Promoter) { p.promoter = pr }
 
 // Close drains the async queue and stops workers.
 func (p *Pipeline) Close() {
@@ -452,14 +467,14 @@ func (p *Pipeline) processFile(ctx context.Context, ws [8]byte, path string) (st
 	// on the send until a worker drains. Zero job loss (the goroutine delivers
 	// it); the embedder reads 0x14 independently.
 	select {
-	case p.queue <- job{ws: ws, docID: docID, chunks: chunks, images: images, mimeType: mimeType(ext), spans: spans, pageOffsets: pageOffsets}:
+	case p.queue <- job{ws: ws, docID: docID, doc: doc, chunks: chunks, images: images, mimeType: mimeType(ext), spans: spans, pageOffsets: pageOffsets}:
 	default:
 		go func(j job) {
 			select {
 			case p.queue <- j:
 			case <-p.done:
 			}
-		}(job{ws: ws, docID: docID, chunks: chunks, images: images, mimeType: mimeType(ext), spans: spans, pageOffsets: pageOffsets})
+		}(job{ws: ws, docID: docID, doc: doc, chunks: chunks, images: images, mimeType: mimeType(ext), spans: spans, pageOffsets: pageOffsets})
 	}
 	return "NEW", nil
 }

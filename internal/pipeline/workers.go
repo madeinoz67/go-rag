@@ -26,6 +26,7 @@ import (
 type job struct {
 	ws          [8]byte
 	docID       string
+	doc         model.Document // spec 060: the parent doc (concept cascade reads FileName/title/Metadata)
 	chunks      []model.Chunk
 	images      []reader.ImageRef    // spec 031 US4: transient image bytes for post-ACK captioning (nil for non-PDF / image-less)
 	mimeType    string               // document mime type (the caption chunk's GenerateID input)
@@ -72,6 +73,12 @@ func (p *Pipeline) processJob(j job) {
 	captions := p.captionImages(j)
 	// spec 029: background document enrichment (tags + summary) — includes captions.
 	p.enrichDocument(j.ws, j.docID, j.chunks, captions)
+	// spec 060: promote the document's chunks to MuninnDB (opt-in, async-after-
+	// ACK). Promote maps + enqueues non-blockingly to the bridgeProc; nil when the
+	// bridge is disabled (the default). Never enters the <10ms ACK path (Principle IV).
+	if p.promoter != nil {
+		p.promoter.Promote(j.doc, j.chunks)
+	}
 	// Status is always "embedded" — the chunks are durably stored (0x03) + queued
 	// for embedding (0x14). An embed failure is the embedder's concern (it marks
 	// the 0x14 record status=failed); the document is "stored" regardless.

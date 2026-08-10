@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/madeinoz67/go-rag/internal/config"
+	"github.com/madeinoz67/go-rag/internal/model"
 )
 
 // testBridge builds a coordinator over a fresh FakeClient with sane config
@@ -30,6 +31,50 @@ func waitBridge(t *testing.T, b *Bridge, want int64) {
 	}
 	s := b.Status()
 	t.Fatalf("promoted = %d, want %d (skipped=%d failed=%d)", s.Promoted, want, s.Skipped, s.Failed)
+}
+
+// TestNFR002_CognitiveHygiene is the load-bearing NFR-002 assertion (spec 060):
+// re-promoting an unchanged chunk through the FULL promote path (Promote → mapper
+// → Submit → bridgeProc → client) MUST be a strict no-op at the memory store —
+// no duplicate engrams, no access_count bump, no reinforcement. The
+// content-addressed idempotent_id + MuninnDB's UPSERT no-op make this
+// server-enforced; the test pins it against the FakeClient (which faithfully
+// mirrors those semantics).
+func TestNFR002_CognitiveHygiene(t *testing.T) {
+	b, f := testBridge(t)
+	chunks := []model.Chunk{
+		{ID: "c1", Content: "tokens expire after 15 minutes", ChunkIndex: 0, TotalChunks: 2},
+		{ID: "c2", Content: "refresh via the /token endpoint", ChunkIndex: 1, TotalChunks: 2},
+	}
+	doc := model.Document{FileName: "auth.md", FileType: "markdown", Metadata: map[string]any{}}
+
+	// First promotion: two engrams created.
+	b.Promote(doc, chunks)
+	waitBridge(t, b, 2)
+	if f.EngramCount("go-rag") != 2 {
+		t.Fatalf("engram count = %d, want 2", f.EngramCount("go-rag"))
+	}
+
+	// Re-promote the byte-identical document N times (simulating daemon restart /
+	// re-ingest — transport replay, not cognitive access).
+	const N = 5
+	for i := 0; i < N; i++ {
+		b.Promote(doc, chunks)
+	}
+	time.Sleep(100 * time.Millisecond) // let the bridgeProc drain
+
+	// NFR-002: still exactly 2 engrams (no duplicates) and access_count unchanged.
+	if got := f.EngramCount("go-rag"); got != 2 {
+		t.Fatalf("after %d re-promotes: engram count = %d, want 2 (no-op must not duplicate)", N, got)
+	}
+	// Both engrams keep access_count 0 (re-promotion is not a cognitive access).
+	f.mu.Lock()
+	for _, e := range f.engrams["go-rag"] {
+		if e.AccessCount != 0 {
+			t.Fatalf("engram %s AccessCount = %d after re-promotes, want 0 (no Hebbian forgery)", e.ID, e.AccessCount)
+		}
+	}
+	f.mu.Unlock()
 }
 
 // TestBridge_PromotesAndStatus confirms the coordinator wires Submit through to

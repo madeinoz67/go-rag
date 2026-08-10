@@ -315,6 +315,7 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 		} else {
 			br.Start(context.Background())
 			e.bridge = br
+			e.pipe.SetPromoter(br) // spec 060: light the processJob → MuninnDB bridge hook
 		}
 	}
 	return e.pipe, nil
