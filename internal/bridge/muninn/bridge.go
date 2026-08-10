@@ -25,8 +25,10 @@ type Bridge struct {
 	client Client
 	proc   *Processor
 	mapper Mapper // chunk→WriteParams translation (maintainer invariants baked in)
+	source ChunkSource
 
-	started atomic.Bool
+	started  atomic.Bool
+	bfCancel context.CancelFunc // stops the (US2) backfill walker on Stop
 
 	// paused gates ONLY the (US2) backfill walker. Incremental promotion is never
 	// paused — a pause must not starve the live change-event path.
@@ -55,18 +57,19 @@ type BackfillState struct {
 // succeeds regardless of whether MuninnDB is currently up — the bridge degrades;
 // only a non-loopback endpoint fails (config.Validate is the first gate). Caller
 // MUST gate on cfg.EffectiveBridgeEnabled().
-func New(ctx context.Context, cfg config.Config) (*Bridge, error) {
+func New(ctx context.Context, cfg config.Config, source ChunkSource) (*Bridge, error) {
 	token := os.Getenv("GORAG_BRIDGE_TOKEN")
 	client, err := Dial(ctx, cfg.EffectiveBridgeEndpoint(), token)
 	if err != nil {
 		return nil, err
 	}
-	return newBridge(cfg, client), nil
+	return newBridge(cfg, client, source), nil
 }
 
 // newBridge wires a Bridge over an existing client. Tests pass a FakeClient so the
 // coordinator is exercisable without a live MuninnDB; production New dials first.
-func newBridge(cfg config.Config, client Client) *Bridge {
+// source is the US2 backfill corpus reader (nil disables auto-backfill).
+func newBridge(cfg config.Config, client Client, source ChunkSource) *Bridge {
 	proc := NewProcessor(client, ProcConfig{
 		Workers:     cfg.EffectiveBridgeWorkers(),
 		MaxInFlight: cfg.EffectiveBridgeMaxInFlight(),
@@ -79,6 +82,7 @@ func newBridge(cfg config.Config, client Client) *Bridge {
 		client: client,
 		proc:   proc,
 		mapper: Mapper{SourceVault: cfg.EffectiveBridgeSourceVault(), TargetVault: cfg.EffectiveBridgeTargetVault()},
+		source: source,
 	}
 }
 
@@ -101,6 +105,14 @@ func (b *Bridge) Start(ctx context.Context) {
 		return
 	}
 	b.proc.Start(ctx)
+	// US2: auto-backfill the existing corpus on enable (storm-limited via the
+	// processor's rate/concurrency caps; pausable). nil source (tests that don't
+	// care about backfill) skips the walk.
+	if b.cfg.BridgeBackfillAutoOnEnable && b.source != nil {
+		bfCtx, cancel := context.WithCancel(ctx)
+		b.bfCancel = cancel
+		go b.runBackfill(bfCtx)
+	}
 	slog.Info("bridge: started",
 		"endpoint", b.cfg.EffectiveBridgeEndpoint(),
 		"source_vault", b.cfg.EffectiveBridgeSourceVault(),
@@ -112,6 +124,9 @@ func (b *Bridge) Start(ctx context.Context) {
 func (b *Bridge) Stop() {
 	if !b.started.Load() {
 		return
+	}
+	if b.bfCancel != nil {
+		b.bfCancel() // stop the backfill walker before the queue closes
 	}
 	b.proc.Stop()
 	if err := b.client.Close(); err != nil {

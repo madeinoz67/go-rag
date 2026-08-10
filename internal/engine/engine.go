@@ -310,7 +310,7 @@ func (e *Engine) pipeline() (*pipeline.Pipeline, error) {
 	// the bridge stays nil and ingest/query are unaffected (the down-MuninnDB path
 	// is the whole point of the bridge's resilience design).
 	if e.cfg.EffectiveBridgeEnabled() {
-		if br, err := muninn.New(context.Background(), e.cfg); err != nil {
+		if br, err := muninn.New(context.Background(), e.cfg, &bridgeChunkSource{eng: e, vault: e.cfg.EffectiveBridgeSourceVault()}); err != nil {
 			slog.Warn("bridge: disabled (construct failed; ingest/query unaffected)", "err", err)
 		} else {
 			br.Start(context.Background())

@@ -14,7 +14,7 @@ import (
 func testBridge(t *testing.T) (*Bridge, *FakeClient) {
 	t.Helper()
 	f := NewFakeClient()
-	b := newBridge(config.Config{BridgeEnabled: true, BridgeTargetVault: "go-rag"}, f)
+	b := newBridge(config.Config{BridgeEnabled: true, BridgeTargetVault: "go-rag"}, f, nil)
 	b.Start(context.Background())
 	t.Cleanup(b.Stop)
 	return b, f
@@ -85,7 +85,7 @@ func TestNFR002_CognitiveHygiene(t *testing.T) {
 func TestBridge_DegradesGracefully(t *testing.T) {
 	f := NewFakeClient()
 	f.SetHealth(false) // MuninnDB unreachable
-	b := newBridge(config.Config{BridgeEnabled: true, BridgeTargetVault: "go-rag"}, f)
+	b := newBridge(config.Config{BridgeEnabled: true, BridgeTargetVault: "go-rag"}, f, nil)
 	b.Start(context.Background())
 	defer b.Stop()
 
