@@ -61,6 +61,7 @@ vault-scoped key has shape `kind(1) | ws(8) | payload`; a global key has shape
 
 - **0x06** — FTS gap (left between the FTS posting family and the FTS stats family).
 - **0x16** — BL-011 webhook registry (planned). Auth was placed at 0x17–0x19 **deliberately**, above this reservation, so the webhook prefix cannot collide with auth when it lands.
+- **spec 060 (MuninnDB bridge)** — v1 is **stateless**: no go-rag keyspace, no prefix, no migration. Promotion state lives in MuninnDB (the `idempotent_id` UPSERT forward index is the correctness layer). The RFC's planned `0x20`–`0x22` (cursor / engram-record / error-ring) remain free; a future durable promoted-chunk cache or backfill-resume marker would allocate there with a numbered migration + `ExpectedVersion` bump + a row here.
 
 ## Free bytes
 

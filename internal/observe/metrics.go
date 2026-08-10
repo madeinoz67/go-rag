@@ -23,6 +23,12 @@ var (
 	poisonFlagged  metric.Int64Counter
 	cacheHits      metric.Int64Counter
 	cacheMisses    metric.Int64Counter
+
+	// spec 060: MuninnDB bridge promotion telemetry (gorag.bridge.*).
+	bridgePromoted metric.Int64Counter
+	bridgeSkipped  metric.Int64Counter
+	bridgeFailed   metric.Int64Counter
+	bridgeBatchDur metric.Float64Histogram
 )
 
 // Latency-histogram buckets tuned to the budgets (research D3): query p50<1s/p99<3s;
@@ -45,6 +51,14 @@ func registerInstruments(m metric.Meter) {
 	poisonFlagged, _ = m.Int64Counter("gorag.poison_flagged")
 	cacheHits, _ = m.Int64Counter("gorag.cache_hits")
 	cacheMisses, _ = m.Int64Counter("gorag.cache_misses")
+
+	// spec 060: MuninnDB bridge — cumulative promotion counters + a batch-latency
+	// histogram. Zero when the bridge is disabled (no calls land).
+	bridgePromoted, _ = m.Int64Counter("gorag.bridge.promoted")
+	bridgeSkipped, _ = m.Int64Counter("gorag.bridge.skipped")
+	bridgeFailed, _ = m.Int64Counter("gorag.bridge.failed")
+	bridgeBatchDur, _ = m.Float64Histogram("gorag.bridge.batch_duration",
+		metric.WithUnit("s"), metric.WithExplicitBucketBoundaries(ingestBuckets...))
 }
 
 func statusAttr(err error) attribute.KeyValue {
@@ -106,5 +120,34 @@ func CacheHit(ctx context.Context, cache string) {
 func CacheMiss(ctx context.Context, cache string) {
 	if cacheMisses != nil {
 		cacheMisses.Add(ctx, 1, metric.WithAttributes(attribute.String("cache", cache)))
+	}
+}
+
+// --- spec 060: MuninnDB bridge promotion telemetry ---
+
+// BridgePromoted/Skipped/Failed record the per-batch promotion outcome, and
+// BridgeBatchDuration the BatchWrite RPC latency. No-op before Init / metrics off.
+// Called by the bridge processor on each batch + each shed/skip.
+func BridgePromoted(ctx context.Context, n int) {
+	if bridgePromoted != nil {
+		bridgePromoted.Add(ctx, int64(n))
+	}
+}
+
+func BridgeSkipped(ctx context.Context, n int) {
+	if bridgeSkipped != nil {
+		bridgeSkipped.Add(ctx, int64(n))
+	}
+}
+
+func BridgeFailed(ctx context.Context, n int) {
+	if bridgeFailed != nil {
+		bridgeFailed.Add(ctx, int64(n))
+	}
+}
+
+func BridgeBatchDuration(ctx context.Context, dur time.Duration) {
+	if bridgeBatchDur != nil {
+		bridgeBatchDur.Record(ctx, dur.Seconds())
 	}
 }

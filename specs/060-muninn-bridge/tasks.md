@@ -99,8 +99,8 @@
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T023 [P] Add the `gorag_bridge_*` Prometheus instruments to the existing `:7881/metrics` endpoint (RFC §metrics: sync_lag, engrams_promoted/skipped/failed, muninn_healthy, batch_duration, rate_limit_total, hebbian_edges). `internal/bridge/muninn/processor.go`, `internal/observe/`
-- [ ] T024 [P] Affirm the keyspace-registry stance — add a note in `docs/internals/keyspace-registry.md` that the v1 bridge is stateless (no `0x20–0x22` allocation; no migration, no `ExpectedVersion` bump) and that a future perf cache would reserve `0x20–0x22` with a numbered migration. `docs/internals/keyspace-registry.md`
+- [x] T023 [P] Add the `gorag_bridge_*` Prometheus instruments to the existing `:7881/metrics` endpoint (RFC §metrics: sync_lag, engrams_promoted/skipped/failed, muninn_healthy, batch_duration, rate_limit_total, hebbian_edges). `internal/bridge/muninn/processor.go`, `internal/observe/`
+- [x] T024 [P] Affirm the keyspace-registry stance — add a note in `docs/internals/keyspace-registry.md` that the v1 bridge is stateless (no `0x20–0x22` allocation; no migration, no `ExpectedVersion` bump) and that a future perf cache would reserve `0x20–0x22` with a numbered migration. `docs/internals/keyspace-registry.md`
 - [ ] T025 Run the `quickstart.md` E2E on an isolated daemon (`--db-path /tmp/gorag-bridge`, non-default ports): US1 promotion + NFR-002 no-op + MuninnDB-down degrade; US2 auto-backfill + pause/resume; US3 view — **Interceptor-browser-verified** (mandatory for visual verification). `specs/060-muninn-bridge/quickstart.md`
 - [ ] T026 Final gates — `make build && make vet && make test -race ./... && make lint` (0 issues, the `ci.yml` gate). RED-sanity-check every property/bug test (NFR-002, storm-limit, resume-no-dup) by temporarily reverting the fix and confirming the test fails. `Makefile`
 

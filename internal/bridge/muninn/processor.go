@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/madeinoz67/go-rag/internal/observe"
 )
 
 // SyncMode is the origin of a promotion job (priority + audit).
@@ -114,7 +116,7 @@ func (p *Processor) Submit(job PromotionJob) {
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
-		p.skipped.Add(int64(len(job.Items)))
+		p.skip(len(job.Items))
 		return
 	}
 	select {
@@ -122,10 +124,18 @@ func (p *Processor) Submit(job PromotionJob) {
 		p.mu.Unlock()
 	default:
 		p.mu.Unlock()
-		p.skipped.Add(int64(len(job.Items)))
+		p.skip(len(job.Items))
 		slog.Warn("bridge: promotion queue full; shedding job (recovered by next backfill)",
 			"vault", job.Vault, "items", len(job.Items))
 	}
+}
+
+// skip records n shed/skipped items on BOTH the atomic counter (the Status
+// surface) and the prometheus counter (/metrics) so the two never drift. Every
+// skip path goes through here.
+func (p *Processor) skip(n int) {
+	p.skipped.Add(int64(n))
+	observe.BridgeSkipped(context.Background(), n)
 }
 
 // Start launches the worker goroutines. Idempotent.
@@ -199,7 +209,7 @@ func (p *Processor) worker(ctx context.Context) {
 	for job := range p.queue {
 		// Skip cheaply if the breaker is open (no point queueing RPCs that fast-fail).
 		if err := p.br.allow(); err != nil {
-			p.skipped.Add(int64(len(job.Items)))
+			p.skip(len(job.Items))
 			continue
 		}
 		p.promoteJob(ctx, job)
@@ -221,7 +231,7 @@ func (p *Processor) promoteJob(ctx context.Context, job PromotionJob) {
 		if p.rl != nil {
 			if err := p.rl.wait(ctx); err != nil {
 				// Shutdown — leave the rest for the next backfill.
-				p.skipped.Add(int64(len(job.Items) - start))
+				p.skip(len(job.Items) - start)
 				return
 			}
 		}
@@ -230,14 +240,17 @@ func (p *Processor) promoteJob(ctx context.Context, job PromotionJob) {
 		select {
 		case p.sem <- struct{}{}:
 		case <-ctx.Done():
-			p.skipped.Add(int64(len(job.Items) - start))
+			p.skip(len(job.Items) - start)
 			return
 		}
+		batchStart := time.Now()
 		results, err := p.client.BatchWrite(ctx, job.Vault, batch)
 		<-p.sem
+		observe.BridgeBatchDuration(ctx, time.Since(batchStart)) // T023: RPC latency
 		if err != nil {
 			p.br.fail()
 			p.failed.Add(int64(len(batch)))
+			observe.BridgeFailed(ctx, len(batch)) // T023
 			slog.Warn("bridge: BatchWrite failed", "vault", job.Vault, "items", len(batch), "err", err)
 			continue
 		}
@@ -250,10 +263,13 @@ func (p *Processor) promoteJob(ctx context.Context, job PromotionJob) {
 			}
 		}
 		p.br.ok()
-		p.promoted.Add(int64(len(batch)) - failed)
+		promoted := int64(len(batch)) - failed
+		p.promoted.Add(promoted)
 		if failed > 0 {
 			p.failed.Add(failed)
+			observe.BridgeFailed(ctx, int(failed)) // T023
 		}
+		observe.BridgePromoted(ctx, int(promoted)) // T023
 	}
 }
 
