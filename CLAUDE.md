@@ -5,6 +5,17 @@ auto-loads for anyone using Claude Code here. It is the **index and the non-nego
 what go-rag *is*, the principles every change is measured against, and how to work and
 review in the repo. The deep references live in `docs/internals/` and `.specify/memory/constitution.md`.
 
+## Memory (project vault)
+
+> **go-rag dev memory goes to the `go-rag` vault via the `muninndb-gorag` MCP server** —
+> use the `mcp__muninndb-gorag__*` tools (no `vault` arg; the connection key is scoped to
+> `go-rag`). Do **not** use the global `muninndb` server for go-rag memory — that is the
+> default/LifeOS vault, and writing there leaves duplicates in the wrong place. The preferred
+> path is the ledger + drain (`node .claude/hooks/memory-propose.mjs` →
+> `.claude/memory-proposals.jsonl`, auto-flushed on PreCompact/SessionEnd/Stop); the
+> `muninndb-gorag` tools are the immediate path. Full bar + wiring in
+> [`.claude/memory-protocol.md`](.claude/memory-protocol.md).
+
 ## What this is
 
 `go-rag` is a **single-binary, local-first, pure-Go RAG database** — retrieval-only and
