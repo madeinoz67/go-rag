@@ -1285,12 +1285,132 @@
         </div>
       </section>
 
-      <section x-show="currentView === 'memory-graph'" class="view" x-cloak>
+      <!-- spec 060 US3: Memory & Graph — a self-contained Alpine component reading the
+           bridged MuninnDB vault. Nested x-data (no goragApp surgery); the token is
+           read from localStorage('goragToken'), set by the login flow. -->
+      <section x-show="currentView === 'memory-graph'" class="view" x-cloak
+               x-data="memoryGraphView()" x-init="load()">
         <header class="view-header">
           <h1 class="page-title">Memory &amp; Graph</h1>
+          <span class="mg-badge" x-show="status"
+                :class="!status.enabled ? 'off' : (status.healthy ? 'ok' : 'warn')"
+                x-text="!status.enabled ? 'disabled' : (status.circuit_open ? 'circuit open' : (status.healthy ? 'healthy' : 'unreachable'))"></span>
         </header>
-        <div class="placeholder-card" x-html="placeholderHtml('Memory &amp; Graph', '053')"></div>
+
+        <!-- Disabled / degraded state (never a crash) -->
+        <div class="placeholder-card" x-show="!status || !status.enabled || status.degraded">
+          <p x-show="!status || !status.enabled">Bridge disabled — run <code>go-rag bridge muninn init</code> to promote chunks into MuninnDB.</p>
+          <p x-show="status &amp;&amp; status.enabled &amp;&amp; status.degraded">MuninnDB unreachable — promotion is paused (circuit breaker); ingest and query are unaffected.</p>
+        </div>
+
+        <!-- Live view -->
+        <div x-show="status &amp;&amp; status.enabled &amp;&amp; !status.degraded">
+          <div class="mg-status">
+            <span x-text="'target: ' + (status.target_vault || '')"></span>
+            <span x-text="'promoted ' + (status.promoted || 0)"></span>
+            <span x-text="'skipped ' + (status.skipped || 0)"></span>
+            <span x-text="'failed ' + (status.failed || 0)"></span>
+            <span x-show="status.backfill" x-text="'backfill: ' + (status.backfill.running ? 'running' : (status.backfill.paused ? 'paused' : 'idle'))"></span>
+            <button class="mg-btn" x-show="status.backfill &amp;&amp; !status.backfill.paused" @click="backfill('pause')">Pause</button>
+            <button class="mg-btn" x-show="status.backfill &amp;&amp; status.backfill.paused" @click="backfill('resume')">Resume</button>
+            <button class="mg-btn" @click="load()">Refresh</button>
+          </div>
+
+          <div class="mg-search">
+            <input type="text" x-model="q" @keydown.enter="browse()" placeholder="browse memory (Activate context)…" />
+            <button class="mg-btn" @click="browse()">Browse</button>
+          </div>
+
+          <div class="mg-cols">
+            <div class="mg-list">
+              <p x-show="loading">loading…</p>
+              <p x-show="!loading &amp;&amp; rows.length === 0">no engrams yet</p>
+              <template x-for="row in rows" :key="row.engram_id">
+                <div class="mg-row" @click="openDetail(row.engram_id)"
+                     :class="{ sel: detail &amp;&amp; detail.id === row.engram_id }">
+                  <div class="mg-concept" x-text="row.concept"></div>
+                  <div class="mg-meta">
+                    <span x-text="'score ' + (row.score || 0).toFixed(2)"></span>
+                    <template x-for="t in (row.tags || []).slice(0, 3)" :key="t">
+                      <span class="mg-tag" x-text="t"></span>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div class="mg-detail" x-show="detail">
+              <template x-if="detail">
+                <div>
+                  <h3 x-text="detail.concept"></h3>
+                  <div class="mg-meta">
+                    <span x-text="'access ' + (detail.access_count || 0)"></span>
+                    <span x-text="'stability ' + (detail.stability || 0)"></span>
+                    <span x-text="detail.state"></span>
+                  </div>
+                  <pre class="mg-content" x-text="detail.content"></pre>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
       </section>
+
+      <script>
+        // memoryGraphView — a self-contained Alpine component (spec 060 US3). Reads
+        // the Bearer token from localStorage('goragToken') (set by the login flow);
+        // all fetches go to /api/memory-graph/* with that header. No goragApp surgery.
+        function memoryGraphView() {
+          return {
+            status: null, rows: [], detail: null, loading: false, q: '',
+            token() { try { return localStorage.getItem('goragToken') || ''; } catch (e) { return ''; } },
+            async api(path, opts) {
+              opts = opts || {};
+              opts.headers = Object.assign({ Authorization: 'Bearer ' + this.token() }, opts.headers || {});
+              const r = await fetch(path, opts);
+              if (r.status === 401) { this.status = { enabled: false, degraded: true }; return null; }
+              return r;
+            },
+            async load() { await this.loadStatus(); if (this.status && this.status.enabled && !this.status.degraded) await this.browse(); },
+            async loadStatus() { const r = await this.api('/api/memory-graph/status'); if (r && r.ok) this.status = await r.json(); },
+            async browse() {
+              this.loading = true; this.detail = null;
+              const url = '/api/memory-graph/browse?limit=50' + (this.q ? '&q=' + encodeURIComponent(this.q) : '');
+              const r = await this.api(url);
+              if (r && r.ok) { const d = await r.json(); this.rows = d.rows || []; }
+              this.loading = false;
+            },
+            async openDetail(id) {
+              const r = await this.api('/api/memory-graph/engrams/' + encodeURIComponent(id));
+              this.detail = (r && r.ok) ? await r.json() : null;
+            },
+            async backfill(action) {
+              const r = await this.api('/api/memory-graph/backfill/' + action, { method: 'POST' });
+              if (r && r.ok) this.status = await r.json();
+            }
+          };
+        }
+      </script>
+      <style>
+        .mg-badge { font-size: .75rem; padding: .15rem .5rem; border-radius: 999px; font-weight: 600; }
+        .mg-badge.ok { background: var(--ok, #22c55e); color: #fff; }
+        .mg-badge.warn { background: var(--warn, #f59e0b); color: #000; }
+        .mg-badge.off { background: var(--muted, #6b7280); color: #fff; }
+        .mg-status { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin: .5rem 0; font-size: .85rem; color: var(--text-muted, #94a3b8); }
+        .mg-search { display: flex; gap: .5rem; margin: .75rem 0; }
+        .mg-search input { flex: 1; }
+        .mg-btn { font: inherit; padding: .25rem .75rem; border: 1px solid var(--border, #334155); border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+        .mg-btn:hover { background: var(--hover, rgba(148,163,184,.15)); }
+        .mg-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .mg-list { display: flex; flex-direction: column; gap: .25rem; max-height: 60vh; overflow-y: auto; }
+        .mg-row { padding: .5rem; border: 1px solid var(--border, #334155); border-radius: 6px; cursor: pointer; }
+        .mg-row:hover { background: var(--hover, rgba(148,163,184,.1)); }
+        .mg-row.sel { border-color: var(--accent, #3b82f6); }
+        .mg-concept { font-weight: 600; }
+        .mg-meta { font-size: .75rem; color: var(--text-muted, #94a3b8); display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .15rem; }
+        .mg-tag { background: var(--hover, rgba(148,163,184,.15)); padding: 0 .35rem; border-radius: 4px; }
+        .mg-detail h3 { margin: 0 0 .25rem; }
+        .mg-content { white-space: pre-wrap; font: inherit; background: var(--hover, rgba(148,163,184,.08)); padding: .75rem; border-radius: 6px; max-height: 50vh; overflow-y: auto; }
+      </style>
 
       <!-- ====== WRITE DIALOGS (spec 050) — global overlays, auth-gated server-side ====== -->
       <!-- Add by server-side path (US1). Path-based — no file upload. -->
