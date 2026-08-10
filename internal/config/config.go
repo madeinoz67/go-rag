@@ -102,6 +102,23 @@ type Config struct {
 	// near-duplicates. 0 (or absent) ⇒ DefaultNearDupHamming (3). Detection is
 	// always on (pure-Go, ACK-path); collapse is opt-in per query (dedup flag).
 	NearDupHamming int `json:"near_dup_hamming,omitempty"` // H20/spec 026: SimHash Hamming threshold; 0 = default 3; <0 invalid
+
+	// spec 060: MuninnDB bridge (opt-in egress exception — background, loopback-
+	// only, never a core op). Off by default; EffectiveBridgeEnabled() is the
+	// single resolution site. The target vault key is NOT here — it is read from
+	// the GORAG_BRIDGE_TOKEN env at bridge start (referenced, never inlined), so
+	// it never lands in config.json or logs.
+	BridgeEnabled              bool   `json:"bridge_enabled,omitempty"`                 // default false; true enables the bridge
+	BridgeEndpoint             string `json:"bridge_endpoint,omitempty"`                // default 127.0.0.1:8477; loopback-only (validated)
+	BridgeSourceVault          string `json:"bridge_source_vault,omitempty"`            // the go-rag vault being bridged (default "default")
+	BridgeTargetVault          string `json:"bridge_target_vault,omitempty"`            // dedicated MuninnDB vault engrams land in (default "go-rag")
+	BridgeMaxInFlight          int    `json:"bridge_max_in_flight,omitempty"`           // storm-limit: concurrent BatchWrite calls (default 8)
+	BridgeRatePerSec           int    `json:"bridge_rate_per_sec,omitempty"`            // token-bucket promotions/sec cap; 0 = off
+	BridgeWorkers              int    `json:"bridge_workers,omitempty"`                 // bridgeProc pool size (default 4)
+	BridgeBatchSize            int    `json:"bridge_batch_size,omitempty"`              // chunks per BatchWrite; MuninnDB max 50
+	BridgeConnectTimeoutMs     int    `json:"bridge_connect_timeout_ms,omitempty"`      // gRPC dial timeout (default 5000)
+	BridgeRequestTimeoutMs     int    `json:"bridge_request_timeout_ms,omitempty"`      // per-RPC timeout (default 30000)
+	BridgeBackfillAutoOnEnable bool   `json:"bridge_backfill_auto_on_enable,omitempty"` // US2: auto-backfill existing corpus on first enable
 }
 
 // Default returns the configuration used by `go-rag init` when no overrides apply.
@@ -239,6 +256,94 @@ func (c Config) EffectivePoisoningEnabled() bool { return c.PoisoningEnabled }
 // byte-identical to today.
 func (c Config) EffectiveEnrichmentEnabled() bool { return c.EnrichmentEnabled }
 
+// Default bridge configuration values (spec 060). The bridge is OFF by default;
+// absent keys resolve to these via the Effective* methods below.
+const (
+	DefaultBridgeEndpoint    = "127.0.0.1:8477" // MuninnDB gRPC (loopback)
+	DefaultBridgeSourceVault = "default"
+	DefaultBridgeTargetVault = "go-rag" // dedicated MuninnDB vault for promoted engrams
+	DefaultBridgeMaxInFlight = 8        // storm-limit: concurrent BatchWrite calls
+	DefaultBridgeWorkers     = 4        // bridgeProc pool size
+	DefaultBridgeBatchSize   = 50       // MuninnDB BatchWrite max
+	DefaultBridgeConnectMs   = 5000
+	DefaultBridgeRequestMs   = 30000
+)
+
+// EffectiveBridgeEnabled reports whether the MuninnDB bridge (spec 060) runs.
+// Defaults to false (opt-in egress exception): an absent bridge_enabled key is
+// false, so a fresh install makes zero outbound calls to MuninnDB.
+func (c Config) EffectiveBridgeEnabled() bool { return c.BridgeEnabled }
+
+// EffectiveBridgeEndpoint returns the loopback MuninnDB gRPC endpoint, defaulting
+// to 127.0.0.1:8477. Validate() rejects non-loopback values.
+func (c Config) EffectiveBridgeEndpoint() string {
+	if c.BridgeEndpoint == "" {
+		return DefaultBridgeEndpoint
+	}
+	return c.BridgeEndpoint
+}
+
+// EffectiveBridgeSourceVault returns the go-rag vault being bridged (default "default").
+func (c Config) EffectiveBridgeSourceVault() string {
+	if c.BridgeSourceVault == "" {
+		return DefaultBridgeSourceVault
+	}
+	return c.BridgeSourceVault
+}
+
+// EffectiveBridgeTargetVault returns the dedicated MuninnDB vault engrams land in
+// (default "go-rag"). Auto-created on first write (MuninnDB semantics).
+func (c Config) EffectiveBridgeTargetVault() string {
+	if c.BridgeTargetVault == "" {
+		return DefaultBridgeTargetVault
+	}
+	return c.BridgeTargetVault
+}
+
+// EffectiveBridgeMaxInFlight returns the storm-limit concurrency cap (default 8).
+func (c Config) EffectiveBridgeMaxInFlight() int {
+	if c.BridgeMaxInFlight <= 0 {
+		return DefaultBridgeMaxInFlight
+	}
+	return c.BridgeMaxInFlight
+}
+
+// EffectiveBridgeWorkers returns the bridgeProc pool size (default 4).
+func (c Config) EffectiveBridgeWorkers() int {
+	if c.BridgeWorkers <= 0 {
+		return DefaultBridgeWorkers
+	}
+	return c.BridgeWorkers
+}
+
+// EffectiveBridgeBatchSize returns the chunks-per-BatchWrite cap (default 50,
+// MuninnDB max). Clamped to ≤50.
+func (c Config) EffectiveBridgeBatchSize() int {
+	if c.BridgeBatchSize <= 0 {
+		return DefaultBridgeBatchSize
+	}
+	if c.BridgeBatchSize > DefaultBridgeBatchSize {
+		return DefaultBridgeBatchSize
+	}
+	return c.BridgeBatchSize
+}
+
+// EffectiveBridgeConnectTimeoutMs returns the gRPC dial timeout (default 5000).
+func (c Config) EffectiveBridgeConnectTimeoutMs() int {
+	if c.BridgeConnectTimeoutMs <= 0 {
+		return DefaultBridgeConnectMs
+	}
+	return c.BridgeConnectTimeoutMs
+}
+
+// EffectiveBridgeRequestTimeoutMs returns the per-RPC timeout (default 30000).
+func (c Config) EffectiveBridgeRequestTimeoutMs() int {
+	if c.BridgeRequestTimeoutMs <= 0 {
+		return DefaultBridgeRequestMs
+	}
+	return c.BridgeRequestTimeoutMs
+}
+
 // EffectiveCaptioningEnabled reports whether background image captioning
 // (spec 031 US4) runs. Defaults to false (opt-in). When false the system makes
 // zero vision-model calls and is byte-identical to today.
@@ -330,7 +435,44 @@ func (c Config) Validate() error {
 			return fmt.Errorf("invalid mcp_addr: %q", c.MCPAddr)
 		}
 	}
+	// spec 060: MuninnDB bridge — opt-in, loopback-only egress. When enabled the
+	// endpoint MUST be loopback (constitution Principle I) and the worker count
+	// sane. The target vault KEY is not a config field (env GORAG_BRIDGE_TOKEN),
+	// so its presence is checked at bridge start, not here.
+	if c.EffectiveBridgeEnabled() {
+		if !isLoopbackAddr(c.EffectiveBridgeEndpoint()) {
+			return fmt.Errorf("bridge_endpoint must be loopback (127.0.0.0/8 or ::1): %q", c.EffectiveBridgeEndpoint())
+		}
+		if c.BridgeWorkers < 0 || c.BridgeWorkers > 64 {
+			return fmt.Errorf("bridge_workers must be in [0,64] (0 = default %d)", DefaultBridgeWorkers)
+		}
+	}
 	return nil
+}
+
+// isLoopbackAddr reports whether addr (host:port) resolves to a loopback IP.
+// Used by the bridge config validation (constitution Principle I: loopback-only
+// egress). A bare ":port" or missing host is rejected. Hostnames are resolved
+// and require ALL resolved IPs to be loopback (DNS-rebind defense); the gRPC
+// dialer re-checks at connect time as defense-in-depth.
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil || host == "" {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	ips, err := net.LookupHost(host)
+	if err != nil || len(ips) == 0 {
+		return false
+	}
+	for _, s := range ips {
+		if ip := net.ParseIP(s); ip == nil || !ip.IsLoopback() {
+			return false
+		}
+	}
+	return true
 }
 
 // Load reads config from a JSON file.
