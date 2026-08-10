@@ -190,6 +190,15 @@ func (e *Engine) Config() config.Config { return e.cfg }
 // access, e.g. for prefix scans not yet wrapped here).
 func (e *Engine) DB() *storage.DB { return e.db }
 
+// Bridge returns the MuninnDB bridge coordinator (spec 060), or nil when the
+// bridge is disabled (the default). The management console's Memory & Graph view
+// reads through it. Guarded by pipeMu (the bridge is constructed in pipeline()).
+func (e *Engine) Bridge() *muninn.Bridge {
+	e.pipeMu.Lock()
+	defer e.pipeMu.Unlock()
+	return e.bridge
+}
+
 // Events returns the engine's document lifecycle event bus (spec 040 / BL-008).
 // The bus is the pub-sub substrate for the WatchDocuments gRPC server-stream.
 // Always non-nil for engines built via NewWithDB / NewWithEmbedder; a defensive

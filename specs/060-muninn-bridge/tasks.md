@@ -88,10 +88,10 @@
 
 ### Implementation
 
-- [ ] T019 [P] [US3] Retire the placeholder — delete `"memory-graph"` from `placeholderViews` in `internal/ui/placeholder.go` (after which `handlePlaceholder` 404s for it) and update `TestPlaceholder_Routes` in `internal/ui/ui_test.go` to reflect the empty placeholder set. `internal/ui/placeholder.go`, `internal/ui/ui_test.go`
-- [ ] T020 [US3] Implement the guarded routes in `internal/ui/memory_graph.go` (named `memory_graph`, NOT `bridge*` — avoids the spec 049 `bridgeops` collision, research.md R9): `GET /api/memory-graph/browse`, `GET /api/memory-graph/engrams/{id}`, `GET /api/memory-graph/status`, `POST /api/memory-graph/backfill/{pause|resume}` per contracts/ui-rest.md. All through `s.guard(...)`. Register in `internal/ui/ui.go::Server.Handler`. `internal/ui/memory_graph.go`, `internal/ui/ui.go`
+- [x] T019 [P] [US3] Retire the placeholder — delete `"memory-graph"` from `placeholderViews` in `internal/ui/placeholder.go` (after which `handlePlaceholder` 404s for it) and update `TestPlaceholder_Routes` in `internal/ui/ui_test.go` to reflect the empty placeholder set. `internal/ui/placeholder.go`, `internal/ui/ui_test.go`
+- [x] T020 [US3] Implement the guarded routes in `internal/ui/memory_graph.go` (named `memory_graph`, NOT `bridge*` — avoids the spec 049 `bridgeops` collision, research.md R9): `GET /api/memory-graph/browse`, `GET /api/memory-graph/engrams/{id}`, `GET /api/memory-graph/status`, `POST /api/memory-graph/backfill/{pause|resume}` per contracts/ui-rest.md. All through `s.guard(...)`. Register in `internal/ui/ui.go::Server.Handler`. `internal/ui/memory_graph.go`, `internal/ui/ui.go`
 - [ ] T021 [US3] Build the Alpine view — replace the placeholder `<section>` (lines ~1288–1292) in `internal/ui/web/templates/index.html` with a real view bound to the new API (browse list + detail panel + degraded/empty state + pause/resume control). The 9th `nav-item` (line ~202) already targets `memory-graph`. `internal/ui/web/templates/index.html`
-- [ ] T022 [US3] Auth + degraded-state tests in `internal/ui/memory_graph_test.go` — no-Bearer ⇒ 401 on every route; MuninnDB-unreachable (fake `Healthy()=false`) ⇒ `browse` returns `degraded:true` (200, not 5xx); `engrams/{unknown}` ⇒ 404. `internal/ui/memory_graph_test.go`
+- [x] T022 [US3] Auth + degraded-state tests in `internal/ui/memory_graph_test.go` — no-Bearer ⇒ 401 on every route; MuninnDB-unreachable (fake `Healthy()=false`) ⇒ `browse` returns `degraded:true` (200, not 5xx); `engrams/{unknown}` ⇒ 404. `internal/ui/memory_graph_test.go`
 
 **Checkpoint**: all three stories independently functional; the last placeholder is retired.
 

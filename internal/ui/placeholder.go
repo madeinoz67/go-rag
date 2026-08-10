@@ -12,11 +12,10 @@ import (
 // (055) — each replaced this seam with a real handler + Alpine view and are
 // intentionally NOT listed here; handlePlaceholder 404s for them.
 //
-// Remaining placeholders: Memory & Graph (blocked on the MuninnDB bridge —
-// issues #560 → #556). Settings graduated to a real view in spec 055.
-var placeholderViews = map[string]string{
-	"memory-graph": "blocked",
-}
+// Remaining placeholders: none — the Memory & Graph view graduated to a real
+// view in spec 060 (the last placeholder retired). The map is kept (empty) so
+// handlePlaceholder stays valid for any future placeholder.
+var placeholderViews = map[string]string{}
 
 // handlePlaceholder serves the standard placeholder marker for a not-yet-built
 // view. The client (Alpine) reads {view, title, status, future_spec} and renders

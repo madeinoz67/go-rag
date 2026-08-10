@@ -159,6 +159,20 @@ func (b *Bridge) Paused() bool { return b.paused.Load() }
 // reads through it. Non-nil for a constructed Bridge.
 func (b *Bridge) Client() Client { return b.client }
 
+// TargetVault returns the dedicated MuninnDB vault promoted engrams land in.
+func (b *Bridge) TargetVault() string { return b.mapper.TargetVault }
+
+// Browse streams an Activate recall browse over the target vault (the Memory &
+// Graph view's list). The caller drains the channel; it closes on end/error.
+func (b *Bridge) Browse(ctx context.Context, phrases []string, limit int) (<-chan Activation, error) {
+	return b.client.Activate(ctx, b.mapper.TargetVault, phrases, limit)
+}
+
+// ReadEngram fetches one engram by id from the target vault (the view's detail).
+func (b *Bridge) ReadEngram(ctx context.Context, id string) (*Engram, error) {
+	return b.client.Read(ctx, b.mapper.TargetVault, id)
+}
+
 // BridgeStatus is the observable snapshot (FR-017 / contracts/ui-rest.md). The
 // target-vault key is deliberately absent — it never leaves the gRPC interceptor.
 type BridgeStatus struct {

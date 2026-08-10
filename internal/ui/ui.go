@@ -82,36 +82,40 @@ func (s *Server) Handler() http.Handler {
 	// /api/* routes, which 401 until the operator authenticates.
 	mux.HandleFunc("GET /{$}", s.handleShell)
 	mux.HandleFunc("GET /api/dashboard/stats", s.guard(s.handleDashboardStats))
-	mux.HandleFunc("GET /api/documents", s.guard(s.handleDocumentsList))                              // spec 047 US1
-	mux.HandleFunc("GET /api/documents/search", s.guard(s.handleDocumentsSearch))                     // spec 047 US3
-	mux.HandleFunc("POST /api/documents", s.guard(s.handleDocumentAdd))                               // spec 050 US1 (write)
-	mux.HandleFunc("DELETE /api/documents/{id}", s.guard(s.handleDocumentRemove))                     // spec 050 US2 (write)
-	mux.HandleFunc("POST /api/documents/{id}/reingest", s.guard(s.handleDocumentReingest))            // spec 050 US3 (write)
-	mux.HandleFunc("GET /api/documents/{id}", s.guard(s.handleDocumentDetail))                        // spec 047 US2
-	mux.HandleFunc("GET /api/documents/{id}/chunks", s.guard(s.handleDocumentChunks))                 // spec 047 US2
-	mux.HandleFunc("GET /api/documents/{id}/chunks/{chunkID}/context", s.guard(s.handleChunkContext)) // spec 047 US2
-	mux.HandleFunc("POST /api/query", s.guard(s.handleQuery))                                         // spec 048
-	mux.HandleFunc("GET /api/bridge-ops/stats", s.guard(s.handleBridgeOpsStats))                      // spec 049
-	mux.HandleFunc("GET /api/bridge-ops/activity", s.guard(s.handleBridgeOpsActivity))                // spec 049
-	mux.HandleFunc("GET /api/observability/metrics", s.guard(s.handleObservabilityMetrics))           // spec 054 US1
-	mux.HandleFunc("GET /api/observability/audit", s.guard(s.handleObservabilityAudit))               // spec 054 US2
-	mux.HandleFunc("GET /api/settings", s.guard(s.handleSettings))                                    // spec 055
-	mux.HandleFunc("GET /api/settings/system", s.guard(s.handleSystem))                               // spec 056 US1/US2
-	mux.HandleFunc("POST /api/settings/updates/check", s.guard(s.handleUpdateCheck))                  // spec 056 US3
-	mux.HandleFunc("GET /api/settings/auth/api-keys", s.guard(s.handleAPIKeysList))                   // spec 057 US1
-	mux.HandleFunc("POST /api/settings/auth/api-keys", s.guard(s.handleAPIKeyCreate))                 // spec 057 US2
-	mux.HandleFunc("DELETE /api/settings/auth/api-keys/{id}", s.guard(s.handleAPIKeyDelete))          // spec 057 (permanent)
-	mux.HandleFunc("POST /api/settings/auth/api-keys/{id}/revoke", s.guard(s.handleAPIKeyRevoke))     // spec 057 (disable)
-	mux.HandleFunc("GET /api/quarantine/list", s.guard(s.handleQuarantineList))                       // spec 053 US1
-	mux.HandleFunc("GET /api/quarantine/{id}/detail", s.guard(s.handleQuarantineDetail))              // spec 053 US2
-	mux.HandleFunc("POST /api/quarantine/{id}/release", s.guard(s.handleQuarantineRelease))           // spec 053 US3
-	mux.HandleFunc("POST /api/quarantine/{id}/reset", s.guard(s.handleQuarantineReset))               // spec 053 US3
-	mux.HandleFunc("POST /api/quarantine/rescan", s.guard(s.handleQuarantineRescan))                  // spec 053 US3
-	mux.HandleFunc("GET /api/vaults", s.guard(s.handleVaultsList))                                    // spec 051 US1
-	mux.HandleFunc("POST /api/vaults", s.guard(s.handleVaultCreate))                                  // spec 051 US2
-	mux.HandleFunc("POST /api/vaults/{name}/rename", s.guard(s.handleVaultRename))                    // spec 051 US4
-	mux.HandleFunc("POST /api/vaults/{name}/clear", s.guard(s.handleVaultClear))                      // spec 051 US5
-	mux.HandleFunc("DELETE /api/vaults/{name}", s.guard(s.handleVaultDelete))                         // spec 051 US5
+	mux.HandleFunc("GET /api/documents", s.guard(s.handleDocumentsList))                                   // spec 047 US1
+	mux.HandleFunc("GET /api/documents/search", s.guard(s.handleDocumentsSearch))                          // spec 047 US3
+	mux.HandleFunc("POST /api/documents", s.guard(s.handleDocumentAdd))                                    // spec 050 US1 (write)
+	mux.HandleFunc("DELETE /api/documents/{id}", s.guard(s.handleDocumentRemove))                          // spec 050 US2 (write)
+	mux.HandleFunc("POST /api/documents/{id}/reingest", s.guard(s.handleDocumentReingest))                 // spec 050 US3 (write)
+	mux.HandleFunc("GET /api/documents/{id}", s.guard(s.handleDocumentDetail))                             // spec 047 US2
+	mux.HandleFunc("GET /api/documents/{id}/chunks", s.guard(s.handleDocumentChunks))                      // spec 047 US2
+	mux.HandleFunc("GET /api/documents/{id}/chunks/{chunkID}/context", s.guard(s.handleChunkContext))      // spec 047 US2
+	mux.HandleFunc("POST /api/query", s.guard(s.handleQuery))                                              // spec 048
+	mux.HandleFunc("GET /api/bridge-ops/stats", s.guard(s.handleBridgeOpsStats))                           // spec 049
+	mux.HandleFunc("GET /api/bridge-ops/activity", s.guard(s.handleBridgeOpsActivity))                     // spec 049
+	mux.HandleFunc("GET /api/observability/metrics", s.guard(s.handleObservabilityMetrics))                // spec 054 US1
+	mux.HandleFunc("GET /api/observability/audit", s.guard(s.handleObservabilityAudit))                    // spec 054 US2
+	mux.HandleFunc("GET /api/settings", s.guard(s.handleSettings))                                         // spec 055
+	mux.HandleFunc("GET /api/settings/system", s.guard(s.handleSystem))                                    // spec 056 US1/US2
+	mux.HandleFunc("POST /api/settings/updates/check", s.guard(s.handleUpdateCheck))                       // spec 056 US3
+	mux.HandleFunc("GET /api/settings/auth/api-keys", s.guard(s.handleAPIKeysList))                        // spec 057 US1
+	mux.HandleFunc("POST /api/settings/auth/api-keys", s.guard(s.handleAPIKeyCreate))                      // spec 057 US2
+	mux.HandleFunc("DELETE /api/settings/auth/api-keys/{id}", s.guard(s.handleAPIKeyDelete))               // spec 057 (permanent)
+	mux.HandleFunc("POST /api/settings/auth/api-keys/{id}/revoke", s.guard(s.handleAPIKeyRevoke))          // spec 057 (disable)
+	mux.HandleFunc("GET /api/quarantine/list", s.guard(s.handleQuarantineList))                            // spec 053 US1
+	mux.HandleFunc("GET /api/quarantine/{id}/detail", s.guard(s.handleQuarantineDetail))                   // spec 053 US2
+	mux.HandleFunc("POST /api/quarantine/{id}/release", s.guard(s.handleQuarantineRelease))                // spec 053 US3
+	mux.HandleFunc("POST /api/quarantine/{id}/reset", s.guard(s.handleQuarantineReset))                    // spec 053 US3
+	mux.HandleFunc("POST /api/quarantine/rescan", s.guard(s.handleQuarantineRescan))                       // spec 053 US3
+	mux.HandleFunc("GET /api/vaults", s.guard(s.handleVaultsList))                                         // spec 051 US1
+	mux.HandleFunc("POST /api/vaults", s.guard(s.handleVaultCreate))                                       // spec 051 US2
+	mux.HandleFunc("POST /api/vaults/{name}/rename", s.guard(s.handleVaultRename))                         // spec 051 US4
+	mux.HandleFunc("POST /api/vaults/{name}/clear", s.guard(s.handleVaultClear))                           // spec 051 US5
+	mux.HandleFunc("DELETE /api/vaults/{name}", s.guard(s.handleVaultDelete))                              // spec 051 US5
+	mux.HandleFunc("GET /api/memory-graph/browse", s.guard(s.handleMemoryGraphBrowse))                     // spec 060 US3
+	mux.HandleFunc("GET /api/memory-graph/engrams/{id}", s.guard(s.handleMemoryGraphEngram))               // spec 060 US3
+	mux.HandleFunc("GET /api/memory-graph/status", s.guard(s.handleMemoryGraphStatus))                     // spec 060
+	mux.HandleFunc("POST /api/memory-graph/backfill/{action}", s.guard(s.handleMemoryGraphBackfillAction)) // spec 060 FR-014
 	mux.HandleFunc("GET /api/placeholder/{view}", s.guard(s.handlePlaceholder))
 	mux.HandleFunc("POST /logout", s.guard(s.handleLogout))
 	return mux

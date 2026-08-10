@@ -256,26 +256,21 @@ func TestPlaceholder_Routes(t *testing.T) {
 	}
 }
 
-// TestSidebar_ViewSet — the placeholder map carries exactly the 7 non-dashboard
-// sidebar views with their future spec numbers (the 8th, Dashboard, is real).
+// TestSidebar_ViewSet — the sidebar's placeholder map. Every view has graduated
+// as of spec 060 (memory-graph was the last); the map is empty. Built views must
+// not regress into it.
 func TestSidebar_ViewSet(t *testing.T) {
 	// placeholderViews holds ONLY the sidebar items still rendering a placeholder
 	// panel. Built views (documents 047, query 048, operations 049, vaults 051,
 	// quarantine 053, observability 054, settings 055) are intentionally absent —
 	// handlePlaceholder 404s for them.
-	want := map[string]string{
-		"memory-graph": "blocked",
-	}
-	if len(placeholderViews) != len(want) {
-		t.Fatalf("placeholder view count: got %d, want %d", len(placeholderViews), len(want))
-	}
-	for k, v := range want {
-		if placeholderViews[k] != v {
-			t.Errorf("placeholder[%q]: got %q, want %q", k, placeholderViews[k], v)
-		}
+	// As of spec 060 every sidebar view has graduated — memory-graph was the last
+	// placeholder. The map is empty; a future placeholder re-adds an entry here.
+	if len(placeholderViews) != 0 {
+		t.Fatalf("placeholder view count: got %d, want 0 (all views graduated; spec 060 retired memory-graph)", len(placeholderViews))
 	}
 	// Built views must NOT regress into the placeholder map.
-	for _, built := range []string{"documents", "query", "operations", "vaults", "quarantine", "observability"} {
+	for _, built := range []string{"documents", "query", "operations", "vaults", "quarantine", "observability", "memory-graph"} {
 		if _, ok := placeholderViews[built]; ok {
 			t.Errorf("built view %q must not be a placeholder", built)
 		}
