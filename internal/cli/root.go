@@ -88,7 +88,8 @@ func Execute(version string) error {
 		newVaultCmd(),
 		newModelCmd(),
 		newUpgradeCmd(version),
-		newAuthCmd(), // spec 045
+		newAuthCmd(),   // spec 045
+		newBridgeCmd(), // spec 060
 	)
 	return rootCmd.Execute()
 }
