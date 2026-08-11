@@ -101,7 +101,7 @@ func (g *grpcClient) Write(ctx context.Context, p WriteParams) (string, int64, e
 	if err != nil {
 		return "", 0, err
 	}
-	return resp.ID, resp.CreatedAt, nil
+	return resp.Id, resp.CreatedAt, nil
 }
 
 func (g *grpcClient) BatchWrite(ctx context.Context, vault string, batch []WriteParams) ([]BatchItemResult, error) {
@@ -123,7 +123,7 @@ func (g *grpcClient) BatchWrite(ctx context.Context, vault string, batch []Write
 }
 
 func (g *grpcClient) Read(ctx context.Context, vault, id string) (*Engram, error) {
-	resp, err := g.raw.Read(ctx, &pb.ReadRequest{ID: id, Vault: vault}, grpc.WaitForReady(true))
+	resp, err := g.raw.Read(ctx, &pb.ReadRequest{Id: id, Vault: vault}, grpc.WaitForReady(true))
 	g.mark(err)
 	if err != nil {
 		return nil, err
@@ -159,7 +159,7 @@ func (g *grpcClient) Activate(ctx context.Context, vault string, phrases []strin
 				case <-ctx.Done():
 					return
 				case out <- Activation{
-					EngramID: a.ID, Concept: a.Concept,
+					EngramID: a.Id, Concept: a.Concept,
 					Score: a.Score, Tags: nil,
 				}:
 				}
@@ -242,10 +242,10 @@ func bearerStream(token string) grpc.StreamClientInterceptor {
 // (nil unless the caller explicitly set one — the mapper leaves it nil); UpsertMode
 // is passed through verbatim.
 func toProtoWrite(p WriteParams) *pb.WriteRequest {
-	assocs := make([]pb.Association, len(p.Associations))
+	assocs := make([]*pb.Association, len(p.Associations))
 	for i, a := range p.Associations {
-		assocs[i] = pb.Association{
-			TargetID: a.TargetID, RelType: a.RelType, Weight: a.Weight, Confidence: a.Confidence,
+		assocs[i] = &pb.Association{
+			TargetId: a.TargetID, RelType: a.RelType, Weight: a.Weight, Confidence: a.Confidence,
 		}
 	}
 	return &pb.WriteRequest{
@@ -255,7 +255,7 @@ func toProtoWrite(p WriteParams) *pb.WriteRequest {
 		Confidence:   p.Confidence,
 		Stability:    p.Stability,
 		Vault:        p.Vault,
-		IdempotentID: p.IdempotentID,
+		IdempotentId: p.IdempotentID,
 		Associations: assocs,
 		Embedding:    p.Embedding, // nil by the maintainer invariant
 		MemoryType:   p.MemoryType,
@@ -270,7 +270,7 @@ func fromProtoRead(r *pb.ReadResponse) *Engram {
 		return nil
 	}
 	return &Engram{
-		ID:          r.ID,
+		ID:          r.Id,
 		Concept:     r.Concept,
 		Content:     r.Content,
 		Tags:        r.Tags,
