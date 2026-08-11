@@ -47,7 +47,19 @@ func TestSerialization_NoDoubleEvent(t *testing.T) {
 	}()
 	go func() {
 		defer wg.Done()
-		time.Sleep(5 * time.Millisecond) // slight delay to race with Reprocess
+		// Wait until Reprocess has set the reingest flag (guarantees the two
+		// operations truly overlap, not just a fixed-delay race that breaks on
+		// fast CI runners where Reprocess finishes within the old 5ms sleep).
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			p.mu.Lock()
+			started := p.reingestDocs[docID]
+			p.mu.Unlock()
+			if started {
+				break
+			}
+			time.Sleep(time.Millisecond)
+		}
 		p.DeleteDoc(docID)
 	}()
 	wg.Wait()
