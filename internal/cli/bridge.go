@@ -37,6 +37,7 @@ func newBridgeInitCmd() *cobra.Command {
 	var endpoint, sourceVault, targetVault string
 	var maxInFlight, ratePerSec int
 	var disable bool
+	var allowExternal bool
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Configure and enable the MuninnDB bridge",
@@ -62,6 +63,9 @@ func newBridgeInitCmd() *cobra.Command {
 				cfg.BridgeRatePerSec = ratePerSec
 			}
 			cfg.BridgeEnabled = !disable
+			if allowExternal {
+				cfg.BridgeAllowExternal = true
+			}
 
 			// Validate before saving so a non-loopback endpoint or bad value fails
 			// loudly here, not at daemon start.
@@ -84,6 +88,7 @@ func newBridgeInitCmd() *cobra.Command {
 	cmd.Flags().IntVar(&maxInFlight, "max-in-flight", 0, "max concurrent BatchWrite calls / storm-limit (default 8; 0 = default)")
 	cmd.Flags().IntVar(&ratePerSec, "rate-per-sec", 0, "token-bucket promotions/sec cap (0 = unbounded)")
 	cmd.Flags().BoolVar(&disable, "disable", false, "disable the bridge (set bridge_enabled=false)")
+	cmd.Flags().BoolVar(&allowExternal, "allow-external", false, "allow non-loopback MuninnDB endpoints (Docker/multi-container; default: loopback-only)")
 	return cmd
 }
 
@@ -116,7 +121,11 @@ func printBridgeConfig(cfg config.Config) {
 		token = "set"
 	}
 	fmt.Printf("bridge:        %s\n", state)
-	fmt.Printf("endpoint:      %s (loopback)\n", cfg.EffectiveBridgeEndpoint())
+	egress := "loopback-only"
+	if cfg.BridgeAllowExternal {
+		egress = "external allowed"
+	}
+	fmt.Printf("endpoint:      %s (%s)\n", cfg.EffectiveBridgeEndpoint(), egress)
 	fmt.Printf("source vault:  %s\n", cfg.EffectiveBridgeSourceVault())
 	fmt.Printf("target vault:  %s\n", cfg.EffectiveBridgeTargetVault())
 	fmt.Printf("token (env):   %s\n", token)

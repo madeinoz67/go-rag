@@ -59,7 +59,7 @@ type BackfillState struct {
 // MUST gate on cfg.EffectiveBridgeEnabled().
 func New(ctx context.Context, cfg config.Config, source ChunkSource) (*Bridge, error) {
 	token := os.Getenv("GORAG_BRIDGE_TOKEN")
-	client, err := Dial(ctx, cfg.EffectiveBridgeEndpoint(), token)
+	client, err := Dial(ctx, cfg.EffectiveBridgeEndpoint(), token, cfg.BridgeAllowExternal)
 	if err != nil {
 		return nil, err
 	}

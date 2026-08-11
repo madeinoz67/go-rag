@@ -39,12 +39,12 @@ type grpcClient struct {
 // regardless of whether the server is currently up — the bridge degrades — but a
 // non-loopback endpoint fails immediately. A best-effort Hello probe populates
 // capabilities; probe failure does not fail Dial.
-func Dial(ctx context.Context, endpoint, token string) (Client, error) {
+func Dial(ctx context.Context, endpoint, token string, allowExternal bool) (Client, error) {
 	if token == "" {
 		return nil, errors.New("bridge: empty MuninnDB token (set GORAG_BRIDGE_TOKEN)")
 	}
 	conn, err := grpc.NewClient(endpoint,
-		grpc.WithContextDialer(loopbackDialer),
+		grpc.WithContextDialer(loopbackDialer(allowExternal)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()), // loopback only; remote is refused at dial
 		grpc.WithUnaryInterceptor(bearerUnary(token)),
 		grpc.WithStreamInterceptor(bearerStream(token)),
@@ -195,31 +195,48 @@ func (g *grpcClient) mark(err error) {
 // loopbackDialer is the gRPC dialer — refuses any non-loopback address. This is
 // the connection-time gate (config.Validate is the first); together they defeat
 // DNS rebinding (a loopback hostname that resolves to a public IP is rejected).
-func loopbackDialer(ctx context.Context, addr string) (net.Conn, error) {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, fmt.Errorf("bridge: bad endpoint %q: %w", addr, err)
-	}
-	if host == "" {
-		return nil, fmt.Errorf("bridge: refusing bare port (loopback only): %q", addr)
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		if !ip.IsLoopback() {
-			return nil, fmt.Errorf("bridge: refusing non-loopback endpoint %q", addr)
+func loopbackDialer(allowExternal bool) func(context.Context, string) (net.Conn, error) {
+	return func(ctx context.Context, addr string) (net.Conn, error) {
+		// allowExternal (Docker/multi-container): skip the loopback gate. The
+		// operator opted in via bridge_allow_external=true, accepting the egress.
+		if allowExternal {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, fmt.Errorf("bridge: bad endpoint %q: %w", addr, err)
+			}
+			if host == "" {
+				return nil, fmt.Errorf("bridge: refusing bare port: %q", addr)
+			}
+			d := net.Dialer{}
+			return d.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
 		}
-	} else {
-		ips, err := net.DefaultResolver.LookupHost(ctx, host)
+		// Loopback-only (default). Refuse non-loopback at dial — defense vs
+		// DNS rebinding (config.Validate is the first gate).
+		host, port, err := net.SplitHostPort(addr)
 		if err != nil {
-			return nil, fmt.Errorf("bridge: resolve %q: %w", host, err)
+			return nil, fmt.Errorf("bridge: bad endpoint %q: %w", addr, err)
 		}
-		for _, s := range ips {
-			if ip := net.ParseIP(s); ip == nil || !ip.IsLoopback() {
-				return nil, fmt.Errorf("bridge: refusing non-loopback endpoint %q (resolves to %s)", addr, s)
+		if host == "" {
+			return nil, fmt.Errorf("bridge: refusing bare port (loopback only): %q", addr)
+		}
+		if ip := net.ParseIP(host); ip != nil {
+			if !ip.IsLoopback() {
+				return nil, fmt.Errorf("bridge: refusing non-loopback endpoint %q", addr)
+			}
+		} else {
+			ips, err := net.DefaultResolver.LookupHost(ctx, host)
+			if err != nil {
+				return nil, fmt.Errorf("bridge: resolve %q: %w", host, err)
+			}
+			for _, s := range ips {
+				if ip := net.ParseIP(s); ip == nil || !ip.IsLoopback() {
+					return nil, fmt.Errorf("bridge: refusing non-loopback endpoint %q (resolves to %s)", addr, s)
+				}
 			}
 		}
+		d := net.Dialer{}
+		return d.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
 	}
-	d := net.Dialer{}
-	return d.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
 }
 
 // bearerUnary injects the target vault key as an Authorization: Bearer header on

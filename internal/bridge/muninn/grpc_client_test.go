@@ -24,7 +24,7 @@ func TestLoopbackDialer_RefusesNonLoopback(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := loopbackDialer(ctx, tc.addr)
+			_, err := loopbackDialer(false)(ctx, tc.addr)
 			if err == nil {
 				t.Fatalf("dialer accepted %q (want refusal)", tc.addr)
 			}
@@ -39,7 +39,7 @@ func TestLoopbackDialer_RefusesNonLoopback(t *testing.T) {
 // (it then fails to connect because nothing listens on :1 — the point is that
 // the failure is a dial error, NOT a refusal).
 func TestLoopbackDialer_AllowsLoopback(t *testing.T) {
-	_, err := loopbackDialer(context.Background(), "127.0.0.1:1")
+	_, err := loopbackDialer(false)(context.Background(), "127.0.0.1:1")
 	if err == nil {
 		t.Fatal("expected a dial error on :1 (nothing listens), got nil")
 	}
@@ -53,8 +53,22 @@ func TestLoopbackDialer_AllowsLoopback(t *testing.T) {
 // no client. The key comes from GORAG_BRIDGE_TOKEN; an empty token is a config
 // error the operator must fix before the bridge can egress.
 func TestDial_RejectsEmptyToken(t *testing.T) {
-	_, err := Dial(context.Background(), "127.0.0.1:8477", "")
+	_, err := Dial(context.Background(), "127.0.0.1:8477", "", false)
 	if err == nil || !strings.Contains(err.Error(), "token") {
 		t.Fatalf("Dial with empty token: want token error, got %v", err)
+	}
+}
+
+// TestLoopbackDialer_AllowExternalBypassesGate confirms that allowExternal=true
+// (Docker/multi-container opt-in) skips the loopback refusal — a non-loopback
+// endpoint dials directly instead of being rejected. Uses TEST-NET-1 (RFC 5737,
+// guaranteed unreachable) so the dial fails with a connection error, not a refusal.
+func TestLoopbackDialer_AllowExternalBypassesGate(t *testing.T) {
+	_, err := loopbackDialer(true)(context.Background(), "192.0.2.1:8477")
+	if err == nil {
+		t.Fatal("expected a dial error (192.0.2.1 is TEST-NET-1, nothing listens)")
+	}
+	if strings.Contains(err.Error(), "non-loopback") || strings.Contains(err.Error(), "bare port") {
+		t.Fatalf("allowExternal=true should bypass the loopback gate, but got refusal: %v", err)
 	}
 }

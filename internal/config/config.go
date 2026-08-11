@@ -119,6 +119,7 @@ type Config struct {
 	BridgeConnectTimeoutMs     int    `json:"bridge_connect_timeout_ms,omitempty"`      // gRPC dial timeout (default 5000)
 	BridgeRequestTimeoutMs     int    `json:"bridge_request_timeout_ms,omitempty"`      // per-RPC timeout (default 30000)
 	BridgeBackfillAutoOnEnable bool   `json:"bridge_backfill_auto_on_enable,omitempty"` // US2: auto-backfill existing corpus on first enable
+	BridgeAllowExternal        bool   `json:"bridge_allow_external,omitempty"`          // opt-in: allow non-loopback endpoints (Docker multi-container); default false
 }
 
 // Default returns the configuration used by `go-rag init` when no overrides apply.
@@ -440,8 +441,8 @@ func (c Config) Validate() error {
 	// sane. The target vault KEY is not a config field (env GORAG_BRIDGE_TOKEN),
 	// so its presence is checked at bridge start, not here.
 	if c.EffectiveBridgeEnabled() {
-		if !isLoopbackAddr(c.EffectiveBridgeEndpoint()) {
-			return fmt.Errorf("bridge_endpoint must be loopback (127.0.0.0/8 or ::1): %q", c.EffectiveBridgeEndpoint())
+		if !c.BridgeAllowExternal && !isLoopbackAddr(c.EffectiveBridgeEndpoint()) {
+			return fmt.Errorf("bridge_endpoint must be loopback (127.0.0.0/8 or ::1): %q — or set bridge_allow_external=true for Docker/multi-container", c.EffectiveBridgeEndpoint())
 		}
 		if c.BridgeWorkers < 0 || c.BridgeWorkers > 64 {
 			return fmt.Errorf("bridge_workers must be in [0,64] (0 = default %d)", DefaultBridgeWorkers)

@@ -357,7 +357,11 @@ go-rag bridge muninn status        # config + effective knobs
 
 **Properties:**
 
-- **Loopback-only** — non-loopback endpoints are refused at config-validation *and* at dial (defense vs DNS rebinding). No remote egress.
+- **Loopback-only by default** — non-loopback endpoints are refused at config-validation *and* at dial (defense vs DNS rebinding). For Docker/multi-container (go-rag + MuninnDB in separate containers), opt in with `--allow-external`:
+  ```bash
+  go-rag bridge muninn init --endpoint muninndb:8477 --target-vault go-rag --allow-external
+  ```
+  This mirrors the daemon's `--bind-external` pattern: loopback is the safe default, external is an explicit operator decision.
 - **Never a core operation** — promotion runs async after the write ACK; ingest/query are unaffected whether MuninnDB is up, down, or slow. A down MuninnDB trips a circuit breaker (no RPC storm).
 - **Idempotent (content-addressed)** — re-ingesting an unchanged document is a strict no-op at MuninnDB (no duplicate engrams, no forged learning signal); a changed chunk gets a new identity → a new engram.
 - **Auto-backfill** — enabling on a vault with an existing corpus backfills it automatically (storm-limited; pausable from the console).
