@@ -33,11 +33,15 @@ Thumbs.db
 /.tokensave/
 /.codanna/
 
-# MkDocs site build output
-/site/
+# site/ is the public website source (spec 061) — tracked, served by GitHub Pages.
 
 # Claude Code local settings (per-developer; never commit)
 .claude/settings.local.json
+
+# MuninnDB memory ledger + drain receipts (local runtime state, never commit)
+/.claude/memory-proposals*.jsonl
+/.claude/memory-proposals*.lock
+/.claude/memory-drain-receipt*
 
 # RAG book source chapters — copyrighted reference material for the audit
 # (RAG_BOOK_AUDIT.md), not project code. Never commit.

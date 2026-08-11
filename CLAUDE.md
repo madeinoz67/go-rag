@@ -211,6 +211,6 @@ issue, or code comment.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/060-muninn-bridge/plan.md
+at specs/061-public-website/plan.md
 <!-- SPECKIT END -->
 

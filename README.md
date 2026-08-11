@@ -5,7 +5,7 @@
 > your filesystem. Embeddings work out of the box via a bundled pure-Go model
 > (spec 032); a local Ollama is optional for alternative models.
 
-**Status:** alpha (v0.2.x) — feature-complete and working end-to-end. Multi-vault support,
+**Status:** alpha (v0.3.x) — feature-complete and working end-to-end. Multi-vault support,
 cross-encoder reranking, muninn-style MCP daemon, and Obsidian-aware ingestion.
 Full spec: [`PRD_RAG_Database.md`](./docs/internals/PRD_RAG_Database.md).
 
@@ -22,11 +22,20 @@ and you have a working RAG system.
 
 ## Installation
 
-**Homebrew** (macOS/Linux — recommended):
+**One-line installer** (macOS/Linux — recommended):
+
+```bash
+curl -fsSL https://madeinoz67.github.io/go-rag/install.sh | sh
+go-rag version
+```
+
+The script resolves the latest release, verifies the download against the
+published SHA-256 checksums, then installs `go-rag` on your PATH.
+
+**Homebrew** (macOS/Linux):
 
 ```bash
 brew install madeinoz67/tap/go-rag
-go-rag version
 ```
 
 **Build from source** (needs Go 1.22+):
@@ -35,7 +44,10 @@ go-rag version
 make build   # → ./bin/go-rag
 ```
 
-Prebuilt binaries for every release: [github.com/madeinoz67/go-rag/releases](https://github.com/madeinoz67/go-rag/releases).
+Prebuilt binaries, the Docker image (`ghcr.io/madeinoz67/go-rag`), and Windows
+builds for every release:
+[github.com/madeinoz67/go-rag/releases](https://github.com/madeinoz67/go-rag/releases).
+Website & docs: <https://madeinoz67.github.io/go-rag/>.
 
 
 ## Quickstart
@@ -323,9 +335,14 @@ Ollama-server drift that the model/dim guard cannot.
 ## MCP daemon
 
 `start` re-execs a detached daemon that owns the Pebble database and serves MCP
-over HTTP (`:7878`). 10 MCP tools: `go_rag_query`, `go_rag_status`, `go_rag_add`,
+over HTTP (`:7878`). 30 MCP tools spanning query/status, ingest & maintenance,
+document/chunk inspection, injection-poisoning triage, vaults, retrieval-quality
+eval, and admin auth. The core set: `go_rag_query`, `go_rag_status`, `go_rag_add`,
 `go_rag_init`, `go_rag_scan`, `go_rag_config`, `go_rag_files`, `go_rag_dirs`,
-`go_rag_reprocess`, `go_rag_migrate`.
+`go_rag_reprocess`, `go_rag_migrate` — plus `go_rag_get_chunk`,
+`go_rag_list_documents`, `go_rag_poison_list`, `go_rag_vault_list`, `go_rag_eval`,
+`go_rag_guide`, and the spec 045 admin-auth tools. Run `go-rag mcp` (a stdio→HTTP
+proxy) to bridge a stdio client like Claude Desktop to the daemon.
 
 Wire into Claude Desktop:
 ```json

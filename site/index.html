@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>go-rag — a RAG database that lives in one binary</title>
+<meta name="description" content="A single-binary, local-first, pure-Go RAG database. Ingest, index, and query your documents on your own filesystem — no cloud, no API keys, offline by default.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FAFAF8; --paper-alt:#F1F0EA;
+    --ink:#14171A; --ink-soft:#52585F;
+    --line:#E3E1DA; --line-strong:#C9C6BC;
+    --lexical:#16A34A; --lexical-soft:#E7F6EC;
+    --semantic:#4F46E5; --semantic-soft:#EEEDFC;
+    --fusion:#7C3AED; --fusion-soft:#F1EEFD;
+    --amber:#B45309; --amber-soft:#FDF2E3;
+    --code-bg:#14171A; --code-ink:#E7E5DD;
+    --radius:10px;
+    --disp: 'Space Grotesk', system-ui, sans-serif;
+    --body: 'IBM Plex Sans', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--paper); color:var(--ink); font-family:var(--body);
+    font-size:17px; line-height:1.65; -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit; text-decoration:none;}
+  img,svg{display:block; max-width:100%;}
+  .wrap{max-width:1120px; margin:0 auto; padding:0 24px;}
+  h1,h2,h3{font-family:var(--disp); font-weight:600; letter-spacing:-0.01em;}
+  h1{font-size:3.25rem; line-height:1.05;}
+  h2{font-size:2.25rem; line-height:1.15; margin-bottom:12px;}
+  h3{font-size:1.375rem; line-height:1.3;}
+  p{color:var(--ink-soft);}
+  code{font-family:var(--mono);}
+  .eyebrow{
+    font-family:var(--mono); font-size:0.75rem; font-weight:500;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-soft);
+    display:flex; align-items:center; gap:8px; margin-bottom:16px;
+  }
+  .eyebrow::before{content:''; width:14px; height:1px; background:var(--line-strong);}
+  section{padding:96px 0;}
+  section.alt{background:var(--paper-alt);}
+  .section-head{max-width:640px; margin-bottom:56px;}
+  .section-head p{margin-top:14px; font-size:1.0625rem;}
+
+  a:focus-visible, button:focus-visible, summary:focus-visible, [tabindex]:focus-visible{
+    outline:2px solid var(--fusion); outline-offset:2px; border-radius:4px;
+  }
+
+  /* ---------- nav ---------- */
+  nav{
+    position:sticky; top:0; z-index:50; background:rgba(250,250,248,0.88);
+    backdrop-filter:blur(8px); border-bottom:1px solid var(--line);
+  }
+  nav .wrap{display:flex; align-items:center; justify-content:space-between; height:64px;}
+  .logo{display:flex; align-items:center; gap:8px; font-family:var(--mono); font-weight:600; font-size:1.05rem;}
+  .logo-mark{width:20px; height:20px; border-radius:5px; background:linear-gradient(135deg, var(--lexical) 0 50%, var(--semantic) 50% 100%);}
+  .navlinks{display:flex; gap:28px; font-size:0.9375rem; color:var(--ink-soft);}
+  .navlinks a:hover{color:var(--ink);}
+  .navcta{display:flex; align-items:center; gap:14px;}
+  .navtoggle{display:none; background:none; border:none; cursor:pointer; color:var(--ink);}
+
+  /* ---------- buttons / badges ---------- */
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    height:44px; padding:0 22px; border-radius:999px; font-size:0.9375rem;
+    font-weight:500; cursor:pointer; border:1px solid transparent; white-space:nowrap;
+  }
+  .btn-primary{background:var(--fusion); color:#fff;}
+  .btn-primary:hover{background:#6a2fd8;}
+  .btn-secondary{background:transparent; border-color:var(--ink); color:var(--ink);}
+  .btn-secondary:hover{background:var(--ink); color:var(--paper);}
+  .badge{
+    display:inline-flex; align-items:center; gap:6px; font-family:var(--mono);
+    font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em;
+    padding:5px 10px; border-radius:999px; font-weight:500; border:1px solid transparent;
+  }
+  .badge-lexical{background:var(--lexical-soft); color:#0E6B33; border-color:#BFE7CC;}
+  .badge-semantic{background:var(--semantic-soft); color:#3A32B0; border-color:#D1CDF8;}
+  .badge-amber{background:var(--amber-soft); color:var(--amber); border-color:#F0D9AE;}
+  .badge-fusion{background:var(--fusion-soft); color:var(--fusion); border-color:#D9CFFA;}
+
+  /* ---------- hero ---------- */
+  .hero{padding:72px 0 96px;}
+  .hero-grid{display:grid; grid-template-columns:1.05fr 0.95fr; gap:56px; align-items:start;}
+  .hero h1{margin-bottom:20px;}
+  .hero-accent{color:var(--fusion);}
+  .hero p.lede{font-size:1.1875rem; margin-bottom:32px; max-width:46ch;}
+  .hero-ctas{display:flex; gap:14px; margin-bottom:28px; flex-wrap:wrap;}
+  .hero-meta{display:flex; gap:10px; flex-wrap:wrap;}
+
+  .terminal{
+    background:var(--code-bg); color:var(--code-ink); border-radius:var(--radius);
+    overflow:hidden; box-shadow:0 20px 50px -20px rgba(20,23,26,0.35);
+  }
+  .terminal-bar{display:flex; align-items:center; gap:6px; padding:12px 16px; border-bottom:1px solid rgba(231,229,221,0.12);}
+  .dot{width:10px; height:10px; border-radius:50%; background:#4B4F55;}
+  .terminal-title{margin-left:8px; font-family:var(--mono); font-size:0.75rem; color:#8B8F96;}
+  .terminal-body{padding:20px 20px 24px; font-family:var(--mono); font-size:0.875rem; line-height:1.85;}
+  .terminal-body .prompt{color:#7C8791;}
+  .terminal-body .cmd{color:var(--code-ink);}
+  .terminal-body .out{color:#8B8F96; display:block;}
+  .terminal-body .ok{color:#5FD98A;}
+
+  /* ---------- why ---------- */
+  .why-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:32px;}
+  .why-item .num{font-family:var(--mono); font-size:0.8125rem; color:var(--line-strong); margin-bottom:10px;}
+  .why-item h3{margin-bottom:8px;}
+  .why-item p{font-size:0.9375rem;}
+
+  /* ---------- feature grid ---------- */
+  .feature-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  .feature-card{background:var(--paper); padding:32px;}
+  .feature-icon{width:38px; height:38px; border-radius:9px; display:flex; align-items:center; justify-content:center; margin-bottom:18px;}
+  .feature-card h3{margin-bottom:8px; font-size:1.1875rem;}
+  .feature-card p{font-size:0.9375rem;}
+  .fi-lexical{background:var(--lexical-soft); color:var(--lexical);}
+  .fi-semantic{background:var(--semantic-soft); color:var(--semantic);}
+  .fi-fusion{background:var(--fusion-soft); color:var(--fusion);}
+  .fi-amber{background:var(--amber-soft); color:var(--amber);}
+
+  /* ---------- fusion diagram (signature) ---------- */
+  .fusion-wrap{background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:48px;}
+  .fusion-formula{
+    font-family:var(--mono); font-size:0.9375rem; color:var(--ink-soft);
+    background:var(--paper-alt); border:1px solid var(--line); border-radius:8px;
+    padding:12px 18px; display:inline-block; margin-bottom:40px;
+  }
+  .fusion-formula b{color:var(--ink); font-weight:600;}
+  .fusion-diagram{display:grid; grid-template-columns:1fr 60px 1fr; gap:0; align-items:start;}
+  .fusion-col h4{font-family:var(--mono); font-size:0.8125rem; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px; display:flex; align-items:center; gap:8px;}
+  .fusion-list{list-style:none; display:flex; flex-direction:column; gap:8px;}
+  .fusion-list li{
+    font-family:var(--mono); font-size:0.875rem; padding:10px 14px; border-radius:8px;
+    border:1px solid var(--line); background:var(--paper); cursor:default;
+    transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .fusion-list.lex li{border-left:3px solid var(--lexical);}
+  .fusion-list.sem li{border-left:3px solid var(--semantic);}
+  .fusion-list li.match{transform:translateX(0); box-shadow:0 4px 14px -6px rgba(0,0,0,0.15); border-color:var(--line-strong);}
+  .fusion-mid{display:flex; align-items:center; justify-content:center; padding-top:36px;}
+  .fusion-arrow{font-family:var(--mono); color:var(--line-strong); font-size:1.5rem;}
+  .fusion-output{margin-top:36px; border-top:1px dashed var(--line-strong); padding-top:28px;}
+  .fusion-output h4{font-family:var(--mono); font-size:0.8125rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--fusion); margin-bottom:14px;}
+  .fusion-output ol{list-style:none; display:flex; flex-direction:column; gap:8px;}
+  .fusion-output li{
+    font-family:var(--mono); font-size:0.9375rem; padding:12px 16px; border-radius:8px;
+    background:var(--fusion-soft); border:1px solid #D9CFFA; display:flex; justify-content:space-between; gap:12px;
+  }
+  .fusion-output li span.score{color:var(--fusion); font-weight:600;}
+  .fusion-note{font-size:0.875rem; color:var(--ink-soft); margin-top:20px;}
+
+  /* ---------- architecture ---------- */
+  .arch-stack{display:flex; flex-direction:column; gap:2px;}
+  .arch-layer{
+    background:var(--paper); border:1px solid var(--line); border-radius:8px;
+    padding:18px 22px; display:flex; align-items:center; justify-content:space-between; gap:16px;
+  }
+  .arch-layer .name{font-family:var(--mono); font-weight:600; font-size:0.9375rem;}
+  .arch-layer .desc{color:var(--ink-soft); font-size:0.875rem; text-align:right;}
+  .arch-connector{display:flex; justify-content:center; color:var(--line-strong); font-family:var(--mono); font-size:1rem; padding:2px 0;}
+  .arch-layer.rrf{background:var(--paper-alt);}
+  .arch-layer.rrf .badges{display:flex; gap:6px; margin-top:6px; justify-content:flex-end;}
+
+  /* ---------- install ---------- */
+  .install-grid{display:grid; grid-template-columns:1.2fr 0.8fr; gap:48px; align-items:start;}
+  .code-block{
+    background:var(--code-bg); color:var(--code-ink); border-radius:var(--radius);
+    padding:20px; font-family:var(--mono); font-size:0.8125rem; line-height:1.75; overflow-x:auto; position:relative;
+  }
+  .code-block .cmt{color:#7C8791;}
+  .copy-btn{
+    position:absolute; top:12px; right:12px; background:rgba(231,229,221,0.1); border:1px solid rgba(231,229,221,0.2);
+    color:var(--code-ink); font-family:var(--mono); font-size:0.6875rem; padding:5px 10px; border-radius:6px; cursor:pointer;
+  }
+  .copy-btn:hover{background:rgba(231,229,221,0.18);}
+  .install-tabs{margin-bottom:0;}
+  .tab-row{display:flex; gap:0; border-bottom:1px solid var(--line); margin-bottom:20px; flex-wrap:wrap;}
+  .tab{
+    font-family:var(--mono); font-size:0.8125rem; padding:10px 16px; cursor:pointer;
+    color:var(--ink-soft); border:none; background:none; border-bottom:2px solid transparent;
+  }
+  .tab[aria-selected="true"]{color:var(--fusion); border-bottom-color:var(--fusion);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+  .install-alts{list-style:none; display:flex; flex-direction:column; gap:14px; margin-top:8px;}
+  .install-alts li{font-size:0.9375rem; color:var(--ink-soft);}
+  .install-alts code{background:var(--paper-alt); border:1px solid var(--line); border-radius:4px; padding:2px 6px; font-size:0.85em; color:var(--ink);}
+
+  /* ---------- cli reference ---------- */
+  .cli-groups{display:grid; grid-template-columns:1fr 1fr; gap:40px;}
+  .cli-group h3{margin-bottom:16px; font-size:1.0625rem;}
+  table.cli{width:100%; border-collapse:collapse;}
+  table.cli tr{border-top:1px solid var(--line);}
+  table.cli tr:first-child{border-top:none;}
+  table.cli td{padding:12px 0; vertical-align:top;}
+  table.cli td.cmd{font-family:var(--mono); font-size:0.8125rem; white-space:nowrap; padding-right:18px; color:var(--ink);}
+  table.cli td.desc{font-size:0.875rem; color:var(--ink-soft);}
+
+  /* ---------- mcp ---------- */
+  .mcp-grid{display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:start;}
+  .mcp-toolgroups{display:flex; flex-direction:column; gap:14px; margin-top:8px;}
+  .mcp-toolgroups .grp{font-size:0.875rem; color:var(--ink-soft);}
+  .mcp-toolgroups .grp b{font-family:var(--mono); color:var(--ink); font-size:0.8125rem; text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:2px;}
+
+  /* ---------- eval (replaces unverified benchmarks) ---------- */
+  .eval-card{background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); padding:32px;}
+  .eval-card .lead{font-size:1.0625rem; margin-bottom:14px;}
+  .eval-card code{background:var(--code-bg); color:var(--code-ink); border-radius:6px; padding:10px 12px; display:block; font-size:0.8125rem; overflow-x:auto; margin-top:12px;}
+
+  /* ---------- security ---------- */
+  .sec-grid{display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:center;}
+  .sec-diagram{border:1px solid var(--line); border-radius:var(--radius); padding:28px; background:var(--paper);}
+  .port-row{display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-top:1px solid var(--line);}
+  .port-row:first-child{border-top:none;}
+  .port-row .proto{font-family:var(--mono); font-size:0.875rem;}
+  .port-row .addr{font-family:var(--mono); font-size:0.8125rem; color:var(--ink-soft);}
+
+  /* ---------- footer ---------- */
+  footer{border-top:1px solid var(--line); padding:56px 0 40px;}
+  .footer-grid{display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:32px; margin-bottom:40px;}
+  footer h4{font-family:var(--mono); font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-soft); margin-bottom:14px;}
+  footer ul{list-style:none; display:flex; flex-direction:column; gap:10px;}
+  footer a{color:var(--ink-soft); font-size:0.9375rem;}
+  footer a:hover{color:var(--ink);}
+  .footer-bottom{display:flex; justify-content:space-between; align-items:center; padding-top:24px; border-top:1px solid var(--line); font-size:0.8125rem; color:var(--ink-soft); flex-wrap:wrap; gap:12px;}
+
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto;}
+    .fusion-list li{transition:none;}
+  }
+
+  /* JS-off: keep nav reachable without the mobile toggle. The toggle only
+     collapses nav on narrow screens via JS; without JS, .navlinks stays visible. */
+  @media (max-width: 900px){
+    .hero-grid, .why-grid, .feature-grid, .cli-groups, .mcp-grid, .sec-grid, .footer-grid, .install-grid{grid-template-columns:1fr;}
+    .fusion-diagram{grid-template-columns:1fr; gap:24px;}
+    .fusion-mid{display:none;}
+    h1{font-size:2.25rem;}
+    h2{font-size:1.625rem;}
+    section{padding:64px 0;}
+    /* Without JS, show the nav links stacked so they're reachable on mobile. */
+    .navlinks{display:flex; flex-direction:column; gap:10px; width:100%; padding-top:8px;}
+    .navtoggle{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a href="#top" class="logo"><span class="logo-mark" aria-hidden="true"></span>go-rag</a>
+    <div class="navlinks" id="navlinks">
+      <a href="#why">Why</a>
+      <a href="#features">Features</a>
+      <a href="#fusion">Retrieval</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#install">Install</a>
+      <a href="#cli">CLI</a>
+      <a href="#mcp">MCP</a>
+    </div>
+    <div class="navcta">
+      <a href="#install" class="btn btn-secondary" style="height:38px; padding:0 16px; font-size:0.875rem;">Install</a>
+      <a href="https://github.com/madeinoz67/go-rag" class="btn btn-primary" style="height:38px; padding:0 16px; font-size:0.875rem;">GitHub</a>
+    </div>
+    <button class="navtoggle" id="navtoggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="eyebrow">Single-binary local RAG · Pure Go</div>
+      <h1>A RAG database that lives in <span class="hero-accent">one binary.</span></h1>
+      <p class="lede">Ingest, index, and query your PDFs, Word docs, Markdown, and images — on your own filesystem. A bundled pure-Go embedding model means it works fully offline from the first run; point it at a local Ollama when you want higher-quality embeddings or reranking. No Docker, no API keys, no cloud.</p>
+      <div class="hero-ctas">
+        <a href="#install" class="btn btn-primary">Get started</a>
+        <a href="https://github.com/madeinoz67/go-rag" class="btn btn-secondary">View source</a>
+      </div>
+      <div class="hero-meta">
+        <span class="badge badge-amber">Alpha · v0.3.3</span>
+        <span class="badge badge-fusion">Offline by default</span>
+        <span class="badge badge-lexical">BM25</span>
+        <span class="badge badge-semantic">Vector</span>
+      </div>
+    </div>
+    <div class="terminal" aria-label="Quick start terminal session">
+      <div class="terminal-bar">
+        <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
+        <span class="terminal-title">~/projects</span>
+      </div>
+      <div class="terminal-body">
+        <span class="prompt">$</span> <span class="cmd">go-rag init</span>
+        <span class="out">created ./.go-rag/ · embedder: bundled (offline)</span>
+        <span class="prompt">$</span> <span class="cmd">go-rag add ./my-docs/</span>
+        <span class="out">142 files · 3,981 chunks <span class="ok">✓</span></span>
+        <span class="prompt">$</span> <span class="cmd">go-rag query "how does auth work?"</span>
+        <span class="out">3 results · 41ms</span>
+        <span class="prompt">$</span> <span class="cmd">_</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="why" class="alt">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">Why</div>
+      <h2>As frictionless as git init.</h2>
+      <p>A local RAG database shouldn't need infrastructure. Install the binary, run <code style="font-family:var(--mono); background:var(--paper); padding:2px 6px; border-radius:4px; border:1px solid var(--line);">go-rag init</code>, and you have a working system.</p>
+    </div>
+    <div class="why-grid">
+      <div class="why-item">
+        <div class="num">01</div>
+        <h3>No cloud, no keys</h3>
+        <p>Everything runs on your machine. A bundled pure-Go embedding model handles ingest and query out of the box; point it at a local Ollama instance later for alternative models and reranking — never required.</p>
+      </div>
+      <div class="why-item">
+        <div class="num">02</div>
+        <h3>No Docker required</h3>
+        <p>A single static binary, built with <code style="font-family:var(--mono); font-size:0.85em;">CGO_ENABLED=0</code>. Copy it, run it, done. Or pull the multi-arch container image if that's your preference.</p>
+      </div>
+      <div class="why-item">
+        <div class="num">03</div>
+        <h3>Loopback by default</h3>
+        <p>Every transport binds to <code style="font-family:var(--mono); font-size:0.85em;">127.0.0.1</code>. Reaching the network is an explicit, logged opt-in (<code style="font-family:var(--mono); font-size:0.85em;">--bind-external</code>).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">Features</div>
+      <h2>Built for retrieval quality, not just retrieval.</h2>
+      <p>Every piece exists to answer one question honestly: is this result actually relevant, and can you trust it?</p>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon fi-fusion" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 6h8M3 12h5M3 18h8M13 6h8M16 12h5M13 18h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <h3>Hybrid retrieval (RRF)</h3>
+        <p>Fuses BM25 keyword and vector semantic ranked lists with Reciprocal Rank Fusion — one tunable constant, honoured identically across CLI, REST, gRPC, and MCP.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-semantic" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>Bundled embedding model</h3>
+        <p>A pure-Go embedding model ships in the binary — ingest and query work fully offline from the first run, with no external service to install first. Bring your own model via Ollama when you want.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-lexical" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="13" y="3" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="3" y="13" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2"/><rect x="13" y="13" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="2"/></svg>
+        </div>
+        <h3>Isolated vaults</h3>
+        <p>Each vault gets its own config and indexes — isolated by key-space prefixes within a single Pebble store. No cross-vault contamination, without a database per vault.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-amber" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2l9 4.5v9L12 22l-9-6.5v-9L12 2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <h3>Poisoning detection</h3>
+        <p>Instruction-injection chunks are flagged and quarantined out of default results, with per-signal verdicts and an audit trail — so a poisoned document can't silently steer retrieval.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-fusion" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 4h16v6H4zM4 14h7v6H4zM14 14h6v6h-6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>MCP daemon</h3>
+        <p>A background daemon serves <strong>30 MCP tools</strong> over HTTP — wire it into Claude Desktop and query, ingest, inspect, triage, and manage your vault directly from the model.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-semantic" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>Optional Ollama enrichment</h3>
+        <p>Point go-rag at a local Ollama for alternative embedding models and cross-encoder reranking — an upgrade you opt into, never a prerequisite to get started.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="fusion" class="alt">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">How retrieval works</div>
+      <h2>Two lists become one.</h2>
+      <p>Hybrid mode fuses the BM25 and vector ranked lists with a single symmetric constant. Hover a row (when JavaScript is on) to see how each list contributes to the final ranking.</p>
+    </div>
+    <div class="fusion-wrap">
+      <div class="fusion-formula">score(d) = Σ 1/(<b>k</b> + rank) &nbsp;·&nbsp; k = 60 by default</div>
+      <div class="fusion-diagram">
+        <div class="fusion-col">
+          <h4><span class="badge badge-lexical">Lexical</span> BM25 rank</h4>
+          <ul class="fusion-list lex" id="lex-list">
+            <li data-doc="A">1 · auth-middleware.go</li>
+            <li data-doc="C">2 · session-store.go</li>
+            <li data-doc="B">3 · token-refresh.md</li>
+            <li data-doc="D">4 · rbac-policy.go</li>
+          </ul>
+        </div>
+        <div class="fusion-mid"><span class="fusion-arrow" aria-hidden="true">⇄</span></div>
+        <div class="fusion-col">
+          <h4><span class="badge badge-semantic">Semantic</span> vector rank</h4>
+          <ul class="fusion-list sem" id="sem-list">
+            <li data-doc="B">1 · token-refresh.md</li>
+            <li data-doc="A">2 · auth-middleware.go</li>
+            <li data-doc="E">3 · oauth-flow.md</li>
+            <li data-doc="C">4 · session-store.go</li>
+          </ul>
+        </div>
+      </div>
+      <div class="fusion-output">
+        <h4>Fused result</h4>
+        <ol>
+          <li><span>1 · auth-middleware.go</span><span class="score">0.0317</span></li>
+          <li><span>2 · token-refresh.md</span><span class="score">0.0308</span></li>
+          <li><span>3 · session-store.go</span><span class="score">0.0290</span></li>
+          <li><span>4 · oauth-flow.md</span><span class="score">0.0159</span></li>
+        </ol>
+      </div>
+      <p class="fusion-note">The same k applies to both lists, so the fusion stays reviewable and matches the standard RRF formula. Tune it per corpus with <code style="font-family:var(--mono); font-size:0.85em; background:var(--paper); padding:2px 6px; border-radius:4px; border:1px solid var(--line);">go-rag config set rrf_k 120</code>, or override it for a single query with <code style="font-family:var(--mono); font-size:0.85em; background:var(--paper); padding:2px 6px; border-radius:4px; border:1px solid var(--line);">go-rag query "…" --rrf-k 30</code>.</p>
+    </div>
+  </div>
+</section>
+
+<section id="architecture">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">Architecture</div>
+      <h2>Layered, and each layer does one job.</h2>
+      <p>A single binary, but not a single blob — the CLI, ingest pipeline, retrieval, and storage layers are cleanly separated internally.</p>
+    </div>
+    <div class="arch-stack">
+      <div class="arch-layer"><span class="name">CLI</span><span class="desc">init · add · query · vault · auth · upgrade · mcp · …</span></div>
+      <div class="arch-connector" aria-hidden="true">↓</div>
+      <div class="arch-layer"><span class="name">Ingest pipeline</span><span class="desc">async-after-ACK · &lt;10ms writes</span></div>
+      <div class="arch-connector" aria-hidden="true">↓</div>
+      <div class="arch-layer"><span class="name">Readers · Embedder · Change detection</span><span class="desc">text/markdown/docx/pdf/image · bundled pure-Go embedder (Ollama optional) · fsnotify + polling</span></div>
+      <div class="arch-connector" aria-hidden="true">↓</div>
+      <div class="arch-layer rrf">
+        <span class="name">Retrieval</span>
+        <span class="desc">
+          BM25 FTS + vector + RRF fusion, optional cross-encoder rerank, injection-poisoning filter
+          <div class="badges"><span class="badge badge-lexical">BM25</span><span class="badge badge-semantic">Vector</span></div>
+        </span>
+      </div>
+      <div class="arch-connector" aria-hidden="true">↓</div>
+      <div class="arch-layer"><span class="name">Embedded Pebble KV</span><span class="desc">key-space prefixes · per-vault isolation</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="install" class="alt">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">Install</div>
+      <h2>One line to a working binary.</h2>
+      <p>macOS and Linux, amd64 and arm64. The script resolves the latest release, verifies the download against the published SHA-256 checksums, and puts <code style="font-family:var(--mono); font-size:0.85em;">go-rag</code> on your PATH.</p>
+    </div>
+    <div class="install-grid">
+      <div>
+        <div class="tab-row" role="tablist" aria-label="Install method">
+          <button class="tab" role="tab" id="tab-curl" aria-controls="panel-curl" aria-selected="true">curl (macOS / Linux)</button>
+          <button class="tab" role="tab" id="tab-brew" aria-controls="panel-brew" aria-selected="false">Homebrew</button>
+          <button class="tab" role="tab" id="tab-go" aria-controls="panel-go" aria-selected="false">go install</button>
+          <button class="tab" role="tab" id="tab-win" aria-controls="panel-win" aria-selected="false">Windows</button>
+        </div>
+
+        <div class="tab-panel active" id="panel-curl" role="tabpanel" aria-labelledby="tab-curl">
+          <div class="code-block">
+            <button class="copy-btn" data-target="cmd-curl">Copy</button>
+            <pre id="cmd-curl"><span class="cmt"># verify the download against the published SHA-256 checksums, then install</span>
+curl -fsSL https://madeinoz67.github.io/go-rag/install.sh | sh</pre>
+          </div>
+          <p style="font-size:0.875rem; margin-top:14px;">Prefer to read it first? <code style="font-family:var(--mono); font-size:0.85em; background:var(--paper); padding:2px 6px; border-radius:4px; border:1px solid var(--line);">curl -fsSL https://madeinoz67.github.io/go-rag/install.sh -o install.sh</code>, open it, then <code style="font-family:var(--mono); font-size:0.85em;">sh install.sh</code>.</p>
+        </div>
+
+        <div class="tab-panel" id="panel-brew" role="tabpanel" aria-labelledby="tab-brew">
+          <div class="code-block">
+            <button class="copy-btn" data-target="cmd-brew">Copy</button>
+            <pre id="cmd-brew">brew install madeinoz67/tap/go-rag</pre>
+          </div>
+          <p style="font-size:0.875rem; margin-top:14px;">Published from the release pipeline alongside the binaries. Requires the tap to be live for the current release.</p>
+        </div>
+
+        <div class="tab-panel" id="panel-go" role="tabpanel" aria-labelledby="tab-go">
+          <div class="code-block">
+            <button class="copy-btn" data-target="cmd-go">Copy</button>
+            <pre id="cmd-go"><span class="cmt"># requires Go 1.22+</span>
+go install github.com/madeinoz67/go-rag/cmd/go-rag@latest</pre>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="panel-win" role="tabpanel" aria-labelledby="tab-win">
+          <p style="font-size:0.9375rem;">Windows has no <code style="font-family:var(--mono); font-size:0.85em;">curl&nbsp;|&nbsp;sh</code> path. Download the build from the latest release and extract the <code style="font-family:var(--mono); font-size:0.85em;">go-rag.exe</code> from the zip:</p>
+          <p style="margin-top:12px;"><a class="btn btn-secondary" href="https://github.com/madeinoz67/go-rag/releases/latest">Latest release</a></p>
+          <p style="font-size:0.875rem; margin-top:14px;">Or, with Go installed: <code style="font-family:var(--mono); font-size:0.85em; background:var(--paper); padding:2px 6px; border-radius:4px; border:1px solid var(--line);">go install github.com/madeinoz67/go-rag/cmd/go-rag@latest</code> (produces <code style="font-family:var(--mono); font-size:0.85em;">go-rag.exe</code>).</p>
+        </div>
+      </div>
+      <div>
+        <div class="eyebrow">Also available</div>
+        <ul class="install-alts">
+          <li><b style="font-family:var(--mono); color:var(--ink);">Docker</b><br>Multi-arch image (linux/amd64 + linux/arm64), built on every release:<br><code>docker pull ghcr.io/madeinoz67/go-rag</code></li>
+          <li><b style="font-family:var(--mono); color:var(--ink);">Self-upgrade</b><br>Already installed? <code>go-rag upgrade</code> fetches the latest release, verifies the checksum, and atomically replaces the running binary.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="quickstart-context" style="padding:0;">
+  <div class="wrap" style="padding:48px 24px;">
+    <div class="section-head" style="margin-bottom:24px;">
+      <div class="eyebrow">Then</div>
+      <h2>Three commands to a query.</h2>
+    </div>
+    <div class="why-grid">
+      <div class="why-item">
+        <div class="num">01</div>
+        <h3>Initialize</h3>
+        <p>Create a vault with default config and the bundled offline embedder.</p>
+        <code style="display:block; font-family:var(--mono); font-size:0.8125rem; background:var(--code-bg); color:var(--code-ink); padding:10px 12px; border-radius:6px; margin-top:12px; overflow-x:auto;">go-rag init</code>
+      </div>
+      <div class="why-item">
+        <div class="num">02</div>
+        <h3>Ingest</h3>
+        <p>Point it at a folder. Idempotent, with a progress bar. PDF, Word, Markdown, images, text.</p>
+        <code style="display:block; font-family:var(--mono); font-size:0.8125rem; background:var(--code-bg); color:var(--code-ink); padding:10px 12px; border-radius:6px; margin-top:12px; overflow-x:auto;">go-rag add ./my-docs/</code>
+      </div>
+      <div class="why-item">
+        <div class="num">03</div>
+        <h3>Query</h3>
+        <p>Hybrid search with source-cited results, reranked by default. Tune mode, k, threshold, filters.</p>
+        <code style="display:block; font-family:var(--mono); font-size:0.8125rem; background:var(--code-bg); color:var(--code-ink); padding:10px 12px; border-radius:6px; margin-top:12px; overflow-x:auto;">go-rag query "how does X work?"</code>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="cli">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">CLI reference</div>
+      <h2>Every command, grouped by what you're doing.</h2>
+      <p>A small subset shown here — run <code style="font-family:var(--mono); font-size:0.85em; background:var(--paper); padding:2px 6px; border-radius:4px; border:1px solid var(--line);">go-rag --help</code> for the full list.</p>
+    </div>
+    <div class="cli-groups">
+      <div class="cli-group">
+        <h3>Ingest &amp; query</h3>
+        <table class="cli">
+          <tr><td class="cmd">go-rag init</td><td class="desc">Initialize a new RAG database</td></tr>
+          <tr><td class="cmd">go-rag add &lt;path&gt;</td><td class="desc">Add files or directories (idempotent; progress bar)</td></tr>
+          <tr><td class="cmd">go-rag scan [--watch]</td><td class="desc">Scan for changes (fsnotify + polling)</td></tr>
+          <tr><td class="cmd">go-rag query "&lt;q&gt;"</td><td class="desc">Hybrid semantic + keyword search</td></tr>
+          <tr><td class="cmd">go-rag reprocess &lt;path&gt;</td><td class="desc">Force re-ingest, bypassing dedup</td></tr>
+          <tr><td class="cmd">go-rag delete &lt;doc-id&gt;</td><td class="desc">Remove a document + its chunks (index-only)</td></tr>
+        </table>
+      </div>
+      <div class="cli-group">
+        <h3>Daemon &amp; MCP</h3>
+        <table class="cli">
+          <tr><td class="cmd">go-rag start</td><td class="desc">Start the daemon (MCP + REST + gRPC + console)</td></tr>
+          <tr><td class="cmd">go-rag stop</td><td class="desc">Stop the running daemon</td></tr>
+          <tr><td class="cmd">go-rag mcp</td><td class="desc">stdio→HTTP proxy, bridges Claude Desktop to the daemon</td></tr>
+          <tr><td class="cmd">go-rag status</td><td class="desc">Daemon + database statistics and health</td></tr>
+          <tr><td class="cmd">go-rag health</td><td class="desc">Probe the running daemon's health endpoint</td></tr>
+          <tr><td class="cmd">go-rag upgrade</td><td class="desc">Upgrade the binary to the latest release</td></tr>
+        </table>
+      </div>
+      <div class="cli-group">
+        <h3>Inspect</h3>
+        <table class="cli">
+          <tr><td class="cmd">go-rag files</td><td class="desc">List ingested file paths</td></tr>
+          <tr><td class="cmd">go-rag dirs</td><td class="desc">Per-directory file + chunk counts</td></tr>
+          <tr><td class="cmd">go-rag documents</td><td class="desc">List documents (cursor + status + pagination)</td></tr>
+          <tr><td class="cmd">go-rag chunk &lt;id&gt;</td><td class="desc">Fetch a single chunk by content-addressed ID</td></tr>
+          <tr><td class="cmd">go-rag audit</td><td class="desc">Read the structured audit log</td></tr>
+        </table>
+      </div>
+      <div class="cli-group">
+        <h3>Vaults, quality &amp; auth</h3>
+        <table class="cli">
+          <tr><td class="cmd">go-rag vault …</td><td class="desc">create / list / delete / clear / clone / export / import</td></tr>
+          <tr><td class="cmd">go-rag eval</td><td class="desc">Measure recall@k, MRR, NDCG@k on a golden dataset</td></tr>
+          <tr><td class="cmd">go-rag poison …</td><td class="desc">list / release / reset injection-flagged chunks</td></tr>
+          <tr><td class="cmd">go-rag migrate</td><td class="desc">Re-embed documents to the current model</td></tr>
+          <tr><td class="cmd">go-rag auth …</td><td class="desc">Manage API keys, sessions, the admin user</td></tr>
+          <tr><td class="cmd">go-rag config [get|set]</td><td class="desc">View or change configuration</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="mcp" class="alt">
+  <div class="wrap mcp-grid">
+    <div>
+      <div class="eyebrow">MCP daemon</div>
+      <h2>Query your vault from Claude Desktop.</h2>
+      <p>The daemon owns the database and serves <strong>30 MCP tools</strong> over HTTP. They cover the full surface — query and status, ingest and maintenance, document/chunk inspection, injection-poisoning triage, vaults, retrieval-quality eval, and admin auth — so an agent can run the whole system without shelling out.</p>
+      <div class="mcp-toolgroups">
+        <div class="grp"><b>Query &amp; status</b>go_rag_query · go_rag_status · go_rag_guide</div>
+        <div class="grp"><b>Ingest &amp; maintain</b>add · init · scan · reprocess · migrate · migrate_plan · delete_document · model_install</div>
+        <div class="grp"><b>Inspect</b>files · dirs · list_documents · list_chunks · get_chunk · get_chunk_context · batch_get_chunks</div>
+        <div class="grp"><b>Poisoning triage</b>poison_list · poison_release · poison_reset · poison_rescan</div>
+        <div class="grp"><b>Vaults · config · eval · auth (admin)</b>vault_list · config · eval · auth_list/create/revoke · session_list/revoke</div>
+      </div>
+    </div>
+    <div>
+      <div class="code-block">
+        <button class="copy-btn" data-target="mcp-json">Copy</button>
+        <pre id="mcp-json">{
+  "mcpServers": {
+    "go-rag": {
+      "command": "/abs/path/to/go-rag",
+      "args": ["mcp", "--vault", "cyber-notes"]
+    }
+  }
+}</pre>
+      </div>
+      <p style="font-size:0.875rem; margin-top:14px;"><code style="font-family:var(--mono); font-size:0.85em;">go-rag mcp</code> is a stdio→HTTP proxy that bridges a stdio MCP client (Claude Desktop) to your running daemon. Start the daemon with <code style="font-family:var(--mono); font-size:0.85em;">go-rag start</code> first.</p>
+    </div>
+  </div>
+</section>
+
+<section id="eval">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">Retrieval quality</div>
+      <h2>Measured, not assumed.</h2>
+      <p>go-rag ships a built-in retrieval evaluator so you can score recall@k, precision@k, MRR, and NDCG@k over your own golden dataset — offline, reproducible, no Ollama required.</p>
+    </div>
+    <div class="eval-card">
+      <p class="lead">Run it on the bundled golden corpus, or point it at your own:</p>
+      <code>go-rag eval --benchmark scifact    # recall@k, MRR, NDCG@k
+go-rag eval-gen                          # emit candidate query→chunk pairs for triage</code>
+      <p style="font-size:0.875rem; margin-top:14px;">The eval harness is the same one used to regression-test retrieval changes in CI — what you measure is what shipped.</p>
+    </div>
+  </div>
+</section>
+
+<section id="security" class="alt">
+  <div class="wrap sec-grid">
+    <div>
+      <div class="eyebrow">Security</div>
+      <h2>Loopback-only, by default.</h2>
+      <p>go-rag never silently exposes your document vault to the network. Every transport binds to <code style="font-family:var(--mono); font-size:0.9em;">127.0.0.1</code> — reaching further requires an explicit, logged opt-in. Single-operator auth (API keys, admin user, sessions) is there when you need it.</p>
+    </div>
+    <div class="sec-diagram" aria-label="Default loopback transports">
+      <div class="port-row"><span class="proto">MCP</span><span class="addr">127.0.0.1:7878</span></div>
+      <div class="port-row"><span class="proto">REST</span><span class="addr">127.0.0.1:7879</span></div>
+      <div class="port-row"><span class="proto">gRPC</span><span class="addr">127.0.0.1:7880</span></div>
+      <div class="port-row"><span class="proto">Console</span><span class="addr">127.0.0.1:7881</span></div>
+      <div class="port-row"><span class="proto">External bind</span><span class="addr">requires --bind-external</span></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <a href="#top" class="logo" style="margin-bottom:12px; display:inline-flex;"><span class="logo-mark" aria-hidden="true"></span>go-rag</a>
+        <p style="font-size:0.9375rem; max-width:32ch;">A single-binary, local-first, pure-Go RAG database. Built by Stephen Eaton.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#architecture">Architecture</a></li>
+          <li><a href="#cli">CLI reference</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Developers</h4>
+        <ul>
+          <li><a href="#mcp">MCP integration</a></li>
+          <li><a href="https://github.com/madeinoz67/go-rag/blob/main/docs/internals/PRD_RAG_Database.md">Full spec (PRD)</a></li>
+          <li><a href="https://github.com/madeinoz67/go-rag">Source on GitHub</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <ul>
+          <li><span class="badge badge-amber">Alpha · v0.3.3</span></li>
+          <li><a href="https://github.com/madeinoz67/go-rag/releases">Releases</a></li>
+          <li>License: MIT</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>go-rag — no Docker, no API keys, no cloud.</span>
+      <span>Style guide v1.0 · Clean Technical Docs direction</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Progressive enhancement only. All informational content is server-rendered
+// above; these handlers are additive and the page is fully usable without them.
+
+// Mobile nav toggle (the @media query already keeps .navlinks visible without JS).
+var toggle = document.getElementById('navtoggle');
+if (toggle) {
+  toggle.addEventListener('click', function () {
+    var links = document.getElementById('navlinks');
+    var open = links.style.display === 'flex';
+    links.style.display = open ? '' : 'flex';
+    toggle.setAttribute('aria-expanded', String(!open));
+  });
+}
+
+// Copy-to-clipboard for code blocks.
+document.querySelectorAll('.copy-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var target = document.getElementById(btn.dataset.target);
+    if (!target) return;
+    navigator.clipboard.writeText(target.textContent).then(function () {
+      var original = btn.textContent;
+      btn.textContent = 'Copied';
+      setTimeout(function () { btn.textContent = original; }, 1400);
+    });
+  });
+});
+
+// Install tabs.
+document.querySelectorAll('.tab').forEach(function (tab) {
+  tab.addEventListener('click', function () {
+    document.querySelectorAll('.tab').forEach(function (t) { t.setAttribute('aria-selected', 'false'); });
+    document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+    tab.setAttribute('aria-selected', 'true');
+    document.getElementById(tab.getAttribute('aria-controls')).classList.add('active');
+  });
+});
+
+// Fusion diagram: hover a row to highlight its match in both lists. Static and
+// fully labeled without this — it's an enhancement only.
+(function () {
+  var lex = document.querySelectorAll('#lex-list li');
+  var sem = document.querySelectorAll('#sem-list li');
+  var all = [].slice.call(lex).concat([].slice.call(sem));
+  all.forEach(function (item) {
+    item.addEventListener('mouseenter', function () {
+      var doc = item.dataset.doc;
+      all.forEach(function (i) { i.classList.toggle('match', i.dataset.doc === doc); });
+    });
+    item.addEventListener('mouseleave', function () {
+      all.forEach(function (i) { i.classList.remove('match'); });
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

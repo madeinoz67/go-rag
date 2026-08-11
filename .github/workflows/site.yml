@@ -1,0 +1,98 @@
+name: Site
+
+# Deploy the public website (site/) to GitHub Pages on every push to main that
+# touches the site, and run shellcheck + the installer smoke harness as gates.
+# A failed gate fails the workflow BEFORE deploy-pages, so a broken change
+# leaves the live site untouched (FR-016 / SC-007 — atomic, fail-closed).
+#
+# One-time setup (manual): Settings → Pages → Source = "GitHub Actions".
+# No gh-pages branch, no main /docs setting.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/site.yml'
+  pull_request:
+    paths:
+      - 'site/**'
+      - '.github/workflows/site.yml'
+
+# Only one Pages deploy at a time; a new run cancels a queued one but never a
+# live deploy (cancel-in-progress on the pages environment group).
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write   # required by actions/deploy-pages
+
+jobs:
+  gate:
+    name: shellcheck + smoke (gates the deploy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: shellcheck install.sh + smoke harness (POSIX sh)
+        run: shellcheck -s sh site/install.sh site/test/install_smoke.sh
+      - name: Assert the page exists and is non-trivial
+        run: |
+          test -s site/index.html
+          grep -q 'go-rag' site/index.html
+          test -s site/install.sh
+          test -f site/.nojekyll
+      - name: Assert core content is static text (JS-off readable, FR-005)
+        run: |
+          grep -q 'A RAG database that lives in' site/index.html
+          grep -q 'Two lists become one' site/index.html
+      - name: Installer smoke harness (offline fixtures)
+        run: sh site/test/install_smoke.sh all
+
+  smoke-matrix:
+    name: installer smoke (${{ matrix.shells }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Cover the two installer platforms and their default /bin/sh dialects:
+        # macOS (arm64, /bin/sh) and Linux (amd64, dash).
+        include:
+          - os: macos-latest
+            shells: macos-arm64
+          - os: ubuntu-latest
+            shells: linux-amd64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer smoke harness (offline fixtures)
+        run: sh site/test/install_smoke.sh all
+
+  build:
+    name: build pages artifact
+    needs: [gate, smoke-matrix]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload site/ as the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
+  deploy:
+    name: deploy to GitHub Pages
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
