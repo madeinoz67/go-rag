@@ -33,26 +33,15 @@ BIN="$FIX/go-rag"
 printf '#!/bin/sh\necho v0.0.0-smoke\n' > "$BIN"
 chmod +x "$BIN"
 TAG="v0.0.0-smoke"
-OS=$(uname -s | tr A-Z a-z)
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 case $(uname -m) in x86_64) ARCH=amd64;; arm64|aarch64) ARCH=arm64;; *) ARCH=amd64;; esac
 ASSET="go-rag-${TAG}-${OS}-${ARCH}.tar.gz"
 ( cd "$FIX" && tar -czf "$ASSET" go-rag )
 REAL_SHA=$( ( cd "$FIX" && (sha256sum "$ASSET" 2>/dev/null || shasum -a 256 "$ASSET") | awk '{print $1}') )
 printf '%s  %s\n' "$REAL_SHA" "$ASSET" > "$FIX/checksums.txt"
-# A tampered tarball: flip the last byte.
+# A tampered tarball: append a byte so its SHA-256 no longer matches checksums.txt.
 cp "$FIX/$ASSET" "$FIX/$ASSET.tampered"
-TamperedSha=$( ( cd "$FIX" && (sha256sum "$ASSET.tampered" 2>/dev/null || shasum -a 256 "$ASSET.tampered") | awk '{print $1}') )
-# Byte-flip the last byte of the tampered copy so its hash differs from REAL_SHA.
-python3 - "$FIX/$ASSET.tampered" <<'PY' 2>/dev/null || : > /dev/null
-import sys
-p = sys.argv[1]
-with open(p, "rb+") as f:
-    f.seek(-1, 2)
-    b = f.read(1)
-    f.seek(-1, 2)
-    f.write(bytes([b[0] ^ 0xFF]))
-PY
-TamperedSha=$( ( cd "$FIX" && (sha256sum "$ASSET.tampered" 2>/dev/null || shasum -a 256 "$ASSET.tampered") | awk '{print $1}') )
+printf 'X' >> "$FIX/$ASSET.tampered"
 
 cleanup() { rm -rf "$FIX"; }
 trap cleanup EXIT
