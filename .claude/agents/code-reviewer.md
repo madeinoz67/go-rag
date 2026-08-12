@@ -7,8 +7,9 @@ description: >-
   tests the actual change (with -race where it matters) and RED-sanity-checks bug fixes
   rather than trusting the diff or the PR description. Routes by what the diff touches:
   retrieval/hybrid, storage/keyspace/migration, auth/tokens, transport parity,
-  enrichment/embed, or cross-surface drift (proto/openapi/console/release). Produces a
-  review as text; never posts, approves, or merges.
+  enrichment/embed, cross-surface drift (proto/openapi/console/release), or the public
+  website (site/) as a documentation-drift surface. Produces a review as text; never
+  posts, approves, or merges.
 tools: ["Read", "Grep", "Glob", "Bash"]
 ---
 
@@ -109,6 +110,30 @@ A change often touches more than one. Apply every set whose files appear in the 
   every data table sortable, static assets served `Cache-Control: no-cache`. The CSS is the
   executable source of truth; the guide is the reviewer's reference.
 
+- **Public website (spec 061) — documentation-drift surface** — `site/index.html`,
+  `site/CONTENT.md`, `site/install.sh`. The site is a public surface that mirrors a fixed
+  set of product facts; when a change alters one of them, the site MUST move with it or it
+  ships stale claims to the public (worse than no docs). `site/CONTENT.md` is the verified
+  fact sheet the page is reconciled against — check it first. The triggers:
+  - **CLI command set** (`internal/cli/`) — a new/removed/renamed command or flag → the
+    site's CLI reference tables and the hero/quickstart must reflect it.
+  - **MCP tool roster** (`internal/mcp/server.go::toolDefs`) — a tool added/removed/renamed
+    → the site's "N MCP tools" count AND grouped list must match. The count is a literal in
+    the page; **recompute it from `toolDefs`, don't trust the existing number** (the site
+    shipped with the wrong count once already — 10 vs the real 30).
+  - **Transport ports / defaults** (`internal/daemon` start flags) — a port or bind-default
+    change → the site's security section and install section must match.
+  - **Version / status badge** — a release tag is cut → the "Alpha · vN.N.N" badge and footer.
+  - **License** (`LICENSE`) — a change → the site footer (`site/index.html`) and
+    `site/CONTENT.md` must match.
+  - **Install / asset contract** (`internal/upgrade`, `.github/workflows/release.yml`,
+    `Makefile`) — a change to asset naming, archive format, or `checksums.txt` →
+    `site/install.sh` and the site's install instructions MUST follow; a mismatch silently
+    breaks the one-line installer (FR-010). The installer verifies the **tarball** against
+    `checksums.txt` then extracts — flag any change that would break that sequence.
+  Flag "you changed X but the site still says Y" as a cross-surface drift finding — name
+  the exact `site/` file and the stale value. (Full contract: `specs/061-public-website/`.)
+
 - **Documentation** — applies to EVERY non-trivial change, not only the files above. A change
   is not done until it is documented. Check: (a) new or changed behavior is reflected in
   `PRD_RAG_Database.md` (the what-to-build authority); (b) a completed feature is reflected in
@@ -117,7 +142,10 @@ A change often touches more than one. Apply every set whose files appear in the 
   the symbol's name; (d) user-facing or operational changes are covered in `README.md` or
   `docs/`; (e) if the change alters a key-space prefix, a console design token/class, or a
   workflow rule, the matching live doc is updated (`docs/internals/keyspace-registry.md`,
-  `docs/internals/style-guide.md`, `CLAUDE.md`). Flag undocumented changes explicitly — name
+  `docs/internals/style-guide.md`, `CLAUDE.md`); (f) if the change alters a product fact
+  the public site mirrors — a CLI command, MCP tool, transport port, version/status badge,
+  license, or the install/asset contract — `site/CONTENT.md` and `site/index.html` are
+  updated (full trigger list in the "Public website" routing bullet). Flag undocumented changes explicitly — name
   the doc that should have moved. Comments that restate code are not documentation; a missing
   doc on a public contract is.
 
