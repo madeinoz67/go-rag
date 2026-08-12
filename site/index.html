@@ -231,6 +231,14 @@
   footer a:hover{color:var(--ink);}
   .footer-bottom{display:flex; justify-content:space-between; align-items:center; padding-top:24px; border-top:1px solid var(--line); font-size:0.8125rem; color:var(--ink-soft); flex-wrap:wrap; gap:12px;}
 
+  /* ---------- advanced ---------- */
+  .adv-stack{display:flex; flex-direction:column; gap:24px;}
+  .adv-block{background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); padding:28px 32px;}
+  .adv-block h3{margin-bottom:10px; font-size:1.1875rem;}
+  .adv-block p{font-size:0.9375rem; margin-bottom:14px;}
+  .adv-block p code{font-family:var(--mono); background:var(--paper-alt); border:1px solid var(--line); border-radius:4px; padding:1px 5px; font-size:0.85em; color:var(--ink);}
+  pre.snippet{background:var(--code-bg); color:var(--code-ink); border-radius:8px; padding:12px 14px; font-family:var(--mono); font-size:0.8125rem; line-height:1.7; overflow-x:auto; margin:0;}
+
   @media (prefers-reduced-motion: reduce){
     html{scroll-behavior:auto;}
     .fusion-list li{transition:none;}
@@ -264,6 +272,7 @@
       <a href="#install">Install</a>
       <a href="#cli">CLI</a>
       <a href="#mcp">MCP</a>
+      <a href="#advanced">Advanced</a>
     </div>
     <div class="navcta">
       <a href="#install" class="btn btn-secondary" style="height:38px; padding:0 16px; font-size:0.875rem;">Install</a>
@@ -645,6 +654,58 @@ go install github.com/madeinoz67/go-rag/cmd/go-rag@latest</pre>
       <code>go-rag eval --benchmark scifact    # recall@k, MRR, NDCG@k
 go-rag eval-gen                          # emit candidate query→chunk pairs for triage</code>
       <p style="font-size:0.875rem; margin-top:14px;">The eval harness is the same one used to regression-test retrieval changes in CI — what you measure is what shipped.</p>
+    </div>
+  </div>
+</section>
+
+<section id="advanced">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">Advanced</div>
+      <h2>When you need more than the basics.</h2>
+      <p>A management console, container deployment, isolated vaults, alternative embeddings and enrichment, and a MuninnDB memory bridge — all opt-in, all local-first.</p>
+    </div>
+    <div class="adv-stack">
+
+      <div class="adv-block">
+        <h3>Management console</h3>
+        <p>A single-operator web UI — the fourth loopback transport at <code>127.0.0.1:7881</code>, Bearer-guarded. Browse and inspect documents, run queries with the full retrieval controls, triage injection-poisoned chunks, manage vaults, and read live observability — all from the browser. It starts with the daemon.</p>
+        <pre class="snippet">go-rag start   # console at http://127.0.0.1:7881</pre>
+      </div>
+
+      <div class="adv-block">
+        <h3>Docker</h3>
+        <p>A multi-arch distroless image (<code>linux/amd64</code> + <code>linux/arm64</code>), built on every release. The container runs the foreground daemon against a named volume; map the port to host loopback to keep the loopback-only posture.</p>
+        <pre class="snippet">docker pull ghcr.io/madeinoz67/go-rag
+docker run -d --name go-rag \
+  -p 127.0.0.1:7878:7878 \
+  -v go-rag-data:/data \
+  ghcr.io/madeinoz67/go-rag</pre>
+      </div>
+
+      <div class="adv-block">
+        <h3>Isolated vaults</h3>
+        <p>Multiple vaults in one Pebble store — each with its own config, embeddings, and indexes, isolated by key-space prefixes. One daemon serves them all; <code>--vault</code> targets a specific one per command. Clone, export, and import for backup or migration.</p>
+        <pre class="snippet">go-rag vault create work
+go-rag --vault work add ./work-docs/
+go-rag --vault work query "release process"</pre>
+      </div>
+
+      <div class="adv-block">
+        <h3>Embeddings &amp; enrichment</h3>
+        <p>A bundled pure-Go embedder works offline from the first run; point go-rag at a local Ollama when you want a different model. An embedding-drift monitor pins the profile a corpus was built under and fails loudly if it changes. Opt-in background enrichment (local model) writes auto-tags and per-document summaries to a sidecar — and the tags flow straight into the <code>--tags</code> filter.</p>
+        <pre class="snippet">go-rag model install   # fetch + verify the bundled model
+go-rag enrich          # back-fill tags + summaries (opt-in)</pre>
+      </div>
+
+      <div class="adv-block">
+        <h3>MuninnDB bridge</h3>
+        <p>Promote chunks into long-term memory — go-rag chunks become content-addressed engrams in a local <a href="https://github.com/scrypster/muninndb" style="color:var(--fusion); text-decoration:underline;">MuninnDB</a> vault, auto-backfilled when you enable it. It's opt-in, loopback-only, and never blocks a core operation; if MuninnDB is down, go-rag carries on unaffected.</p>
+        <pre class="snippet">export GORAG_BRIDGE_TOKEN=…
+go-rag bridge muninn init
+go-rag bridge muninn status</pre>
+      </div>
+
     </div>
   </div>
 </section>

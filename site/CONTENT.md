@@ -103,3 +103,24 @@ Do NOT ship the mockup's specific figures unverified.
 Person's side of the terminal ("you get source-cited results"). Name things by
 what they do ("your document vault", not "the Pebble-backed corpus"). Plain,
 active, unhurried. No exclamation points. No "supercharge/unlock/seamless".
+
+## Advanced surfaces (the site's "Advanced" section — verified commands)
+Each command below was verified against `bin/go-rag --help` on 2026-08-12. If a
+command/flag changes, the matching Advanced block on `site/index.html` must move
+(this is what the code-reviewer's "Public website" drift bullet checks).
+
+- **Management console** — 4th loopback transport, `127.0.0.1:7881`, Bearer-guarded
+  (spec 045/046). `go-rag start` serves it.
+- **Docker** — image `ghcr.io/madeinoz67/go-rag` (linux/amd64 + linux/arm64,
+  distroless/static, nonroot, spec 033). Container CMD = foreground `serve`
+  against `/data`; map `-p 127.0.0.1:7878:7878` to keep host loopback-only.
+- **Vaults** — `go-rag vault create|list|delete|clear|clone|export|import`; per
+  command `--vault <name>` (specs 002/052). One daemon, one Pebble store,
+  key-space isolation.
+- **Embeddings & enrichment** — `go-rag model install` (bundled pure-Go model,
+  spec 032); `go-rag enrich` (back-fill tags + summaries, opt-in, local model,
+  spec 029); embedding-drift monitor (pins profile, fails loudly). Ollama via
+  `go-rag init --ollama-url` / config (don't ship an unverified `config set` key).
+- **MuninnDB bridge** — `go-rag bridge muninn init` + `go-rag bridge muninn status`
+  (spec 060; note the nested `muninn` subcommand). Token = env `GORAG_BRIDGE_TOKEN`.
+  Opt-in, loopback-only, never blocks a core op, degrades safe when MuninnDB down.
