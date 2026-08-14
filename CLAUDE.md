@@ -169,7 +169,7 @@ transport. One Pebble writer; writes ACK on the durable store and embed async
 
 ## Console UI conventions
 
-The console's design system — color tokens, typography, spacing, component catalog, motion, z-index — is documented in `docs/internals/style-guide.md`. It is the canonical reference for any console UI change; the CSS in `internal/ui/web/static/css/` is the executable source of truth (when guide and CSS disagree, CSS wins). The rules below are go-rag-specific additions on top of that design system.
+The console's design system — color tokens, typography, spacing, component catalog, motion, z-index — is documented in `docs/internals/ui-style-guide.md`. It is the canonical reference for any console UI change; the CSS in `internal/ui/web/static/css/` is the executable source of truth (when guide and CSS disagree, CSS wins). The rules below are go-rag-specific additions on top of that design system.
 
 - **Every data table is sortable.** All data tables in the management console —
   old and new, current and future — MUST have sortable column headers on their
@@ -196,7 +196,7 @@ spec 045 auth) — see PRD §2.2 N7. Don't build the rest without revisiting the
 | Reference | What it holds |
 |-----------|---------------|
 | `docs/internals/keyspace-registry.md` | the Pebble prefix map — every allocated byte, vault-scoped vs global, reserved/free bytes, and the live reviewer hazards. Read before touching `internal/storage`. |
-| `docs/internals/style-guide.md` | the console UI design system — color tokens, typography, spacing, component catalog, motion, z-index. The canonical reference for any console UI change; the CSS in `internal/ui/web/static/css/` is the executable source of truth (when guide and CSS disagree, CSS wins). |
+| `docs/internals/ui-style-guide.md` | the console UI design system — color tokens, typography, spacing, component catalog, motion, z-index. The canonical reference for any console UI change; the CSS in `internal/ui/web/static/css/` is the executable source of truth (when guide and CSS disagree, CSS wins). |
 | `.specify/memory/constitution.md` | the five core principles, performance/reliability budgets, storage-discipline + schema-evolution rules. |
 | `docs/internals/PRD_RAG_Database.md` | product specification (what to build). |
 | `ISA.md` | project done-condition / system of record. |

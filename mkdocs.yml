@@ -64,7 +64,7 @@ nav:
   - Internals:
       - Product Spec (PRD): internals/PRD_RAG_Database.md
       - Keyspace Registry: internals/keyspace-registry.md
-      - Console Style Guide: internals/style-guide.md
+      - Console Style Guide: internals/ui-style-guide.md
       - Design - Auth Tokens: internals/design/auth-tokens.md
       - Design - Chunk Identity: internals/design/bl010-chunk-identity.md
       - Design - Engine Serialization: internals/design/engine-serialization.md

@@ -104,7 +104,7 @@ A change often touches more than one. Apply every set whose files appear in the 
 
 - **Console UI / design system** — `internal/ui/web/static/css/`, `internal/ui/web/templates/`,
   `internal/ui/web/static/js/`. Any console UI change MUST be checked against
-  `docs/internals/style-guide.md`: no new hex value (add a token in `theme.css` first), no
+  `docs/internals/ui-style-guide.md`: no new hex value (add a token in `theme.css` first), no
   drop shadow on a resting element, `--accent` only for active-tab/selected-vault (never a
   button/link), one primary button per view, a new z-index only at an existing scale layer,
   every data table sortable, static assets served `Cache-Control: no-cache`. The CSS is the
@@ -142,7 +142,7 @@ A change often touches more than one. Apply every set whose files appear in the 
   the symbol's name; (d) user-facing or operational changes are covered in `README.md` or
   `docs/`; (e) if the change alters a key-space prefix, a console design token/class, or a
   workflow rule, the matching live doc is updated (`docs/internals/keyspace-registry.md`,
-  `docs/internals/style-guide.md`, `CLAUDE.md`); (f) if the change alters a product fact
+  `docs/internals/ui-style-guide.md`, `CLAUDE.md`); (f) if the change alters a product fact
   the public site mirrors — a CLI command, MCP tool, transport port, version/status badge,
   license, or the install/asset contract — `site/CONTENT.md` and `site/index.html` are
   updated (full trigger list in the "Public website" routing bullet). Flag undocumented changes explicitly — name
