@@ -715,7 +715,7 @@ go-rag bridge muninn status</pre>
     <div>
       <div class="eyebrow">Security</div>
       <h2>Loopback-only, by default.</h2>
-      <p>go-rag never silently exposes your document vault to the network. Every transport binds to <code style="font-family:var(--mono); font-size:0.9em;">127.0.0.1</code> — reaching further requires an explicit, logged opt-in. Single-operator auth (API keys, admin user, sessions) is there when you need it.</p>
+      <p>go-rag never silently exposes your document vault to the network. Every transport binds to <code style="font-family:var(--mono); font-size:0.9em;">127.0.0.1</code> — reaching further requires an explicit, logged opt-in. Single-operator auth (API keys, admin user, sessions) is there when you need it. Found a vulnerability? <a href="https://github.com/madeinoz67/go-rag/security/advisories/new" style="color:var(--fusion); text-decoration:underline;">Report it privately</a>.</p>
     </div>
     <div class="sec-diagram" aria-label="Default loopback transports">
       <div class="port-row"><span class="proto">MCP</span><span class="addr">127.0.0.1:7878</span></div>
@@ -756,6 +756,7 @@ go-rag bridge muninn status</pre>
         <ul>
           <li><span class="badge badge-amber">Alpha · v0.3.3</span></li>
           <li><a href="https://github.com/madeinoz67/go-rag/releases">Releases</a></li>
+          <li><a href="https://github.com/madeinoz67/go-rag/blob/main/.github/SECURITY.md">Security policy</a></li>
           <li>License: MIT</li>
         </ul>
       </div>

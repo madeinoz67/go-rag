@@ -407,6 +407,9 @@ go-rag beyond loopback, front it with a TLS-terminating reverse proxy or tunnel.
 The default-close posture is deliberate: a frictionless local database should
 never silently expose your document vault to the network.
 
+Found a vulnerability? Please report it privately — see
+[SECURITY.md](./.github/SECURITY.md) for how, and for what's in scope.
+
 ## Deployment (Docker)
 
 go-rag ships as a static, CGO-free binary in a minimal distroless image, with a
