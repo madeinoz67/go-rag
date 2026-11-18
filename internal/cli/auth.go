@@ -230,7 +230,9 @@ func newAuthCreateCmd() *cobra.Command {
 			fmt.Println("  " + display)
 			safeLabel := strings.ReplaceAll(key.Label, "\n", "")
 			safeLabel = strings.ReplaceAll(safeLabel, "\r", "")
-			fmt.Printf("  id: %s  label: %q  mode: %s\n", key.ID, safeLabel, key.Mode)
+			safeMode := strings.ReplaceAll(key.Mode, "\n", "")
+			safeMode = strings.ReplaceAll(safeMode, "\r", "")
+			fmt.Printf("  id: %s  label: %q  mode: %s\n", key.ID, safeLabel, safeMode)
 			return nil
 		},
 	}
