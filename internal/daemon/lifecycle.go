@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -62,12 +63,16 @@ func Start(dbPath string, addrs Addrs) error {
 	}
 	if err := cmd.Start(); err != nil {
 		if lf != nil {
-			lf.Close()
+			if cerr := lf.Close(); cerr != nil {
+				log.Printf("close daemon log file: %v", cerr)
+			}
 		}
 		return fmt.Errorf("failed to start daemon: %w", err)
 	}
 	if lf != nil {
-		lf.Close()
+		if err := lf.Close(); err != nil {
+			log.Printf("close daemon log file: %v", err)
+		}
 	}
 	if err := WritePID(dbPath, cmd.Process.Pid); err != nil {
 		return fmt.Errorf("write pid: %w", err)

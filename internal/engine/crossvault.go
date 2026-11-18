@@ -259,7 +259,7 @@ func (e *Engine) crossVaultQuery(ctx context.Context, req QueryRequest, effK, ef
 				ss[i] = scored{h, scores[i]}
 			}
 			sort.Slice(ss, func(i, j int) bool { return ss[i].s > ss[j].s })
-			reranked := make([]index.Hit, 0, effK)
+			reranked := make([]index.Hit, 0, len(ss))
 			for i := 0; i < effK && i < len(ss); i++ {
 				ss[i].hit.Score = ss[i].s
 				reranked = append(reranked, ss[i].hit)

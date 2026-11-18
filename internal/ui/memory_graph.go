@@ -78,7 +78,7 @@ func (s *Server) handleMemoryGraphBrowse(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusOK, memoryGraphBrowseResponse{Vault: br.TargetVault(), Degraded: true})
 		return
 	}
-	rows := make([]memoryGraphBrowseRow, 0, limit)
+	var rows []memoryGraphBrowseRow
 	for a := range stream {
 		rows = append(rows, memoryGraphBrowseRow{
 			EngramID: a.EngramID, Concept: a.Concept, Score: a.Score,

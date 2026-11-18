@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -262,7 +263,9 @@ func newServeCmd(version string) *cobra.Command {
 			first := <-errCh
 			stopAll()
 			for i := 1; i < n; i++ {
-				<-errCh
+				if err := <-errCh; err != nil {
+					log.Printf("serve: drained listener exit: %v", err)
+				}
 			}
 
 			// http.ErrServerClosed is the expected clean-shutdown return; a real

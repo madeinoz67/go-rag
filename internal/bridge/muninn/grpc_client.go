@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net"
 	"sync/atomic"
 	"time"
@@ -137,6 +138,9 @@ func (g *grpcClient) Read(ctx context.Context, vault, id string) (*Engram, error
 // final sentinel on a separate path — callers draining to completion treat close
 // as "done"). ctx cancellation aborts the stream.
 func (g *grpcClient) Activate(ctx context.Context, vault string, phrases []string, limit int) (<-chan Activation, error) {
+	if limit > math.MaxInt32 || limit < math.MinInt32 {
+		return nil, fmt.Errorf("limit %d out of range for MaxResults", limit)
+	}
 	stream, err := g.raw.Activate(ctx, &pb.ActivateRequest{
 		Context: phrases, Vault: vault, MaxResults: int32(limit),
 	}, grpc.WaitForReady(true))

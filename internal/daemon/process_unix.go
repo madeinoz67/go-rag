@@ -3,6 +3,7 @@
 package daemon
 
 import (
+	"log"
 	"os"
 	"os/exec"
 	"syscall"
@@ -41,7 +42,11 @@ func isPebbleLockHeld(lockPath string) bool {
 	if err != nil {
 		return false
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Printf("close pebble lock probe %s: %v", lockPath, err)
+		}
+	}()
 	spec := syscall.Flock_t{Type: syscall.F_WRLCK, Whence: 0, Start: 0, Len: 0}
 	if err := syscall.FcntlFlock(f.Fd(), syscall.F_SETLK, &spec); err != nil {
 		return true // another process holds the lock

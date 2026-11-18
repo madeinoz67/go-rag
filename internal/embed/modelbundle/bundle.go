@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -224,10 +225,14 @@ func fetchAndExtract(ctx context.Context, url, dest string) error {
 				return err
 			}
 			if _, err := io.Copy(f, tr); err != nil {
-				f.Close()
+				if cerr := f.Close(); cerr != nil {
+					return errors.Join(err, fmt.Errorf("close %s: %w", target, cerr))
+				}
 				return err
 			}
-			f.Close()
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("close %s: %w", target, err)
+			}
 		}
 	}
 	return nil

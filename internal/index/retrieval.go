@@ -297,7 +297,7 @@ func (r *Retrieval) attemptRerank(ctx context.Context, query string, k int, mode
 	}
 	sort.Slice(ss, func(i, j int) bool { return ss[i].score > ss[j].score })
 
-	out := make([]Hit, 0, k)
+	out := make([]Hit, 0, len(ss))
 	for i := 0; i < k && i < len(ss); i++ {
 		ss[i].hit.Score = ss[i].score
 		out = append(out, ss[i].hit)

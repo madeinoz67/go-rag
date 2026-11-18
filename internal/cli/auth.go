@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -227,7 +228,9 @@ func newAuthCreateCmd() *cobra.Command {
 			}
 			fmt.Println("Created API key — copy the secret now, it will not be shown again:")
 			fmt.Println("  " + display)
-			fmt.Printf("  id: %s  label: %q  mode: %s\n", key.ID, key.Label, key.Mode)
+			safeLabel := strings.ReplaceAll(key.Label, "\n", "")
+			safeLabel = strings.ReplaceAll(safeLabel, "\r", "")
+			fmt.Printf("  id: %s  label: %q  mode: %s\n", key.ID, safeLabel, key.Mode)
 			return nil
 		},
 	}
