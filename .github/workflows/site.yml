@@ -35,7 +35,7 @@ jobs:
     name: shellcheck + smoke (gates the deploy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: shellcheck install.sh + smoke harness (POSIX sh)
@@ -67,7 +67,7 @@ jobs:
           - os: ubuntu-latest
             shells: linux-amd64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Installer smoke harness (offline fixtures)
         run: sh site/test/install_smoke.sh all
 
@@ -76,7 +76,7 @@ jobs:
     needs: [gate, smoke-matrix]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup Pages
         uses: actions/configure-pages@v6
       - name: Upload site/ as the Pages artifact
