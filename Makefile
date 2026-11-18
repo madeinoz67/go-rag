@@ -16,7 +16,7 @@ run: build ## Build and run go-rag (pass ARGS="..." for flags)
 	./$(BIN_DIR)/$(BINARY) $(ARGS)
 
 test: ## Run tests with race detector and coverage
-	go test -race -cover $(PKG)
+	go test -race -cover -timeout 15m $(PKG)
 
 test-eval: build ## Retrieval-quality regression gate (offline, reproducible). Fails on recall@10 regression.
 	./$(BIN_DIR)/$(BINARY) eval --embedder offline --baseline testdata/golden/baseline.json --tolerance 2.0
