@@ -7,7 +7,7 @@ require (
 	github.com/dchest/siphash v1.0.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/knights-analytics/hugot v0.7.5
-	github.com/pdfcpu/pdfcpu v0.13.0
+	github.com/pdfcpu/pdfcpu v0.16.4
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.3
 	github.com/spf13/cobra v1.10.2
@@ -52,15 +52,13 @@ require (
 	github.com/gomlx/onnx-gomlx v0.4.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
-	github.com/hhrutter/lzw v1.0.0 // indirect
-	github.com/hhrutter/pkcs7 v0.2.2 // indirect
-	github.com/hhrutter/tiff v1.0.3 // indirect
+	github.com/hhrutter/tiff v1.0.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.18.7 // indirect
 	github.com/knights-analytics/ortgenai v0.3.1 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/mattn/go-runewidth v0.0.24 // indirect
+	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
@@ -70,14 +68,16 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/viant/afs v1.30.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/yalue/onnxruntime_go v1.31.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.47.0 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20260603202125-055de637280b // indirect
-	golang.org/x/image v0.43.0 // indirect
+	golang.org/x/image v0.47.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
@@ -85,6 +85,5 @@ require (
 	golang.org/x/text v0.44.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 )
