@@ -2,7 +2,7 @@
 # Multi-stage build — go-rag is a static, CGO-free binary (PRD §9.5).
 
 # ---- build stage ----
-FROM golang:1.26-alpine AS builder
+FROM golang:1.27-alpine AS builder
 WORKDIR /src
 
 # Cache deps: copy manifests first (go.sum may be absent on first build).
