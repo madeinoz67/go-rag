@@ -1,6 +1,6 @@
 module github.com/madeinoz67/go-rag
 
-go 1.27.0
+go 1.27.4
 
 require (
 	github.com/cockroachdb/pebble v1.1.5
