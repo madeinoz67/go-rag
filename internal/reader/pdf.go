@@ -32,13 +32,13 @@ func (r *PDFReader) Read(_ context.Context, data []byte, _ string) (string, map[
 	// the parser's flat text as the page text + font-size heading detection — the
 	// flat IS the page text, so font-size frag offsets index it directly (no offset
 	// hazard). Bookmarks win when present (the high-precision signal).
-	bms, _ := api.Bookmarks(bytes.NewReader(data), nil)
+	bms, _ := api.Bookmarks(context.Background(), bytes.NewReader(data), nil)
 	hasBookmarks := len(bms) > 0
 
 	pageText := map[int]string{}            // pdfcpu page number -> extracted text
 	pageFrags := map[int][]positionedText{} // outline-less non-table pages (for font-size)
 	pageCands := map[int][]tableCandidate{} // spec 031 T018: tables per page (cross-page continuation)
-	if err := api.ExtractContent(rs, nil, func(rd io.Reader, page int) error {
+	if err := api.ExtractContent(context.Background(), rs, nil, func(rd io.Reader, page int) error {
 		var b bytes.Buffer
 		if _, e := io.Copy(&b, rd); e != nil {
 			return e
@@ -111,7 +111,7 @@ func (r *PDFReader) Read(_ context.Context, data []byte, _ string) (string, map[
 // when no images are present (graceful — images are optional). The reader makes
 // NO model calls; bytes never persist (the pipeline discards them after captioning).
 func extractPDFImages(data []byte) []ImageRef {
-	rawImgs, err := api.ExtractImagesRaw(bytes.NewReader(data), nil, nil)
+	rawImgs, err := api.ExtractImagesRaw(context.Background(), bytes.NewReader(data), nil, nil)
 	if err != nil {
 		return nil
 	}
@@ -311,7 +311,7 @@ func populatePDFMetadata(data []byte, md map[string]any) {
 	// "Properties" for custom document-info keys and excludes the standard Info
 	// dict fields; PDFInfo returns Title/Author/Subject/Keywords directly (spec
 	// 031 research.md, T002 spike). Unreadable -> properties gracefully absent.
-	info, err := api.PDFInfo(bytes.NewReader(data), "", nil, false, nil)
+	info, err := api.PDFInfo(context.Background(), bytes.NewReader(data), "", nil, false, nil)
 	if err != nil || info == nil {
 		return
 	}

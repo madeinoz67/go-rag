@@ -79,7 +79,7 @@ func TestPDFReader_BookmarkHeadings(t *testing.T) {
 			{Title: "Discussion", PageFrom: 3},
 		}},
 	}
-	if err := api.AddBookmarks(bytes.NewReader(base), &out, bms, true, nil); err != nil {
+	if err := api.AddBookmarks(context.Background(), bytes.NewReader(base), &out, bms, true, nil); err != nil {
 		t.Fatalf("AddBookmarks: %v", err)
 	}
 	r := &PDFReader{}
