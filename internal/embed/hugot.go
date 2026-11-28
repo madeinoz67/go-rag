@@ -48,7 +48,7 @@ func (h *HugotEmbedder) ensure() error {
 			h.initErr = fmt.Errorf("gomlx session: %w", err)
 			return
 		}
-		pipe, err := hugot.NewPipeline[*pipelines.FeatureExtractionPipeline](s, hugot.FeatureExtractionConfig{
+		pipe, err := s.NewPipeline(hugot.FeatureExtractionConfig{
 			ModelPath:    modelPath,
 			Name:         "gorag-default",
 			OnnxFilename: modelbundle.ModelFilename,
