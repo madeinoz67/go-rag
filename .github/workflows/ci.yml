@@ -35,10 +35,11 @@ jobs:
         with:
           # @v7 is required for golangci-lint v2: @v6 is v1-only (which is why
           # `version: latest` previously resolved to the ancient v1.64.8, built
-          # with go1.24 — it can't load config for the 1.26.4 target). v2.12.2
-          # is built with go1.26.2 and lints go1.26.4 cleanly. Bump this pin
-          # alongside go.mod's `go` directive.
-          version: v2.12.2
+          # with go1.24 — it can't load config for the 1.26.4 target). v2.15.0
+          # is built with go1.27.0: it lints the 1.27 target and older modules
+          # (a 1.26-built linter refuses a 1.27 target). Bump this pin alongside
+          # go.mod's `go` directive.
+          version: v2.15.0
 
       - name: govulncheck
         run: |
