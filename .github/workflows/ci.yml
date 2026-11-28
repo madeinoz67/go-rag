@@ -31,7 +31,7 @@ jobs:
         run: go test -race -cover -timeout 15m ./...
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v9
         with:
           # @v7 is required for golangci-lint v2: @v6 is v1-only (which is why
           # `version: latest` previously resolved to the ancient v1.64.8, built
