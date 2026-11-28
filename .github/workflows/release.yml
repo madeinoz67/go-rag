@@ -55,7 +55,7 @@ jobs:
             tar -czf "go-rag-${v}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" -C out .
           fi
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: go-rag-${{ matrix.goos }}-${{ matrix.goarch }}
           path: go-rag-*-${{ matrix.goos }}-${{ matrix.goarch }}.*
